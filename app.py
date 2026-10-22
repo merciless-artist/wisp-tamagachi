@@ -18,7 +18,7 @@ from wisp.lines import LinePicker
 
 log = logging.getLogger("wisp")
 
-EXTENSIONS: tuple[str, ...] = ()
+EXTENSIONS: tuple[str, ...] = ("cogs.studio",)
 
 _MESSAGE_LIMIT = 2000
 _USER_ERROR = "Something went wrong. Staff have been told."
@@ -37,10 +37,15 @@ class WispTree(app_commands.CommandTree["WispBot"]):
         interaction: discord.Interaction["WispBot"],
         error: app_commands.AppCommandError,
     ) -> None:
-        """Refuse failed checks politely; otherwise apologise and report to staff."""
+        """Refuse failed checks politely; otherwise apologise and report to staff.
+
+        A bot that lacks permissions is a fault staff must fix, not a refusal.
+        """
         command = interaction.command
         context = f"/{command.qualified_name}" if command else "an interaction"
-        if isinstance(error, app_commands.CheckFailure):
+        if isinstance(error, app_commands.CheckFailure) and not isinstance(
+            error, app_commands.BotMissingPermissions
+        ):
             await self._reply(interaction, _REFUSAL, context)
             return
         cause = (

@@ -294,6 +294,22 @@ async def test_check_failure_is_refused_not_reported(
     bot.report_error.assert_not_awaited()
 
 
+async def test_missing_bot_permissions_is_a_bot_fault_not_a_refusal(
+    bot: app.WispBot,
+) -> None:
+    guild = make_guild(None)
+    interaction = make_interaction(False, guild)
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    error = app_commands.BotMissingPermissions(["manage_threads"])
+
+    await bot.tree.on_error(interaction, error)
+
+    interaction.response.send_message.assert_awaited_once_with(
+        "Something went wrong. Staff have been told.", ephemeral=True
+    )
+    bot.report_error.assert_awaited_once_with(guild, "/wisp feed", error)
+
+
 # ---
 # Per-guild locks
 # ---
