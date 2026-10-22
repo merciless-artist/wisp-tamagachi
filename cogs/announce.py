@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
+from cogs.studio import StudioError, studio_thread
 from wisp.life import Event, EventKind, Life, is_over, mood, new_egg
 from wisp.lines import FIELDS, Moment
 
@@ -144,3 +145,70 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         await house.say(_line(bot, moment, life, event), _image_for(event))
         if event.kind in _ENDINGS:
             await _lay_next_egg(bot, guild_id, house)
+
+
+# ---
+# Pinned messages
+# ---
+
+
+async def show_in_thread(
+    bot: "WispBot",
+    guild_id: int,
+    thread_attr: str,
+    message_attr: str,
+    content: str,
+    label: str,
+) -> None:
+    """Keep one pinned message in a Studio thread showing `content`.
+
+    Args:
+        bot: The running bot.
+        guild_id: The guild whose Studio to use.
+        thread_attr: The Settings field of the thread, such as "status_thread_id".
+        message_attr: The Settings field of the message, such as
+            "status_message_id".
+        content: The message text.
+        label: What the message is, for error reports ("status card").
+
+    The stored message is edited. If it is gone, a new one is posted, pinned and
+    stored. A failure is reported to staff once per streak of failures and never
+    raised, so one broken display cannot stop the rest of a tick.
+    """
+    key = (guild_id, message_attr)
+    try:
+        await _show(bot, guild_id, thread_attr, message_attr, content, label)
+    except (discord.DiscordException, StudioError) as error:
+        if key not in bot.failing_displays:
+            bot.failing_displays.add(key)
+            await bot.report_error(
+                bot.get_guild(guild_id), f"updating the {label}", error
+            )
+    else:
+        bot.failing_displays.discard(key)
+
+
+async def _show(
+    bot: "WispBot",
+    guild_id: int,
+    thread_attr: str,
+    message_attr: str,
+    content: str,
+    label: str,
+) -> None:
+    thread = await studio_thread(bot, guild_id, thread_attr)
+    message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
+    if message_id is not None:
+        try:
+            await thread.get_partial_message(message_id).edit(
+                content=content, allowed_mentions=_NO_PING
+            )
+            return
+        except discord.NotFound:
+            pass
+    posted = await thread.send(content, allowed_mentions=_NO_PING)
+    await bot.settings.update(guild_id, **{message_attr: posted.id})
+    try:
+        await posted.pin()
+    except discord.HTTPException as error:
+        await bot.report_error(bot.get_guild(guild_id), f"pinning the {label}", error)

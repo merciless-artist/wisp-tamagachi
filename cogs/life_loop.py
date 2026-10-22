@@ -2,14 +2,13 @@
 
 import asyncio
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 import discord
 import pymysql
 from discord.ext import commands, tasks
 
-from cogs.announce import post_events, say_in_house
-from cogs.studio import StudioError, studio_thread
+from cogs.announce import post_events, say_in_house, show_in_thread
 from wisp.bond import happiness
 from wisp.card import render_status
 from wisp.life import Event, Life, Phase, is_over, new_egg, tick
@@ -18,8 +17,6 @@ from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
-
-_NO_PING: Final = discord.AllowedMentions.none()
 
 # ---
 # Loop
@@ -32,7 +29,6 @@ class LifeLoop(commands.Cog):
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
         self._quiet_announced: set[int] = set()
-        self._card_failing: set[int] = set()
 
     async def cog_load(self) -> None:
         """Start ticking."""
@@ -145,10 +141,7 @@ class LifeLoop(commands.Cog):
     async def _update_card(
         self, guild_id: int, life: Life, now: datetime, happy: int
     ) -> None:
-        """Edit the pinned status card, or post and pin a new one if it is gone.
-
-        A failure is reported once per streak of failing ticks.
-        """
+        """Show the live status card in the Status thread."""
         if is_over(life):
             return
         bot = self.bot
@@ -159,42 +152,9 @@ class LifeLoop(commands.Cog):
             happiness=happy,
             fed_today=await bot.activity_log.people_since(guild_id, today),
         )
-        try:
-            await self._show_card(guild_id, text)
-        except (discord.DiscordException, StudioError) as error:
-            if guild_id not in self._card_failing:
-                self._card_failing.add(guild_id)
-                await bot.report_error(
-                    bot.get_guild(guild_id), "updating the status card", error
-                )
-        else:
-            self._card_failing.discard(guild_id)
-
-    async def _show_card(self, guild_id: int, text: str) -> None:
-        thread = await studio_thread(self.bot, guild_id, "status_thread_id")
-        message_id = (await self.bot.settings.get(guild_id)).status_message_id
-        if message_id is not None:
-            try:
-                await thread.get_partial_message(message_id).edit(
-                    content=text, allowed_mentions=_NO_PING
-                )
-                return
-            except discord.NotFound:
-                pass
-        await self._post_card(guild_id, thread, text)
-
-    async def _post_card(
-        self, guild_id: int, thread: discord.Thread, text: str
-    ) -> None:
-        """Post a new status card, remember it and pin it."""
-        card = await thread.send(text, allowed_mentions=_NO_PING)
-        await self.bot.settings.update(guild_id, status_message_id=card.id)
-        try:
-            await card.pin()
-        except discord.HTTPException as error:
-            await self.bot.report_error(
-                self.bot.get_guild(guild_id), "pinning the status card", error
-            )
+        await show_in_thread(
+            bot, guild_id, "status_thread_id", "status_message_id", text, "status card"
+        )
 
 
 async def setup(bot: "WispBot") -> None:

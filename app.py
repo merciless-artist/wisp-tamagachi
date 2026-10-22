@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
+from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
 from db.lives import LifeRepo
@@ -99,10 +100,15 @@ class WispBot(commands.Bot):
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()
+        self.failing_displays: set[tuple[int, str]] = set()
         self._guild_locks: dict[int, asyncio.Lock] = {}
 
     async def setup_hook(self) -> None:
-        """Connect storage, fetch emojis, load the cogs and sync the commands."""
+        """Connect storage, fetch emojis, load the cogs and sync the commands.
+
+        The cogs attach their commands to the shared groups as they load, so the
+        groups join the command tree only once all of them are in.
+        """
         await self.db.connect()
         await create_tables(self.db)
         log.info("Database ready")
@@ -114,6 +120,8 @@ class WispBot(commands.Bot):
                 await self.load_extension(extension)
             except commands.ExtensionError as error:
                 await self.report_error(None, f"loading {extension}", error)
+        self.tree.add_command(wisp)
+        self.tree.add_command(wispadmin)
         synced = await self.tree.sync()
         log.info("Synced %d commands", len(synced))
 

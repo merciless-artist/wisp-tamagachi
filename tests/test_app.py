@@ -8,6 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import app
+from cogs import groups
 from db.settings import Settings
 
 
@@ -356,7 +357,14 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
     monkeypatch.setattr(bot.db, "connect", connect)
     monkeypatch.setattr(bot, "fetch_application_emojis", fetch_emojis)
     monkeypatch.setattr(bot, "load_extension", load_extension)
+    add_command = bot.tree.add_command
+
+    def record_add_command(command: app_commands.Group, **kwargs: object) -> None:
+        calls.append(f"add {command.name}")
+        add_command(command, **kwargs)  # type: ignore[arg-type]
+
     monkeypatch.setattr(bot.tree, "sync", sync)
+    monkeypatch.setattr(bot.tree, "add_command", record_add_command)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
 
     await bot.setup_hook()
@@ -367,8 +375,12 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
         "emojis",
         "load cogs.broken",
         "load cogs.fine",
+        "add wisp",
+        "add wispadmin",
         "sync",
     ]
+    assert bot.tree.get_command("wisp") is groups.wisp
+    assert bot.tree.get_command("wispadmin") is groups.wispadmin
     assert bot.emojis_by_name == {"a": emoji}
     bot.report_error.assert_awaited_once()
     call = bot.report_error.await_args

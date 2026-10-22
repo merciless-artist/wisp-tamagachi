@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 from discord import app_commands
-from discord.ext import commands
 
+from cogs.groups import wispadmin
 from db.settings import Settings
 from wisp import rules
 from wisp.links import TrackKind
@@ -315,140 +315,127 @@ def _guild_id(interaction: discord.Interaction["WispBot"]) -> int:
     return interaction.guild_id
 
 
-class Studio(commands.Cog):
-    """The /wispadmin commands: Studio setup, qualifying roles and the freeze."""
+roles = app_commands.Group(
+    name="roles", description="Roles that can feed Wisp.", parent=wispadmin
+)
 
-    def __init__(self, bot: "WispBot") -> None:
-        self.bot = bot
 
-    wispadmin = app_commands.Group(
-        name="wispadmin",
-        description="Staff settings for Wisp.",
-        guild_only=True,
-        default_permissions=discord.Permissions(manage_guild=True),
-        allowed_contexts=app_commands.AppCommandContext(
-            guild=True, dm_channel=False, private_channel=False
+@wispadmin.command(name="setup", description="Set Wisp's channels and Studio.")
+@app_commands.describe(
+    house="Where Wisp talks and announces his big moments",
+    studio="The forum for Wisp's Studio threads",
+    tracks="The track drop channel Wisp eats from",
+    errors="Where Wisp reports errors to staff",
+)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def setup_studio(
+    interaction: discord.Interaction["WispBot"],
+    house: discord.TextChannel,
+    studio: discord.ForumChannel,
+    tracks: discord.TextChannel | discord.ForumChannel,
+    errors: discord.TextChannel,
+) -> None:
+    """Save the channels, then create whichever Studio threads are missing."""
+    bot = interaction.client
+    guild_id = _guild_id(interaction)
+    await interaction.response.defer(ephemeral=True)
+    before = await bot.settings.get(guild_id)
+    await bot.settings.update(
+        guild_id,
+        house_channel_id=house.id,
+        studio_forum_id=studio.id,
+        tracks_channel_id=tracks.id,
+        error_channel_id=errors.id,
+    )
+    try:
+        after = await ensure_studio(bot, guild_id)
+    except StudioError as error:
+        await interaction.followup.send(str(error), ephemeral=True)
+        return
+    created = [
+        spec.name
+        for spec in STUDIO_THREADS
+        if getattr(before, spec.attr) != getattr(after, spec.attr)
+    ]
+    threads = (
+        f"Created threads: {', '.join(created)}"
+        if created
+        else "Studio threads: all six already exist"
+    )
+    await interaction.followup.send(
+        "\n".join(
+            [
+                "♪ Wisp is set up.",
+                f"・Wisp's House: {house.mention}",
+                f"・Wisp's Studio: {studio.mention}",
+                f"・Track drop: {tracks.mention}",
+                f"・Errors: {errors.mention}",
+                f"・{threads}",
+            ]
         ),
-        allowed_installs=app_commands.AppInstallationType(guild=True, user=False),
-    )
-    roles = app_commands.Group(
-        name="roles",
-        description="Roles that can feed Wisp.",
-        parent=wispadmin,
+        ephemeral=True,
     )
 
-    @wispadmin.command(name="setup", description="Set Wisp's channels and Studio.")
-    @app_commands.describe(
-        house="Where Wisp talks and announces his big moments",
-        studio="The forum for Wisp's Studio threads",
-        tracks="The track drop channel Wisp eats from",
-        errors="Where Wisp reports errors to staff",
+
+@roles.command(name="add", description="Let a role's members feed Wisp.")
+@app_commands.describe(role="The role to add")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def roles_add(
+    interaction: discord.Interaction["WispBot"], role: discord.Role
+) -> None:
+    """Add a qualifying role."""
+    await interaction.client.settings.add_role(_guild_id(interaction), role.id)
+    await interaction.response.send_message(
+        f"♪ {role.mention} can now feed Wisp.", ephemeral=True
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def setup_studio(
-        self,
-        interaction: discord.Interaction["WispBot"],
-        house: discord.TextChannel,
-        studio: discord.ForumChannel,
-        tracks: discord.TextChannel | discord.ForumChannel,
-        errors: discord.TextChannel,
-    ) -> None:
-        """Save the channels, then create whichever Studio threads are missing."""
-        guild_id = _guild_id(interaction)
-        await interaction.response.defer(ephemeral=True)
-        before = await self.bot.settings.get(guild_id)
-        await self.bot.settings.update(
-            guild_id,
-            house_channel_id=house.id,
-            studio_forum_id=studio.id,
-            tracks_channel_id=tracks.id,
-            error_channel_id=errors.id,
-        )
-        try:
-            after = await ensure_studio(self.bot, guild_id)
-        except StudioError as error:
-            await interaction.followup.send(str(error), ephemeral=True)
-            return
-        created = [
-            spec.name
-            for spec in STUDIO_THREADS
-            if getattr(before, spec.attr) != getattr(after, spec.attr)
-        ]
-        threads = (
-            f"Created threads: {', '.join(created)}"
-            if created
-            else "Studio threads: all six already exist"
-        )
-        await interaction.followup.send(
-            "\n".join(
-                [
-                    "♪ Wisp is set up.",
-                    f"・Wisp's House: {house.mention}",
-                    f"・Wisp's Studio: {studio.mention}",
-                    f"・Track drop: {tracks.mention}",
-                    f"・Errors: {errors.mention}",
-                    f"・{threads}",
-                ]
-            ),
-            ephemeral=True,
-        )
 
-    @roles.command(name="add", description="Let a role's members feed Wisp.")
-    @app_commands.describe(role="The role to add")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def roles_add(
-        self, interaction: discord.Interaction["WispBot"], role: discord.Role
-    ) -> None:
-        """Add a qualifying role."""
-        await self.bot.settings.add_role(_guild_id(interaction), role.id)
-        await interaction.response.send_message(
-            f"♪ {role.mention} can now feed Wisp.", ephemeral=True
-        )
 
-    @roles.command(name="remove", description="Stop a role's members feeding Wisp.")
-    @app_commands.describe(role="The role to remove")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def roles_remove(
-        self, interaction: discord.Interaction["WispBot"], role: discord.Role
-    ) -> None:
-        """Remove a qualifying role."""
-        await self.bot.settings.remove_role(_guild_id(interaction), role.id)
-        await interaction.response.send_message(
-            f"♪ {role.mention} no longer feeds Wisp.", ephemeral=True
-        )
+@roles.command(name="remove", description="Stop a role's members feeding Wisp.")
+@app_commands.describe(role="The role to remove")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def roles_remove(
+    interaction: discord.Interaction["WispBot"], role: discord.Role
+) -> None:
+    """Remove a qualifying role."""
+    await interaction.client.settings.remove_role(_guild_id(interaction), role.id)
+    await interaction.response.send_message(
+        f"♪ {role.mention} no longer feeds Wisp.", ephemeral=True
+    )
 
-    @roles.command(name="list", description="Show the roles that can feed Wisp.")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def roles_list(self, interaction: discord.Interaction["WispBot"]) -> None:
-        """List the qualifying roles."""
-        role_ids = await self.bot.settings.roles(_guild_id(interaction))
-        if role_ids:
-            mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
-            text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
-        else:
-            text = "♪ No qualifying roles yet. Add one with /wispadmin roles add."
-        await interaction.response.send_message(text, ephemeral=True)
 
-    @wispadmin.command(name="freeze", description="Pause Wisp's care draining.")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def freeze(self, interaction: discord.Interaction["WispBot"]) -> None:
-        """Freeze Wisp so his care stops draining."""
-        await self.bot.settings.update(_guild_id(interaction), frozen=True)
-        await interaction.response.send_message(
-            "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
-            ephemeral=True,
-        )
+@roles.command(name="list", description="Show the roles that can feed Wisp.")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def roles_list(interaction: discord.Interaction["WispBot"]) -> None:
+    """List the qualifying roles."""
+    role_ids = await interaction.client.settings.roles(_guild_id(interaction))
+    if role_ids:
+        mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
+        text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
+    else:
+        text = "♪ No qualifying roles yet. Add one with /wispadmin roles add."
+    await interaction.response.send_message(text, ephemeral=True)
 
-    @wispadmin.command(name="unfreeze", description="Let Wisp's care drain again.")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def unfreeze(self, interaction: discord.Interaction["WispBot"]) -> None:
-        """Unfreeze Wisp so his care drains normally."""
-        await self.bot.settings.update(_guild_id(interaction), frozen=False)
-        await interaction.response.send_message(
-            "♪ Wisp is unfrozen. His care drains normally again.", ephemeral=True
-        )
+
+@wispadmin.command(name="freeze", description="Pause Wisp's care draining.")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def freeze(interaction: discord.Interaction["WispBot"]) -> None:
+    """Freeze Wisp so his care stops draining."""
+    await interaction.client.settings.update(_guild_id(interaction), frozen=True)
+    await interaction.response.send_message(
+        "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
+        ephemeral=True,
+    )
+
+
+@wispadmin.command(name="unfreeze", description="Let Wisp's care drain again.")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def unfreeze(interaction: discord.Interaction["WispBot"]) -> None:
+    """Unfreeze Wisp so his care drains normally."""
+    await interaction.client.settings.update(_guild_id(interaction), frozen=False)
+    await interaction.response.send_message(
+        "♪ Wisp is unfrozen. His care drains normally again.", ephemeral=True
+    )
 
 
 async def setup(bot: "WispBot") -> None:
-    """Load the Studio cog."""
-    await bot.add_cog(Studio(bot))
+    """Load the Studio extension; its commands join the shared groups on import."""
