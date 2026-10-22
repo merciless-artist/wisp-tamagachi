@@ -12,6 +12,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 from discord import app_commands
 
@@ -21,7 +22,7 @@ from cogs.lunchbox import FeedButton, feed_view
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.lives import LifeRepo
-from db.players import PlayerRepo
+from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
@@ -103,9 +104,12 @@ def make_interaction(
     interaction.user.display_name = display_name
     interaction.response = MagicMock()
     interaction.response.is_done.return_value = False
-    interaction.response.defer = AsyncMock()
-    interaction.response.send_message = AsyncMock()
-    interaction.response.edit_message = AsyncMock()
+
+    async def answer(*_args: Any, **_kwargs: Any) -> None:
+        interaction.response.is_done.return_value = True
+
+    interaction.response.defer = AsyncMock(side_effect=answer)
+    interaction.response.send_message = AsyncMock(side_effect=answer)
     interaction.edit_original_response = AsyncMock()
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
@@ -174,7 +178,7 @@ async def open_feeding(
 ) -> tuple[MagicMock, discord.ui.Select[Any]]:
     interaction = make_interaction(bot, user_id)
     await FeedButton().callback(interaction)
-    select = interaction.response.send_message.await_args.kwargs["view"].children[0]
+    select = interaction.followup.send.await_args.kwargs["view"].children[0]
     return interaction, select
 
 
@@ -194,7 +198,6 @@ def reply_text(interaction: MagicMock) -> str:
     """The text of the one ephemeral reply the interaction ended with."""
     for method in (
         interaction.edit_original_response,
-        interaction.response.edit_message,
         interaction.response.send_message,
         interaction.followup.send,
     ):
@@ -285,7 +288,9 @@ async def test_buy_spends_balance_not_lifetime(bot: app.WispBot) -> None:
     player = await bot.players.get(GUILD_ID, USER_ID)
     assert (player.balance, player.lifetime_points) == (7, 10)
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
-    interaction.response.edit_message.assert_awaited_once()
+    interaction.response.defer.assert_awaited_once_with()
+    interaction.edit_original_response.assert_awaited_once()
+    interaction.followup.send.assert_not_awaited()
     text = reply_text(interaction)
     assert text.startswith("♪ Bought Cloud Wave for 3 points.")
     assert "7 points" in text
@@ -312,10 +317,10 @@ async def test_buy_refused_when_short(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 2
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     pick.assert_called_once_with(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY, name="Member1")
-    interaction.response.send_message.assert_awaited_once()
+    interaction.followup.send.assert_awaited_once()
     assert reply_text(interaction) == "not enough points for that one"
-    assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
-    interaction.response.edit_message.assert_not_awaited()
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    interaction.edit_original_response.assert_not_awaited()
 
 
 async def test_buy_uses_the_chosen_name(bot: app.WispBot) -> None:
@@ -381,7 +386,8 @@ async def test_pressing_feed_lists_inventory_and_the_free_sine(
     labels = {option.value: option.label for option in select.options}
     assert labels["cheese"] == "Cheese x3"
     assert labels["sinewave"] == "Sine Wave (free today)"
-    kwargs = interaction.response.send_message.await_args.kwargs
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     cheese = next(option for option in select.options if option.value == "cheese")
@@ -396,28 +402,25 @@ async def test_pressing_feed_with_nothing_to_feed_says_so(bot: app.WispBot) -> N
     await FeedButton().callback(interaction)
 
     assert "no snacks" in reply_text(interaction)
-    assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
-    assert "view" not in interaction.response.send_message.await_args.kwargs
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    assert "view" not in interaction.followup.send.await_args.kwargs
 
 
 @pytest.mark.parametrize(
     ("banned_until", "banned_forever"),
     [(None, True), (discord.utils.utcnow() + timedelta(days=1), False)],
 )
-async def test_a_banned_member_is_refused_the_button(
+async def test_a_banned_member_gets_no_menu_from_the_button(
     bot: app.WispBot, banned_until: datetime | None, banned_forever: bool
 ) -> None:
     await bot.players.set_offense(GUILD_ID, USER_ID, 1, banned_until, banned_forever)
     interaction = make_interaction(bot)
 
-    assert not await FeedButton().interaction_check(interaction)
+    await FeedButton().callback(interaction)
 
     assert "not taking snacks" in reply_text(interaction)
-    assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
-
-
-async def test_anyone_not_banned_may_press_the_button(bot: app.WispBot) -> None:
-    assert await FeedButton().interaction_check(make_interaction(bot))
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    assert "view" not in interaction.followup.send.await_args.kwargs
 
 
 # ---
@@ -796,6 +799,103 @@ async def test_a_missing_house_is_reported_and_the_snack_still_counts(
 # ---
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        pymysql.err.OperationalError(2013, "Lost connection"),
+        discord.Forbidden(MagicMock(status=403), "Missing Access"),
+    ],
+)
+async def test_a_failing_feed_button_reports_to_staff_and_the_member(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    interaction = make_interaction(bot)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    monkeypatch.setattr(bot.activity_log, "inventory", AsyncMock(side_effect=error))
+
+    await FeedButton().callback(interaction)
+
+    reported.assert_awaited_once_with(interaction.guild, "the Feed Wisp button", error)
+    interaction.followup.send.assert_awaited_once_with(
+        "Something went wrong. Staff have been told.", ephemeral=True
+    )
+
+
+async def test_a_feed_button_that_cannot_even_acknowledge_is_reported(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot)
+    expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
+    interaction.response.defer.side_effect = expired
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await FeedButton().callback(interaction)
+
+    reported.assert_awaited_once_with(
+        interaction.guild, "the Feed Wisp button", expired
+    )
+
+
+async def test_the_feed_button_acknowledges_before_touching_storage(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot)
+
+    async def inventory(guild_id: int, user_id: int) -> dict[str, int]:
+        interaction.response.defer.assert_awaited_once()
+        return {}
+
+    monkeypatch.setattr(bot.activity_log, "inventory", inventory)
+
+    await FeedButton().callback(interaction)
+
+    interaction.followup.send.assert_awaited_once()
+
+
+async def test_buying_acknowledges_before_touching_storage(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, select = await open_lunchbox(bot)
+    interaction = make_interaction(bot)
+
+    async def get(guild_id: int, user_id: int) -> Player:
+        interaction.response.defer.assert_awaited_once()
+        return Player(user_id=user_id)
+
+    monkeypatch.setattr(bot.players, "get", get)
+    select._values = ["cloudwave"]
+
+    await select.callback(interaction)
+
+    interaction.followup.send.assert_awaited_once()
+
+
+async def test_a_failed_confirmation_tells_staff_the_purchase_went_through(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    _, select = await open_lunchbox(bot)
+    select._values = ["cloudwave"]
+    interaction = make_interaction(bot)
+    expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
+    interaction.edit_original_response.side_effect = expired
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await select.callback(interaction)
+
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 7
+    reported.assert_awaited_once_with(
+        interaction.guild,
+        "confirming a snack purchase (the purchase went through)",
+        expired,
+    )
+    interaction.followup.send.assert_not_awaited()
+
+
 async def test_a_failing_menu_is_reported_to_staff_and_the_member(
     bot: app.WispBot,
 ) -> None:
@@ -808,24 +908,6 @@ async def test_a_failing_menu_is_reported_to_staff_and_the_member(
 
     bot.report_error.assert_awaited_once_with(interaction.guild, "the lunchbox", error)
     interaction.response.send_message.assert_awaited_once_with(
-        "Something went wrong. Staff have been told.", ephemeral=True
-    )
-
-
-async def test_a_failing_button_is_reported_after_the_reply_was_deferred(
-    bot: app.WispBot,
-) -> None:
-    interaction = make_interaction(bot)
-    interaction.response.is_done.return_value = True
-    bot.report_error = AsyncMock()  # type: ignore[method-assign]
-    error = ValueError("boom")
-
-    await FeedButton().on_error(interaction, error)
-
-    bot.report_error.assert_awaited_once_with(
-        interaction.guild, "the Feed Wisp button", error
-    )
-    interaction.followup.send.assert_awaited_once_with(
         "Something went wrong. Staff have been told.", ephemeral=True
     )
 

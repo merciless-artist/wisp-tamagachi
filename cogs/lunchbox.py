@@ -1,6 +1,5 @@
 """The lunchbox: members buy snacks with points and feed them to Wisp."""
 
-import contextlib
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -12,14 +11,14 @@ import discord
 
 from cogs.announce import ASSETS_DIR, say_in_house
 from cogs.groups import require_guild, wisp
-from cogs.players import bot_of, maybe_meet
+from cogs.players import EXPECTED_FAILURES, bot_of, maybe_meet, report_failure
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import casual_bond_grant, meal_grant
 from wisp.life import Life, Mood, Phase, add_growth, feed
 from wisp.lines import Moment
 from wisp.rules import BOND_PER_SNACK, FANCY_SNACK_COST, SNACKS, Snack
-from wisp.text import SEPARATOR, USER_ERROR, count
+from wisp.text import SEPARATOR, count
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -77,22 +76,9 @@ async def _is_banned(bot: "WispBot", guild_id: int, user_id: int) -> bool:
     return player.is_banned(discord.utils.utcnow())
 
 
-async def _refuse(interaction: discord.Interaction, text: str) -> None:
-    await interaction.response.send_message(
-        text, ephemeral=True, allowed_mentions=_NO_PING
-    )
-
-
-async def _report(
-    interaction: discord.Interaction, context: str, error: Exception
-) -> None:
-    """Tell staff about a failure and the member that something went wrong."""
-    await bot_of(interaction).report_error(interaction.guild, context, error)
-    with contextlib.suppress(discord.DiscordException):
-        if interaction.response.is_done():
-            await interaction.followup.send(USER_ERROR, ephemeral=True)
-        else:
-            await interaction.response.send_message(USER_ERROR, ephemeral=True)
+async def _say(interaction: discord.Interaction, text: str) -> None:
+    """Answer a deferred interaction with a plain private message."""
+    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
 
 
 class SnackSelect(discord.ui.Select["SnackMenu"]):
@@ -125,7 +111,7 @@ class SnackMenu(discord.ui.View):
         item: discord.ui.Item[Any],
     ) -> None:
         """Report a failure to staff and tell the member."""
-        await _report(interaction, "the lunchbox", error)
+        await report_failure(interaction, "the lunchbox", error)
 
 
 # ---
@@ -162,27 +148,40 @@ async def _lunchbox_text(
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
-    """Spend the member's points on a snack, or say why they cannot."""
+    """Spend the member's points on a snack, or say why they cannot.
+
+    The interaction is acknowledged first so slow storage cannot make the
+    purchase look failed after it went through. If the confirmation itself
+    fails, staff are told the purchase went through.
+    """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
+    await interaction.response.defer()
     player = await bot.players.get(guild_id, user.id)
     if player.is_banned(discord.utils.utcnow()):
-        await _refuse(interaction, _BANNED)
+        await _say(interaction, _BANNED)
     elif not await bot.players.spend(guild_id, user.id, snack.cost):
         line = bot.lines.pick(
             Moment.NOT_ENOUGH_POINTS,
             Mood.HAPPY,
             name=player.name or user.display_name,
         )
-        await _refuse(interaction, line)
+        await _say(interaction, line)
     else:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
         note = f"♪ Bought {snack.name} for {count(snack.cost, 'point')}."
-        await interaction.response.edit_message(
-            content=await _lunchbox_text(bot, guild_id, user.id, note),
-            allowed_mentions=_NO_PING,
-        )
+        try:
+            await interaction.edit_original_response(
+                content=await _lunchbox_text(bot, guild_id, user.id, note),
+                allowed_mentions=_NO_PING,
+            )
+        except EXPECTED_FAILURES as error:
+            await bot.report_error(
+                interaction.guild,
+                "confirming a snack purchase (the purchase went through)",
+                error,
+            )
 
 
 @wisp.command(name="lunchbox", description="Buy snacks for Wisp and see yours.")
@@ -193,9 +192,7 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     user_id = interaction.user.id
     await interaction.response.defer(ephemeral=True)
     if await _is_banned(bot, guild_id, user_id):
-        await interaction.followup.send(
-            _BANNED, ephemeral=True, allowed_mentions=_NO_PING
-        )
+        await _say(interaction, _BANNED)
         return
     options = [
         _option(
@@ -313,6 +310,22 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
 
+async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> SnackMenu | None:
+    """A menu of what the member can feed Wisp now, or None when nothing."""
+    owned = await bot.activity_log.inventory(guild_id, user_id)
+    options = [
+        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _care(snack))
+        for snack in _MENU
+        if snack.key in owned
+    ]
+    if not await bot.activity_log.free_snack_used_today(
+        guild_id, user_id, discord.utils.utcnow()
+    ):
+        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _care(_FREE))
+        options.insert(0, free)
+    return SnackMenu(options, "Pick a snack", _feed) if options else None
+
+
 class FeedButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_FEED_ID),
@@ -342,46 +355,32 @@ class FeedButton(
         """Rebuild the button after a restart."""
         return cls()
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Turn away banned members."""
-        if await _is_banned(
-            bot_of(interaction), require_guild(interaction), interaction.user.id
-        ):
-            await _refuse(interaction, _BANNED)
-            return False
-        return True
-
     async def callback(self, interaction: discord.Interaction) -> None:
-        """Offer the snacks the member can feed Wisp right now."""
+        """Offer the snacks the member can feed Wisp right now.
+
+        The interaction is acknowledged first. Persistent buttons have no error
+        hook, so a failure is reported to staff here.
+        """
         bot = bot_of(interaction)
         guild_id = require_guild(interaction)
         user_id = interaction.user.id
-        owned = await bot.activity_log.inventory(guild_id, user_id)
-        options = [
-            _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _care(snack))
-            for snack in _MENU
-            if snack.key in owned
-        ]
-        if not await bot.activity_log.free_snack_used_today(
-            guild_id, user_id, discord.utils.utcnow()
-        ):
-            free = _option(bot, _FREE, f"{_FREE.name} (free today)", _care(_FREE))
-            options.insert(0, free)
-        if not options:
-            await _refuse(interaction, _NO_SNACKS)
-            return
-        await interaction.response.send_message(
-            "♪ What should Wisp eat?",
-            view=SnackMenu(options, "Pick a snack", _feed),
-            ephemeral=True,
-            allowed_mentions=_NO_PING,
-        )
-
-    async def on_error(
-        self, interaction: discord.Interaction, error: Exception
-    ) -> None:
-        """Report a failure to staff and tell the member."""
-        await _report(interaction, "the Feed Wisp button", error)
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            if await _is_banned(bot, guild_id, user_id):
+                await _say(interaction, _BANNED)
+                return
+            menu = await _feed_menu(bot, guild_id, user_id)
+            if menu is None:
+                await _say(interaction, _NO_SNACKS)
+                return
+            await interaction.followup.send(
+                "♪ What should Wisp eat?",
+                view=menu,
+                ephemeral=True,
+                allowed_mentions=_NO_PING,
+            )
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, "the Feed Wisp button", error)
 
 
 def feed_view() -> discord.ui.View:

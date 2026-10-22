@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 from discord import app_commands
 
@@ -787,6 +788,48 @@ async def test_pressing_it_opens_the_name_form(bot: app.WispBot) -> None:
     interaction.response.send_modal.assert_awaited_once()
     (modal,) = interaction.response.send_modal.await_args.args
     assert isinstance(modal, NameModal)
+
+
+# ---
+# Failures in the persistent button
+# ---
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pymysql.err.OperationalError(2013, "Lost connection"),
+        discord.Forbidden(MagicMock(status=403), "Missing Access"),
+    ],
+)
+async def test_a_failing_name_check_is_reported_and_turns_the_member_away(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    interaction = make_interaction(bot)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    monkeypatch.setattr(bot.players, "get", AsyncMock(side_effect=error))
+
+    assert not await NameButton(FIRST_USER).interaction_check(interaction)
+
+    reported.assert_awaited_once_with(interaction.guild, "the name button", error)
+    interaction.response.send_message.assert_awaited_once_with(
+        "Something went wrong. Staff have been told.", ephemeral=True
+    )
+
+
+async def test_a_failing_name_form_opening_is_reported(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot)
+    expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
+    interaction.response.send_modal.side_effect = expired
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await NameButton(FIRST_USER).callback(interaction)
+
+    reported.assert_awaited_once_with(interaction.guild, "the name button", expired)
 
 
 # ---

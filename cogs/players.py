@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Final, cast
 
 import discord
+import pymysql
 
 from cogs.announce import say_in_house, show_in_thread
 from cogs.groups import require_guild, wisp
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _TOP: Final = 10
+EXPECTED_FAILURES: Final = (pymysql.err.Error, discord.DiscordException)
 
 # ---
 # Billboard
@@ -126,13 +128,34 @@ async def status_text(
 
 
 # ---
-# Naming
+# Interaction helpers
 # ---
 
 
 def bot_of(interaction: discord.Interaction) -> "WispBot":
     """Return the running bot an interaction came from."""
     return cast("WispBot", interaction.client)
+
+
+async def report_failure(
+    interaction: discord.Interaction, context: str, error: BaseException
+) -> None:
+    """Tell staff about a failure and the member that something went wrong.
+
+    Persistent buttons have no error hook of their own, so they catch
+    `EXPECTED_FAILURES` and call this.
+    """
+    await bot_of(interaction).report_error(interaction.guild, context, error)
+    with contextlib.suppress(discord.DiscordException):
+        if interaction.response.is_done():
+            await interaction.followup.send(USER_ERROR, ephemeral=True)
+        else:
+            await interaction.response.send_message(USER_ERROR, ephemeral=True)
+
+
+# ---
+# Naming
+# ---
 
 
 async def _name_refusal(interaction: discord.Interaction) -> str | None:
@@ -182,11 +205,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
         self, interaction: discord.Interaction, error: Exception
     ) -> None:
         """Report a failure to staff and tell the member."""
-        await bot_of(interaction).report_error(
-            interaction.guild, "the naming form", error
-        )
-        with contextlib.suppress(discord.DiscordException):
-            await interaction.response.send_message(USER_ERROR, ephemeral=True)
+        await report_failure(interaction, "the naming form", error)
 
 
 class NameButton(
@@ -221,19 +240,29 @@ class NameButton(
         return cls(int(match["user_id"]))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Turn away anyone but its member, and a member who may not name themselves."""
-        if interaction.user.id != self.user_id:
-            reply = "♪ That button is for someone else."
-        elif (refusal := await _name_refusal(interaction)) is not None:
-            reply = refusal
-        else:
-            return True
-        await interaction.response.send_message(reply, ephemeral=True)
+        """Turn away anyone but its member, and a member who may not name themselves.
+
+        A failure is reported to staff and also turns the member away.
+        """
+        try:
+            reply: str | None
+            if interaction.user.id != self.user_id:
+                reply = "♪ That button is for someone else."
+            else:
+                reply = await _name_refusal(interaction)
+            if reply is None:
+                return True
+            await interaction.response.send_message(reply, ephemeral=True)
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, "the name button", error)
         return False
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        """Open the name form."""
-        await interaction.response.send_modal(NameModal())
+        """Open the name form; a failure is reported to staff."""
+        try:
+            await interaction.response.send_modal(NameModal())
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, "the name button", error)
 
 
 # ---
