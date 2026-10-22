@@ -3,6 +3,7 @@
 Discord objects are fakes; the repositories are the real ones.
 """
 
+import asyncio
 import random
 from collections.abc import Iterator
 from datetime import timedelta
@@ -193,6 +194,17 @@ async def test_ladder_one_day_week_forever(bot: app.WispBot) -> None:
                 <= after + length
             )
         assert player.is_banned(discord.utils.utcnow())
+
+
+async def test_simultaneous_punishes_are_two_distinct_offenses(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await asyncio.gather(punish(bot), punish(bot))
+    player = await bot.players.get(GUILD_ID, MEMBER_ID)
+    assert player.offenses == 2
+    logs = sorted(str(call.args[0]) for call in server.errors.send.await_args_list)
+    assert ["offense 1, 1 day" in logs[0], "offense 2, 7 days" in logs[1]] == [True] * 2
 
 
 async def test_offenses_past_the_ladder_stay_permanent(bot: app.WispBot) -> None:
@@ -421,6 +433,44 @@ async def test_resetname_clears_name(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).name is None
     (reply,) = replies(interaction)
     assert reply == "♪ Wisp forgot <@1>'s name. They can choose a new one."
+
+
+@pytest.mark.parametrize(
+    ("command_name", "extra", "storage"),
+    [
+        ("unban", (), "get"),
+        ("strip", (5,), "strip_points"),
+        ("resetname", (), "set_name"),
+    ],
+)
+async def test_corrections_defer_before_touching_storage(
+    bot: app.WispBot,
+    monkeypatch: pytest.MonkeyPatch,
+    command_name: str,
+    extra: tuple[Any, ...],
+    storage: str,
+) -> None:
+    order: list[str] = []
+    interaction = make_interaction(bot)
+    original_defer = interaction.response.defer.side_effect
+
+    async def defer(*args: Any, **kwargs: Any) -> None:
+        order.append("defer")
+        await original_defer(*args, **kwargs)
+
+    interaction.response.defer.side_effect = defer
+    original = getattr(bot.players, storage)
+
+    async def spy(*args: Any) -> Any:
+        order.append("storage")
+        return await original(*args)
+
+    monkeypatch.setattr(bot.players, storage, spy)
+    await run(getattr(discipline, command_name), interaction, make_member(), *extra)
+    assert order[:2] == ["defer", "storage"]
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    interaction.response.send_message.assert_not_awaited()
+    assert len(replies(interaction)) == 1
 
 
 # ---

@@ -65,11 +65,8 @@ def _duration(length: timedelta | None) -> str:
 
 async def _log_to_staff(bot: "WispBot", guild: discord.Guild | None, text: str) -> bool:
     """Post a line to the staff errors channel; False if it could not be posted."""
-    if guild is None:
-        return False
-    channel_id = (await bot.settings.get(guild.id)).error_channel_id
-    channel = guild.get_channel_or_thread(channel_id) if channel_id else None
-    if not isinstance(channel, discord.abc.Messageable):
+    channel = await bot.staff_channel(guild)
+    if channel is None:
         return False
     try:
         await channel.send(text, allowed_mentions=_NO_PING)
@@ -105,16 +102,17 @@ async def punish(
     if await _refuse_bot(interaction, member):
         return
     await interaction.response.defer(ephemeral=True)
-    player = await bot.players.get(guild_id, member.id)
-    offense = player.offenses + 1
-    length = BAN_LADDER[min(player.offenses, len(BAN_LADDER) - 1)]
-    await bot.players.set_offense(
-        guild_id,
-        member.id,
-        offense,
-        None if length is None else discord.utils.utcnow() + length,
-        length is None,
-    )
+    async with bot.guild_lock(guild_id):
+        player = await bot.players.get(guild_id, member.id)
+        offense = player.offenses + 1
+        length = BAN_LADDER[min(player.offenses, len(BAN_LADDER) - 1)]
+        await bot.players.set_offense(
+            guild_id,
+            member.id,
+            offense,
+            None if length is None else discord.utils.utcnow() + length,
+            length is None,
+        )
     notes = []
     life = await bot.lives.current(guild_id)
     if life is None:
@@ -165,6 +163,7 @@ async def unban(
     guild_id = require_guild(interaction)
     if await _refuse_bot(interaction, member):
         return
+    await interaction.response.defer(ephemeral=True)
     player = await bot.players.get(guild_id, member.id)
     if not player.is_banned(discord.utils.utcnow()):
         await _reply(interaction, f"♪ {member.mention} is not banned.")
@@ -188,6 +187,7 @@ async def strip(
     """Take points from the member's balance and lifetime total, never below 0."""
     if await _refuse_bot(interaction, member):
         return
+    await interaction.response.defer(ephemeral=True)
     await interaction.client.players.strip_points(
         require_guild(interaction), member.id, points
     )
@@ -203,6 +203,7 @@ async def resetname(
     """Clear the member's name so they can choose again from Wisp's button."""
     if await _refuse_bot(interaction, member):
         return
+    await interaction.response.defer(ephemeral=True)
     await interaction.client.players.set_name(
         require_guild(interaction), member.id, None
     )

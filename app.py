@@ -169,6 +169,24 @@ class WispBot(commands.Bot):
         """Return the lock that serialises life updates for one guild."""
         return self._guild_locks.setdefault(guild_id, asyncio.Lock())
 
+    async def staff_channel(
+        self, guild: discord.Guild | None
+    ) -> discord.abc.Messageable | None:
+        """Return the guild's staff errors channel, or None if it cannot be used.
+
+        A channel that is set but cannot be seen is logged.
+        """
+        if guild is None:
+            return None
+        channel_id = (await self.settings.get(guild.id)).error_channel_id
+        if channel_id is None:
+            return None
+        channel = guild.get_channel_or_thread(channel_id)
+        if isinstance(channel, discord.abc.Messageable):
+            return channel
+        log.error("Staff channel %d is not available", channel_id)
+        return None
+
     async def report_error(
         self, guild: discord.Guild | None, context: str, error: BaseException
     ) -> None:
@@ -177,22 +195,11 @@ class WispBot(commands.Bot):
         This never raises: a failure to report is only logged.
         """
         log.error("Error in %s", context, exc_info=error)
-        if guild is None:
-            return
         line = f"Error in {context}: {type(error).__name__}: {error}"
         try:
-            channel_id = (await self.settings.get(guild.id)).error_channel_id
-            if channel_id is None:
-                return
-            channel = guild.get_channel_or_thread(channel_id)
-            if not isinstance(channel, discord.abc.Messageable):
-                log.error(
-                    "Could not post error report for %s: channel %d is not available",
-                    context,
-                    channel_id,
-                )
-                return
-            await channel.send(line[:MESSAGE_LIMIT])
+            channel = await self.staff_channel(guild)
+            if channel is not None:
+                await channel.send(line[:MESSAGE_LIMIT])
         except Exception:
             log.exception("Could not post error report for %s", context)
 

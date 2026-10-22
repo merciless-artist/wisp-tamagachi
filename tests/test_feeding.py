@@ -387,6 +387,33 @@ async def test_banned_is_silent(
     await assert_untouched(bot, server)
 
 
+async def test_ban_landing_after_the_first_check_stops_the_feed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_player = bot.players.get
+    reads = 0
+
+    async def get_then_ban(guild_id: int, user_id: int) -> Any:
+        nonlocal reads
+        player = await read_player(guild_id, user_id)
+        reads += 1
+        if reads == 1:
+            await bot.players.set_offense(guild_id, user_id, 1, None, True)
+        return player
+
+    monkeypatch.setattr(bot.players, "get", get_then_ban)
+
+    await cog.on_message(message(VIIBR_URL))
+
+    monkeypatch.setattr(bot.players, "get", read_player)
+    await assert_untouched(bot, server)
+
+
 async def test_expired_ban_feeds_again(
     cog: Feeding,
     bot: app.WispBot,

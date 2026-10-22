@@ -115,6 +115,40 @@ def test_known_emoji_returns_its_text(bot: app.WispBot) -> None:
 # ---
 
 
+async def test_staff_channel_is_the_configured_errors_channel(
+    bot: app.WispBot,
+) -> None:
+    channel = make_channel()
+    bot.settings = AsyncMock()
+    bot.settings.get.return_value = Settings(error_channel_id=555)
+
+    assert await bot.staff_channel(make_guild(channel)) is channel
+
+
+async def test_staff_channel_is_none_when_unset_or_without_a_guild(
+    bot: app.WispBot,
+) -> None:
+    guild = make_guild(make_channel())
+    bot.settings = AsyncMock()
+    bot.settings.get.return_value = Settings()
+
+    assert await bot.staff_channel(guild) is None
+    assert await bot.staff_channel(None) is None
+    guild.get_channel_or_thread.assert_not_called()
+
+
+async def test_staff_channel_is_none_and_logged_when_it_cannot_be_seen(
+    bot: app.WispBot, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot.settings = AsyncMock()
+    bot.settings.get.return_value = Settings(error_channel_id=555)
+
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        assert await bot.staff_channel(make_guild(None)) is None
+
+    assert "Staff channel 555 is not available" in caplog.text
+
+
 async def test_report_error_posts_plain_line(
     bot: app.WispBot, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -195,7 +229,7 @@ async def test_report_error_survives_a_missing_channel(
     with caplog.at_level(logging.ERROR, logger="wisp"):
         await bot.report_error(make_guild(None), "tick", RuntimeError("boom"))
 
-    assert "Could not post error report" in caplog.text
+    assert "Staff channel 555 is not available" in caplog.text
 
 
 # ---

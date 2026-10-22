@@ -90,6 +90,8 @@ class Feeding(commands.Cog):
         """Record the feed and apply it to Wisp; None when nothing was fed."""
         bot = self.bot
         async with bot.guild_lock(guild_id):
+            if (await bot.players.get(guild_id, user_id)).is_banned(now):
+                return None
             life = await bot.lives.current(guild_id)
             if life is None or life.id is None or is_over(life):
                 return None

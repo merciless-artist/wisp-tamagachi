@@ -253,17 +253,13 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
             await _finish_thread(bot, forum.guild, thread, spec, message_id)
         settings = await bot.settings.get(guild_id)
     if recreated:
-        await _announce(bot, forum.guild, settings, recreated)
+        await _announce(bot, forum.guild, recreated)
     return settings
 
 
-async def _announce(
-    bot: "WispBot", guild: discord.Guild, settings: Settings, names: list[str]
-) -> None:
-    if settings.error_channel_id is None:
-        return
-    channel = guild.get_channel_or_thread(settings.error_channel_id)
-    if not isinstance(channel, discord.abc.Messageable):
+async def _announce(bot: "WispBot", guild: discord.Guild, names: list[str]) -> None:
+    channel = await bot.staff_channel(guild)
+    if channel is None:
         return
     try:
         await channel.send(f"Wisp's Studio: recreated {', '.join(names)}.")
