@@ -94,6 +94,24 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 )
 
 # ---
+# Rhyme Duel
+# ---
+
+RHYME_TURN = timedelta(seconds=15)
+RHYME_PERFECT_POINTS = 2
+RHYME_SLANT_POINTS = 1
+RHYME_OPENER_RHYMES = 8
+
+# Chance that Wisp finds a rhyme on his turn, by stage.
+RHYME_SKILL: dict[Stage, float] = {
+    Stage.BABY: 0.5,
+    Stage.CHILD: 0.65,
+    Stage.TEEN: 0.8,
+    Stage.ADULT: 0.9,
+    Stage.ROCKSTAR: 0.97,
+}
+
+# ---
 # Timing
 # ---
 

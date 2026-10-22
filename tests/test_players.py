@@ -340,7 +340,7 @@ async def test_billboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
 
     text = await render_billboard(bot, GUILD_ID, NOW)
 
-    this_life, all_time, _versions = text.split(SEPARATOR + "\n")[1:]
+    this_life, all_time, _rhymes, _versions = text.split(SEPARATOR + "\n")[1:]
     assert this_life.splitlines() == [
         "This life",
         f"・1. <@{SECOND_USER}> ・ 5 points",
@@ -351,6 +351,26 @@ async def test_billboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
         f"・1. <@{FIRST_USER}> ・ 201 points ・ Friend",
         f"・2. <@{SECOND_USER}> ・ 5 points ・ New face",
     ]
+
+
+async def test_billboard_shows_top_rhyme_scores(bot: app.WispBot) -> None:
+    await lay(bot)
+    for offset, best in enumerate([4, 12, 7, 9, 2, 15]):
+        await bot.players.record_rhyme_score(GUILD_ID, 10 + offset, best)
+    await bot.players.record_rhyme_score(GUILD_ID, FIRST_USER, 1)
+
+    text = await render_billboard(bot, GUILD_ID, NOW)
+
+    _this_life, _all_time, rhymes, versions = text.split(SEPARATOR + "\n")[1:]
+    assert rhymes.splitlines() == [
+        "Rhyme Duel",
+        "・1. <@15> ・ 15 points",
+        "・2. <@11> ・ 12 points",
+        "・3. <@13> ・ 9 points",
+        "・4. <@12> ・ 7 points",
+        "・5. <@10> ・ 4 points",
+    ]
+    assert versions.startswith("Versions\nv1 ・ going strong")
 
 
 async def test_billboard_is_empty_but_tidy_for_a_new_server(bot: app.WispBot) -> None:
@@ -365,6 +385,9 @@ async def test_billboard_is_empty_but_tidy_for_a_new_server(bot: app.WispBot) ->
             SEPARATOR,
             "All time",
             "・Nobody has points yet",
+            SEPARATOR,
+            "Rhyme Duel",
+            "・Nobody has dueled him yet",
             SEPARATOR,
             "Versions",
             "・None yet",
@@ -394,6 +417,7 @@ async def test_billboard_fits_one_message(
         member = LONG_ID + offset
         await feed_points(bot, life, member, 100 + offset, f"track{offset}")
         await bot.players.add_bond(GUILD_ID, member, 400)
+        await bot.players.record_rhyme_score(GUILD_ID, member, 1000 + offset)
     history = [life] + [
         make_life(
             version,
@@ -411,7 +435,7 @@ async def test_billboard_fits_one_message(
 
     assert len(text) <= 2000
     lines = text.splitlines()
-    assert sum(line.startswith("・") and ". <@" in line for line in lines) == 20
+    assert sum(line.startswith("・") and ". <@" in line for line in lines) == 25
     version_lines = [line for line in lines if re.match(r"v\d+ ・", line)]
     assert 0 < len(version_lines) < len(history)
     assert version_lines[0].startswith("v61 ・ going strong")

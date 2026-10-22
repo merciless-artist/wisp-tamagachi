@@ -33,6 +33,9 @@ class Moment(StrEnum):
     COMPLIMENT_HANGRY = auto()
     BANNED = auto()
     NOT_ENOUGH_POINTS = auto()
+    RHYME_START = auto()
+    RHYME_WISP_STUCK = auto()
+    RHYME_PLAYER_STUCK = auto()
 
 
 _NAME = frozenset({"name"})
@@ -59,11 +62,15 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.HUNGRY: _NONE,
     Moment.FADING: _NONE,
     Moment.COMPLIMENT_HANGRY: _NONE,
+    Moment.RHYME_START: frozenset({"word"}),
+    Moment.RHYME_WISP_STUCK: _NONE,
+    Moment.RHYME_PLAYER_STUCK: _NONE,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
-`name` is the member's display name, `version` is Wisp's version number
-and `stage` is the lowercase stage word (child, teen, adult, rockstar).
+`name` is the member's display name, `version` is Wisp's version number,
+`stage` is the lowercase stage word (child, teen, adult, rockstar) and `word`
+is the word Wisp opens a Rhyme Duel with.
 """
 
 # ---
@@ -347,6 +354,57 @@ _NOT_ENOUGH_POINTS = (
 )
 
 # ---
+# Rhyme Duel
+# ---
+
+_RHYME_START_HAPPY = (
+    "rhyme duel! I go first. {word}",
+    "ok ok ok. my word is {word}. your turn",
+    "warming up my vocal cords... {word}. go",
+    "let's see what you've got. rhyme with {word}",
+    "I've been practicing in the mirror. {word}. beat that",
+    "headphones on, game face on. {word}",
+)
+
+_RHYME_START_HANGRY = (
+    "fine. one duel. then food. {word}",
+    "rhyming on an empty stomach. here goes. {word}",
+    "I'm starving but I'm not a quitter. {word}",
+    "{word}. go. quick, before I pass out",
+    "hungry as hell, but my bars still work. {word}",
+)
+
+_RHYME_WISP_STUCK_HAPPY = (
+    "I've got... nothing. you win this one",
+    "my brain just went quiet. ok. you got me",
+    "out of rhymes. completely. how did you DO that",
+    "I'm stumped. I'm writing that word down so it can haunt me later",
+    "no rhyme. no words. just respect",
+)
+
+_RHYME_WISP_STUCK_HANGRY = (
+    "nothing. my brain's running on fumes. you win",
+    "can't think. too hungry. that one's yours",
+    "out of rhymes and out of snacks. what a shitty day",
+    "blank. empty. like my stomach. you win",
+)
+
+_RHYME_PLAYER_STUCK_HAPPY = (
+    "ha! out of rhymes? I'll take it",
+    "time's up! good duel though",
+    "that's the duel! you were so close",
+    "gotcha. rematch whenever you want",
+    "and the mic comes back to me. good game",
+)
+
+_RHYME_PLAYER_STUCK_HANGRY = (
+    "won that one on an empty stomach. imagine me fed",
+    "done. good game. now somebody feed me",
+    "beat you while starving. that's gotta sting",
+    "duel's over. my stomach's still the loudest thing in here",
+)
+
+# ---
 # Line table
 # ---
 
@@ -377,6 +435,12 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.STAGE_UP, Mood.HANGRY): _STAGE_UP_HANGRY,
     (Moment.MEET, Mood.HAPPY): _MEET_HAPPY,
     (Moment.MEET, Mood.HANGRY): _MEET_HANGRY,
+    (Moment.RHYME_START, Mood.HAPPY): _RHYME_START_HAPPY,
+    (Moment.RHYME_START, Mood.HANGRY): _RHYME_START_HANGRY,
+    (Moment.RHYME_WISP_STUCK, Mood.HAPPY): _RHYME_WISP_STUCK_HAPPY,
+    (Moment.RHYME_WISP_STUCK, Mood.HANGRY): _RHYME_WISP_STUCK_HANGRY,
+    (Moment.RHYME_PLAYER_STUCK, Mood.HAPPY): _RHYME_PLAYER_STUCK_HAPPY,
+    (Moment.RHYME_PLAYER_STUCK, Mood.HANGRY): _RHYME_PLAYER_STUCK_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
     **_either_mood(Moment.DIED, _DIED),

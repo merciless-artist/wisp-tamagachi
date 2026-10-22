@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _TOP: Final = 10
+_TOP_RHYMES: Final = 5
 EXPECTED_FAILURES: Final = (pymysql.err.Error, discord.DiscordException)
 
 # ---
@@ -60,7 +61,7 @@ def _fit(head: list[str], history: list[str]) -> str:
 
 
 async def render_billboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
-    """Build the Billboard: two top tens, then every version, newest first.
+    """Build the Billboard: two top tens, the top rhymers, then every version.
 
     The history is trimmed from the oldest end so the text fits one message.
     """
@@ -81,6 +82,11 @@ async def render_billboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
         f" ・ {tier_for(player.bond)}"
         for place, player in enumerate(all_time, start=1)
     ] or ["・Nobody has points yet"]
+    rhymers = await bot.players.top_rhyme(guild_id, _TOP_RHYMES)
+    rhyme_lines = [
+        f"・{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
+        for place, player in enumerate(rhymers, start=1)
+    ] or ["・Nobody has dueled him yet"]
     head = [
         "♪ The Billboard",
         SEPARATOR,
@@ -89,6 +95,9 @@ async def render_billboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
         SEPARATOR,
         "All time",
         *all_time_lines,
+        SEPARATOR,
+        "Rhyme Duel",
+        *rhyme_lines,
         SEPARATOR,
         "Versions",
     ]
@@ -135,6 +144,11 @@ async def status_text(
 def bot_of(interaction: discord.Interaction) -> "WispBot":
     """Return the running bot an interaction came from."""
     return cast("WispBot", interaction.client)
+
+
+async def say_privately(interaction: discord.Interaction, text: str) -> None:
+    """Answer a deferred interaction with a plain private message."""
+    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
 
 
 async def report_failure(
@@ -323,7 +337,7 @@ async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
             await bot.activity_log.people_since(guild_id, now - HAPPINESS_WINDOW)
         )
         text = await status_text(bot, guild_id, life, now, happy)
-    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
+    await say_privately(interaction, text)
 
 
 @wisp.command(name="board", description="See the leaderboard and Wisp's versions.")
@@ -339,7 +353,7 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
         texts.append("♪ You're on Wisp's radar now.")
     texts.append(await render_billboard(bot, guild_id, now))
     for text in texts:
-        await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
+        await say_privately(interaction, text)
 
 
 async def setup(bot: "WispBot") -> None:

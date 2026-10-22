@@ -26,6 +26,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.studio",
     "cogs.players",
     "cogs.lunchbox",
+    "cogs.rhyme_duel",
     "cogs.feeding",
     "cogs.life_loop",
     "cogs.discipline",
@@ -107,6 +108,7 @@ class WispBot(commands.Bot):
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()
         self.failing_displays: set[tuple[int, str]] = set()
+        self.rhyme_duels: set[tuple[int, int]] = set()
         self._guild_locks: dict[int, asyncio.Lock] = {}
 
     async def setup_hook(self) -> None:

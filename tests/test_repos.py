@@ -255,6 +255,43 @@ async def test_top_lifetime_orders_limits_and_skips_zero(db: Database) -> None:
     assert [player.user_id for player in await repo.top_lifetime(GUILD, 2)] == [2, 1]
 
 
+async def test_rhyme_score_only_keeps_a_new_best(db: Database) -> None:
+    repo = PlayerRepo(db)
+    assert (await repo.get(GUILD, USER)).best_rhyme_score == 0
+
+    assert await repo.record_rhyme_score(GUILD, USER, 0) is False
+    assert await repo.record_rhyme_score(GUILD, USER, 6) is True
+    assert await repo.record_rhyme_score(GUILD, USER, 6) is False
+    assert await repo.record_rhyme_score(GUILD, USER, 4) is False
+    assert (await repo.get(GUILD, USER)).best_rhyme_score == 6
+    assert await repo.record_rhyme_score(GUILD, USER, 9) is True
+    assert (await repo.get(GUILD, USER)).best_rhyme_score == 9
+    assert (await repo.get(OTHER_GUILD, USER)).best_rhyme_score == 0
+
+
+async def test_rhyme_score_for_a_new_player_creates_them(db: Database) -> None:
+    repo = PlayerRepo(db)
+    assert await repo.record_rhyme_score(GUILD, OTHER_USER, 3) is True
+    assert (await repo.get(GUILD, OTHER_USER)).best_rhyme_score == 3
+
+
+async def test_top_rhyme_orders_limits_and_skips_zero(db: Database) -> None:
+    repo = PlayerRepo(db)
+    await repo.record_rhyme_score(GUILD, 1, 5)
+    await repo.record_rhyme_score(GUILD, 2, 9)
+    await repo.record_rhyme_score(GUILD, 3, 5)
+    await repo.get(GUILD, 4)
+    await repo.record_rhyme_score(OTHER_GUILD, 5, 50)
+
+    top = await repo.top_rhyme(GUILD, 10)
+    assert [(player.user_id, player.best_rhyme_score) for player in top] == [
+        (2, 9),
+        (1, 5),
+        (3, 5),
+    ]
+    assert [player.user_id for player in await repo.top_rhyme(GUILD, 2)] == [2, 1]
+
+
 # ---
 # Activity
 # ---

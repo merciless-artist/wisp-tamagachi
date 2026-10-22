@@ -13,5 +13,5 @@ explicit_package_bases = true
 exclude = ['^[.]venv/', '^tools/']
 
 [[tool.mypy.overrides]]
-module = ["aiomysql", "pymysql", "pymysql.*"]
+module = ["aiomysql", "pronouncing", "pymysql", "pymysql.*"]
 ignore_missing_imports = true

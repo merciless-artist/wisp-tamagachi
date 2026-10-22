@@ -11,7 +11,13 @@ import discord
 
 from cogs.announce import ASSETS_DIR, say_in_house
 from cogs.groups import require_guild, wisp
-from cogs.players import EXPECTED_FAILURES, bot_of, maybe_meet, report_failure
+from cogs.players import (
+    EXPECTED_FAILURES,
+    bot_of,
+    maybe_meet,
+    report_failure,
+    say_privately,
+)
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import casual_bond_grant, meal_grant
@@ -74,11 +80,6 @@ def _option(
 async def _is_banned(bot: "WispBot", guild_id: int, user_id: int) -> bool:
     player = await bot.players.get(guild_id, user_id)
     return player.is_banned(discord.utils.utcnow())
-
-
-async def _say(interaction: discord.Interaction, text: str) -> None:
-    """Answer a deferred interaction with a plain private message."""
-    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
 
 
 class SnackSelect(discord.ui.Select["SnackMenu"]):
@@ -160,14 +161,14 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
     await interaction.response.defer()
     player = await bot.players.get(guild_id, user.id)
     if player.is_banned(discord.utils.utcnow()):
-        await _say(interaction, _BANNED)
+        await say_privately(interaction, _BANNED)
     elif not await bot.players.spend(guild_id, user.id, snack.cost):
         line = bot.lines.pick(
             Moment.NOT_ENOUGH_POINTS,
             Mood.HAPPY,
             name=player.name or user.display_name,
         )
-        await _say(interaction, line)
+        await say_privately(interaction, line)
     else:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
         note = f"♪ Bought {snack.name} for {count(snack.cost, 'point')}."
@@ -192,7 +193,7 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     user_id = interaction.user.id
     await interaction.response.defer(ephemeral=True)
     if await _is_banned(bot, guild_id, user_id):
-        await _say(interaction, _BANNED)
+        await say_privately(interaction, _BANNED)
         return
     options = [
         _option(
@@ -367,11 +368,11 @@ class FeedButton(
         try:
             await interaction.response.defer(ephemeral=True, thinking=True)
             if await _is_banned(bot, guild_id, user_id):
-                await _say(interaction, _BANNED)
+                await say_privately(interaction, _BANNED)
                 return
             menu = await _feed_menu(bot, guild_id, user_id)
             if menu is None:
-                await _say(interaction, _NO_SNACKS)
+                await say_privately(interaction, _NO_SNACKS)
                 return
             await interaction.followup.send(
                 "♪ What should Wisp eat?",

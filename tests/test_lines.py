@@ -11,8 +11,13 @@ from wisp.life import Mood
 from wisp.lines import FIELDS, LINES, LinePicker, Moment
 from wisp.rules import Stage
 
-SAMPLE_FIELDS = {"name": "Myra", "version": "4", "stage": "teen"}
-LONGEST_FIELDS = {"name": "W" * 32, "version": "9999", "stage": "rockstar"}
+SAMPLE_FIELDS = {"name": "Myra", "version": "4", "stage": "teen", "word": "fire"}
+LONGEST_FIELDS = {
+    "name": "W" * 32,
+    "version": "9999",
+    "stage": "rockstar",
+    "word": "w" * 40,
+}
 ONE_MOOD_MOMENTS = {
     Moment.HUNGRY,
     Moment.FADING,
@@ -107,6 +112,12 @@ def test_stage_up_lines_read_for_every_stage(line: str, stage: Stage) -> None:
 
 def test_fields_cover_every_moment() -> None:
     assert set(FIELDS) == set(Moment)
+
+
+def test_rhyme_start_lines_say_the_word() -> None:
+    for mood in Mood:
+        for line in LINES[(Moment.RHYME_START, mood)]:
+            assert placeholders(line) == {"word"}, line
 
 
 # ---

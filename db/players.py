@@ -1,4 +1,4 @@
-"""Storage for players: activation, points, bond, names and bans."""
+"""Storage for players: activation, points, bond, names, bans and rhyme scores."""
 
 from dataclasses import dataclass, fields
 from datetime import datetime
@@ -21,6 +21,7 @@ class Player:
     offenses: int = 0
     banned_until: datetime | None = None
     banned_forever: bool = False
+    best_rhyme_score: int = 0
 
     def is_banned(self, now: datetime) -> bool:
         """Whether the player is banned from Wisp at `now`."""
@@ -133,6 +134,26 @@ class PlayerRepo:
             f"{_SELECT} {self._db.t('players')} "
             "WHERE guild_id = %s AND lifetime_points > 0 "
             "ORDER BY lifetime_points DESC, user_id LIMIT %s",
+            (guild_id, limit),
+        )
+        return [_from_row(row) for row in rows]
+
+    async def record_rhyme_score(self, guild_id: int, user_id: int, score: int) -> bool:
+        """Keep a Rhyme Duel score if it beats the player's best; True when it does."""
+        await self._ensure(guild_id, user_id)
+        changed = await self._db.execute(
+            f"UPDATE {self._db.t('players')} SET best_rhyme_score = %s "
+            "WHERE guild_id = %s AND user_id = %s AND best_rhyme_score < %s",
+            (score, guild_id, user_id, score),
+        )
+        return changed == 1
+
+    async def top_rhyme(self, guild_id: int, limit: int) -> list[Player]:
+        """Return the players with a Rhyme Duel score, best score first."""
+        rows = await self._db.fetchall(
+            f"{_SELECT} {self._db.t('players')} "
+            "WHERE guild_id = %s AND best_rhyme_score > 0 "
+            "ORDER BY best_rhyme_score DESC, user_id LIMIT %s",
             (guild_id, limit),
         )
         return [_from_row(row) for row in rows]

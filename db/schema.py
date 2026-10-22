@@ -97,11 +97,20 @@ _DEFINITIONS: dict[str, str] = {
     """,
 }
 
+# Columns added after their table first went live, by table and column name.
+_ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
+}
+
 TABLES: tuple[str, ...] = tuple(_DEFINITIONS)
 
 
 async def create_tables(db: Database) -> None:
-    """Create every table that does not exist yet."""
+    """Create every table that does not exist yet, then add any missing columns.
+
+    Columns that are already there are skipped, so a normal startup does not
+    draw a duplicate column note from the server.
+    """
     rows = await db.fetchall(
         "SELECT table_name AS name FROM information_schema.tables "
         "WHERE table_schema = DATABASE()"
@@ -113,3 +122,18 @@ async def create_tables(db: Database) -> None:
                 f"CREATE TABLE {db.t(name)} ({columns}) "
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             )
+    for name, added in _ADDED_COLUMNS.items():
+        present = {
+            row["name"]
+            for row in await db.fetchall(
+                "SELECT column_name AS name FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = %s",
+                (db.t(name),),
+            )
+        }
+        for column, definition in added.items():
+            if column not in present:
+                await db.execute(
+                    f"ALTER TABLE {db.t(name)} "
+                    f"ADD COLUMN IF NOT EXISTS {column} {definition}"
+                )
