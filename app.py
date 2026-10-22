@@ -22,6 +22,7 @@ EXTENSIONS: tuple[str, ...] = ()
 
 _MESSAGE_LIMIT = 2000
 _USER_ERROR = "Something went wrong. Staff have been told."
+_REFUSAL = "That command is for staff."
 
 # ---
 # Command tree
@@ -36,22 +37,31 @@ class WispTree(app_commands.CommandTree["WispBot"]):
         interaction: discord.Interaction["WispBot"],
         error: app_commands.AppCommandError,
     ) -> None:
-        """Send the user a plain apology, then report the failure to staff."""
+        """Refuse failed checks politely; otherwise apologise and report to staff."""
+        command = interaction.command
+        context = f"/{command.qualified_name}" if command else "an interaction"
+        if isinstance(error, app_commands.CheckFailure):
+            await self._reply(interaction, _REFUSAL, context)
+            return
         cause = (
             error.original
             if isinstance(error, app_commands.CommandInvokeError)
             else error
         )
-        command = interaction.command
-        context = f"/{command.qualified_name}" if command else "an interaction"
+        await self._reply(interaction, _USER_ERROR, context)
+        await self.client.report_error(interaction.guild, context, cause)
+
+    async def _reply(
+        self, interaction: discord.Interaction["WispBot"], text: str, context: str
+    ) -> None:
+        """Send an ephemeral message; a failure to send is logged, never raised."""
         try:
             if interaction.response.is_done():
-                await interaction.followup.send(_USER_ERROR, ephemeral=True)
+                await interaction.followup.send(text, ephemeral=True)
             else:
-                await interaction.response.send_message(_USER_ERROR, ephemeral=True)
-        except discord.HTTPException:
-            log.exception("Could not tell the user about an error in %s", context)
-        await self.client.report_error(interaction.guild, context, cause)
+                await interaction.response.send_message(text, ephemeral=True)
+        except discord.DiscordException:
+            log.exception("Could not reply to the user in %s", context)
 
 
 # ---
@@ -107,8 +117,10 @@ class WispBot(commands.Bot):
 
     async def close(self) -> None:
         """Shut the client down, then close the database pool."""
-        await super().close()
-        await self.db.close()
+        try:
+            await super().close()
+        finally:
+            await self.db.close()
 
     def emoji(self, name: str) -> str:
         """Return an application emoji's text, or "" if it has not been uploaded."""

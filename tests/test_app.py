@@ -249,6 +249,51 @@ async def test_tree_error_reports_even_when_user_reply_fails(
     bot.report_error.assert_awaited_once_with(None, "/wisp feed", error)
 
 
+async def test_tree_error_reports_when_interaction_was_already_answered(
+    bot: app.WispBot,
+) -> None:
+    interaction = make_interaction(False, None)
+    interaction.response.send_message.side_effect = discord.InteractionResponded(
+        interaction
+    )
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    error = app_commands.AppCommandError("plain")
+
+    await bot.tree.on_error(interaction, error)
+
+    bot.report_error.assert_awaited_once_with(None, "/wisp feed", error)
+
+
+@pytest.mark.parametrize(
+    ("response_done", "used"), [(False, "response"), (True, "followup")]
+)
+@pytest.mark.parametrize(
+    "error",
+    [
+        app_commands.CheckFailure("no"),
+        app_commands.MissingPermissions(["manage_guild"]),
+    ],
+)
+async def test_check_failure_is_refused_not_reported(
+    bot: app.WispBot,
+    response_done: bool,
+    used: str,
+    error: app_commands.AppCommandError,
+) -> None:
+    interaction = make_interaction(response_done, make_guild(None))
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+
+    await bot.tree.on_error(interaction, error)
+
+    send = (
+        interaction.response.send_message
+        if used == "response"
+        else interaction.followup.send
+    )
+    send.assert_awaited_once_with("That command is for staff.", ephemeral=True)
+    bot.report_error.assert_not_awaited()
+
+
 # ---
 # Per-guild locks
 # ---
@@ -338,6 +383,23 @@ async def test_close_closes_the_database_after_the_client(
     await bot.close()
 
     assert calls == ["client", "db"]
+
+
+async def test_close_closes_the_database_even_if_the_client_fails(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    close_db = AsyncMock()
+
+    async def failing_close(self: commands.Bot) -> None:
+        raise RuntimeError("client close failed")
+
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", failing_close)
+
+    with pytest.raises(RuntimeError, match="client close failed"):
+        await bot.close()
+
+    close_db.assert_awaited_once()
 
 
 async def test_close_before_connecting_is_safe() -> None:
