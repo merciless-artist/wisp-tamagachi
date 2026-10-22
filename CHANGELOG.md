@@ -17,7 +17,8 @@ Wisp v1 core.
 - Meeting and names: Wisp meets members as they take part and learns their
   names. Bond grows with daily activity, and happiness reflects recent care.
 - Lunchbox: members earn coins, buy snacks and feed them to Wisp with a button,
-  with an eating GIF for each snack and one free snack a day.
+  with one free snack a day. Most snacks have an eating GIF; the rest post text
+  until their art lands.
 - Rhyme Duel: `/wisp play rhyme` trades perfect and slant rhymes with Wisp.
 - Staff tools: `/wispadmin setup`, role management, freeze and unfreeze, punish,
   unban, strip points and reset name. Errors are reported to staff as plain text.

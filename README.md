@@ -56,8 +56,10 @@ Staff commands need the Manage Server permission.
 - `/wispadmin roles add`, `roles remove`, `roles list` choose which roles can
   feed Wisp.
 - `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
-- `/wispadmin punish`, `unban`, `strip`, `resetname` ban or unban a member,
-  take leaderboard points, or make Wisp forget a member's name.
+- `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
+- `/wispadmin unban` lifts a member's ban.
+- `/wispadmin strip` takes leaderboard points from a member.
+- `/wispadmin resetname` makes Wisp forget a member's name.
 
 Member commands:
 
