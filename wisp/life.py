@@ -146,6 +146,8 @@ def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Ev
         life.care = min(life.care + meal_points, CARE_MAX)
         if life.care >= HANGRY_BELOW:
             life.warned = None
+        elif life.care >= FADING_BELOW and life.warned is EventKind.FADING:
+            life.warned = EventKind.HUNGRY
     return []
 
 
@@ -178,7 +180,10 @@ def tick(
     """Advance a life to `now`, crediting at most MAX_CREDITED_GAP of time."""
     if is_over(life):
         return []
-    elapsed = max(min(now - life.last_tick_at, MAX_CREDITED_GAP), timedelta(0))
+    gap = now - life.last_tick_at
+    elapsed = timedelta(0) if frozen else max(min(gap, MAX_CREDITED_GAP), timedelta(0))
+    if life.high_happiness_since is not None:
+        life.high_happiness_since += max(gap - elapsed, timedelta(0))
     life.last_tick_at = now
     if frozen:
         return []

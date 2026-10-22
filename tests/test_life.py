@@ -224,14 +224,23 @@ def test_one_tick_can_cross_both_thresholds() -> None:
 
 
 def test_feeding_above_threshold_rearms_warning() -> None:
-    life = alive(care=9.0, warned=EventKind.FADING)
-    feed(life, 10, FEEDER, T0)
+    life = alive(care=5.0, warned=EventKind.FADING)
+    feed(life, 3, FEEDER, T0)
     assert life.warned is EventKind.FADING
-    feed(life, 15, FEEDER, T0)
+    feed(life, 26, FEEDER, T0)
     assert life.care == 34.0
     assert life.warned is None
     events = run(life, timedelta(hours=8))
     assert kinds(events) == [EventKind.HUNGRY]
+
+
+def test_fading_rearms_after_feeding_into_the_hungry_band() -> None:
+    life = alive(care=5.0, warned=EventKind.FADING)
+    feed(life, 10, FEEDER, T0)
+    assert life.care == 15.0
+    assert life.warned is EventKind.HUNGRY
+    events = run(life, timedelta(hours=10))
+    assert kinds(events) == [EventKind.FADING]
 
 
 def test_care_never_exceeds_max() -> None:
@@ -370,3 +379,28 @@ def test_only_adults_build_a_rockstar_streak() -> None:
     life = alive(care=CARE_MAX, stage=Stage.TEEN)
     run(life, timedelta(hours=1), happiness=100, fed=True)
     assert life.high_happiness_since is None
+
+
+def test_frozen_span_does_not_count_toward_rockstar() -> None:
+    life = alive(care=CARE_MAX, stage=Stage.ADULT)
+    run(life, timedelta(days=1), happiness=ROCKSTAR_HAPPINESS, fed=True)
+    run(life, ROCKSTAR_HAPPY_FOR, step=MAX_CREDITED_GAP, frozen=True)
+    events = run(life, TICK_EVERY, happiness=ROCKSTAR_HAPPINESS, fed=True)
+    assert events == []
+    assert life.stage is Stage.ADULT
+    remaining = ROCKSTAR_HAPPY_FOR - timedelta(days=1)
+    events = run(life, remaining, happiness=ROCKSTAR_HAPPINESS, fed=True)
+    assert events == [Event(EventKind.STAGE_UP, Stage.ROCKSTAR)]
+
+
+def test_offline_gap_counts_only_fifteen_minutes_toward_rockstar() -> None:
+    life = alive(care=CARE_MAX, stage=Stage.ADULT)
+    tick(life, T0 + TICK_EVERY, frozen=False, happiness=100, caretakers=0)
+    since = life.high_happiness_since
+    assert since is not None
+    back = T0 + TICK_EVERY + timedelta(days=ROCKSTAR_HAPPY_FOR.days + 1)
+    life.care = CARE_MAX
+    events = tick(life, back, frozen=False, happiness=100, caretakers=0)
+    assert events == []
+    assert life.stage is Stage.ADULT
+    assert life.high_happiness_since == back - MAX_CREDITED_GAP
