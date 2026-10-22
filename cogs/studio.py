@@ -184,8 +184,8 @@ async def _open_thread(
 
 async def _create_thread(
     bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread
-) -> None:
-    """Create one Studio thread, remember it, then pin or lock it as needed."""
+) -> tuple[discord.Thread, int]:
+    """Create one Studio thread and remember it; return it and its first message id."""
     created = await forum.create_thread(
         name=spec.name,
         content=spec.content,
@@ -195,21 +195,45 @@ async def _create_thread(
     if spec.message_attr is not None:
         values[spec.message_attr] = created.message.id
     await bot.settings.update(forum.guild.id, **values)
-    if spec.message_attr is not None:
+    return created.thread, created.message.id
+
+
+async def _finish_thread(
+    bot: "WispBot",
+    guild: discord.Guild,
+    thread: discord.Thread,
+    spec: StudioThread,
+    message_id: int | None,
+) -> None:
+    """Lock the rules thread and pin the card, skipping whatever is already done.
+
+    A failed step is reported to staff and retried the next time the Studio is
+    ensured. A card whose message is gone is left for the status loop to repost.
+    """
+    if spec.locked and not thread.locked:
         try:
-            await created.message.pin()
+            await thread.edit(locked=True)
         except discord.HTTPException as error:
-            await bot.report_error(forum.guild, f"pinning the {spec.name} card", error)
-    if spec.locked:
-        await created.thread.edit(locked=True)
+            await bot.report_error(guild, f"locking {spec.name}", error)
+    if spec.message_attr is None or message_id is None:
+        return
+    try:
+        message = await thread.fetch_message(message_id)
+        if not message.pinned:
+            await message.pin()
+    except discord.NotFound:
+        return
+    except discord.HTTPException as error:
+        await bot.report_error(guild, f"pinning the card in {spec.name}", error)
 
 
 async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     """Create any Studio thread that is missing and return the guild's settings.
 
-    Threads that already exist are left alone, and archived ones are reopened.
-    Threads that were stored but have been deleted are recreated, and staff are
-    told about them in the errors channel.
+    Threads that already exist are left alone apart from reopening an archived
+    one and finishing any lock or pin that is still missing. Threads that were
+    stored but have been deleted are recreated, and staff are told about them in
+    the errors channel.
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -220,11 +244,17 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
         recreated: list[str] = []
         for spec in STUDIO_THREADS:
             stored: int | None = getattr(settings, spec.attr)
-            if await _open_thread(bot, forum.id, stored) is not None:
-                continue
-            await _create_thread(bot, forum, spec)
-            if stored is not None:
-                recreated.append(spec.name)
+            thread = await _open_thread(bot, forum.id, stored)
+            message_id: int | None
+            if thread is None:
+                thread, message_id = await _create_thread(bot, forum, spec)
+                if stored is not None:
+                    recreated.append(spec.name)
+            else:
+                message_id = (
+                    getattr(settings, spec.message_attr) if spec.message_attr else None
+                )
+            await _finish_thread(bot, forum.guild, thread, spec, message_id)
         settings = await bot.settings.get(guild_id)
     if recreated:
         await _announce(bot, forum.guild, settings, recreated)

@@ -97,17 +97,33 @@ class FakeServer:
         thread.name = name
         thread.parent_id = forum_id
         thread.archived = False
-        thread.edit = AsyncMock(return_value=thread)
+        thread.locked = False
+        thread.edit = AsyncMock(side_effect=lambda **fields: self._edit(thread, fields))
+        thread.fetch_message = AsyncMock(
+            side_effect=lambda message_id: self._fetch_message(thread, message_id)
+        )
         self._next_id += 1
         message = MagicMock(spec=discord.Message)
         message.id = self._next_id
         message.content = content
-        message.pin = AsyncMock()
+        message.pinned = False
+        message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
         self.threads[thread.id] = thread
         self.messages[thread.id] = message
         self.created_names.append(name)
         thread.create_kwargs = kwargs
         return discord.channel.ThreadWithMessage(thread, message)
+
+    def _edit(self, thread: MagicMock, fields: dict[str, Any]) -> MagicMock:
+        for name, value in fields.items():
+            setattr(thread, name, value)
+        return thread
+
+    def _fetch_message(self, thread: MagicMock, message_id: int) -> MagicMock:
+        message = self.messages.get(thread.id)
+        if message is None or message.id != message_id:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Message")
+        return message
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
         if channel_id not in self.threads:
@@ -250,6 +266,8 @@ async def test_setup_is_idempotent(
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
     assert "already" in sent_text(interaction)
+    assert server.thread_named("How Wisp Works").edit.await_count == 1
+    assert server.messages[server.thread_named("Status").id].pin.await_count == 1
     server.errors.send.assert_not_awaited()
 
 
@@ -307,8 +325,73 @@ async def test_pin_failure_is_reported_and_setup_carries_on(
 
     assert server.created_names == list(THREAD_NAMES)
     lines = [call.args[0] for call in server.errors.send.await_args_list]
-    assert any("pinning the Status card" in line for line in lines)
-    assert any("pinning the The Billboard card" in line for line in lines)
+    assert any("pinning the card in Status" in line for line in lines)
+    assert any("pinning the card in The Billboard" in line for line in lines)
+
+
+async def test_lock_failure_is_reported_and_setup_carries_on(
+    cog: Studio, bot: app.WispBot, server: FakeServer
+) -> None:
+    original = server.forum.create_thread.side_effect
+
+    def failing_lock(**kwargs: Any) -> discord.channel.ThreadWithMessage:
+        created: discord.channel.ThreadWithMessage = original(**kwargs)
+        if kwargs["name"] == "How Wisp Works":
+            server.threads[created.thread.id].edit.side_effect = discord.Forbidden(
+                MagicMock(status=403), "Missing Permissions"
+            )
+        return created
+
+    server.forum.create_thread.side_effect = failing_lock
+
+    await run_setup(cog, server)
+
+    assert server.created_names == list(THREAD_NAMES)
+    (line,) = [call.args[0] for call in server.errors.send.await_args_list]
+    assert line.startswith("Error in locking How Wisp Works: Forbidden")
+
+
+async def test_rerun_locks_an_existing_unlocked_rules_thread(
+    cog: Studio, bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(cog, server)
+    rules_thread = server.thread_named("How Wisp Works")
+    rules_thread.locked = False
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.created_names == list(THREAD_NAMES)
+    assert rules_thread.locked is True
+    assert rules_thread.edit.await_count == 2
+
+
+async def test_rerun_pins_an_existing_unpinned_card(
+    cog: Studio, bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(cog, server)
+    status_message = server.messages[server.thread_named("Status").id]
+    status_message.pinned = False
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.created_names == list(THREAD_NAMES)
+    assert status_message.pinned is True
+    assert status_message.pin.await_count == 2
+    billboard_message = server.messages[server.thread_named("The Billboard").id]
+    billboard_message.pin.assert_awaited_once()
+
+
+async def test_rerun_skips_a_card_whose_message_is_gone(
+    cog: Studio, bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(cog, server)
+    status = server.thread_named("Status")
+    del server.messages[status.id]
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.created_names == list(THREAD_NAMES)
+    server.errors.send.assert_not_awaited()
 
 
 async def test_thread_in_another_forum_is_recreated(
