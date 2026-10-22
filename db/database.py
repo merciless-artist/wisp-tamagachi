@@ -66,9 +66,12 @@ class Database:
         )
 
     async def close(self) -> None:
-        """Close the pool and wait for its connections to finish."""
-        self._pool.close()
-        await self._pool.wait_closed()
+        """Close the pool and wait for its connections to finish. Safe to repeat."""
+        if self._pool is None:
+            return
+        pool, self._pool = self._pool, None
+        pool.close()
+        await pool.wait_closed()
 
     def t(self, name: str) -> str:
         """Return the prefixed name of a table."""
