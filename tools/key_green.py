@@ -15,8 +15,8 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-MIN_GREEN = 80        # green channel must be at least this bright
-DOMINANCE = 1.35      # ...and this many times stronger than red and blue
+MIN_GREEN = 80  # green channel must be at least this bright
+DOMINANCE = 1.35  # ...and this many times stronger than red and blue
 
 
 def key_frame(path: Path) -> None:
@@ -28,7 +28,9 @@ def key_frame(path: Path) -> None:
     greenish = (g >= MIN_GREEN) & (g / other >= DOMINANCE)
     labels, count = ndimage.label(greenish)
     if count:
-        border = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
+        border = np.unique(
+            np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]])
+        )
         backdrop = np.isin(labels, border[border > 0])
     else:
         backdrop = np.zeros_like(greenish)
@@ -42,7 +44,9 @@ def key_frame(path: Path) -> None:
     # Real flame is orange (green well under red). Olive means flame mixed with
     # backdrop, so fade by how far green climbs toward red, for low-blue pixels.
     olive = np.clip((g / (r + 1.0) - 0.6) / 0.4, 0.0, 1.0) * (b < 110)
-    spill = np.maximum(np.clip((g - np.maximum(r, b)) / (g + 1.0) * 2.5, 0.0, 1.0), olive)
+    spill = np.maximum(
+        np.clip((g - np.maximum(r, b)) / (g + 1.0) * 2.5, 0.0, 1.0), olive
+    )
     alpha = np.full(g.shape, 255.0)
     alpha[backdrop] = 0.0
     alpha[band] = 255.0 * (1.0 - spill[band])
