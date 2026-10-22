@@ -1,7 +1,8 @@
 """Async MySQL access through an aiomysql connection pool."""
 
 from collections.abc import Sequence
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, overload
 
 import aiomysql
 
@@ -9,6 +10,36 @@ import config
 
 Params = Sequence[Any]
 Row = dict[str, Any]
+
+
+@overload
+def to_db_time(moment: datetime) -> datetime: ...
+
+
+@overload
+def to_db_time(moment: None) -> None: ...
+
+
+def to_db_time(moment: datetime | None) -> datetime | None:
+    """Convert a timezone-aware datetime to the naive UTC the database stores."""
+    if moment is None:
+        return None
+    if moment.tzinfo is None:
+        raise ValueError("Datetime must be timezone-aware")
+    return moment.astimezone(UTC).replace(tzinfo=None)
+
+
+@overload
+def from_db_time(moment: datetime) -> datetime: ...
+
+
+@overload
+def from_db_time(moment: None) -> None: ...
+
+
+def from_db_time(moment: datetime | None) -> datetime | None:
+    """Mark a naive datetime read from the database as UTC."""
+    return None if moment is None else moment.replace(tzinfo=UTC)
 
 
 class Database:
