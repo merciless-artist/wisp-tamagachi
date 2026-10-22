@@ -28,6 +28,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.lunchbox",
     "cogs.feeding",
     "cogs.life_loop",
+    "cogs.personality",
 )
 
 _REFUSAL = "That command is for staff."
