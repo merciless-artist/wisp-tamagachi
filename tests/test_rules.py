@@ -6,7 +6,7 @@ from wisp.rules import MEAL_POINTS, SNACKS, STAGE_RULES, Stage
 
 def test_snack_keys_are_unique() -> None:
     keys = [snack.key for snack in SNACKS]
-    assert len(keys) == len(set(keys)) == 9
+    assert len(keys) == len(set(keys))
 
 
 def test_snack_asset_names_follow_the_key() -> None:

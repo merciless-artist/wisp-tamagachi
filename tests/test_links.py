@@ -17,7 +17,7 @@ SUNO_ID = "3e504622-bf17-42ca-9059-c83393bce7dc"
             f"viibr:{VIIBR_ID}",
         ),
         (f"https://suno.com/song/{SUNO_ID}", f"suno:{SUNO_ID}"),
-        ("https://suno.com/s/AbC123xyz", "suno:abc123xyz"),
+        ("https://suno.com/s/AbC123xyz", "suno:AbC123xyz"),
         (f"https://app.suno.ai/song/{SUNO_ID}", f"suno:{SUNO_ID}"),
         (f"https://suno.com/song/{SUNO_ID}?sh=abc#top", f"suno:{SUNO_ID}"),
     ],
@@ -26,6 +26,13 @@ def test_finds_track(text: str, key: str) -> None:
     track = find_track(text)
     assert track is not None
     assert track.key == key
+
+
+def test_suno_shortcodes_are_case_sensitive() -> None:
+    lower = find_track("https://suno.com/s/abc123")
+    upper = find_track("https://suno.com/s/ABC123")
+    assert lower is not None and upper is not None
+    assert lower.key != upper.key
 
 
 def test_track_carries_kind_and_url() -> None:

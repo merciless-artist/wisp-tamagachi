@@ -28,21 +28,21 @@ _PATTERNS: tuple[tuple[TrackKind, re.Pattern[str]], ...] = (
     (
         TrackKind.VIIBR,
         re.compile(
-            rf"https://(?:www\.)?viibrmusic\.com/songs/(?P<id>{_UUID}){_END}",
+            rf"https://(?:www\.)?viibrmusic\.com/songs/(?P<uuid>{_UUID}){_END}",
             re.IGNORECASE,
         ),
     ),
     (
         TrackKind.SUNO,
         re.compile(
-            rf"https://(?:suno\.com|app\.suno\.ai)/song/(?P<id>{_UUID}){_END}",
+            rf"https://(?:suno\.com|app\.suno\.ai)/song/(?P<uuid>{_UUID}){_END}",
             re.IGNORECASE,
         ),
     ),
     (
         TrackKind.SUNO,
         re.compile(
-            rf"https://suno\.com/s/(?P<id>[0-9a-z]+){_END}",
+            rf"https://suno\.com/s/(?P<code>[0-9a-z]+){_END}",
             re.IGNORECASE,
         ),
     ),
@@ -50,7 +50,11 @@ _PATTERNS: tuple[tuple[TrackKind, re.Pattern[str]], ...] = (
 
 
 def find_track(text: str) -> Track | None:
-    """Return the first valid track link in ``text``, or None if there is none."""
+    """Return the first valid track link in ``text``, or None if there is none.
+
+    UUIDs are lowercased in the key; Suno shortcodes are case-sensitive and kept
+    exactly as written.
+    """
     matches = [
         (match.start(), kind, match)
         for kind, pattern in _PATTERNS
@@ -59,4 +63,6 @@ def find_track(text: str) -> Track | None:
     if not matches:
         return None
     _, kind, match = min(matches, key=lambda found: found[0])
-    return Track(kind, f"{kind}:{match['id'].lower()}", match[0])
+    uuid = match.groupdict().get("uuid")
+    ident = uuid.lower() if uuid else match["code"]
+    return Track(kind, f"{kind}:{ident}", match[0])
