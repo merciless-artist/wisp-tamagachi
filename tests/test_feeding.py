@@ -616,6 +616,57 @@ async def test_failed_forward_is_reported_and_keeps_the_feed(
 
 
 # ---
+# Meeting Wisp
+# ---
+
+
+async def test_third_day_of_feeding_introduces_him_after_the_posts(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    assert ready.id is not None
+    now = discord.utils.utcnow()
+    for days in (2, 1):
+        await bot.activity_log.record_interaction(
+            GUILD_ID,
+            ready.id,
+            FIRST_USER,
+            InteractionKind.PLAY,
+            0,
+            0,
+            now - timedelta(days=days),
+        )
+    order: list[str] = []
+    server.mealtime.send.side_effect = lambda *a, **k: order.append("mealtime")
+    server.house.send.side_effect = lambda *a, **k: order.append("house")
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert order == ["mealtime", "house"]
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert player.met_at is not None
+    assert (await current_life(bot)).growth == rules.GROWTH_PER_BOND_MOMENT
+    (button,) = server.house.send.await_args.kwargs["view"].children
+    assert button.item.custom_id == f"wisp:name:{FIRST_USER}"
+
+
+async def test_first_day_of_feeding_does_not_introduce_him(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await cog.on_message(message(VIIBR_URL))
+
+    server.house.send.assert_not_awaited()
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).met_at is None
+
+
+# ---
 # Announcements
 # ---
 

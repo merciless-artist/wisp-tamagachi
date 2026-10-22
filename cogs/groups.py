@@ -25,3 +25,14 @@ wispadmin = app_commands.Group(
     allowed_contexts=_GUILDS_ONLY,
     allowed_installs=_GUILD_INSTALL,
 )
+
+
+def require_guild(interaction: discord.Interaction) -> int:
+    """Return the id of the guild an interaction came from.
+
+    Raises:
+        app_commands.NoPrivateMessage: The interaction is not in a guild.
+    """
+    if interaction.guild_id is None:
+        raise app_commands.NoPrivateMessage()
+    return interaction.guild_id

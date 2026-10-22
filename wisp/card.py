@@ -4,10 +4,10 @@ from datetime import datetime
 
 from wisp.life import Life, Phase, age_days
 from wisp.rules import CARE_MAX, EGG_FOOD_NEEDED, EGG_WARMTH, HATCHING_TIME
+from wisp.text import SEPARATOR
 
 _BAR_CELLS = 10
 _LABEL_WIDTH = 11
-_SEPARATOR = "・♪ ────────・──────── ♪・"
 
 
 def bar(value: float) -> str:
@@ -39,7 +39,7 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
                 _row("care", life.care / CARE_MAX * 100),
                 _row("happiness", happiness),
                 f"fed today by {people}",
-                _SEPARATOR,
+                SEPARATOR,
             ]
         )
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")

@@ -69,11 +69,23 @@ class _House:
             LookupError("the House channel is not set or cannot be seen"),
         )
 
-    async def say(self, text: str, image: Path | None = None) -> None:
-        """Post a line, with an image when given; a failure is reported to staff."""
+    async def say(
+        self,
+        text: str,
+        image: Path | None = None,
+        view: discord.ui.View | None = None,
+    ) -> None:
+        """Post a line, with an image or buttons when given.
+
+        A failure is reported to staff.
+        """
         if self._channel is None:
             return
-        extras: dict[str, Any] = {} if image is None else {"file": discord.File(image)}
+        extras: dict[str, Any] = {}
+        if image is not None:
+            extras["file"] = discord.File(image)
+        if view is not None:
+            extras["view"] = view
         try:
             await self._channel.send(text, allowed_mentions=_NO_PING, **extras)
         except discord.DiscordException as error:
@@ -85,29 +97,46 @@ class _House:
 # ---
 
 
-def _fields(moment: Moment, version: int, event: Event | None) -> dict[str, str]:
+def _fields(
+    moment: Moment, version: int, event: Event | None, name: str | None
+) -> dict[str, str]:
     available = {"version": str(version)}
     if event is not None and event.stage is not None:
         available["stage"] = event.stage.value
-    return {name: available[name] for name in FIELDS[moment]}
+    if name is not None:
+        available["name"] = name
+    return {field: available[field] for field in FIELDS[moment]}
 
 
 def _line(
-    bot: "WispBot", moment: Moment, life: Life, event: Event | None = None
+    bot: "WispBot",
+    moment: Moment,
+    life: Life,
+    event: Event | None = None,
+    name: str | None = None,
 ) -> str:
-    return bot.lines.pick(moment, mood(life), **_fields(moment, life.version, event))
+    return bot.lines.pick(
+        moment, mood(life), **_fields(moment, life.version, event, name)
+    )
 
 
 async def say_in_house(
-    bot: "WispBot", guild_id: int, moment: Moment, life: Life
+    bot: "WispBot",
+    guild_id: int,
+    moment: Moment,
+    life: Life,
+    *,
+    name: str | None = None,
+    view: discord.ui.View | None = None,
 ) -> None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
+    `name` fills the line's name when the moment has one, and `view` adds buttons.
     A missing House channel is reported to staff.
     """
     house = _House(bot, guild_id)
     await house.open()
-    await house.say(_line(bot, moment, life))
+    await house.say(_line(bot, moment, life, name=name), view=view)
 
 
 async def _lay_next_egg(bot: "WispBot", guild_id: int, house: _House) -> None:

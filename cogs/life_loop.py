@@ -1,7 +1,7 @@
 """The life loop: time passes for Wisp, events are announced and his card stays live."""
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import discord
@@ -9,8 +9,8 @@ import pymysql
 from discord.ext import commands, tasks
 
 from cogs.announce import post_events, say_in_house, show_in_thread
+from cogs.players import refresh_billboard, status_text
 from wisp.bond import happiness
-from wisp.card import render_status
 from wisp.life import Event, Life, Phase, is_over, new_egg, tick
 from wisp.lines import Moment
 from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, TICK_EVERY
@@ -99,6 +99,7 @@ class LifeLoop(commands.Cog):
             return
         await self._speak_if_quiet(guild_id, current, frozen, now)
         await self._update_card(guild_id, current, now, happy)
+        await refresh_billboard(bot, guild_id)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
@@ -144,16 +145,13 @@ class LifeLoop(commands.Cog):
         """Show the live status card in the Status thread."""
         if is_over(life):
             return
-        bot = self.bot
-        today = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        text = render_status(
-            life,
-            now,
-            happiness=happy,
-            fed_today=await bot.activity_log.people_since(guild_id, today),
-        )
         await show_in_thread(
-            bot, guild_id, "status_thread_id", "status_message_id", text, "status card"
+            self.bot,
+            guild_id,
+            "status_thread_id",
+            "status_message_id",
+            await status_text(self.bot, guild_id, life, now, happy),
+            "status card",
         )
 
 

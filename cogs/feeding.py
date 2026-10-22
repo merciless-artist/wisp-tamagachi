@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from cogs.announce import post_events
+from cogs.players import maybe_meet
 from cogs.studio import StudioError, studio_thread
 from db.activity import InteractionKind
 from db.players import Player
@@ -86,6 +87,9 @@ class Feeding(commands.Cog):
         name = player.name or author.display_name
         await self._forward(guild, author, track, name, feeling)
         await post_events(self.bot, guild.id, events)
+        await maybe_meet(
+            self.bot, guild.id, author.id, display_name=author.display_name
+        )
 
     async def _feed(
         self, guild_id: int, user_id: int, track: Track, message_id: int, now: datetime

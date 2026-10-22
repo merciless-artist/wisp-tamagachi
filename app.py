@@ -18,12 +18,17 @@ from db.players import PlayerRepo
 from db.schema import create_tables
 from db.settings import SettingsRepo
 from wisp.lines import LinePicker
+from wisp.text import MESSAGE_LIMIT
 
 log = logging.getLogger("wisp")
 
-EXTENSIONS: tuple[str, ...] = ("cogs.studio", "cogs.feeding", "cogs.life_loop")
+EXTENSIONS: tuple[str, ...] = (
+    "cogs.studio",
+    "cogs.players",
+    "cogs.feeding",
+    "cogs.life_loop",
+)
 
-_MESSAGE_LIMIT = 2000
 _USER_ERROR = "Something went wrong. Staff have been told."
 _REFUSAL = "That command is for staff."
 
@@ -186,7 +191,7 @@ class WispBot(commands.Bot):
                     channel_id,
                 )
                 return
-            await channel.send(line[:_MESSAGE_LIMIT])
+            await channel.send(line[:MESSAGE_LIMIT])
         except Exception:
             log.exception("Could not post error report for %s", context)
 

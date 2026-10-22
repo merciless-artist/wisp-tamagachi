@@ -34,7 +34,9 @@ FORUM_ID = 10
 HOUSE_ID = 20
 ERRORS_ID = 40
 STATUS_ID = 60
+BILLBOARD_ID = 61
 CARD_ID = 777
+BILLBOARD_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
 USER_ID = 1
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
@@ -65,15 +67,24 @@ class FakeServer:
         self.partial = MagicMock(spec=discord.PartialMessage)
         self.partial.edit = self.card_edit
         self.status.get_partial_message.return_value = self.partial
+        self.billboard_edit: Any = AsyncMock()
+        self.billboard = MagicMock(spec=discord.Thread)
+        self.billboard.id = BILLBOARD_ID
+        self.billboard.parent_id = FORUM_ID
+        self.billboard.archived = False
+        self.billboard.get_partial_message.return_value = MagicMock(
+            spec=discord.PartialMessage, edit=self.billboard_edit
+        )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
-        if channel_id != STATUS_ID:
+        threads = {STATUS_ID: self.status, BILLBOARD_ID: self.billboard}
+        if channel_id not in threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
-        return self.status
+        return threads[channel_id]
 
 
 @pytest.fixture
@@ -108,6 +119,8 @@ async def configure(bot: app.WispBot, *, frozen: bool = False) -> None:
         error_channel_id=ERRORS_ID,
         status_thread_id=STATUS_ID,
         status_message_id=CARD_ID,
+        billboard_thread_id=BILLBOARD_ID,
+        billboard_message_id=BILLBOARD_MESSAGE_ID,
         frozen=frozen,
     )
 
@@ -330,6 +343,47 @@ async def test_card_failure_is_reported_once_per_streak(
 
 
 # ---
+# Billboard
+# ---
+
+
+async def test_tick_refreshes_the_billboard_after_the_status_card(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    await bot.players.add_points(GUILD_ID, USER_ID, 5)
+    await interact(bot, life, NOW - timedelta(hours=2))
+    order: list[str] = []
+    server.card_edit.side_effect = lambda **_: order.append("card")
+    server.billboard_edit.side_effect = lambda **_: order.append("billboard")
+
+    await cog.run_tick(NOW)
+
+    assert order == ["card", "billboard"]
+    content = server.billboard_edit.await_args.kwargs["content"]
+    assert content.startswith("♪ The Billboard")
+    assert f"<@{USER_ID}>" in content
+
+
+async def test_billboard_failure_is_reported_without_losing_the_card(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.billboard_edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Access"
+    )
+
+    await cog.run_tick(NOW)
+
+    server.card_edit.assert_awaited_once()
+    server.errors.send.assert_awaited_once()
+    (report,) = server.errors.send.await_args.args
+    assert report.startswith("Error in updating the Billboard: Forbidden")
+
+
+# ---
 # Events
 # ---
 
@@ -513,6 +567,8 @@ async def test_failing_guild_is_reported_and_the_next_one_still_ticks(
             error_channel_id=ERRORS_ID,
             status_thread_id=STATUS_ID,
             status_message_id=CARD_ID,
+            billboard_thread_id=BILLBOARD_ID,
+            billboard_message_id=BILLBOARD_MESSAGE_ID,
         )
     await lay(bot)
     current = bot.lives.current

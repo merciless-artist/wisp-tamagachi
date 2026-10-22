@@ -8,16 +8,16 @@ from typing import TYPE_CHECKING, Final
 import discord
 from discord import app_commands
 
-from cogs.groups import wispadmin
+from cogs.groups import require_guild, wispadmin
 from db.settings import Settings
 from wisp import rules
 from wisp.links import TrackKind
+from wisp.text import SEPARATOR, count
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _ARCHIVE_AFTER_MINUTES: Final = 10080
-_SEPARATOR = "・♪ ────────・──────── ♪・"
 _TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -28,17 +28,13 @@ _TRACK_LABELS: dict[TrackKind, str] = {
 # ---
 
 
-def _count(amount: int, noun: str) -> str:
-    return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"
-
-
 def _ban_lines() -> list[str]:
     lines = []
     for offence, length in enumerate(rules.BAN_LADDER, start=1):
         if length is None:
             lines.append(f"・Offense {offence}: banned from Wisp permanently")
         else:
-            days = _count(length // timedelta(days=1), "day")
+            days = count(length // timedelta(days=1), "day")
             lines.append(f"・Offense {offence}: banned from Wisp for {days}")
     return lines
 
@@ -46,21 +42,21 @@ def _ban_lines() -> list[str]:
 def rules_text() -> str:
     """Return the How Wisp Works post, with every number taken from the rules."""
     meals = [
-        f"・{_TRACK_LABELS[kind]}: {_count(points, 'meal point')}"
+        f"・{_TRACK_LABELS[kind]}: {count(points, 'meal point')}"
         for kind, points in rules.MEAL_POINTS.items()
     ]
     (first_name, _), *later_tiers = rules.BOND_TIERS
     tiers = ", ".join(
         [first_name, *(f"{name} at {needed}" for name, needed in later_tiers)]
     )
-    daily_cap = _count(rules.DAILY_MEAL_CAP, "point")
+    daily_cap = count(rules.DAILY_MEAL_CAP, "point")
     return "\n".join(
         [
             "♪ How Wisp Works",
             "Wisp is one little guy for the whole server. Share music and he "
             "grows from an egg into a Rockstar. If nobody feeds him, he fades "
             "away and a new egg takes his place.",
-            _SEPARATOR,
+            SEPARATOR,
             "Who can feed him",
             "・Active Lounger or higher",
             "・Open /wisp board once to join in",
@@ -75,7 +71,7 @@ def rules_text() -> str:
             "Your bond",
             "・Sharing viibrmusic.com tracks, playing and giving snacks all build "
             "your bond with him",
-            f"・After {_count(rules.MEET_AFTER_DAYS, 'different day')} with him, "
+            f"・After {count(rules.MEET_AFTER_DAYS, 'different day')} with him, "
             "he learns your name",
             f"・Tiers: {tiers}",
             "",
@@ -86,7 +82,7 @@ def rules_text() -> str:
             "",
             "Fair play",
             "・Fake links do not count, and staff can strip points",
-            f"・Names are capped at {_count(rules.NAME_MAX, 'character')}",
+            f"・Names are capped at {count(rules.NAME_MAX, 'character')}",
             *_ban_lines(),
             "・Staff can lift any ban",
         ]
@@ -309,12 +305,6 @@ async def studio_thread(bot: "WispBot", guild_id: int, attr: str) -> discord.Thr
 # ---
 
 
-def _guild_id(interaction: discord.Interaction["WispBot"]) -> int:
-    if interaction.guild_id is None:
-        raise app_commands.NoPrivateMessage()
-    return interaction.guild_id
-
-
 roles = app_commands.Group(
     name="roles", description="Roles that can feed Wisp.", parent=wispadmin
 )
@@ -337,7 +327,7 @@ async def setup_studio(
 ) -> None:
     """Save the channels, then create whichever Studio threads are missing."""
     bot = interaction.client
-    guild_id = _guild_id(interaction)
+    guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
     before = await bot.settings.get(guild_id)
     await bot.settings.update(
@@ -384,7 +374,7 @@ async def roles_add(
     interaction: discord.Interaction["WispBot"], role: discord.Role
 ) -> None:
     """Add a qualifying role."""
-    await interaction.client.settings.add_role(_guild_id(interaction), role.id)
+    await interaction.client.settings.add_role(require_guild(interaction), role.id)
     await interaction.response.send_message(
         f"♪ {role.mention} can now feed Wisp.", ephemeral=True
     )
@@ -397,7 +387,7 @@ async def roles_remove(
     interaction: discord.Interaction["WispBot"], role: discord.Role
 ) -> None:
     """Remove a qualifying role."""
-    await interaction.client.settings.remove_role(_guild_id(interaction), role.id)
+    await interaction.client.settings.remove_role(require_guild(interaction), role.id)
     await interaction.response.send_message(
         f"♪ {role.mention} no longer feeds Wisp.", ephemeral=True
     )
@@ -407,7 +397,7 @@ async def roles_remove(
 @app_commands.checks.has_permissions(manage_guild=True)
 async def roles_list(interaction: discord.Interaction["WispBot"]) -> None:
     """List the qualifying roles."""
-    role_ids = await interaction.client.settings.roles(_guild_id(interaction))
+    role_ids = await interaction.client.settings.roles(require_guild(interaction))
     if role_ids:
         mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
         text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
@@ -420,7 +410,7 @@ async def roles_list(interaction: discord.Interaction["WispBot"]) -> None:
 @app_commands.checks.has_permissions(manage_guild=True)
 async def freeze(interaction: discord.Interaction["WispBot"]) -> None:
     """Freeze Wisp so his care stops draining."""
-    await interaction.client.settings.update(_guild_id(interaction), frozen=True)
+    await interaction.client.settings.update(require_guild(interaction), frozen=True)
     await interaction.response.send_message(
         "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
         ephemeral=True,
@@ -431,7 +421,7 @@ async def freeze(interaction: discord.Interaction["WispBot"]) -> None:
 @app_commands.checks.has_permissions(manage_guild=True)
 async def unfreeze(interaction: discord.Interaction["WispBot"]) -> None:
     """Unfreeze Wisp so his care drains normally."""
-    await interaction.client.settings.update(_guild_id(interaction), frozen=False)
+    await interaction.client.settings.update(require_guild(interaction), frozen=False)
     await interaction.response.send_message(
         "♪ Wisp is unfrozen. His care drains normally again.", ephemeral=True
     )
