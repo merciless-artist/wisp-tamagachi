@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
-from wisp.life import Event, EventKind, Mood, is_over, mood, new_egg
+from wisp.life import Event, EventKind, Life, is_over, mood, new_egg
 from wisp.lines import FIELDS, Moment
 
 if TYPE_CHECKING:
@@ -91,6 +91,24 @@ def _fields(moment: Moment, version: int, event: Event | None) -> dict[str, str]
     return {name: available[name] for name in FIELDS[moment]}
 
 
+def _line(
+    bot: "WispBot", moment: Moment, life: Life, event: Event | None = None
+) -> str:
+    return bot.lines.pick(moment, mood(life), **_fields(moment, life.version, event))
+
+
+async def say_in_house(
+    bot: "WispBot", guild_id: int, moment: Moment, life: Life
+) -> None:
+    """Say one line for a moment in Wisp's House, in the mood of `life`.
+
+    A missing House channel is reported to staff.
+    """
+    house = _House(bot, guild_id)
+    await house.open()
+    await house.say(_line(bot, moment, life))
+
+
 async def _lay_next_egg(bot: "WispBot", guild_id: int, house: _House) -> None:
     """Insert the next egg once the current life is over, then announce it."""
     async with bot.guild_lock(guild_id):
@@ -101,17 +119,15 @@ async def _lay_next_egg(bot: "WispBot", guild_id: int, house: _House) -> None:
             guild_id,
             new_egg(await bot.lives.next_version(guild_id), discord.utils.utcnow()),
         )
-    line = bot.lines.pick(
-        Moment.NEW_EGG, mood(egg), **_fields(Moment.NEW_EGG, egg.version, None)
-    )
-    await house.say(line)
+    await house.say(_line(bot, Moment.NEW_EGG, egg))
 
 
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:
     """Announce life events in Wisp's House.
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
-    A death or a cold egg is followed by the next egg being laid and announced.
+    A death or a cold egg is followed by the next egg being laid and announced,
+    unless the current life is not over, which means the ending is stale.
     A missing House channel is reported to staff once; the eggs are still laid.
     """
     if not events:
@@ -119,12 +135,12 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     life = await bot.lives.current(guild_id)
     if life is None:
         return
-    feeling: Mood = mood(life)
     house = _House(bot, guild_id)
     await house.open()
     for event in events:
+        if event.kind in _ENDINGS and not is_over(life):
+            continue
         moment = Moment(event.kind.value)
-        line = bot.lines.pick(moment, feeling, **_fields(moment, life.version, event))
-        await house.say(line, _image_for(event))
+        await house.say(_line(bot, moment, life, event), _image_for(event))
         if event.kind in _ENDINGS:
             await _lay_next_egg(bot, guild_id, house)

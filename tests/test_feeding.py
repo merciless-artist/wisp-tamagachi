@@ -728,6 +728,18 @@ async def test_repeated_death_event_lays_only_one_egg(
     assert (await current_life(bot)).version == 2
 
 
+@pytest.mark.parametrize("kind", [EventKind.DIED, EventKind.EGG_COLD])
+async def test_stale_ending_is_not_announced(
+    bot: app.WispBot, server: FakeServer, ready: Life, assets: Path, kind: EventKind
+) -> None:
+    await configure(bot)
+
+    await post_events(bot, GUILD_ID, [Event(kind)])
+
+    server.house.send.assert_not_awaited()
+    assert (await current_life(bot)).version == 1
+
+
 async def test_missing_house_channel_is_reported_once_and_egg_still_laid(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:

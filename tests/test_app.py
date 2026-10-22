@@ -420,3 +420,40 @@ async def test_close_closes_the_database_even_if_the_client_fails(
 
 async def test_close_before_connecting_is_safe() -> None:
     await app.WispBot().close()
+
+
+# ---
+# Unhandled listener errors
+# ---
+
+
+async def test_unhandled_listener_error_is_reported_with_its_guild(
+    bot: app.WispBot,
+) -> None:
+    guild = make_guild(make_channel())
+    message = MagicMock(spec=discord.Message)
+    message.guild = guild
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    error = ValueError("bad listener")
+
+    try:
+        raise error
+    except ValueError:
+        await bot.on_error("on_message", message)
+
+    bot.report_error.assert_awaited_once_with(guild, "on_message", error)
+
+
+@pytest.mark.parametrize("args", [(), (MagicMock(spec=[]),), (None,)])
+async def test_unhandled_listener_error_without_a_guild_is_reported_without_one(
+    bot: app.WispBot, args: tuple[object, ...]
+) -> None:
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    error = RuntimeError("boom")
+
+    try:
+        raise error
+    except RuntimeError:
+        await bot.on_error("on_ready", *args)
+
+    bot.report_error.assert_awaited_once_with(None, "on_ready", error)

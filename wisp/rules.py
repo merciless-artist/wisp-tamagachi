@@ -100,6 +100,8 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 MAX_CREDITED_GAP = timedelta(minutes=15)
 TICK_EVERY = timedelta(minutes=5)
 COMPLIMENT_COOLDOWN = timedelta(minutes=10)
+HAPPINESS_WINDOW = timedelta(hours=24)
+QUIET_AFTER = timedelta(hours=9)
 
 # ---
 # Snacks

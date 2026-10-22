@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import sys
+from typing import Any
 
 import discord
 from discord import app_commands
@@ -18,7 +20,7 @@ from wisp.lines import LinePicker
 
 log = logging.getLogger("wisp")
 
-EXTENSIONS: tuple[str, ...] = ("cogs.studio", "cogs.feeding")
+EXTENSIONS: tuple[str, ...] = ("cogs.studio", "cogs.feeding", "cogs.life_loop")
 
 _MESSAGE_LIMIT = 2000
 _USER_ERROR = "Something went wrong. Staff have been told."
@@ -119,6 +121,18 @@ class WispBot(commands.Bot):
         """Ignore direct messages. Guild messages reach the cogs' own listeners."""
         if message.guild is None:
             return
+
+    async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
+        """Report an exception raised in an event listener to staff.
+
+        The guild comes from the event's first argument when it has one.
+        """
+        error = sys.exc_info()[1]
+        assert error is not None
+        guild = getattr(args[0], "guild", None) if args else None
+        await self.report_error(
+            guild if isinstance(guild, discord.Guild) else None, event_method, error
+        )
 
     async def close(self) -> None:
         """Shut the client down, then close the database pool."""
