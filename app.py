@@ -18,7 +18,7 @@ from wisp.lines import LinePicker
 
 log = logging.getLogger("wisp")
 
-EXTENSIONS: tuple[str, ...] = ("cogs.studio",)
+EXTENSIONS: tuple[str, ...] = ("cogs.studio", "cogs.feeding")
 
 _MESSAGE_LIMIT = 2000
 _USER_ERROR = "Something went wrong. Staff have been told."
