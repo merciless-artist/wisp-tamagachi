@@ -95,9 +95,17 @@ async def configured(bot: app.WispBot) -> None:
     )
 
 
-async def show_status(bot: app.WispBot, content: str = "card") -> None:
+async def show_status(
+    bot: app.WispBot, content: str = "card", view: discord.ui.View | None = None
+) -> None:
     await show_in_thread(
-        bot, GUILD_ID, "status_thread_id", "status_message_id", content, "status card"
+        bot,
+        GUILD_ID,
+        "status_thread_id",
+        "status_message_id",
+        content,
+        "status card",
+        view,
     )
 
 
@@ -181,6 +189,38 @@ async def test_no_stored_message_posts_one(
     server.status.edit.assert_not_awaited()
     server.status.thread.send.assert_awaited_once()
     assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_ID
+
+
+async def test_a_view_rides_along_on_the_edit(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    view = discord.ui.View(timeout=None)
+
+    await show_status(bot, view=view)
+
+    assert server.status.edit.await_args.kwargs["view"] is view
+
+
+async def test_a_view_rides_along_on_the_repost(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.status.edit.side_effect = not_found()
+    view = discord.ui.View(timeout=None)
+
+    await show_status(bot, view=view)
+
+    assert server.status.thread.send.await_args.kwargs["view"] is view
+
+
+async def test_without_a_view_the_message_keeps_its_buttons(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await show_status(bot)
+    server.status.edit.side_effect = not_found()
+    await show_status(bot)
+
+    assert "view" not in server.status.edit.await_args.kwargs
+    assert "view" not in server.status.thread.send.await_args.kwargs
 
 
 # ---

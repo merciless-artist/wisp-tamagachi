@@ -130,7 +130,8 @@ async def status_text(
 # ---
 
 
-def _bot(interaction: discord.Interaction) -> "WispBot":
+def bot_of(interaction: discord.Interaction) -> "WispBot":
+    """Return the running bot an interaction came from."""
     return cast("WispBot", interaction.client)
 
 
@@ -140,7 +141,7 @@ async def _name_refusal(interaction: discord.Interaction) -> str | None:
     A member who already has a name cannot change it; staff clear it to let
     them choose again. Banned members cannot name themselves either.
     """
-    player = await _bot(interaction).players.get(
+    player = await bot_of(interaction).players.get(
         require_guild(interaction), interaction.user.id
     )
     if player.is_banned(discord.utils.utcnow()):
@@ -169,7 +170,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
         elif len(name) > NAME_MAX:
             reply = f"♪ Wisp only remembers names up to {count(NAME_MAX, 'character')}."
         else:
-            await _bot(interaction).players.set_name(
+            await bot_of(interaction).players.set_name(
                 require_guild(interaction), interaction.user.id, name
             )
             reply = f"♪ Wisp will call you {name} from now on."
@@ -181,7 +182,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
         self, interaction: discord.Interaction, error: Exception
     ) -> None:
         """Report a failure to staff and tell the member."""
-        await _bot(interaction).report_error(
+        await bot_of(interaction).report_error(
             interaction.guild, "the naming form", error
         )
         with contextlib.suppress(discord.DiscordException):

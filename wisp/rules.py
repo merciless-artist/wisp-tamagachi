@@ -129,6 +129,8 @@ class Snack:
         return f"eat_{self.key}.gif"
 
 
+FANCY_SNACK_COST = 8
+
 SNACKS: tuple[Snack, ...] = (
     Snack("sinewave", "Sine Wave", 0, 2, 1),
     Snack("cloudwave", "Cloud Wave", 3, 5, 1),

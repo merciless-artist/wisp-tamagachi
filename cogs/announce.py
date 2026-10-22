@@ -127,16 +127,19 @@ async def say_in_house(
     life: Life,
     *,
     name: str | None = None,
+    prefix: str = "",
+    image: Path | None = None,
     view: discord.ui.View | None = None,
 ) -> None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
-    `name` fills the line's name when the moment has one, and `view` adds buttons.
+    `name` fills the line's name when the moment has one, `prefix` goes in front
+    of the line, `image` attaches a file and `view` adds buttons.
     A missing House channel is reported to staff.
     """
     house = _House(bot, guild_id)
     await house.open()
-    await house.say(_line(bot, moment, life, name=name), view=view)
+    await house.say(prefix + _line(bot, moment, life, name=name), image, view)
 
 
 async def _lay_next_egg(bot: "WispBot", guild_id: int, house: _House) -> None:
@@ -188,6 +191,7 @@ async def show_in_thread(
     message_attr: str,
     content: str,
     label: str,
+    view: discord.ui.View | None = None,
 ) -> None:
     """Keep one pinned message in a Studio thread showing `content`.
 
@@ -199,6 +203,7 @@ async def show_in_thread(
             "status_message_id".
         content: The message text.
         label: What the message is, for error reports ("status card").
+        view: Buttons to show on the message, or None to leave it as it is.
 
     The stored message is edited. If it is gone, a new one is posted, pinned and
     stored. A failure is reported to staff once per streak of failures and never
@@ -206,7 +211,7 @@ async def show_in_thread(
     """
     key = (guild_id, message_attr)
     try:
-        await _show(bot, guild_id, thread_attr, message_attr, content, label)
+        await _show(bot, guild_id, thread_attr, message_attr, content, label, view)
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
@@ -224,18 +229,20 @@ async def _show(
     message_attr: str,
     content: str,
     label: str,
+    view: discord.ui.View | None,
 ) -> None:
+    extras: dict[str, Any] = {} if view is None else {"view": view}
     thread = await studio_thread(bot, guild_id, thread_attr)
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
         try:
             await thread.get_partial_message(message_id).edit(
-                content=content, allowed_mentions=_NO_PING
+                content=content, allowed_mentions=_NO_PING, **extras
             )
             return
         except discord.NotFound:
             pass
-    posted = await thread.send(content, allowed_mentions=_NO_PING)
+    posted = await thread.send(content, allowed_mentions=_NO_PING, **extras)
     await bot.settings.update(guild_id, **{message_attr: posted.id})
     try:
         await posted.pin()

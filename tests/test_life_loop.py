@@ -17,6 +17,7 @@ import pytest
 import app
 from cogs import life_loop
 from cogs.life_loop import LifeLoop
+from cogs.lunchbox import FeedButton
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.lives import LifeRepo
@@ -269,6 +270,39 @@ async def test_missing_status_message_is_reposted(
     stored = (await bot.settings.get(GUILD_ID)).status_message_id
     assert stored == REPOSTED_CARD_ID
     server.errors.send.assert_not_awaited()
+
+
+async def test_edited_status_keeps_feed_button(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    view = server.card_edit.await_args.kwargs["view"]
+    (button,) = view.children
+    assert isinstance(button, FeedButton)
+    assert view.timeout is None
+    assert "view" not in server.billboard_edit.await_args.kwargs
+
+
+async def test_reposted_status_keeps_feed_button(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.card_edit.side_effect = discord.NotFound(
+        MagicMock(status=404), "Unknown Message"
+    )
+
+    await cog.run_tick(NOW)
+
+    view = server.status.send.await_args.kwargs["view"]
+    (button,) = view.children
+    assert isinstance(button, FeedButton)
+    assert button.item.custom_id == "wisp:feed"
+    assert view.timeout is None
 
 
 async def test_card_is_posted_when_none_is_stored(

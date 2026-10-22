@@ -9,6 +9,7 @@ import pymysql
 from discord.ext import commands, tasks
 
 from cogs.announce import post_events, say_in_house, show_in_thread
+from cogs.lunchbox import feed_view
 from cogs.players import refresh_billboard, status_text
 from wisp.bond import happiness
 from wisp.life import Event, Life, Phase, is_over, new_egg, tick
@@ -152,6 +153,7 @@ class LifeLoop(commands.Cog):
             "status_message_id",
             await status_text(self.bot, guild_id, life, now, happy),
             "status card",
+            feed_view(),
         )
 
 
