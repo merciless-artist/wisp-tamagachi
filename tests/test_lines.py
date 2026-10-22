@@ -1,6 +1,7 @@
 """Tests for Wisp's lines and the no-repeat line picker."""
 
 import random
+import re
 import unicodedata
 from string import Formatter
 
@@ -8,6 +9,7 @@ import pytest
 
 from wisp.life import Mood
 from wisp.lines import FIELDS, LINES, LinePicker, Moment
+from wisp.rules import Stage
 
 SAMPLE_FIELDS = {"name": "Myra", "version": "4", "stage": "teen"}
 LONGEST_FIELDS = {"name": "W" * 32, "version": "9999", "stage": "rockstar"}
@@ -24,6 +26,9 @@ ONE_MOOD_MOMENTS = {
     Moment.NOT_ENOUGH_POINTS,
 }
 ALL_KEYS = sorted(LINES)
+GROWN_STAGES = [Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
+STAGE_NOUNS = ("Wisp", "era", "years", "phase")
+STAGE_UP_LINES = [line for mood in Mood for line in LINES[(Moment.STAGE_UP, mood)]]
 
 
 def fields_for(
@@ -69,14 +74,14 @@ def test_no_line_is_written_twice() -> None:
 
 def test_no_line_has_unicode_emoji() -> None:
     for _, line in every_line():
-        assert "‍" not in line and "️" not in line, line
+        assert "\u200d" not in line and "\ufe0f" not in line, line
         for char in line:
             assert char == "♪" or unicodedata.category(char) != "So", line
 
 
 def test_no_line_has_dashes_wisp_would_not_type() -> None:
     for _, line in every_line():
-        assert "—" not in line and "–" not in line, line
+        assert "\u2014" not in line and "\u2013" not in line, line
 
 
 def test_lines_fit_one_message() -> None:
@@ -88,6 +93,16 @@ def test_lines_fit_one_message() -> None:
 def test_lines_only_use_their_moments_fields() -> None:
     for moment, line in every_line():
         assert placeholders(line) <= FIELDS[moment], line
+
+
+@pytest.mark.parametrize("stage", GROWN_STAGES)
+@pytest.mark.parametrize("line", STAGE_UP_LINES)
+def test_stage_up_lines_read_for_every_stage(line: str, stage: Stage) -> None:
+    text = line.format(stage=stage)
+    awkward = rf"\b(a|an|I'm|to|officially)\s+{stage}\b"
+    as_adjective = rf"\b{stage}\s+({'|'.join(STAGE_NOUNS)})\b"
+    assert not re.search(awkward, text, re.IGNORECASE), text
+    assert re.search(as_adjective, text), text
 
 
 def test_fields_cover_every_moment() -> None:

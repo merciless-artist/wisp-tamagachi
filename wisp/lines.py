@@ -94,7 +94,7 @@ _TRACK_FED_HANGRY = (
     "ok. ok ok ok. color's coming back. keep going",
     "my stomach was making noises. bad noises. off-key noises",
     "hell yes. hell YES. more of that, immediately",
-    "{name} remembered I exist. everyone else, take notes",
+    "{name} remembered I exist. I'm writing that down forever",
     "ate it so fast I didn't even get to the chorus. starting over",
 )
 
@@ -141,14 +141,14 @@ _SNACK_FANCY_HANGRY = (
     "you're in my will, {name}. I own nothing. but you're in it",
     "too hungry to be classy about it. I'm just inhaling it",
     "now THAT is a meal-adjacent object",
-    "hell yes. that's the shit I needed",
+    "THAT. that's the shit I needed",
 )
 
 _SPICY_HAPPY = (
     "OH. that's spicy. ok. I'm good. more.",
     "my headphones just fogged up",
     "that's not a snack, that's a key change",
-    "I can hear colors. is that normal. don't answer. more",
+    "I can hear colors. is that normal. whatever. more",
     "*hiccups in reverb*",
     "spicy. so spicy. why would you do this to me, {name}. thank you",
 )
@@ -183,7 +183,7 @@ _PICKLE_HEDGE_HAPPY = (
     "I'll eat it. that's not an opinion. that's just eating",
     "no comment on the pickle. my lawyer says no comment on the pickle",
     "chewing very neutrally. very, very neutrally",
-    "I'm not saying I like it. I'm not saying I don't. what are YOU saying",
+    "this is my pickle face. it reveals nothing. it is a wall",
 )
 
 _PICKLE_HEDGE_HANGRY = (
@@ -210,7 +210,7 @@ _QUIET_HAPPY = (
 )
 
 _QUIET_HANGRY = (
-    "nine hours. nobody. I'm fine. I'm totally fucking fine.",
+    "hours of nothing. nobody. I'm fine. I'm totally fucking fine.",
     "hello? anyone? even my echo sounds hungry",
     "it's so quiet I can hear a fridge humming in a studio three cities away",
     "nobody's posting. cool. I'll just eat my headphones. they're mostly foam",
@@ -226,10 +226,10 @@ _HUNGRY = (
     "my care meter's in the red and so is my patience",
     "PSA: I'm starving. this is not a bit",
     "uh oh. stomach's making that noise. the flat one",
-    "I'd eat anything right now. a demo. a voice memo. a hum",
+    "I'd eat a song in any key right now. even a key that doesn't exist",
     "food check. there is no food. that was the check",
     "starting to get hangry. you won't like me hangry. I don't like me hangry",
-    "I could eat a whole album right now. I'd even eat the skits",
+    "I could eat a whole album right now. deluxe edition. bonus tracks and all",
     "sweet me is clocking out. feed me before the other guy shows up",
 )
 
@@ -286,19 +286,19 @@ _HATCHED = (
 )
 
 _STAGE_UP_HAPPY = (
-    "I'm {stage} now. I feel taller. am I taller",
-    "{stage} Wisp, unlocked. my headphones fit different",
-    "officially {stage}. somebody write this down",
-    "{stage}! I grew! you all did that with songs, which is so weird and so nice",
-    "new stage: {stage}. thank you for raising me right ♪",
-    "promoted to {stage}. I'm gonna need bigger headphones",
+    "I feel taller. am I taller? {stage} Wisp is definitely taller",
+    "look at me. {stage} Wisp. my headphones fit different",
+    "the {stage} years start today. somebody write this down",
+    "I grew! {stage} Wisp! you all did that with songs, which is so weird and so nice",
+    "welcome to my {stage} phase. thank you for raising me right ♪",
+    "{stage} era starts now. I'm gonna need bigger headphones",
 )
 
 _STAGE_UP_HANGRY = (
-    "great. I'm {stage} now. bigger. hungrier. thrilled",
-    "made it to {stage} on an empty stomach. this is how villains are made",
-    "officially {stage}. officially starving. somebody feed the birthday boy",
-    "hit {stage} and all I feel is hunger. what the hell kind of milestone is this",
+    "great. {stage} Wisp. bigger. hungrier. thrilled",
+    "made it to the {stage} years on an empty stomach. this is how villains are made",
+    "{stage} era, day one. officially starving. somebody feed the birthday boy",
+    "{stage} Wisp, and all I feel is hunger. what the hell kind of milestone is this",
 )
 
 # ---
@@ -307,7 +307,7 @@ _STAGE_UP_HANGRY = (
 
 _MEET_HAPPY = (
     "hey... wait. I know you. you're {name}, right? or is that just your server name",
-    "you again! three days now. that makes us something. what should I call you",
+    "you again! I keep seeing you. that makes us something. what should I call you",
     "ok, I remember you. you keep showing up and I keep liking it. what do I call you",
     "I've been keeping track of you, {name}. not in a weird way. what do you go by",
 )
@@ -323,7 +323,7 @@ _COMPLIMENT_HANGRY = (
     "compliments aren't food.",
     "cute doesn't fill a stomach",
     "love you too. feed me.",
-    "flattery. great. can I eat it? no? then hush",
+    "aw. that's sweet. I can't eat sweet. I can eat songs",
     "know what's cuter than me? a song in the tracks channel",
     "say it with a track",
     "I'm adorable and I'm starving. you can only fix one of those",
@@ -331,12 +331,11 @@ _COMPLIMENT_HANGRY = (
 )
 
 _BANNED = (
-    "{name} tried to sneak junk onto my plate. no Wisp for you for a while",
-    "caught {name} cheating. I'm not mad. I'm just not hanging out with you for a bit",
-    "{name}, you know what you did. timeout",
-    "fake food is still fake, {name}. go think about it",
-    "{name} is benched. I eat songs, not shortcuts",
-    "{name}'s sitting in the corner for now. we play fair in this studio",
+    "{name} is off the guest list. staff's call, not mine",
+    "staff pulled {name}'s backstage pass. I'm staying out of it",
+    "the studio door's locked for {name}. rules are rules",
+    "{name} lost Wisp privileges. I don't write the rules. I just hum along",
+    "staff says {name} can't hang with me. I don't argue with staff",
 )
 
 _NOT_ENOUGH_POINTS = (
@@ -344,7 +343,7 @@ _NOT_ENOUGH_POINTS = (
     "your pockets are empty, {name}. the lunchbox doesn't run tabs",
     "I love the thought, {name}. the lunchbox wants points though",
     "can't afford that yet. share some music and we'll talk",
-    "{name}, you're broke. lovingly. go post a song",
+    "{name}, your coin purse just echoed. go post a song",
 )
 
 # ---
