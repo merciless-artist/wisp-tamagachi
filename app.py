@@ -18,7 +18,7 @@ from db.players import PlayerRepo
 from db.schema import create_tables
 from db.settings import SettingsRepo
 from wisp.lines import LinePicker
-from wisp.text import MESSAGE_LIMIT
+from wisp.text import MESSAGE_LIMIT, USER_ERROR
 
 log = logging.getLogger("wisp")
 
@@ -29,7 +29,6 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.life_loop",
 )
 
-_USER_ERROR = "Something went wrong. Staff have been told."
 _REFUSAL = "That command is for staff."
 
 # ---
@@ -61,7 +60,7 @@ class WispTree(app_commands.CommandTree["WispBot"]):
             if isinstance(error, app_commands.CommandInvokeError)
             else error
         )
-        await self._reply(interaction, _USER_ERROR, context)
+        await self._reply(interaction, USER_ERROR, context)
         await self.client.report_error(interaction.guild, context, cause)
 
     async def _reply(

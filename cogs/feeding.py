@@ -10,7 +10,6 @@ from cogs.announce import post_events
 from cogs.players import maybe_meet
 from cogs.studio import StudioError, studio_thread
 from db.activity import InteractionKind
-from db.players import Player
 from wisp.bond import meal_grant
 from wisp.life import Event, Mood, feed, is_over, mood
 from wisp.lines import Moment
@@ -26,12 +25,6 @@ _MOOD_EMOJIS: Final = {Mood.HAPPY: "wisp_happy", Mood.HANGRY: "wisp_hangry"}
 # ---
 # Rules for who counts
 # ---
-
-
-def _is_banned(player: Player, now: datetime) -> bool:
-    return player.banned_forever or (
-        player.banned_until is not None and player.banned_until > now
-    )
 
 
 def _in_tracks_channel(message: discord.Message, tracks_channel_id: int | None) -> bool:
@@ -78,7 +71,7 @@ class Feeding(commands.Cog):
             return
         now = discord.utils.utcnow()
         player = await self.bot.players.get(guild.id, author.id)
-        if player.activated_at is None or _is_banned(player, now):
+        if player.activated_at is None or player.is_banned(now):
             return
         fed = await self._feed(guild.id, author.id, track, message.id, now)
         if fed is None:

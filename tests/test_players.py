@@ -498,6 +498,24 @@ async def test_simultaneous_interactions_meet_once(
     assert (await current_life(bot)).growth == rules.GROWTH_PER_BOND_MOMENT
 
 
+async def test_an_already_met_player_is_a_cheap_no_op(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    await bot.players.mark_met(GUILD_ID, FIRST_USER, discord.utils.utcnow())
+    take_lock = MagicMock(side_effect=AssertionError("took the guild lock"))
+    distinct_days = AsyncMock()
+    monkeypatch.setattr(bot, "guild_lock", take_lock)
+    monkeypatch.setattr(bot.activity_log, "distinct_days", distinct_days)
+
+    await maybe_meet(bot, GUILD_ID, FIRST_USER)
+
+    take_lock.assert_not_called()
+    distinct_days.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
 async def test_meeting_gives_no_growth_to_an_egg(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -608,14 +626,13 @@ async def test_name_of_exactly_the_limit_is_accepted(bot: app.WispBot) -> None:
 
 
 async def test_name_over_24_rejected(bot: app.WispBot) -> None:
-    await bot.players.set_name(GUILD_ID, FIRST_USER, "Old")
     interaction = make_interaction(bot)
     modal = NameModal()
     fill(modal, "x" * (rules.NAME_MAX + 1))
 
     await modal.on_submit(interaction)
 
-    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name == "Old"
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name is None
     text = interaction.response.send_message.await_args.args[0]
     assert str(rules.NAME_MAX) in text
     assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
@@ -623,16 +640,45 @@ async def test_name_over_24_rejected(bot: app.WispBot) -> None:
 
 @pytest.mark.parametrize("text", ["", "   "])
 async def test_empty_name_is_rejected(bot: app.WispBot, text: str) -> None:
-    await bot.players.set_name(GUILD_ID, FIRST_USER, "Old")
     interaction = make_interaction(bot)
     modal = NameModal()
     fill(modal, text)
 
     await modal.on_submit(interaction)
 
-    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name == "Old"
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name is None
     interaction.response.send_message.assert_awaited_once()
     assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+async def test_name_set_while_the_form_was_open_is_not_overwritten(
+    bot: app.WispBot,
+) -> None:
+    interaction = make_interaction(bot)
+    modal = NameModal()
+    fill(modal, "Mine")
+    await bot.players.set_name(GUILD_ID, FIRST_USER, "Zed")
+
+    await modal.on_submit(interaction)
+
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name == "Zed"
+    text = interaction.response.send_message.await_args.args[0]
+    assert "already knows your name" in text
+
+
+async def test_ban_issued_while_the_form_was_open_blocks_the_name(
+    bot: app.WispBot,
+) -> None:
+    interaction = make_interaction(bot)
+    modal = NameModal()
+    fill(modal, "Mine")
+    await bot.players.set_offense(GUILD_ID, FIRST_USER, 3, None, True)
+
+    await modal.on_submit(interaction)
+
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).name is None
+    text = interaction.response.send_message.await_args.args[0]
+    assert "not taking names" in text
 
 
 def test_modal_input_matches_the_name_limit() -> None:
@@ -685,6 +731,52 @@ async def test_only_the_named_member_may_press_it(bot: app.WispBot) -> None:
     owner = make_interaction(bot, user_id=FIRST_USER)
     assert await button.interaction_check(owner)
     owner.response.send_message.assert_not_awaited()
+
+
+async def test_a_named_member_is_refused_the_button(bot: app.WispBot) -> None:
+    await bot.players.set_name(GUILD_ID, FIRST_USER, "Zed")
+    interaction = make_interaction(bot)
+
+    assert not await NameButton(FIRST_USER).interaction_check(interaction)
+
+    interaction.response.send_message.assert_awaited_once()
+    text = interaction.response.send_message.await_args.args[0]
+    assert "already knows your name" in text
+    assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+@pytest.mark.parametrize(
+    ("banned_until", "banned_forever"),
+    [(None, True), (discord.utils.utcnow() + timedelta(days=1), False)],
+)
+async def test_a_banned_member_is_refused_the_button(
+    bot: app.WispBot, banned_until: datetime | None, banned_forever: bool
+) -> None:
+    await bot.players.set_offense(GUILD_ID, FIRST_USER, 1, banned_until, banned_forever)
+    interaction = make_interaction(bot)
+
+    assert not await NameButton(FIRST_USER).interaction_check(interaction)
+
+    text = interaction.response.send_message.await_args.args[0]
+    assert "not taking names" in text
+    assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+async def test_an_expired_ban_does_not_block_the_button(bot: app.WispBot) -> None:
+    past = discord.utils.utcnow() - timedelta(days=1)
+    await bot.players.set_offense(GUILD_ID, FIRST_USER, 1, past, False)
+
+    assert await NameButton(FIRST_USER).interaction_check(make_interaction(bot))
+
+
+async def test_button_works_again_once_staff_clear_the_name(bot: app.WispBot) -> None:
+    await bot.players.set_name(GUILD_ID, FIRST_USER, "Zed")
+    button = NameButton(FIRST_USER)
+    assert not await button.interaction_check(make_interaction(bot))
+
+    await bot.players.set_name(GUILD_ID, FIRST_USER, None)
+
+    assert await button.interaction_check(make_interaction(bot))
 
 
 async def test_pressing_it_opens_the_name_form(bot: app.WispBot) -> None:

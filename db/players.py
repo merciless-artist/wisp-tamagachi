@@ -22,6 +22,12 @@ class Player:
     banned_until: datetime | None = None
     banned_forever: bool = False
 
+    def is_banned(self, now: datetime) -> bool:
+        """Whether the player is banned from Wisp at `now`."""
+        return self.banned_forever or (
+            self.banned_until is not None and self.banned_until > now
+        )
+
 
 _SELECT = f"SELECT {', '.join(field.name for field in fields(Player))} FROM"
 

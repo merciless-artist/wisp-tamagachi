@@ -14,14 +14,13 @@ from wisp.card import render_status
 from wisp.life import Life, Phase, add_growth, age_days, is_over
 from wisp.lines import Moment
 from wisp.rules import GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, USER_ERROR, count
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _TOP: Final = 10
-_FAILED: Final = "Something went wrong. Staff have been told."
 
 # ---
 # Billboard
@@ -135,6 +134,24 @@ def _bot(interaction: discord.Interaction) -> "WispBot":
     return cast("WispBot", interaction.client)
 
 
+async def _name_refusal(interaction: discord.Interaction) -> str | None:
+    """Why the member may not choose a name right now, or None if they may.
+
+    A member who already has a name cannot change it; staff clear it to let
+    them choose again. Banned members cannot name themselves either.
+    """
+    player = await _bot(interaction).players.get(
+        require_guild(interaction), interaction.user.id
+    )
+    if player.is_banned(discord.utils.utcnow()):
+        return "♪ Wisp is not taking names from you right now."
+    if player.name is not None:
+        return (
+            "♪ Wisp already knows your name. Staff can reset it if it needs to change."
+        )
+    return None
+
+
 class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
     """The form where a member tells Wisp what to call them."""
 
@@ -145,7 +162,9 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         """Save the trimmed name, or say why it cannot be used."""
         name = self.name.value.strip()
-        if not name:
+        if (refusal := await _name_refusal(interaction)) is not None:
+            reply = refusal
+        elif not name:
             reply = "♪ Wisp needs something to call you. Press the button to try again."
         elif len(name) > NAME_MAX:
             reply = f"♪ Wisp only remembers names up to {count(NAME_MAX, 'character')}."
@@ -166,7 +185,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
             interaction.guild, "the naming form", error
         )
         with contextlib.suppress(discord.DiscordException):
-            await interaction.response.send_message(_FAILED, ephemeral=True)
+            await interaction.response.send_message(USER_ERROR, ephemeral=True)
 
 
 class NameButton(
@@ -201,12 +220,14 @@ class NameButton(
         return cls(int(match["user_id"]))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Turn away anyone but the member the button was made for."""
-        if interaction.user.id == self.user_id:
+        """Turn away anyone but its member, and a member who may not name themselves."""
+        if interaction.user.id != self.user_id:
+            reply = "♪ That button is for someone else."
+        elif (refusal := await _name_refusal(interaction)) is not None:
+            reply = refusal
+        else:
             return True
-        await interaction.response.send_message(
-            "♪ That button is for someone else.", ephemeral=True
-        )
+        await interaction.response.send_message(reply, ephemeral=True)
         return False
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -229,6 +250,8 @@ async def maybe_meet(
     name. Until they do, he uses their name from the server (`display_name`, or
     a mention when the caller has none).
     """
+    if (await bot.players.get(guild_id, user_id)).met_at is not None:
+        return
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
         player = await bot.players.get(guild_id, user_id)

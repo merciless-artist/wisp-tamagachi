@@ -4,6 +4,7 @@ from typing import Final
 
 SEPARATOR: Final = "・♪ ────────・──────── ♪・"
 MESSAGE_LIMIT: Final = 2000
+USER_ERROR: Final = "Something went wrong. Staff have been told."
 
 
 def count(amount: int, noun: str) -> str:
