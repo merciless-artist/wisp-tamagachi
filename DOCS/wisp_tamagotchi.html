@@ -1,0 +1,332 @@
+<title>Wisp Tamagotchi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column on Wisp's black stage; neon only where the game lives. */
+:root {
+  --bg: #0b0710;
+  --surface: #150d1d;
+  --line: #2b1e38;
+  --fg: #f3ecf7;
+  --muted: #a99bb6;
+  --orange: #ff8a2a;
+  --magenta: #ff3d9a;
+  --purple: #a259ff;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--body); }
+.page { max-width: 46rem; margin: 0 auto; padding-inline: 20px; padding-block: 48px 72px; display: grid; gap: 56px; }
+header { display: grid; gap: 14px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 {
+  font: 700 clamp(2.1rem, 7vw, 3.4rem)/1.05 var(--display); margin: 0; text-wrap: balance;
+  background: linear-gradient(90deg, var(--orange), var(--magenta) 55%, var(--purple));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lede { font-size: 1.15rem; color: var(--fg); margin: 0; max-width: 38rem; }
+.lede em { color: var(--magenta); font-style: normal; }
+figure { margin: 0; display: grid; gap: 8px; }
+figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: block; }
+figcaption { font: 13px/1.4 var(--mono); color: var(--muted); }
+section { display: grid; gap: 16px; }
+h2 { font: 700 1.25rem/1.2 var(--display); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h2 .n { color: var(--orange); margin-right: .5em; }
+h3 { font: 700 1rem/1.3 var(--display); margin: 8px 0 0; color: var(--orange); }
+p { margin: 0; max-width: 40rem; }
+.muted { color: var(--muted); }
+ul.star { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+ul.star > li { padding-left: 1.5em; position: relative; }
+ul.star > li::before { content: "☆"; position: absolute; left: 0; color: var(--magenta); }
+ul.star ul { margin: 6px 0 0; padding-left: 1.1em; display: grid; gap: 4px; color: var(--muted); }
+strong { color: var(--fg); }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--surface); }
+tr:last-child td { border-bottom: 0; }
+td.yes { color: var(--orange); font-weight: 700; }
+td.no { color: var(--muted); }
+.stage { font-family: var(--display); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.rock { color: var(--magenta); }
+.card {
+  font: 15px/1.55 var(--mono); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 18px 20px; overflow-x: auto; white-space: pre; color: var(--fg); margin: 0;
+}
+.card .o { color: var(--orange); } .card .m { color: var(--magenta); } .card .p { color: var(--purple); } .card .d { color: var(--muted); }
+.callout { border-left: 3px solid var(--purple); padding: 4px 0 4px 16px; color: var(--muted); font-style: italic; }
+ol.q { margin: 0; padding-left: 1.4em; display: grid; gap: 10px; }
+ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 600; }
+.note { font: 13px/1.5 var(--mono); color: var(--muted); }
+.sv { font: 600 12px/1 var(--mono); color: var(--purple); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+@media (max-width: 480px) { body { font-size: 16px; } .page { gap: 44px; } th, td { padding: 9px 10px; } }
+</style>
+
+<main class="page">
+  <header>
+    <div class="eyebrow">Design draft · for Foggy &amp; Angel · Oct 13 2026</div>
+    <h1>Wisp Tamagotchi</h1>
+    <p class="lede">One Wisp for the whole server, raised by everyone sharing music. Fed well, he grows from an egg into a Rockstar. Neglected, he dies, and the next egg gets a new version number. <em>Every life is a run the server tries to beat.</em></p>
+    <p class="note">Numbers tagged <span class="sv">starting value</span> get tuned after a week of real data.</p>
+  </header>
+
+  <figure>
+    <img src="wisp_growth_stages.webp" alt="Wisp's six growth stages: a purple egg, a small baby Wisp, a child with headphones, a taller teen, a flowing adult, and a Rockstar playing guitar. Below them, a care meter battery and a happiness face." width="1792" height="1008">
+    <figcaption>Growth stage art, already done.</figcaption>
+  </figure>
+
+  <section aria-labelledby="s-home">
+    <h2 id="s-home"><span class="n">♪</span>Where Wisp lives</h2>
+    <p>A server category, <strong>Wisp's World</strong>, with one text channel and one forum.</p>
+<pre class="card" aria-label="Channel layout"><span class="m">⌜ WISP'S ⌂ WORLD ⌝</span>
+├─ # Wisp's House      <span class="d">text: talk, play, snacks, his big moments</span>
+└─ 💬 Wisp's Studio    <span class="d">forum:</span>
+   ├─ Status           <span class="d">live status card, edited in place</span>
+   ├─ Mealtime         <span class="d">every track that feeds him</span>
+   ├─ The Lunchbox     <span class="d">Snack Box, badges, song listens</span>
+   ├─ The Jam Space    <span class="d">his music space</span>
+   ├─ The Billboard    <span class="d">leaderboard + version history</span>
+   └─ How Wisp Works   <span class="d">the rules</span></pre>
+    <ul class="star">
+      <li><strong>Wisp's House</strong> is the hangout: talk to him, play, give snacks. Death, new eggs, cracking, hatching and stage-ups happen here.</li>
+      <li><strong>Mealtime:</strong> members keep posting in the track drop channel as normal. Each qualifying Suno or viibrmusic.com track is forwarded here automatically and feeds him.</li>
+      <li><strong>The Jam Space</strong> is where he talks music: his favorite songs from the community, every friendship song (one post each, maybe also shared to announcements), the lyrics he starts writing once he's older, and his song listens, the rarest and most expensive thing a member can get.</li>
+      <li><strong>The Lunchbox</strong> also sells <strong>badges</strong>: role icons like “Team Wisp” that show by your name and raise your bond with him.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-life">
+    <h2 id="s-life"><span class="n">♪</span>Life cycle</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Stage</th><th>Mood</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td class="stage">Egg</td><td>Needs constant beats</td><td>Hatches after about 24h of normal server activity <span class="sv">starting value</span></td></tr>
+        <tr><td class="stage">Emerging</td><td>The egg cracks open</td><td>About 5 hours. Can't fail once it starts.</td></tr>
+        <tr><td class="stage">Baby Wisp</td><td>Vibe-sensitive</td><td>From hatching</td></tr>
+        <tr><td class="stage">Child</td><td>Care with music</td><td>Day 3+, 20 growth, 3 different caretakers</td></tr>
+        <tr><td class="stage">Teen</td><td>Craves loud bass</td><td>Day 7+, 60 growth, 5 different caretakers</td></tr>
+        <tr><td class="stage">Adult</td><td>Master of the vibe</td><td>Day 14+, 150 growth, 8 different caretakers</td></tr>
+        <tr><td class="stage rock">Rockstar</td><td>Maximum energy</td><td>Special evolution: an Adult who stays very happy for 7 days straight</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Food keeps him alive. Care makes him grow.</strong> Growth points come from everything that isn't a plain meal: snacks (+1, more for fancy ones), playtime (+2), and bond moments like learning someone's name or a friendship song (+5). Caretakers are the different people who interacted with him during that stage, so a couple of regulars can't raise him alone. If he reaches the day but not the rest, he stays put until the server catches up. He's a late bloomer, nothing bad happens. All numbers are <span class="sv">starting values</span>.</p>
+  </section>
+
+  <section aria-labelledby="s-eat">
+    <h2 id="s-eat"><span class="n">♪</span>How Wisp eats</h2>
+    <ul class="star">
+      <li><strong>Where:</strong> members keep posting tracks in the tracks channel exactly as they do now. Wisp never posts or reacts there. Each track that feeds him is piped into his forum, where he eats it.</li>
+      <li><strong>Who:</strong> members at <strong>Active Loungers (Level 5) or higher</strong> who have <strong>opened the Wisp leaderboard at least once</strong>. Opening the board is the opt-in, so drive-by posters and people who never engage don't count.</li>
+    </ul>
+    <div class="tbl"><table>
+      <thead><tr><th>Posted link</th><th>Feeds Wisp</th><th>Leaderboard points</th><th>Builds your bond</th></tr></thead>
+      <tbody>
+        <tr><td><strong>viibrmusic.com</strong> track</td><td>5 meal points</td><td class="yes">5 points</td><td class="yes">Yes</td></tr>
+        <tr><td>Suno track</td><td>1 meal point</td><td class="yes">1 point</td><td class="no">No</td></tr>
+      </tbody>
+    </table></div>
+    <p>Only Suno and viibrmusic.com tracks count. Every qualifying track is forwarded to Mealtime, feeds Wisp, and earns leaderboard points. Only viibrmusic.com tracks build your bond with him. Tracks keep him alive and steady, but growing to the next stage takes care too (see Life cycle).</p>
+    <ul class="star">
+      <li><strong>Fairness rules</strong>
+        <ul>
+          <li>The same link only feeds him once, ever. Reposting doesn't count.</li>
+          <li>Each person can feed up to a daily limit (15 meal points, three viibrmusic.com tracks <span class="sv">starting value</span>). One person can't keep him alive alone.</li>
+        </ul>
+      </li>
+      <li><strong>Non-qualifying posts:</strong> Wisp stays silent. The rule is posted in How Wisp Works, never aimed at a person.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-bond">
+    <h2 id="s-bond"><span class="n">♪</span>Wisp knows you</h2>
+    <p>Your bond is how well Wisp knows you personally. It grows from everything you do with him, not only sharing music. The stronger it gets, the more personally he treats you: a plain reaction for someone new, a personal one for his regulars.</p>
+    <p><strong>Meeting Wisp.</strong> A bond doesn't start right away. Once you've interacted with him (fed, played or snacked) on <strong>three different days</strong>, he notices you and learns your name. He asks what to call you, and if you skip it, he uses your server name. Anything you did before that still counts: it's tracked quietly and carries into your bond the moment it starts.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>What you do</th><th>Bond</th><th>Also</th></tr></thead>
+      <tbody>
+        <tr><td>Share a <strong>viibrmusic.com</strong> track</td><td>+10</td><td>5 meal points, 5 leaderboard points</td></tr>
+        <tr><td><strong>Play</strong> with him: a quick mini-game from his status card, a few times a day</td><td>+3</td><td>Raises his happiness</td></tr>
+        <tr><td>Give him a <strong>snack</strong> from the Snack Box</td><td>+1</td><td>Care boost, bigger for fancier snacks</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Play and snacks can add at most 7 bond a day <span class="sv">starting value</span>, so sharing ViiBR music stays the fastest way into his circle, but someone who shows up every day to hang out with him still gets there.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Bond tier</th><th>Bond needed</th></tr></thead>
+      <tbody>
+        <tr><td>New face</td><td>Starts when he learns your name</td></tr>
+        <tr><td>Familiar</td><td>50</td></tr>
+        <tr><td>Friend</td><td>150</td></tr>
+        <tr><td><strong>Bandmate</strong></td><td>400. Wisp offers you one free song listen.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Bonds carry over when a Wisp dies. Every new version already knows its bandmates, which makes them the natural people to rally when an egg needs hatching. When Wisp gets his AI voice later, the bond is what he remembers about you.</p>
+  </section>
+
+  <section aria-labelledby="s-shop">
+    <h2 id="s-shop"><span class="n">♪</span>The Lunchbox</h2>
+    <p>Wisp keeps everything he values in his lunchbox. <code>/wisp lunchbox</code> opens it. Inside are the <strong>Snack Box</strong>, his <strong>song listens</strong>, and room for any treasures added later.</p>
+    <h3>Snack Box</h3>
+    <p>Wisp eats sound. Every snack is a picture of sound, plus two human foods he's weirdly into. Fancier snacks fill his care meter more, and he reacts to each one differently.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Snack</th><th>Cost</th><th>Care</th><th>Wisp's reaction</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Sine Wave</strong></td><td>Free, once a day</td><td>+2</td><td>The plain, pure one. Comfort food.</td></tr>
+        <tr><td><strong>Cloud Wave</strong></td><td>3 points</td><td>+5</td><td>Fluffy, happy</td></tr>
+        <tr><td><strong>Jelly Wave</strong></td><td>3 points</td><td>+5</td><td>Wobbly, giggly</td></tr>
+        <tr><td><strong>Juice Wave</strong></td><td>3 points</td><td>+5</td><td>It's water. He's fire. He drinks it anyway and fizzles a little.</td></tr>
+        <tr><td><strong>Spicy Wave</strong></td><td>5 points</td><td>+8</td><td>“OH. that's spicy. ok. I'm good. more.”</td></tr>
+        <tr><td><strong>Glitter Wave</strong></td><td>8 points</td><td>+12</td><td>Sparkly, fancy, very pleased with himself</td></tr>
+        <tr><td><strong>ViiBR Wave</strong></td><td>10 points</td><td>+15</td><td>His favorite. The home-team snack.</td></tr>
+        <tr><td><strong>Cheese</strong></td><td>6 points</td><td>+8</td><td>Loves it, no notes</td></tr>
+        <tr><td><strong>Pickles</strong></td><td>6 points</td><td>+8</td><td>Hedges until he knows where you stand on pickles, then takes the opposite side, fully committed</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Costs and care values are starting values. Art by Myra; emoji names follow <code>snack_&lt;name&gt;</code>.</p>
+    <ul class="star">
+      <li><strong>How it works:</strong> <code>/wisp lunchbox</code> to buy, then the <strong>Feed</strong> button on his status card to pick a snack from your inventory. Wisp eats it on screen, emoji and all. (His emojis live on his bot account, which Discord only lets <em>him</em> use, so members pick them from a menu rather than typing them.)</li>
+      <li><strong>Paid with leaderboard points</strong> from a spending balance. Your rank counts everything you've ever earned, so buying Wisp a treat never drops you down the board.</li>
+      <li>Snacks count toward the daily feeding limit, so nobody can buy him back from the dead alone. Music is still his real food.</li>
+    </ul>
+    <h3>Song listens</h3>
+    <p>Wisp actually listens to a song you made and reacts to it: what he loved, what stuck with him, what it made him feel. He accepts mp3 uploads, public Suno links and viibrmusic.com links.</p>
+    <ul class="star">
+      <li><strong>The first one is a gift.</strong> When you reach Bandmate, Wisp trusts you enough to offer a listen on his own. It happens once per person, ever, and it survives if he dies.</li>
+      <li><strong>After that, listens come from the Lunchbox</strong> for 40 points <span class="sv">starting value</span>, available to Bandmates only.</li>
+      <li>His usual rule applies: he's never cruel about anyone's music. He's honest about what he loved, and he amplifies.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-games">
+    <h2 id="s-games"><span class="n">♪</span>Games</h2>
+    <p>Easy music games played in text first. A Discord Activity can come much later. Every game counts as playing with Wisp: happiness, growth and bond, within the daily cap.</p>
+    <h3>Rhyme Duel</h3>
+    <ul class="star">
+      <li><code>/wisp play rhyme</code> opens a short thread off Wisp's House. One player at a time.</li>
+      <li>Wisp says a word, you have 15 seconds to rhyme it, then he rhymes back. No repeats. It ends when someone runs out of rhymes or time. Your score is the points from your rhymes.</li>
+      <li>A <strong>perfect rhyme</strong> scores 2 points, a <strong>slant rhyme</strong> (same vowel sound, different ending, like fire and mine) scores 1. Rhymes are checked with a pronunciation dictionary, no AI.</li>
+      <li><strong>He gets better as he grows.</strong> A Baby Wisp runs out of rhymes fast; a Rockstar is almost unbeatable.</li>
+      <li>Your best score goes on the Billboard.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-meters">
+    <h2 id="s-meters"><span class="n">♪</span>Two meters</h2>
+    <ul class="star">
+      <li><strong>Care</strong> is the battery. It fills when he's fed and drains over time. If it hits zero, Wisp dies. It drains 15 a day <span class="sv">starting value</span>, so the server needs about three viibrmusic.com tracks a day, or fifteen Suno tracks, to hold him steady.</li>
+      <li><strong>Happiness</strong> is the smiley. It counts <strong>how many different people</strong> fed or played with him in the last 24 hours, not how much. Five or more people is full happiness. It's what earns the Rockstar evolution, so a Rockstar Wisp means the whole community showed up, not one heavy poster.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-death">
+    <h2 id="s-death"><span class="n">♪</span>Death, eggs and versions</h2>
+    <ul class="star">
+      <li>When care hits zero, Wisp dies. He warns the server on the way down: hungry first, then fading.</li>
+      <li>A new egg appears right away, labeled with the next version: <strong>Wisp v4</strong>.</li>
+      <li>The egg hatches from music, the same way Wisp eats, before its warmth runs out (48 hours <span class="sv">starting value</span>). If the server doesn't bring enough, the egg goes cold and <strong>that version number is used up</strong>.</li>
+      <li>Once the egg starts cracking, it can't fail.</li>
+    </ul>
+    <p class="callout">“v3 lived 18 days, v4 never hatched, v5 is going strong.”</p>
+  </section>
+
+  <section aria-labelledby="s-voice">
+    <h2 id="s-voice"><span class="n">♪</span>Personality</h2>
+    <p><strong>Super cute, super sweet, complimentary to everyone.</strong> Until he's hangry. Then he has a surprisingly rough edge, which is the best reason there is to feed him.</p>
+    <p>His voice is modeled on Herbie, Myra's mascot bot in Hillbilly DJ's server, minus the southern accent. Wisp's world is studios, headphones and 3 AM sessions.</p>
+    <ul class="star">
+      <li><strong>Adult server, adult mouth.</strong> Casual, creative swearing when it fits. Never for shock value, never every line.</li>
+      <li><strong>Teases friends, never cruel.</strong> If someone is actually upset, he drops it and apologizes.</li>
+      <li><strong>Short.</strong> A line or two, like a friend in chat, not a bot making announcements.</li>
+      <li><strong>Keeps the conversation going.</strong> No wrap-up summaries, and he never ends with “anything else I can help with?”</li>
+      <li><strong>Never repeats himself.</strong> He rotates how he opens and what he says, so he doesn't feel canned.</li>
+      <li><strong>Expression stickers</strong> from his brand sheet as jumbo reactions, saved for the right moment, never every message.</li>
+    </ul>
+    <div class="tbl"><table>
+      <thead><tr><th>Moment</th><th>Fed and happy</th><th>Hangry (care below 30)</th></tr></thead>
+      <tbody>
+        <tr><td>Your ViiBR track feeds him</td><td>“oh this one's GOOD. you made this?? shut the fuck up”</td><td>“...finally. holy shit. thank you.”</td></tr>
+        <tr><td>You give him a snack</td><td>“for me?? you're the best”</td><td>“a snack. a fucking snack. I needed a meal.”</td></tr>
+        <tr><td>You ask him to play</td><td>“YES. ok ok ok ready”</td><td>“I don't want to play. I want a goddamn SONG.”</td></tr>
+        <tr><td>You compliment him</td><td>His <strong>“no u”</strong> gif</td><td>“compliments aren't food.”</td></tr>
+        <tr><td>The server goes quiet</td><td>“taking a little nap. wake me with a beat”</td><td>“nine hours. nobody. I'm fine. I'm totally fucking fine.”</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Example lines, written in that voice so everyone can react to the tone. The finished set has many lines per moment so he doesn't repeat himself.</p>
+    <ul class="star">
+      <li><strong>Compliments</strong> only count when they're aimed at Wisp: mentioning him or replying to him. The “no u” has a cooldown so a chat can't spam it.</li>
+      <li><strong>Hangry Wisp swears, but only at the situation.</strong> He's mad about being starved, never at a person, never about anyone's music, and never with slurs.</li>
+      <li><strong>Errors are never hidden behind the personality.</strong> If something breaks, staff see a plain error message, not a cute line covering for it.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-safe">
+    <h2 id="s-safe"><span class="n">♪</span>Protecting Wisp from trolls</h2>
+    <p><strong>Nobody can hurt Wisp on purpose.</strong> Every action a member can take helps him. The only thing that kills him is neglect, which takes the whole server not showing up, so one troll can't do it, and anyone can save him at any moment by sharing music.</p>
+    <p>What trolls can try is cheating the leaderboard and bonds. That gets punished:</p>
+    <ul class="star">
+      <li><strong>Fake ViiBR links</strong> don't count. A link has to be a real track page on viibrmusic.com, not the homepage or a made-up path.</li>
+      <li><strong>Spamming junk tracks</strong> to farm points runs into the daily cap, and staff can strip points.</li>
+      <li><strong>Gross names.</strong> The name you give Wisp is capped at 24 characters, and staff can reset anyone's name, so nobody can make him say something vile.</li>
+      <li><strong>Punishment ladder</strong>, the same shape as the counting game: first offense is a shaming image and one day banned from Wisp, second is a week, third is permanent. Staff can lift any ban.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-board">
+    <h2 id="s-board"><span class="n">♪</span>The Billboard</h2>
+    <p><code>/wisp board</code> shows:</p>
+    <ul class="star">
+      <li>Top sharers for the current Wisp</li>
+      <li>Top sharers of all time, with each person's bond</li>
+      <li>Every version: who hatched it, how long it lived, and the highest stage it reached, or “never hatched”</li>
+    </ul>
+    <p class="muted">Opening the board for the first time is what activates a member as a player.</p>
+  </section>
+
+  <section aria-labelledby="s-know">
+    <h2 id="s-know"><span class="n">♪</span>How people know it's happening</h2>
+    <p class="muted">Foggy's question: if people drop tracks as normal, do they know they're playing?</p>
+    <ul class="star">
+      <li>Every track that feeds Wisp shows up in his <strong>Mealtime</strong> post: who fed him, a link back to their track, and his reaction. The tracks channel stays untouched, and Mealtime doubles as a running playlist of what engaged members are sharing.</li>
+      <li>His big moments land in Wisp's House: stage-ups, hungry, fading, death, a new egg, cracking, hatching.</li>
+      <li><code>/wisp</code> shows his status card any time:</li>
+    </ul>
+<pre class="card" aria-label="Example status card"><span class="m">♪ WISP v3</span> <span class="d">・</span> TEEN <span class="d">・</span> day 9
+care       <span class="o">███████</span><span class="d">░░░</span>  72
+happiness  <span class="m">█████</span><span class="d">░░░░░</span>  50
+fed today by 4 people
+<span class="p">・♪ ────────・──────── ♪・</span></pre>
+  </section>
+
+  <section aria-labelledby="s-staff">
+    <h2 id="s-staff"><span class="n">♪</span>Staff controls</h2>
+    <ul class="star">
+      <li><strong>Freeze</strong> pauses all draining during holidays, Discord outages or bot downtime, so Wisp never dies from something that wasn't the community's fault.</li>
+      <li>Set the tracks channel, the qualifying roles and the food values without code changes.</li>
+      <li><strong>No DMs, ever.</strong> Wisp only lives in the server. He ignores DMs, his commands don't work in DMs, and he never messages anyone privately. Private replies (like asking what to call you) are server messages only that person can see.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-later">
+    <h2 id="s-later"><span class="n">♪</span>Not in version one</h2>
+    <ul class="star">
+      <li><strong>Coins:</strong> leaderboard points and bonds are bragging rights for now. Feeding can pay out website points later, once the economy exists.</li>
+      <li><strong>AI voice:</strong> Wisp talks in pre-written lines first. His AI personality comes after the core game works.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-open">
+    <h2 id="s-open"><span class="n">♪</span>Open questions</h2>
+    <ol class="q">
+      <li>Where does Wisp live and post his updates: his own channel, or an existing one?</li>
+      <li>Do audio file uploads (no link) count as food? If so, how much?</li>
+      <li>Rockstar as a rare evolution earned by a week of high happiness: agree?</li>
+      <li>Freeze for holidays: yes?</li>
+      <li>Do leaderboard points match meal points (Suno 1, viibrmusic.com 5)?</li>
+      <li>How does Wisp choose his favorite community songs for the Jam Space?</li>
+      <li>Badge names and prices for the Lunchbox.</li>
+      <li>More easy text games to join Rhyme Duel.</li>
+    </ol>
+  </section>
+</main>
