@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 
 import app
@@ -291,7 +292,7 @@ async def test_pin_failure_is_reported_and_the_card_kept(
     assert report.startswith("Error in pinning the status card: Forbidden")
 
 
-async def test_unreachable_status_thread_is_reported_and_the_tick_kept(
+async def test_forbidden_card_edit_is_reported_and_the_tick_kept(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -306,6 +307,26 @@ async def test_unreachable_status_thread_is_reported_and_the_tick_kept(
     server.errors.send.assert_awaited_once()
     (report,) = server.errors.send.await_args.args
     assert report.startswith("Error in updating the status card: Forbidden")
+
+
+async def test_card_failure_is_reported_once_per_streak(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    forbidden = discord.Forbidden(MagicMock(status=403), "Missing Access")
+    server.card_edit.side_effect = forbidden
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + FULL_GAP)
+    assert server.errors.send.await_count == 1
+
+    server.card_edit.side_effect = None
+    await cog.run_tick(NOW + 2 * FULL_GAP)
+    server.card_edit.side_effect = forbidden
+    await cog.run_tick(NOW + 3 * FULL_GAP)
+
+    assert server.errors.send.await_count == 2
 
 
 # ---
@@ -345,6 +366,28 @@ async def test_cold_egg_uses_up_version(
     assert (cold.version, cold.phase, cold.ended_at) == (1, Phase.COLD, NOW)
     assert len(house_texts(server)) == 2
     assert await bot.lives.next_version(GUILD_ID) == 3
+
+
+async def test_finished_life_is_replaced_by_next_egg(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot, phase=Phase.DEAD, care=0.0)
+
+    await cog.run_tick(NOW)
+
+    egg = await current_life(bot)
+    assert (egg.version, egg.phase) == (2, Phase.EGG)
+    (laid,) = house_texts(server)
+    assert mentions_version(laid, 2)
+    assert not mentions_version(laid, 1)
+    content = server.card_edit.await_args.kwargs["content"]
+    assert content.startswith("♪ WISP v2 ・ EGG")
+
+    await cog.run_tick(NOW + FULL_GAP)
+
+    assert (await current_life(bot)).version == 2
+    server.house.send.assert_awaited_once()
 
 
 async def test_frozen_guild_does_not_drain(
@@ -450,6 +493,83 @@ async def test_quiet_line_matches_his_mood(
 
 
 # ---
+# Guild isolation
+# ---
+
+
+async def test_failing_guild_is_reported_and_the_next_one_still_ticks(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken_id = GUILD_ID - 1
+    broken_guild = MagicMock(spec=discord.Guild)
+    broken_guild.id = broken_id
+    guilds = {broken_id: broken_guild, GUILD_ID: server.guild}
+    monkeypatch.setattr(bot, "get_guild", guilds.get)
+    for guild_id in guilds:
+        await bot.settings.update(
+            guild_id,
+            house_channel_id=HOUSE_ID,
+            studio_forum_id=FORUM_ID,
+            error_channel_id=ERRORS_ID,
+            status_thread_id=STATUS_ID,
+            status_message_id=CARD_ID,
+        )
+    await lay(bot)
+    current = bot.lives.current
+
+    async def current_or_fail(guild_id: int) -> Life | None:
+        if guild_id == broken_id:
+            raise pymysql.err.OperationalError(2013, "Lost connection")
+        return await current(guild_id)
+
+    monkeypatch.setattr(bot.lives, "current", current_or_fail)
+    reported: Any = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + FULL_GAP)
+
+    assert (await current_life(bot)).last_tick_at == NOW + FULL_GAP
+    assert reported.await_count == 2
+    for call in reported.await_args_list:
+        guild, context, error = call.args
+        assert guild is broken_guild
+        assert context == "life loop"
+        assert isinstance(error, pymysql.err.OperationalError)
+
+
+async def test_discord_failure_in_one_guild_is_reported_with_that_guild(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    forbidden = discord.Forbidden(MagicMock(status=403), "Missing Access")
+    monkeypatch.setattr(life_loop, "post_events", AsyncMock(side_effect=forbidden))
+    reported: Any = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await cog.run_tick(NOW)
+
+    reported.assert_awaited_once_with(server.guild, "life loop", forbidden)
+
+
+async def test_guild_the_bot_cannot_see_is_skipped(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    await lay(bot, care=50.0)
+    monkeypatch.setattr(bot, "get_guild", lambda _id: None)
+
+    await cog.run_tick(NOW)
+
+    life = await current_life(bot)
+    assert life.last_tick_at == NOW - FULL_GAP
+    server.house.send.assert_not_awaited()
+    server.card_edit.assert_not_awaited()
+    server.errors.send.assert_not_awaited()
+
+
+# ---
 # The loop
 # ---
 
@@ -473,6 +593,7 @@ async def test_loop_error_is_reported_and_loop_continues(
     monkeypatch.setattr(cog, "run_tick", flaky)
     monkeypatch.setattr(bot, "report_error", reported)
     monkeypatch.setattr(bot, "wait_until_ready", AsyncMock())
+    monkeypatch.setattr(life_loop, "TICK_EVERY", timedelta(milliseconds=10))
     cog.tick_loop.change_interval(seconds=0.01)
 
     await cog.cog_load()
@@ -487,6 +608,23 @@ async def test_loop_error_is_reported_and_loop_continues(
     assert context == "life loop"
     assert isinstance(error, RuntimeError)
     assert ticks >= 2
+
+
+async def test_loop_waits_before_restarting_after_an_error(
+    cog: LifeLoop, bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ticks = AsyncMock(side_effect=RuntimeError("bug"))
+    monkeypatch.setattr(cog, "run_tick", ticks)
+    monkeypatch.setattr(bot, "wait_until_ready", AsyncMock())
+    monkeypatch.setattr(bot, "report_error", AsyncMock())
+
+    await cog.cog_load()
+    await asyncio.sleep(0.2)
+    await cog.cog_unload()
+    await asyncio.sleep(0.05)
+
+    assert ticks.await_count == 1
+    assert not cog.tick_loop.is_running()
 
 
 async def test_unload_stops_the_loop(
