@@ -297,6 +297,21 @@ async def test_top_rhyme_orders_limits_and_skips_zero(db: Database) -> None:
 # ---
 
 
+async def test_plays_today_counts_only_todays_play(db: Database) -> None:
+    repo = ActivityRepo(db)
+    for kind, at in [
+        (InteractionKind.PLAY, NOW),
+        (InteractionKind.PLAY, MIDNIGHT),
+        (InteractionKind.SNACK, NOW),
+        (InteractionKind.PLAY, MIDNIGHT - timedelta(seconds=1)),
+    ]:
+        await repo.record_interaction(GUILD, 1, USER, kind, 0, 0, at)
+    await repo.record_interaction(GUILD, 1, OTHER_USER, InteractionKind.PLAY, 0, 0, NOW)
+
+    assert await repo.plays_today(GUILD, USER, NOW) == 2
+    assert await repo.plays_today(OTHER_GUILD, USER, NOW) == 0
+
+
 async def test_duplicate_track_feeds_once(db: Database) -> None:
     repo = ActivityRepo(db)
     assert await repo.record_feed(GUILD, 1, USER, track("a"), 1, 900, NOW) is True

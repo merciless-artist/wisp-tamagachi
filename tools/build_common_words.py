@@ -5,8 +5,9 @@ Run once from the project root with the dev requirements installed:
     python tools/build_common_words.py
 
 It takes the most frequent English words from wordfreq, keeps lowercase
-alphabetic words of two or more letters that the CMU Pronouncing Dictionary
-knows, drops abbreviations said letter by letter (tv, dna), profanity and
+alphabetic words of three or more letters (and a few real two-letter words)
+that the CMU Pronouncing Dictionary knows, drops abbreviations said letter by
+letter (tv, dna), other abbreviations and foreign fragments, profanity and
 slurs, and writes the first WORD_COUNT of them in frequency order, one per
 line.
 """
@@ -21,7 +22,20 @@ from wordfreq import top_n_list
 WORD_COUNT: Final = 5000
 SCAN: Final = 30000
 OUTPUT: Final = Path(__file__).resolve().parent.parent / "wisp/data/common_words.txt"
-_WORD: Final = re.compile(r"[a-z]{2,}")
+_WORD: Final = re.compile(r"[a-z]{3,}")
+
+TWO_LETTER_WORDS: Final = frozenset(
+    "go no so me we my by hi oh yo up us is it at an as be do he if in of on or to"
+    .split()
+)  # fmt: skip
+STOPLIST: Final = frozenset(
+    {
+        "aka", "apr", "aug", "ave", "com", "corp", "dec", "del", "dept", "der", "des",
+        "est", "feb", "fifa", "gen", "hong", "inc", "jan", "jun", "kong", "las", "les",
+        "lol", "los", "mar", "mrs", "nasa", "non", "nov", "oct", "pre", "san", "sec",
+        "sep", "sept", "und", "von",
+    }
+)  # fmt: skip
 
 BLOCKLIST: Final = frozenset(
     {
@@ -30,17 +44,17 @@ BLOCKLIST: Final = frozenset(
         "bullshit", "butt", "chink", "clinton", "clit", "cock", "cocks", "coon", "crap",
         "cum", "cunt", "damn", "dick", "dicks", "dildo", "drug", "drugs", "dumb",
         "dyke", "fag", "faggot", "fags", "fuck", "fucked", "fucker", "fuckin",
-        "fucking", "fucks", "gay", "goddamn", "hell", "hillary", "hitler", "hoe",
+        "fucking", "fucks", "gay", "goddamn", "hell", "hillary", "hitler", "ho", "hoe",
         "hoes", "homo", "horny", "idiot", "isis", "islam", "islamic", "jewish", "jews",
         "jizz", "kike", "marijuana", "milf", "murder", "murdered", "muslim", "muslims",
         "naked", "nazi", "nazis", "nigga", "niggas", "nigger", "niggers", "nipple",
         "nipples", "nude", "nudes", "obama", "orgasm", "penis", "piss", "pissed",
         "porn", "porno", "prick", "pussy", "racism", "racist", "rape", "raped",
         "rapist", "retard", "retarded", "screw", "sex", "sexual", "sexy", "shit",
-        "shits", "shitty", "slave", "slavery", "slut", "sluts", "spic", "stupid",
-        "suck", "sucks", "suicide", "terror", "terrorism", "terrorist", "terrorists",
-        "tit", "tits", "titties", "tranny", "trump", "twat", "ugly", "vagina", "virgin",
-        "wank", "wanker", "weed", "wetback", "whore", "whores",
+        "shits", "shitty", "slave", "slavery", "slaves", "slut", "sluts", "spic",
+        "stupid", "suck", "sucks", "suicide", "terror", "terrorism", "terrorist",
+        "terrorists", "tit", "tits", "titties", "tranny", "trump", "twat", "ugly",
+        "vagina", "virgin", "wank", "wanker", "weed", "wetback", "whore", "whores",
     }
 )  # fmt: skip
 
@@ -58,7 +72,12 @@ def common_words() -> list[str]:
     """The first WORD_COUNT frequent words that pass every filter, in order."""
     kept: list[str] = []
     for word in top_n_list("en", SCAN):
-        if _WORD.fullmatch(word) and word not in BLOCKLIST and _spoken_as_a_word(word):
+        if (
+            (_WORD.fullmatch(word) or word in TWO_LETTER_WORDS)
+            and word not in STOPLIST
+            and word not in BLOCKLIST
+            and _spoken_as_a_word(word)
+        ):
             kept.append(word)
             if len(kept) == WORD_COUNT:
                 return kept

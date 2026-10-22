@@ -17,6 +17,7 @@ from typing import Final
 import pronouncing
 
 from wisp.rules import (
+    MAX_WORD_LENGTH,
     RHYME_OPENER_RHYMES,
     RHYME_PERFECT_POINTS,
     RHYME_SKILL,
@@ -29,7 +30,7 @@ _WORD: Final = re.compile(r"[a-z]+(?:'[a-z]+)*")
 _STRESS_MARKS: Final = "012"
 _STRESSED: Final = "12"
 
-_Rhyme = tuple[str, ...]
+_Phones = tuple[str, ...]
 
 
 class RhymeKind(StrEnum):
@@ -49,7 +50,7 @@ _POINTS: Final = {
 # ---
 
 
-def _rhyme_part(phones: str) -> _Rhyme:
+def _rhyme_part(phones: str) -> _Phones:
     """The phones from the last stressed vowel on, without stress marks.
 
     A word with no stressed vowel rhymes from its last vowel.
@@ -61,21 +62,31 @@ def _rhyme_part(phones: str) -> _Rhyme:
     return tuple(phone.rstrip(_STRESS_MARKS) for phone in split[start:])
 
 
-def _rhymes_of(word: str) -> frozenset[_Rhyme]:
+def _rhymes_of(word: str) -> frozenset[_Phones]:
     """The rhyme of every pronunciation of a word; empty when it is unknown."""
     phones: list[str] = pronouncing.phones_for_word(word)
     return frozenset(_rhyme_part(pronunciation) for pronunciation in phones)
 
 
+def _sounds_of(word: str) -> frozenset[_Phones]:
+    """Every whole pronunciation of a word, without stress marks."""
+    phones: list[str] = pronouncing.phones_for_word(word)
+    return frozenset(
+        tuple(phone.rstrip(_STRESS_MARKS) for phone in pronunciation.split())
+        for pronunciation in phones
+    )
+
+
 def rhyme_kind(first: str, second: str) -> RhymeKind | None:
     """How two words rhyme, comparing every pair of their pronunciations.
 
-    None when either word is unknown, they are the same word or they do not
-    rhyme. PERFECT when the phones match from the last stressed vowel to the
-    end, SLANT when only that vowel matches.
+    None when either word is unknown, they are the same word, they can sound
+    exactly alike (right, write) or they do not rhyme. PERFECT when the phones
+    match from the last stressed vowel to the end, SLANT when only that vowel
+    matches.
     """
     first, second = first.lower(), second.lower()
-    if first == second:
+    if first == second or _sounds_of(first) & _sounds_of(second):
         return None
     first_rhymes, second_rhymes = _rhymes_of(first), _rhymes_of(second)
     if first_rhymes & second_rhymes:
@@ -94,9 +105,12 @@ def clean_word(text: str) -> str | None:
     """The single lowercase word in a message, or None when it is not one word.
 
     Surrounding punctuation is dropped and curly apostrophes become straight.
+    Anything longer than MAX_WORD_LENGTH is not a word.
     """
     word = text.strip().lower().replace("’", "'").strip(string.punctuation)
-    return word if _WORD.fullmatch(word) else None
+    if len(word) > MAX_WORD_LENGTH or not _WORD.fullmatch(word):
+        return None
+    return word
 
 
 # ---
@@ -105,9 +119,9 @@ def clean_word(text: str) -> str | None:
 
 
 @cache
-def _common_by_rhyme() -> dict[_Rhyme, frozenset[str]]:
+def _common_by_rhyme() -> dict[_Phones, frozenset[str]]:
     """Every common word, grouped by each of its rhymes."""
-    grouped: defaultdict[_Rhyme, set[str]] = defaultdict(set)
+    grouped: defaultdict[_Phones, set[str]] = defaultdict(set)
     for word in _WORDS_FILE.read_text(encoding="utf-8").split():
         for rhyme in _rhymes_of(word):
             grouped[rhyme].add(word)
@@ -115,14 +129,18 @@ def _common_by_rhyme() -> dict[_Rhyme, frozenset[str]]:
 
 
 def _common_rhymes(word: str) -> set[str]:
-    """The common words that rhyme perfectly with `word`, other than itself."""
+    """The common words that rhyme perfectly with `word`.
+
+    The word itself and words that can sound exactly like it are left out.
+    """
     by_rhyme = _common_by_rhyme()
-    found = {
+    sounds = _sounds_of(word)
+    return {
         other
         for rhyme in _rhymes_of(word)
         for other in by_rhyme.get(rhyme, frozenset())
+        if other != word and not _sounds_of(other) & sounds
     }
-    return found - {word}
 
 
 @cache

@@ -470,7 +470,6 @@ easy
 gonna
 market
 near
-non
 plan
 political
 quite
@@ -533,7 +532,6 @@ seems
 thinking
 town
 wants
-de
 department
 energy
 fight
@@ -544,7 +542,6 @@ issue
 played
 points
 price
-re
 rest
 results
 running
@@ -565,7 +562,6 @@ shot
 site
 strong
 account
-co
 especially
 eyes
 include
@@ -590,7 +586,6 @@ perfect
 personal
 security
 share
-st
 won
 april
 center
@@ -644,7 +639,6 @@ learn
 policy
 society
 added
-al
 alone
 average
 bank
@@ -873,8 +867,6 @@ below
 created
 deep
 followed
-la
-lol
 mark
 missing
 offer
@@ -1067,7 +1059,6 @@ movement
 photo
 posted
 safety
-san
 scene
 sold
 sounds
@@ -1122,7 +1113,6 @@ named
 nobody
 opportunity
 plus
-pre
 product
 regular
 secretary
@@ -1286,7 +1276,6 @@ holding
 japan
 laws
 male
-mrs
 parties
 plant
 reality
@@ -1536,7 +1525,6 @@ draw
 dude
 employees
 enter
-ex
 follows
 foundation
 gain
@@ -1593,7 +1581,6 @@ christ
 continues
 correct
 dangerous
-ed
 extremely
 firm
 greatest
@@ -1629,7 +1616,6 @@ impossible
 influence
 items
 joe
-los
 marketing
 mary
 materials
@@ -1660,7 +1646,6 @@ efforts
 garden
 host
 housing
-inc
 israel
 journal
 labor
@@ -1679,7 +1664,6 @@ software
 thousands
 tough
 units
-ad
 alive
 apple
 balance
@@ -1968,7 +1952,6 @@ historical
 homes
 honestly
 honor
-im
 jump
 launch
 listed
@@ -2054,7 +2037,6 @@ legs
 lying
 measures
 mistake
-ms
 organizations
 platform
 pool
@@ -2075,7 +2057,6 @@ tests
 values
 walked
 williams
-ya
 abuse
 angry
 businesses
@@ -2086,7 +2067,6 @@ developing
 discuss
 elections
 emotional
-et
 everywhere
 facilities
 falling
@@ -2146,7 +2126,6 @@ korea
 leads
 maintain
 measure
-mm
 numerous
 owners
 posts
@@ -2209,7 +2188,6 @@ tony
 troops
 truck
 votes
-ah
 authorities
 basically
 besides
@@ -2237,7 +2215,6 @@ identified
 incredible
 inspired
 launched
-ma
 meat
 ministry
 mode
@@ -2456,7 +2433,6 @@ favor
 flag
 frame
 guest
-ha
 heaven
 independence
 institutions
@@ -2496,7 +2472,6 @@ chemical
 competitive
 detail
 diet
-em
 favourite
 fruit
 harder
@@ -2544,7 +2519,6 @@ depending
 depression
 describe
 drivers
-el
 employment
 exclusive
 excuse
@@ -2699,7 +2673,6 @@ hardly
 hat
 height
 hidden
-hong
 invited
 letting
 loud
@@ -2805,7 +2778,6 @@ exposed
 fed
 fee
 injured
-jan
 jordan
 kinds
 lets
@@ -2846,7 +2818,6 @@ dancing
 document
 eggs
 employee
-en
 engineer
 equivalent
 facing
@@ -2861,7 +2832,6 @@ greek
 hanging
 inner
 islands
-le
 lift
 marked
 memories
@@ -2924,7 +2894,6 @@ inch
 initially
 junior
 jury
-kong
 korean
 marks
 monster
@@ -3092,7 +3061,6 @@ loose
 machines
 moral
 offensive
-pa
 package
 pointed
 poverty
@@ -3346,11 +3314,9 @@ maps
 min
 morgan
 moscow
-na
 nervous
 newly
 odd
-op
 ordinary
 participate
 philadelphia
@@ -3590,7 +3556,6 @@ lessons
 lists
 maintained
 mill
-mo
 occasion
 oxford
 pace
@@ -3645,7 +3610,6 @@ log
 matthew
 merely
 monitor
-nov
 patrick
 phil
 prisoners
@@ -3774,7 +3738,6 @@ lyrics
 manufacturers
 masters
 movements
-oct
 operated
 ought
 outcome
@@ -3790,7 +3753,6 @@ rio
 risks
 rob
 screaming
-sept
 sequence
 singapore
 stretch
@@ -3865,7 +3827,6 @@ veterans
 alert
 arena
 arguments
-aug
 billy
 boom
 boots
@@ -3881,7 +3842,6 @@ constitutional
 crossing
 defending
 density
-di
 difficulty
 dropping
 drops
@@ -3891,7 +3851,6 @@ expenses
 fleet
 foster
 fundamental
-gen
 genius
 greatly
 guidance
@@ -3953,7 +3912,6 @@ component
 connections
 courage
 cure
-del
 desperate
 diversity
 duties
@@ -3967,7 +3925,6 @@ guards
 hiding
 humanity
 ian
-il
 innovation
 instruments
 invest
@@ -4068,7 +4025,6 @@ rocket
 ruin
 saudi
 sean
-sec
 secrets
 stability
 steady
@@ -4112,7 +4068,6 @@ invite
 involvement
 kentucky
 madrid
-mi
 nuts
 oregon
 partly
@@ -4126,7 +4081,6 @@ regime
 rivers
 rounds
 ruled
-sa
 sauce
 seal
 separated
@@ -4160,7 +4114,6 @@ coaching
 colleagues
 constructed
 dated
-dec
 default
 delhi
 derived
@@ -4206,7 +4159,6 @@ remarkable
 responses
 ruling
 sacrifice
-se
 sole
 stopping
 strategies
@@ -4378,14 +4330,12 @@ controversy
 convince
 cooper
 disappeared
-eh
 encounter
 equality
 exam
 examination
 fails
 federation
-fi
 fiscal
 guardian
 homeless
@@ -4418,7 +4368,6 @@ segment
 spectrum
 stays
 ted
-uh
 venture
 virtually
 waited
@@ -4442,7 +4391,6 @@ colleges
 considerable
 conventional
 danny
-des
 designated
 emperor
 employers
@@ -4462,7 +4410,6 @@ inquiry
 inspector
 jumped
 khan
-li
 lion
 loaded
 lonely
@@ -4503,7 +4450,6 @@ venue
 wages
 wells
 wheels
-ye
 accuracy
 albert
 applying
@@ -4526,7 +4472,6 @@ dirt
 diverse
 divine
 emails
-er
 exclusively
 export
 fastest
@@ -4694,7 +4639,6 @@ charlotte
 cheaper
 christopher
 climb
-com
 competing
 completion
 cruise
@@ -4714,7 +4658,6 @@ fluid
 folk
 generate
 handsome
-ho
 holidays
 hotels
 imagination
@@ -4790,14 +4733,12 @@ difficulties
 disability
 dish
 douglas
-du
 duck
 egyptian
 evaluation
 excess
 farming
 fence
-fifa
 fighters
 flights
 forcing
@@ -4824,7 +4765,6 @@ males
 manufacturer
 meters
 nail
-nasa
 negotiations
 nonsense
 ontario
@@ -4983,7 +4923,6 @@ invested
 jennifer
 lit
 louisiana
-mar
 marie
 meals
 mississippi
@@ -4998,3 +4937,64 @@ pie
 platforms
 populations
 poster
+practically
+preserve
+produces
+qualify
+raid
+ram
+ranging
+ranking
+receives
+respective
+restricted
+routes
+samuel
+sandy
+scenario
+sheep
+situated
+sony
+spotted
+spreading
+stanley
+sustainable
+sustained
+taxi
+themes
+threatening
+tobacco
+trace
+trapped
+turner
+uncomfortable
+wasted
+weakness
+widespread
+xbox
+accepting
+accessible
+acknowledge
+advised
+advisory
+animation
+assignment
+balanced
+bare
+basement
+bases
+battles
+bias
+birmingham
+bits
+cancel
+carpet
+ceiling
+cherry
+chill
+classification
+clue
+codes
+cole
+collapse
+collecting

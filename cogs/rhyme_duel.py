@@ -13,7 +13,7 @@ from wisp.bond import casual_bond_grant
 from wisp.life import Life, Phase, add_growth, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
-from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, RHYME_TURN
+from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, PLAYS_PER_DAY, RHYME_TURN
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
 
 if TYPE_CHECKING:
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _ARCHIVE_AFTER_MINUTES: Final = 60
+_CUT: Final = "..."
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Rhymes have to wait until he is."
@@ -97,16 +98,25 @@ def summary_text(line: str, reason: str | None, chain: list[str], points: int) -
     """The end of a duel: Wisp's line, why it ended, the chain and the score.
 
     The oldest words are left out of the chain when it would not fit one message.
+    If it still does not fit, the reason is cut short, and as a last resort the
+    message itself.
     """
-    head = [line, SEPARATOR, *([f"・{reason}"] if reason else [])]
-    tail = [f"・Score: {count(points, 'point')}"]
+    reasons = [f"・{reason}"] if reason else []
+    score_line = f"・Score: {count(points, 'point')}"
     shown = chain
     while True:
         trimmed = "... " if len(shown) < len(chain) else ""
-        text = "\n".join([*head, f"・{trimmed}{' ・ '.join(shown)}", *tail])
-        if len(text) <= MESSAGE_LIMIT:
+        chain_line = f"・{trimmed}{' ・ '.join(shown)}"
+        text = "\n".join([line, SEPARATOR, *reasons, chain_line, score_line])
+        overflow = len(text) - MESSAGE_LIMIT
+        if overflow <= 0:
             return text
-        shown = shown[1:]
+        if shown:
+            shown = shown[1:]
+        elif reasons and len(reasons[0]) > overflow + len(_CUT):
+            reasons = [reasons[0][: -(overflow + len(_CUT))] + _CUT]
+        else:
+            return text[:MESSAGE_LIMIT]
 
 
 # ---
@@ -143,14 +153,22 @@ async def _record_play(
 ) -> bool:
     """Count the duel as play and keep the score if it is the player's best.
 
-    Bond, growth and the play itself only count while Wisp is still alive.
-    Returns True on a new best score.
+    The play, with its bond and growth, only counts when the player scored a
+    rhyme, Wisp is still alive and the member has had fewer than PLAYS_PER_DAY
+    counted games today. The best score is always kept. Returns True on a new
+    best score.
     """
     now = discord.utils.utcnow()
     log = bot.activity_log
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if life is not None and life.id is not None and life.phase is Phase.ALIVE:
+        if (
+            points > 0
+            and life is not None
+            and life.id is not None
+            and life.phase is Phase.ALIVE
+            and await log.plays_today(guild_id, user_id, now) < PLAYS_PER_DAY
+        ):
             bond = casual_bond_grant(
                 await log.casual_bond_today(guild_id, user_id, now), BOND_PER_PLAY
             )
@@ -187,7 +205,10 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
         allowed_mentions=_NO_PING,
     )
     new_best = await _record_play(bot, guild_id, user.id, outcome.points)
-    await thread.edit(archived=True, locked=True)
+    try:
+        await thread.edit(archived=True, locked=True)
+    except discord.HTTPException as error:
+        await bot.report_error(interaction.guild, "closing a Rhyme Duel thread", error)
     if new_best:
         await refresh_billboard(bot, guild_id)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)

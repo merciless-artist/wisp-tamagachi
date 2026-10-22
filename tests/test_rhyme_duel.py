@@ -25,7 +25,13 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
-from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, RHYME_TURN, Stage
+from wisp.rules import (
+    BOND_PER_PLAY,
+    GROWTH_PER_PLAY,
+    PLAYS_PER_DAY,
+    RHYME_TURN,
+    Stage,
+)
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -380,6 +386,43 @@ async def test_wisp_answers_in_his_mood(bot: app.WispBot, server: FakeServer) ->
     assert summary.splitlines()[0] in lines_for(Moment.RHYME_PLAYER_STUCK, Mood.HANGRY)
 
 
+async def test_a_huge_answer_ends_the_duel_cleanly(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+
+    await duel(bot, server, said("a" * 2000))
+
+    summary = server.posts()[-1]
+    assert len(summary) <= 2000
+    assert summary.splitlines()[2:] == [
+        "・That wasn't one word",
+        "・fire",
+        "・Score: 0 points",
+    ]
+    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+
+
+@pytest.mark.parametrize(
+    ("line", "reason"),
+    [("good game", "x" * 2500), ("w" * 2500, "x" * 2500), ("w" * 2500, None)],
+)
+def test_an_over_long_summary_is_still_returned_in_one_message(
+    line: str, reason: str | None
+) -> None:
+    summary = rhyme_duel.summary_text(line, reason, ["fire", "choir"], 2)
+
+    assert len(summary) == 2000
+
+
+def test_an_over_long_reason_is_cut_but_the_score_stays() -> None:
+    summary = rhyme_duel.summary_text("good game", "x" * 2500, ["fire"], 2)
+
+    lines = summary.splitlines()
+    assert lines[2].startswith("・xxx") and lines[2].endswith("...")
+    assert lines[3:] == ["・... ", "・Score: 2 points"]
+
+
 def test_a_long_chain_still_fits_one_message() -> None:
     chain = ["fire", *(f"word{index}" for index in range(400))]
 
@@ -503,8 +546,9 @@ async def test_duel_counts_as_play(
 
 
 async def test_play_bond_respects_the_daily_cap(
-    bot: app.WispBot, server: FakeServer
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
 ) -> None:
+    wisp_says(None)
     life = await lay(bot)
     assert life.id is not None
     await bot.activity_log.record_interaction(
@@ -517,9 +561,69 @@ async def test_play_bond_respects_the_daily_cap(
         discord.utils.utcnow(),
     )
 
-    await duel(bot, server)
+    await duel(bot, server, said("choir"))
 
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 1
+
+
+async def test_a_duel_without_a_rhyme_is_not_play(
+    bot: app.WispBot, server: FakeServer, meeting: AsyncMock
+) -> None:
+    life = await lay(bot)
+
+    await duel(bot, server, said("water"))
+
+    assert await bot.activity_log.distinct_days(GUILD_ID, USER_ID) == 0
+    assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
+    current = await bot.lives.current(GUILD_ID)
+    assert current is not None
+    assert current.growth == life.growth
+    meeting.assert_awaited_once()
+
+
+async def test_only_the_first_scoring_duels_of_the_day_are_play(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    wisp_says(*[None] * (PLAYS_PER_DAY + 1))
+    answers = ["choir", "higher", "hire", "wire", "desire", "entire"]
+
+    for answer in answers[:PLAYS_PER_DAY]:
+        await duel(bot, server, said(answer))
+    after_limit = await bot.lives.current(GUILD_ID)
+    await duel(bot, server, said("entire"))
+
+    assert await bot.activity_log.plays_today(
+        GUILD_ID, USER_ID, discord.utils.utcnow()
+    ) == (PLAYS_PER_DAY)
+    current = await bot.lives.current(GUILD_ID)
+    assert after_limit is not None and current is not None
+    assert after_limit.growth == life.growth + PLAYS_PER_DAY * GROWTH_PER_PLAY
+    assert current.growth == after_limit.growth
+    assert (await bot.players.get(GUILD_ID, USER_ID)).best_rhyme_score == 2
+
+
+async def test_best_score_still_counts_past_the_play_limit(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    for _ in range(PLAYS_PER_DAY):
+        await bot.activity_log.record_interaction(
+            GUILD_ID,
+            life.id,
+            USER_ID,
+            InteractionKind.PLAY,
+            0,
+            0,
+            discord.utils.utcnow(),
+        )
+    wisp_says("higher", None)
+
+    await duel(bot, server, said("choir"), said("wire"))
+
+    assert (await bot.players.get(GUILD_ID, USER_ID)).best_rhyme_score == 4
+    assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
 
 
 async def test_no_play_credit_when_wisp_died_during_the_duel(
@@ -570,6 +674,27 @@ async def test_new_best_goes_on_billboard(
 
     billboard.assert_awaited_once()
     assert (await bot.players.get(GUILD_ID, USER_ID)).best_rhyme_score == 2
+
+
+async def test_a_thread_that_cannot_close_still_finishes_the_duel(
+    bot: app.WispBot,
+    server: FakeServer,
+    billboard: AsyncMock,
+    meeting: AsyncMock,
+    wisp_says: Callable[..., list[Any]],
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+    server.thread.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403, reason="Forbidden"), "Missing Permissions"
+    )
+
+    await duel(bot, server, said("choir"))
+
+    billboard.assert_awaited_once_with(bot, GUILD_ID)
+    meeting.assert_awaited_once()
+    report = server.errors.send.await_args.args[0]
+    assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
 
 
 # ---

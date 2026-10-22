@@ -173,15 +173,26 @@ class ActivityRepo:
         self, guild_id: int, user_id: int, now: datetime
     ) -> bool:
         """Whether the member has had today's free snack on the UTC day of `now`."""
+        return bool(
+            await self._count_today(InteractionKind.FREE_SNACK, guild_id, user_id, now)
+        )
+
+    async def plays_today(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Games the member has played with Wisp on the UTC day of `now`."""
+        return await self._count_today(InteractionKind.PLAY, guild_id, user_id, now)
+
+    async def _count_today(
+        self, kind: InteractionKind, guild_id: int, user_id: int, now: datetime
+    ) -> int:
         start, end = _utc_day(now)
         row = await self._db.fetchone(
-            f"SELECT COUNT(*) AS used FROM {self._db.t('interactions')} "
+            f"SELECT COUNT(*) AS times FROM {self._db.t('interactions')} "
             "WHERE guild_id = %s AND user_id = %s AND kind = %s "
             "AND at >= %s AND at < %s",
-            (guild_id, user_id, InteractionKind.FREE_SNACK.value, start, end),
+            (guild_id, user_id, kind.value, start, end),
         )
         assert row is not None
-        return bool(row["used"])
+        return int(row["times"])
 
     async def _sum_today(
         self,

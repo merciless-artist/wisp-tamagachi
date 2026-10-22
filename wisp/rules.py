@@ -60,6 +60,7 @@ ROCKSTAR_HAPPY_FOR = timedelta(days=7)
 ROCKSTAR_HAPPINESS = 80
 
 GROWTH_PER_PLAY = 2
+PLAYS_PER_DAY = 5
 GROWTH_PER_BOND_MOMENT = 5
 
 # ---
@@ -101,6 +102,7 @@ RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
 RHYME_SLANT_POINTS = 1
 RHYME_OPENER_RHYMES = 8
+MAX_WORD_LENGTH = 30
 
 # Chance that Wisp finds a rhyme on his turn, by stage.
 RHYME_SKILL: dict[Stage, float] = {

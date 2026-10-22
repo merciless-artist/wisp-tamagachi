@@ -15,10 +15,19 @@ from wisp.rhymes import (
     score,
     wisp_reply,
 )
-from wisp.rules import RHYME_OPENER_RHYMES, Stage
+from wisp.rules import MAX_WORD_LENGTH, RHYME_OPENER_RHYMES, Stage
 
 WORDS_FILE = Path(__file__).resolve().parent.parent / "wisp/data/common_words.txt"
 COMMON = WORDS_FILE.read_text(encoding="utf-8").splitlines()
+TWO_LETTER_WORDS = {
+    "go", "no", "so", "me", "we", "my", "by", "hi", "oh", "yo", "up", "us", "is",
+    "it", "at", "an", "as", "be", "do", "he", "if", "in", "of", "on", "or", "to",
+}  # fmt: skip
+JUNK = {
+    "st", "co", "inc", "mrs", "ms", "de", "re", "et", "du", "il", "sa", "se", "mi",
+    "na", "la", "le", "el", "en", "er", "fi", "li", "des", "los", "del", "pre",
+    "non", "gen", "ed", "ho",
+}  # fmt: skip
 HATCHED = [Stage.BABY, Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 TRIALS = 1000
 
@@ -61,6 +70,15 @@ def test_same_word_rejected(first: str, second: str) -> None:
     assert rhyme_kind(first, second) is None
 
 
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("right", "write"), ("night", "knight"), ("to", "two"), ("flower", "flour")],
+)
+def test_homophones_are_not_rhymes(first: str, second: str) -> None:
+    assert rhyme_kind(first, second) is None
+    assert rhyme_kind(second, first) is None
+
+
 def test_stress_level_does_not_break_a_rhyme() -> None:
     assert rhyme_kind("day", "birthday") is RhymeKind.PERFECT
 
@@ -81,6 +99,9 @@ def test_scores() -> None:
         ("", None),
         ("!!!", None),
         ("h4t", None),
+        pytest.param("a" * MAX_WORD_LENGTH, "a" * MAX_WORD_LENGTH, id="at-limit"),
+        pytest.param("a" * (MAX_WORD_LENGTH + 1), None, id="over-limit"),
+        pytest.param("b" * 2000, None, id="huge"),
     ],
 )
 def test_clean_word(text: str, word: str | None) -> None:
@@ -109,6 +130,21 @@ def test_wisp_never_repeats() -> None:
     assert all(
         wisp_reply("day", everything, Stage.ROCKSTAR, rng) is None for _ in range(20)
     )
+
+
+@pytest.mark.parametrize(
+    ("word", "homophone"), [("night", "knight"), ("right", "write")]
+)
+def test_wisp_never_answers_with_a_homophone(word: str, homophone: str) -> None:
+    assert homophone in COMMON
+    rng = random.Random(9)
+    used = {word}
+    for _ in range(300):
+        reply = wisp_reply(word, used, Stage.ROCKSTAR, rng)
+        if reply is not None:
+            used.add(reply)
+    assert homophone not in used
+    assert len(used) > 10
 
 
 def test_wisp_has_nothing_for_an_unknown_word() -> None:
@@ -151,4 +187,10 @@ def test_common_words_are_all_in_dictionary() -> None:
 
 
 def test_common_words_skip_profanity() -> None:
-    assert not {"fuck", "shit", "bitch", "damn", "hell", "sex"} & set(COMMON)
+    assert not {"fuck", "shit", "bitch", "damn", "hell", "sex", "ho"} & set(COMMON)
+
+
+def test_common_words_are_real_words() -> None:
+    short = {word for word in COMMON if len(word) < 3}
+    assert short <= TWO_LETTER_WORDS
+    assert not JUNK & set(COMMON)
