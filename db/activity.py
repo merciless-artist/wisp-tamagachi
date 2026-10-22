@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 import pymysql
+from pymysql.constants import ER
 
 from db.database import Database, to_db_time
 from wisp.links import Track
@@ -60,7 +61,9 @@ class ActivityRepo:
                     to_db_time(at),
                 ),
             )
-        except pymysql.err.IntegrityError:
+        except pymysql.err.IntegrityError as error:
+            if error.args[0] != ER.DUP_ENTRY:
+                raise
             return False
         return True
 

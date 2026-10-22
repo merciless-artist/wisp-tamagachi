@@ -21,12 +21,16 @@ def to_db_time(moment: None) -> None: ...
 
 
 def to_db_time(moment: datetime | None) -> datetime | None:
-    """Convert a timezone-aware datetime to the naive UTC the database stores."""
+    """Convert a timezone-aware datetime to the naive UTC the database stores.
+
+    Columns hold whole seconds, so the fraction is dropped here rather than left
+    to the server, which may round it into the next second or day.
+    """
     if moment is None:
         return None
     if moment.tzinfo is None:
         raise ValueError("Datetime must be timezone-aware")
-    return moment.astimezone(UTC).replace(tzinfo=None)
+    return moment.astimezone(UTC).replace(tzinfo=None, microsecond=0)
 
 
 @overload

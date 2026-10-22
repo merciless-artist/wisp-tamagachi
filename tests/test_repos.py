@@ -2,10 +2,11 @@
 
 from datetime import UTC, datetime, timedelta, timezone
 
+import pymysql
 import pytest
 
 from db.activity import ActivityRepo, InteractionKind
-from db.database import Database
+from db.database import Database, to_db_time
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
@@ -269,6 +270,14 @@ async def test_duplicate_track_feeds_once(db: Database) -> None:
     assert await repo.record_feed(OTHER_GUILD, 1, USER, track("a"), 1, 903, NOW) is True
 
 
+async def test_other_integrity_errors_are_not_reported_as_duplicates(
+    db: Database,
+) -> None:
+    broken = Track(TrackKind.SUNO, "suno:x", None)  # type: ignore[arg-type]
+    with pytest.raises(pymysql.err.IntegrityError):
+        await ActivityRepo(db).record_feed(GUILD, 1, USER, broken, 1, 1, NOW)
+
+
 @pytest.mark.parametrize(
     "now",
     [NOW, MIDNIGHT, datetime(2026, 10, 20, 23, 59, 59, tzinfo=UTC)],
@@ -288,6 +297,26 @@ async def test_daily_counts_reset_at_utc_midnight(db: Database, now: datetime) -
     assert await repo.casual_bond_today(GUILD, USER, now) == 4
     assert await repo.meal_points_today(GUILD, OTHER_USER, now) == 0
     assert await repo.meal_points_today(OTHER_GUILD, USER, now) == 0
+
+
+def test_db_time_truncates_to_whole_seconds() -> None:
+    moment = datetime(2026, 10, 20, 23, 59, 59, 900_000, tzinfo=UTC)
+    assert to_db_time(moment) == datetime(2026, 10, 20, 23, 59, 59)
+
+
+async def test_fraction_of_a_second_stays_in_its_utc_day(db: Database) -> None:
+    repo = ActivityRepo(db)
+    late = MIDNIGHT - timedelta(microseconds=100_000)
+    await repo.record_interaction(GUILD, 1, USER, InteractionKind.FEED, 10, 4, late)
+    await repo.record_interaction(
+        GUILD, 1, USER, InteractionKind.FREE_SNACK, 1, 2, late
+    )
+
+    assert await repo.meal_points_today(GUILD, USER, MIDNIGHT) == 0
+    assert await repo.free_snack_used_today(GUILD, USER, MIDNIGHT) is False
+    assert await repo.meal_points_today(GUILD, USER, late) == 6
+    assert await repo.free_snack_used_today(GUILD, USER, late) is True
+    assert await repo.distinct_days(GUILD, USER) == 1
 
 
 async def test_daily_counts_use_the_utc_day_of_a_local_time(db: Database) -> None:
