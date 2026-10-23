@@ -12,7 +12,7 @@ from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
-from wisp.rules import Stage
+from wisp.rules import COAL_EGG_FOOD, Stage
 
 GUILD = 100
 OTHER_GUILD = 200
@@ -116,6 +116,33 @@ async def test_life_insert_save_current_history(db: Database) -> None:
     assert current.laid_at.utcoffset() == timedelta(0)
     assert await repo.history(GUILD) == [second, first]
     assert await repo.history(OTHER_GUILD) == []
+
+
+async def test_from_coal_round_trips(db: Database) -> None:
+    repo = LifeRepo(db)
+    coal = new_egg(1, NOW)
+    coal.from_coal = True
+    coal.egg_food = COAL_EGG_FOOD
+    await repo.insert(GUILD, coal)
+    current = await repo.current(GUILD)
+    assert current is not None
+    assert current.from_coal
+    assert current.egg_food == COAL_EGG_FOOD
+    current.from_coal = False
+    await repo.save(GUILD, current)
+    refreshed = await repo.current(GUILD)
+    assert refreshed is not None
+    assert not refreshed.from_coal
+
+
+async def test_old_fogey_stage_fits_the_column(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    life.phase = Phase.PASSED
+    life.stage = Stage.OLD_FOGEY
+    life.peak_stage = Stage.ROCKSTAR
+    await repo.save(GUILD, life)
+    assert await repo.current(GUILD) == life
 
 
 async def test_save_clears_optional_fields(db: Database) -> None:

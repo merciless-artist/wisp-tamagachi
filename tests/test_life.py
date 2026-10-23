@@ -12,6 +12,7 @@ from wisp.life import (
     Phase,
     add_growth,
     age_days,
+    egg_after,
     feed,
     is_over,
     mood,
@@ -21,11 +22,15 @@ from wisp.life import (
 from wisp.rules import (
     CARE_DRAIN_PER_DAY,
     CARE_MAX,
+    COAL_EGG_FOOD,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
+    FAREWELL_AT_DAY,
     HATCHED_CARE,
     HATCHING_TIME,
     MAX_CREDITED_GAP,
+    OLD_FOGEY_AT_DAY,
+    OLD_FOGEY_CARE_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
     ROCKSTAR_HAPPY_FOR,
     STAGE_RULES,
@@ -404,3 +409,129 @@ def test_offline_gap_counts_only_fifteen_minutes_toward_rockstar() -> None:
     assert events == []
     assert life.stage is Stage.ADULT
     assert life.high_happiness_since == back - MAX_CREDITED_GAP
+
+
+# ---
+# Old age
+# ---
+
+
+def old(stage: Stage, days: int, **fields: object) -> Life:
+    """Build a Wisp of `stage` that hatched `days` days before T0."""
+    return alive(care=CARE_MAX, at=T0 - timedelta(days=days), stage=stage, **fields)
+
+
+@pytest.mark.parametrize("stage", [Stage.ADULT, Stage.ROCKSTAR])
+def test_adult_and_rockstar_grow_old_at_day_45(stage: Stage) -> None:
+    life = old(stage, OLD_FOGEY_AT_DAY)
+    events = tick(life, T0, frozen=False, happiness=0, caretakers=0)
+    assert events == [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)]
+    assert life.stage is Stage.OLD_FOGEY
+    assert life.peak_stage is stage
+    assert life.stage_started_at == T0
+    assert life.phase is Phase.ALIVE
+
+
+def test_adult_one_day_short_of_old_age_stays_adult() -> None:
+    life = old(Stage.ADULT, OLD_FOGEY_AT_DAY - 1)
+    assert tick(life, T0, frozen=False, happiness=0, caretakers=0) == []
+    assert life.stage is Stage.ADULT
+
+
+def test_old_age_wins_over_rockstar_in_the_same_tick() -> None:
+    life = old(
+        Stage.ADULT,
+        OLD_FOGEY_AT_DAY,
+        high_happiness_since=T0 - ROCKSTAR_HAPPY_FOR,
+    )
+    events = tick(life, T0, frozen=False, happiness=ROCKSTAR_HAPPINESS, caretakers=0)
+    assert events == [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)]
+    assert life.stage is Stage.OLD_FOGEY
+    assert life.peak_stage is Stage.ADULT
+    assert life.high_happiness_since is None
+
+
+def test_late_bloomer_does_not_grow_old() -> None:
+    life = old(Stage.TEEN, FAREWELL_AT_DAY + 1)
+    events = tick(life, T0, frozen=False, happiness=100, caretakers=0)
+    assert events == []
+    assert life.stage is Stage.TEEN
+    assert life.phase is Phase.ALIVE
+
+
+def test_old_fogey_drains_slower() -> None:
+    life = old(Stage.OLD_FOGEY, OLD_FOGEY_AT_DAY, last_tick_at=T0)
+    tick(life, T0 + MAX_CREDITED_GAP, frozen=False, happiness=0, caretakers=0)
+    drained = OLD_FOGEY_CARE_DRAIN_PER_DAY * MAX_CREDITED_GAP / timedelta(days=1)
+    assert life.care == pytest.approx(CARE_MAX - drained)
+
+
+def test_old_fogey_does_not_grow_old_twice() -> None:
+    life = old(Stage.OLD_FOGEY, OLD_FOGEY_AT_DAY + 1)
+    assert tick(life, T0, frozen=False, happiness=0, caretakers=0) == []
+    assert life.stage is Stage.OLD_FOGEY
+
+
+def test_farewell_at_day_60() -> None:
+    life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
+    events = tick(life, T0, frozen=False, happiness=0, caretakers=0)
+    assert events == [Event(EventKind.FAREWELL)]
+    assert life.phase is Phase.PASSED
+    assert life.ended_at == T0
+    assert is_over(life)
+
+
+def test_old_fogey_lives_until_day_60() -> None:
+    life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY - 1)
+    assert tick(life, T0, frozen=False, happiness=0, caretakers=0) == []
+    assert life.phase is Phase.ALIVE
+
+
+def test_neglect_still_kills_an_old_fogey() -> None:
+    life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
+    life.care = 0.01
+    events = tick(life, T0, frozen=False, happiness=0, caretakers=0)
+    assert events == [Event(EventKind.DIED)]
+    assert life.phase is Phase.DEAD
+
+
+def test_passed_life_is_inert() -> None:
+    life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
+    tick(life, T0, frozen=False, happiness=0, caretakers=0)
+    assert tick(life, T0 + TICK_EVERY, frozen=False, happiness=0, caretakers=0) == []
+    assert feed(life, 10, FEEDER, T0) == []
+    assert mood(life) is Mood.HAPPY
+
+
+def test_egg_after_farewell_is_half_hatched_coal() -> None:
+    passed = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
+    passed.phase = Phase.PASSED
+    egg = egg_after(passed, 4, T0)
+    assert egg.version == 4
+    assert egg.phase is Phase.EGG
+    assert egg.egg_food == COAL_EGG_FOOD
+    assert egg.from_coal
+    assert egg.laid_at == T0
+
+
+def test_coal_egg_hatches_after_the_remaining_food() -> None:
+    passed = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
+    passed.phase = Phase.PASSED
+    egg = egg_after(passed, 2, T0)
+    assert feed(egg, EGG_FOOD_NEEDED - COAL_EGG_FOOD - 1, FEEDER, T0) == []
+    assert feed(egg, 1, FEEDER, T0) == [Event(EventKind.HATCH_STARTED)]
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD])
+def test_egg_after_other_endings_is_fresh(phase: Phase) -> None:
+    ended = alive()
+    ended.phase = phase
+    egg = egg_after(ended, 5, T0)
+    assert (egg.version, egg.phase, egg.egg_food) == (5, Phase.EGG, 0)
+    assert not egg.from_coal
+
+
+def test_egg_after_nothing_is_fresh() -> None:
+    egg = egg_after(None, 1, T0)
+    assert (egg.version, egg.phase, egg.egg_food) == (1, Phase.EGG, 0)
+    assert not egg.from_coal

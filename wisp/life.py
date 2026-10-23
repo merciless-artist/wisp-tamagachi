@@ -11,13 +11,17 @@ from enum import StrEnum, auto
 from wisp.rules import (
     CARE_DRAIN_PER_DAY,
     CARE_MAX,
+    COAL_EGG_FOOD,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
     FADING_BELOW,
+    FAREWELL_AT_DAY,
     HANGRY_BELOW,
     HATCHED_CARE,
     HATCHING_TIME,
     MAX_CREDITED_GAP,
+    OLD_FOGEY_AT_DAY,
+    OLD_FOGEY_CARE_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
     ROCKSTAR_HAPPY_FOR,
     STAGE_RULES,
@@ -25,7 +29,11 @@ from wisp.rules import (
 )
 
 _DAY_SECONDS = timedelta(days=1).total_seconds()
-_STAGES = tuple(Stage)
+_NEXT_STAGE = {
+    Stage.BABY: Stage.CHILD,
+    Stage.CHILD: Stage.TEEN,
+    Stage.TEEN: Stage.ADULT,
+}
 
 # ---
 # Types
@@ -40,6 +48,7 @@ class Phase(StrEnum):
     ALIVE = auto()
     DEAD = auto()
     COLD = auto()
+    PASSED = auto()
 
 
 class Mood(StrEnum):
@@ -59,6 +68,8 @@ class EventKind(StrEnum):
     HATCH_STARTED = auto()
     HATCHED = auto()
     STAGE_UP = auto()
+    GREW_OLD = auto()
+    FAREWELL = auto()
 
 
 @dataclass(frozen=True)
@@ -91,6 +102,7 @@ class Life:
     high_happiness_since: datetime | None = None
     warned: EventKind | None = None
     hatched_by: int | None = None
+    from_coal: bool = False
 
 
 # ---
@@ -114,9 +126,18 @@ def new_egg(version: int, now: datetime) -> Life:
     )
 
 
+def egg_after(ended: Life | None, version: int, now: datetime) -> Life:
+    """Lay the egg that follows `ended`: coal after a full life, else a fresh one."""
+    egg = new_egg(version, now)
+    if ended is not None and ended.phase is Phase.PASSED:
+        egg.from_coal = True
+        egg.egg_food = COAL_EGG_FOOD
+    return egg
+
+
 def is_over(life: Life) -> bool:
-    """Whether this life has ended, by death or a cold egg."""
-    return life.phase in (Phase.DEAD, Phase.COLD)
+    """Whether this life has ended: died, a cold egg, or a full life passed."""
+    return life.phase in (Phase.DEAD, Phase.COLD, Phase.PASSED)
 
 
 def mood(life: Life) -> Mood:
@@ -225,19 +246,22 @@ def _tick_alive(
     happiness: int,
     caretakers: int,
 ) -> list[Event]:
-    life.care = max(
-        life.care - CARE_DRAIN_PER_DAY * elapsed.total_seconds() / _DAY_SECONDS, 0.0
+    drain = (
+        OLD_FOGEY_CARE_DRAIN_PER_DAY
+        if life.stage is Stage.OLD_FOGEY
+        else CARE_DRAIN_PER_DAY
     )
+    life.care = max(life.care - drain * elapsed.total_seconds() / _DAY_SECONDS, 0.0)
     if life.care == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
         return [Event(EventKind.DIED)]
+    if life.stage is Stage.OLD_FOGEY and age_days(life, now) >= FAREWELL_AT_DAY:
+        _enter(life, Phase.PASSED)
+        life.ended_at = now
+        return [Event(EventKind.FAREWELL)]
     events = _warnings(life)
-    next_stage = _next_stage(life.stage)
-    if next_stage and _ready_for(life, next_stage, now, happiness, caretakers):
-        life.stage = life.peak_stage = next_stage
-        life.stage_started_at = now
-        events.append(Event(EventKind.STAGE_UP, next_stage))
+    events += _grow(life, now, happiness, caretakers)
     return events
 
 
@@ -257,16 +281,37 @@ def _warnings(life: Life) -> list[Event]:
 # ---
 
 
-def _next_stage(stage: Stage) -> Stage | None:
-    index = _STAGES.index(stage) + 1
-    return _STAGES[index] if index < len(_STAGES) else None
+def _grow(life: Life, now: datetime, happiness: int, caretakers: int) -> list[Event]:
+    """Move a living Wisp up one stage, or into old age, when it has earned it."""
+    stage = life.stage
+    if (
+        stage in (Stage.ADULT, Stage.ROCKSTAR)
+        and age_days(life, now) >= OLD_FOGEY_AT_DAY
+    ):
+        life.high_happiness_since = None
+        return [_advance(life, Stage.OLD_FOGEY, now, keep_peak=True)]
+    if stage is Stage.ADULT:
+        if _kept_happy_long_enough(life, now, happiness):
+            return [_advance(life, Stage.ROCKSTAR, now)]
+        return []
+    next_stage = _NEXT_STAGE.get(stage)
+    if next_stage is not None and _met_requirements(life, next_stage, now, caretakers):
+        return [_advance(life, next_stage, now)]
+    return []
 
 
-def _ready_for(
-    life: Life, stage: Stage, now: datetime, happiness: int, caretakers: int
-) -> bool:
-    if stage is Stage.ROCKSTAR:
-        return _kept_happy_long_enough(life, now, happiness)
+def _advance(
+    life: Life, stage: Stage, now: datetime, *, keep_peak: bool = False
+) -> Event:
+    life.stage = stage
+    if not keep_peak:
+        life.peak_stage = stage
+    life.stage_started_at = now
+    kind = EventKind.GREW_OLD if stage is Stage.OLD_FOGEY else EventKind.STAGE_UP
+    return Event(kind, stage)
+
+
+def _met_requirements(life: Life, stage: Stage, now: datetime, caretakers: int) -> bool:
     min_age, min_growth, min_caretakers = STAGE_RULES[stage]
     return (
         age_days(life, now) >= min_age

@@ -6,7 +6,13 @@ import pytest
 
 from wisp.card import bar, render_status
 from wisp.life import Life, Phase, new_egg
-from wisp.rules import EGG_FOOD_NEEDED, EGG_WARMTH, HATCHING_TIME, Stage
+from wisp.rules import (
+    EGG_FOOD_NEEDED,
+    EGG_WARMTH,
+    HATCHING_TIME,
+    OLD_FOGEY_AT_DAY,
+    Stage,
+)
 from wisp.text import SEPARATOR
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
@@ -50,6 +56,14 @@ def test_alive_card_matches_spec_exactly() -> None:
         "・♪ ────────・──────── ♪・"
     )
     assert render_status(alive_life(), NOW, happiness=50, fed_today=4) == expected
+
+
+def test_old_fogey_card_title_is_spaced_and_upper_case() -> None:
+    life = alive_life(
+        stage=Stage.OLD_FOGEY, hatched_at=NOW - timedelta(days=OLD_FOGEY_AT_DAY)
+    )
+    card = render_status(life, NOW, happiness=50, fed_today=2)
+    assert "OLD FOGEY ・ day 45" in card.splitlines()[0]
 
 
 def test_alive_card_uses_singular_for_one_person() -> None:

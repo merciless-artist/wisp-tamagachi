@@ -36,7 +36,7 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
         people = "1 person" if fed_today == 1 else f"{fed_today} people"
         return "\n".join(
             [
-                f"{title}{life.stage.upper()} ・ day {age_days(life, now)}",
+                f"{title}{life.stage.label.upper()} ・ day {age_days(life, now)}",
                 _row("care", life.care / CARE_MAX * 100),
                 _row("happiness", happiness),
                 f"fed today by {people}",

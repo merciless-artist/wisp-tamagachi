@@ -45,6 +45,7 @@ _DEFINITIONS: dict[str, str] = {
         warned VARCHAR(10) NULL,
         hatched_by BIGINT NULL,
         peak_stage VARCHAR(10) NOT NULL,
+        from_coal BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (id),
         UNIQUE KEY uq_guild_version (guild_id, version)
     """,

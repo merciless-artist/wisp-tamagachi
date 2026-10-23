@@ -1,7 +1,7 @@
 """Sanity checks on the rule tables."""
 
 from wisp.links import TrackKind
-from wisp.rules import MEAL_POINTS, SNACKS, STAGE_RULES, Stage
+from wisp.rules import MEAL_POINTS, RHYME_SKILL, SNACKS, STAGE_RULES, Stage
 
 
 def test_snack_keys_are_unique() -> None:
@@ -27,3 +27,19 @@ def test_stage_requirements_rise_with_each_stage() -> None:
 
 def test_every_track_kind_has_meal_points() -> None:
     assert set(MEAL_POINTS) == set(TrackKind)
+
+
+def test_stage_labels() -> None:
+    assert [stage.label for stage in Stage] == [
+        "Egg",
+        "Baby",
+        "Child",
+        "Teen",
+        "Adult",
+        "Rockstar",
+        "Old Fogey",
+    ]
+
+
+def test_every_hatched_stage_has_a_rhyme_skill() -> None:
+    assert set(RHYME_SKILL) == set(Stage) - {Stage.EGG}

@@ -24,6 +24,7 @@ _COLUMNS = (
     "warned",
     "hatched_by",
     "peak_stage",
+    "from_coal",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -48,6 +49,7 @@ def _from_row(row: Row) -> Life:
         warned=EventKind(row["warned"]) if row["warned"] else None,
         hatched_by=row["hatched_by"],
         peak_stage=Stage(row["peak_stage"]),
+        from_coal=bool(row["from_coal"]),
     )
 
 
@@ -71,6 +73,7 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.warned.value if life.warned else None,
         life.hatched_by,
         life.peak_stage.value,
+        life.from_coal,
     )
 
 

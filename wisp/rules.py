@@ -16,6 +16,12 @@ class Stage(StrEnum):
     TEEN = auto()
     ADULT = auto()
     ROCKSTAR = auto()
+    OLD_FOGEY = auto()
+
+    @property
+    def label(self) -> str:
+        """The stage's name as it is shown to members."""
+        return self.value.replace("_", " ").title()
 
 
 # ---
@@ -31,6 +37,7 @@ DAILY_MEAL_CAP = 15
 
 CARE_MAX = 100.0
 CARE_DRAIN_PER_DAY = 15.0
+OLD_FOGEY_CARE_DRAIN_PER_DAY = 10.0
 HATCHED_CARE = 50.0
 HANGRY_BELOW = 30.0
 FADING_BELOW = 10.0
@@ -40,6 +47,7 @@ FADING_BELOW = 10.0
 # ---
 
 EGG_FOOD_NEEDED = 30
+COAL_EGG_FOOD = EGG_FOOD_NEEDED // 2
 EGG_WARMTH = timedelta(hours=48)
 HATCHING_TIME = timedelta(hours=5)
 
@@ -55,6 +63,9 @@ STAGE_RULES: dict[Stage, tuple[int, int, int]] = {
     Stage.TEEN: (7, 60, 5),
     Stage.ADULT: (14, 150, 8),
 }
+
+OLD_FOGEY_AT_DAY = 45
+FAREWELL_AT_DAY = 60
 
 ROCKSTAR_HAPPY_FOR = timedelta(days=7)
 ROCKSTAR_HAPPINESS = 80
@@ -111,6 +122,7 @@ RHYME_SKILL: dict[Stage, float] = {
     Stage.TEEN: 0.8,
     Stage.ADULT: 0.9,
     Stage.ROCKSTAR: 0.97,
+    Stage.OLD_FOGEY: 0.9,
 }
 
 # ---
