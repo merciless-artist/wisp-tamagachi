@@ -36,7 +36,8 @@ UTC and a day is a UTC calendar day.
 - No embeds.
 - No direct messages. Wisp ignores DMs and is guild-only.
 - Slash commands only, under `/wisp` and `/wispadmin` (staff need Manage Server).
-- Errors reach staff as plain text: `Error in <context>: <Type>: <message>`.
+- Errors are posted as plain text in the channel where they happened:
+  `Error in <context>: <Type>: <message>`.
 - Keep messages under 2,000 characters.
 
 ## Process safety

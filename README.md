@@ -54,9 +54,8 @@ next egg. Members can also talk to him in Wisp's House.
 
 Staff commands need the Manage Server permission.
 
-- `/wispadmin setup house studio tracks errors` sets Wisp's House, the Studio
-  forum, the track drop channel and the error channel, and creates the Studio
-  threads that are missing.
+- `/wispadmin setup house studio tracks` sets Wisp's House, the Studio forum
+  and the track drop channel, and creates the Studio threads that are missing.
 - `/wispadmin roles add`, `roles remove`, `roles list` choose which roles can
   feed Wisp.
 - `/wispadmin food viibr suno` sets how many meal points a viibrmusic.com track
@@ -65,6 +64,8 @@ Staff commands need the Manage Server permission.
   in `wisp/rules.py` apply.
 - `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
 - `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
+  The log line with the reason is posted publicly in the channel the command
+  was run in.
 - `/wispadmin unban` lifts a member's ban.
 - `/wispadmin strip` takes leaderboard points from a member.
 - `/wispadmin resetname` makes Wisp forget a member's name.
@@ -82,6 +83,15 @@ Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
 its threads). The egg wobbles, the baby babbles and from Child on he answers with
 AI. From Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns nothing: no bond and no points.
+
+## Errors
+
+There is no errors channel. Every error is posted as plain text,
+`Error in <context>: <Type>: <message>`, in the channel or thread where it
+happened, and the member who hit it is told so privately. Wisp never posts in
+the track drop: errors there, and errors with no channel at all (the life loop,
+startup, the AI voice), go to Wisp's House. If the post fails where it
+happened, the House is tried once; after that the error is only logged.
 
 ## Assets
 

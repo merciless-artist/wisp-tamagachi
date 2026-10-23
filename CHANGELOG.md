@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-23 (errors in place)
+
+- There is no errors channel any more. Every error is posted as plain text in
+  the channel or thread where it happened: a command, button or form failure
+  in the channel it was used in (the Status thread for the Feed button), a
+  Mealtime forward in Mealtime, a Studio card or pin in its thread, a Rhyme
+  Duel in its thread, a conversation reply in Wisp's House.
+- Wisp never posts in the track drop. Errors there, and errors with no channel
+  (the life loop, startup, the next egg, recreated Studio threads, the AI
+  voice), go to Wisp's House, the life loop and startup ones to every guild's
+  House. If the post fails where it happened, the House is tried once; then
+  the error is only logged.
+- The member is told "That didn't work. The error is posted in this channel."
+- `/wispadmin setup` no longer takes an `errors` channel, and the
+  `error_channel_id` setting is gone. A live table that still has the column
+  only logs a schema warning.
+- `/wispadmin punish` posts its log line, reason included, publicly in the
+  channel the command was run in. If that post fails, the reply says so.
+
 ## 2026-10-23 (plan 2 final fixes)
 
 - Staff see every error: a life loop failure is posted to every guild's errors
