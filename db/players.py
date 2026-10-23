@@ -4,6 +4,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 
 from db.database import Database, Params, Row, from_db_time, to_db_time
+from wisp.bond import PickleStance
 
 
 @dataclass
@@ -17,7 +18,7 @@ class Player:
     lifetime_points: int = 0
     balance: int = 0
     bond: int = 0
-    pickle_stance: str | None = None
+    pickle_stance: PickleStance | None = None
     offenses: int = 0
     banned_until: datetime | None = None
     banned_forever: bool = False
@@ -34,9 +35,11 @@ _SELECT = f"SELECT {', '.join(field.name for field in fields(Player))} FROM"
 
 
 def _from_row(row: Row) -> Player:
+    stance = row["pickle_stance"]
     return Player(
         **{
             **row,
+            "pickle_stance": None if stance is None else PickleStance(stance),
             "activated_at": from_db_time(row["activated_at"]),
             "met_at": from_db_time(row["met_at"]),
             "banned_until": from_db_time(row["banned_until"]),
@@ -97,6 +100,17 @@ class PlayerRepo:
     async def set_name(self, guild_id: int, user_id: int, name: str | None) -> None:
         """Set the name Wisp calls the player; None clears it."""
         await self._update(guild_id, user_id, "name = %s", (name,))
+
+    async def set_pickle_stance(
+        self, guild_id: int, user_id: int, stance: PickleStance | None
+    ) -> None:
+        """Set where the player stands on pickles; None clears it."""
+        await self._update(
+            guild_id,
+            user_id,
+            "pickle_stance = %s",
+            (None if stance is None else stance.value,),
+        )
 
     async def mark_met(self, guild_id: int, user_id: int, at: datetime) -> None:
         """Record when Wisp met the player."""

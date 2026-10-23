@@ -1,5 +1,7 @@
 """Bond tiers, daily caps, meeting and happiness. Pure rules, no storage."""
 
+from enum import StrEnum
+
 from wisp.rules import (
     BOND_TIERS,
     DAILY_CASUAL_BOND_CAP,
@@ -7,6 +9,13 @@ from wisp.rules import (
     HAPPY_FULL_AT_PEOPLE,
     MEET_AFTER_DAYS,
 )
+
+
+class PickleStance(StrEnum):
+    """Where a member stands on pickles. Wisp always takes the other side."""
+
+    LOVE = "love"
+    HATE = "hate"
 
 
 def tier_for(bond: int) -> str:

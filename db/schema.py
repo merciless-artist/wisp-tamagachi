@@ -96,6 +96,14 @@ _DEFINITIONS: dict[str, str] = {
         qty INT NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id, user_id, snack)
     """,
+    "keepsakes": """
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        kind VARCHAR(20) NOT NULL,
+        version INT NOT NULL,
+        given_at DATETIME NOT NULL,
+        PRIMARY KEY (guild_id, user_id, kind, version)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

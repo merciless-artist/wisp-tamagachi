@@ -7,9 +7,11 @@ import pytest
 
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database, to_db_time
+from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
+from wisp.bond import PickleStance
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import COAL_EGG_FOOD, Stage
@@ -249,6 +251,21 @@ async def test_bond_name_and_meeting(db: Database) -> None:
 
     await repo.set_name(GUILD, USER, None)
     assert (await repo.get(GUILD, USER)).name is None
+
+
+async def test_pickle_stance_round_trip(db: Database) -> None:
+    repo = PlayerRepo(db)
+    assert (await repo.get(GUILD, USER)).pickle_stance is None
+
+    await repo.set_pickle_stance(GUILD, USER, PickleStance.LOVE)
+    assert (await repo.get(GUILD, USER)).pickle_stance is PickleStance.LOVE
+    assert (await repo.get(GUILD, OTHER_USER)).pickle_stance is None
+
+    await repo.set_pickle_stance(GUILD, USER, PickleStance.HATE)
+    assert (await repo.get(GUILD, USER)).pickle_stance is PickleStance.HATE
+
+    await repo.set_pickle_stance(GUILD, USER, None)
+    assert (await repo.get(GUILD, USER)).pickle_stance is None
 
 
 async def test_offense_round_trip(db: Database) -> None:
@@ -500,3 +517,49 @@ async def test_free_snack_used_once_per_utc_day(db: Database) -> None:
     assert await repo.free_snack_used_today(GUILD, USER, NOW) is True
     assert await repo.free_snack_used_today(GUILD, OTHER_USER, NOW) is False
     assert await repo.casual_bond_today(GUILD, USER, NOW) == 2
+
+
+# ---
+# Keepsakes
+# ---
+
+
+async def test_keepsake_given_once_per_version(db: Database) -> None:
+    repo = KeepsakeRepo(db)
+    ember = KeepsakeKind.LAST_EMBER
+    later = NOW + timedelta(days=3)
+
+    assert await repo.give(GUILD, USER, ember, 4, later) is True
+    assert await repo.give(GUILD, USER, ember, 3, NOW) is True
+    assert await repo.give(GUILD, USER, ember, 3, later) is False
+
+    keepsakes = await repo.of(GUILD, USER)
+    assert [(item.kind, item.version, item.given_at) for item in keepsakes] == [
+        (ember, 3, NOW),
+        (ember, 4, later),
+    ]
+    assert [item.title for item in keepsakes] == [
+        "Wisp v3's Last Ember",
+        "Wisp v4's Last Ember",
+    ]
+
+
+async def test_keepsakes_are_per_member_and_guild(db: Database) -> None:
+    repo = KeepsakeRepo(db)
+    ember = KeepsakeKind.LAST_EMBER
+    assert await repo.give(GUILD, USER, ember, 3, NOW) is True
+    assert await repo.give(GUILD, OTHER_USER, ember, 3, NOW) is True
+    assert await repo.give(OTHER_GUILD, USER, ember, 3, NOW) is True
+
+    assert [item.version for item in await repo.of(GUILD, USER)] == [3]
+    assert await repo.of(GUILD, 99) == []
+    assert await repo.of(OTHER_GUILD, OTHER_USER) == []
+
+
+async def test_other_integrity_errors_are_not_reported_as_already_given(
+    db: Database,
+) -> None:
+    with pytest.raises(pymysql.err.IntegrityError):
+        await KeepsakeRepo(db).give(
+            GUILD, USER, KeepsakeKind.LAST_EMBER, None, NOW  # type: ignore[arg-type]
+        )

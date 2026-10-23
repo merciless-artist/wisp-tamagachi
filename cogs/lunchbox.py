@@ -1,4 +1,4 @@
-"""The lunchbox: members buy snacks with points and feed them to Wisp."""
+"""The ViiBR Vault and lunchboxes: members buy snacks and feed them to Wisp."""
 
 import re
 from collections.abc import Awaitable, Callable
@@ -20,7 +20,7 @@ from cogs.players import (
 )
 from db.activity import InteractionKind
 from db.players import Player
-from wisp.bond import casual_bond_grant, meal_grant
+from wisp.bond import PickleStance, casual_bond_grant, meal_grant
 from wisp.life import Life, Mood, Phase, add_growth, feed
 from wisp.lines import Moment
 from wisp.rules import BOND_PER_SNACK, FANCY_SNACK_COST, SNACKS, Snack
@@ -32,22 +32,32 @@ if TYPE_CHECKING:
 _NO_PING: Final = discord.AllowedMentions.none()
 _COIN: Final = "wisp_coin"
 _FEED_ID: Final = "wisp:feed"
+_VAULT_ID: Final = "wisp:vault"
+_LUNCHBOX_ID: Final = "wisp:lunchbox"
 
 _BANNED: Final = "♪ Wisp is not taking snacks from you right now."
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Snacks have to wait until he is."
-_NO_SNACKS: Final = "♪ You have no snacks. Buy some with /wisp lunchbox."
+_NO_SNACKS: Final = (
+    "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
+)
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
 _MENU: Final = tuple(snack for snack in SNACKS if snack.cost > 0)
 _BY_KEY: Final = {snack.key: snack for snack in SNACKS}
+_PICKLES: Final = "pickles"
 _MOMENTS: Final = {
     "spicywave": Moment.SPICY,
     "juicewave": Moment.JUICE,
-    "pickles": Moment.PICKLE_HEDGE,
+    _PICKLES: Moment.PICKLE_HEDGE,
+}
+_CONTRARY: Final = {
+    PickleStance.LOVE: (Moment.PICKLE_HATE, "eat_pickles_hate.gif"),
+    PickleStance.HATE: (Moment.PICKLE_LOVE, "eat_pickles_love.gif"),
 }
 
 _Choice = Callable[[discord.Interaction, Snack], Awaitable[None]]
+_Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
 # Shared pieces
@@ -80,6 +90,31 @@ def _option(
 async def _is_banned(bot: "WispBot", guild_id: int, user_id: int) -> bool:
     player = await bot.players.get(guild_id, user_id)
     return player.is_banned(discord.utils.utcnow())
+
+
+async def _admit(interaction: discord.Interaction) -> bool:
+    """Acknowledge an interaction privately; False, after saying why, if banned."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if await _is_banned(
+        bot_of(interaction), require_guild(interaction), interaction.user.id
+    ):
+        await say_privately(interaction, _BANNED)
+        return False
+    return True
+
+
+async def _press(
+    interaction: discord.Interaction, context: str, action: _Action
+) -> None:
+    """Run what a persistent button does, reporting a failure to staff.
+
+    Persistent buttons have no error hook of their own, so the failures they can
+    expect are caught here.
+    """
+    try:
+        await action(interaction)
+    except EXPECTED_FAILURES as error:
+        await report_failure(interaction, context, error)
 
 
 class SnackSelect(discord.ui.Select["SnackMenu"]):
@@ -120,32 +155,55 @@ class SnackMenu(discord.ui.View):
 # ---
 
 
-async def _lunchbox_text(
+async def _vault_text(
     bot: "WispBot", guild_id: int, user_id: int, note: str | None = None
 ) -> str:
-    """The balance, the Snack Box and the member's snacks, after an optional note."""
+    """The balance and the Snack Box, after an optional note."""
     balance = (await bot.players.get(guild_id, user_id)).balance
-    owned = await bot.activity_log.inventory(guild_id, user_id)
     prices = [
         f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
         for snack in _MENU
     ]
-    snacks = [
-        f"・{_named(bot, snack)} x{owned[snack.key]}"
-        for snack in _MENU
-        if snack.key in owned
-    ] or ["・Nothing yet"]
     lines = [
-        "♪ The Lunchbox",
+        "♪ The ViiBR Vault",
         _with_emoji(bot.emoji(_COIN), count(balance, "point")),
         SEPARATOR,
         "Snack Box",
         *prices,
-        SEPARATOR,
-        "Your snacks",
-        *snacks,
     ]
     return "\n".join([note, *lines] if note else lines)
+
+
+async def _my_lunchbox_text(
+    bot: "WispBot", guild_id: int, user_id: int, display_name: str
+) -> str:
+    """The member's balance, snacks and keepsakes."""
+    player = await bot.players.get(guild_id, user_id)
+    owned = await bot.activity_log.inventory(guild_id, user_id)
+    free_left = not await bot.activity_log.free_snack_used_today(
+        guild_id, user_id, discord.utils.utcnow()
+    )
+    snacks = [
+        f"・{_named(bot, snack)} x{owned[snack.key]}"
+        for snack in _MENU
+        if snack.key in owned
+    ]
+    if free_left:
+        snacks.append(f"・{_named(bot, _FREE)} ・ free today")
+    keepsakes = [
+        f"・{keepsake.title}" for keepsake in await bot.keepsakes.of(guild_id, user_id)
+    ]
+    lines = [
+        f"♪ {player.name or display_name}'s lunchbox",
+        _with_emoji(bot.emoji(_COIN), count(player.balance, "point")),
+        SEPARATOR,
+        "Snacks",
+        *(snacks or ["・Nothing saved yet"]),
+        SEPARATOR,
+        "Keepsakes",
+        *(keepsakes or ["・None yet"]),
+    ]
+    return "\n".join(lines)
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
@@ -174,7 +232,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
         note = f"♪ Bought {snack.name} for {count(snack.cost, 'point')}."
         try:
             await interaction.edit_original_response(
-                content=await _lunchbox_text(bot, guild_id, user.id, note),
+                content=await _vault_text(bot, guild_id, user.id, note),
                 allowed_mentions=_NO_PING,
             )
         except EXPECTED_FAILURES as error:
@@ -185,16 +243,16 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
             )
 
 
-@wisp.command(name="lunchbox", description="Buy snacks for Wisp and see yours.")
-async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
+# ---
+# The Vault and lunchboxes
+# ---
+
+
+async def _open_vault(interaction: discord.Interaction) -> None:
     """Show the Snack Box with a select to buy from it, only to the member."""
-    bot = interaction.client
-    guild_id = require_guild(interaction)
-    user_id = interaction.user.id
-    await interaction.response.defer(ephemeral=True)
-    if await _is_banned(bot, guild_id, user_id):
-        await say_privately(interaction, _BANNED)
+    if not await _admit(interaction):
         return
+    bot = bot_of(interaction)
     options = [
         _option(
             bot, snack, snack.name, f"{count(snack.cost, 'point')} ・ {_care(snack)}"
@@ -202,11 +260,118 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
         for snack in _MENU
     ]
     await interaction.followup.send(
-        await _lunchbox_text(bot, guild_id, user_id),
+        await _vault_text(bot, require_guild(interaction), interaction.user.id),
         view=SnackMenu(options, "Buy a snack", _buy),
         ephemeral=True,
         allowed_mentions=_NO_PING,
     )
+
+
+async def _open_lunchbox(interaction: discord.Interaction) -> None:
+    """Show the member's own snacks and keepsakes, with a button to the shop."""
+    if not await _admit(interaction):
+        return
+    view = discord.ui.View()
+    view.add_item(ShopButton())
+    await interaction.followup.send(
+        await _my_lunchbox_text(
+            bot_of(interaction),
+            require_guild(interaction),
+            interaction.user.id,
+            interaction.user.display_name,
+        ),
+        view=view,
+        ephemeral=True,
+        allowed_mentions=_NO_PING,
+    )
+
+
+@wisp.command(name="vault", description="Buy snacks for Wisp in the ViiBR Vault.")
+async def wisp_vault(interaction: discord.Interaction["WispBot"]) -> None:
+    """Show the Vault shop, only to the member."""
+    await _open_vault(interaction)
+
+
+@wisp.command(name="lunchbox", description="See your snacks and keepsakes.")
+async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
+    """Show the member's own lunchbox, only to them."""
+    await _open_lunchbox(interaction)
+
+
+class ShopButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(_VAULT_ID),
+):
+    """The Shop the Vault button, which opens the shop for whoever presses it.
+
+    Its custom id is fixed, so the button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Shop the Vault",
+                style=discord.ButtonStyle.primary,
+                custom_id=_VAULT_ID,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "ShopButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Open the Vault shop privately."""
+        await _press(interaction, "the Vault shop button", _open_vault)
+
+
+class LunchboxButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(_LUNCHBOX_ID),
+):
+    """The Open my lunchbox button, which shows the presser their own lunchbox.
+
+    Its custom id is fixed, so the button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Open my lunchbox",
+                style=discord.ButtonStyle.secondary,
+                custom_id=_LUNCHBOX_ID,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "LunchboxButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Open the presser's own lunchbox privately."""
+        await _press(interaction, "the lunchbox button", _open_lunchbox)
+
+
+def vault_view() -> discord.ui.View:
+    """The view that puts the shop and lunchbox buttons on the Vault card."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(ShopButton())
+    view.add_item(LunchboxButton())
+    return view
 
 
 # ---
@@ -270,9 +435,19 @@ def _moment(snack: Snack) -> Moment:
     return Moment.SNACK_FANCY if snack.cost >= FANCY_SNACK_COST else Moment.SNACK
 
 
-def _eating_gif(snack: Snack) -> Path | None:
-    """The GIF of Wisp eating this snack, when the art is on disk."""
-    path = ASSETS_DIR / "eating" / snack.gif_name
+def _reaction(snack: Snack, stance: PickleStance | None) -> tuple[Moment, str]:
+    """The moment Wisp reacts with and the name of his eating GIF.
+
+    Pickles go the other way from the member's stance; every other snack ignores it.
+    """
+    if snack.key == _PICKLES and stance is not None:
+        return _CONTRARY[stance]
+    return _moment(snack), snack.gif_name
+
+
+def _eating_gif(gif_name: str) -> Path | None:
+    """The GIF of Wisp eating, when the art is on disk."""
+    path = ASSETS_DIR / "eating" / gif_name
     return path if path.is_file() else None
 
 
@@ -297,14 +472,15 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
         content=text, view=None, allowed_mentions=_NO_PING
     )
     emoji = bot.emoji(snack.emoji_name)
+    moment, gif_name = _reaction(snack, meal.player.pickle_stance)
     await say_in_house(
         bot,
         guild_id,
-        _moment(snack),
+        moment,
         meal.life,
         name=meal.player.name or user.display_name,
         prefix=f"{emoji} " if emoji else "",
-        image=_eating_gif(snack),
+        image=_eating_gif(gif_name),
     )
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
@@ -323,6 +499,24 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> SnackMenu |
         free = _option(bot, _FREE, f"{_FREE.name} (free today)", _care(_FREE))
         options.insert(0, free)
     return SnackMenu(options, "Pick a snack", _feed) if options else None
+
+
+async def _offer_snacks(interaction: discord.Interaction) -> None:
+    """Show the member what they can feed Wisp, or say they have nothing."""
+    if not await _admit(interaction):
+        return
+    menu = await _feed_menu(
+        bot_of(interaction), require_guild(interaction), interaction.user.id
+    )
+    if menu is None:
+        await say_privately(interaction, _NO_SNACKS)
+        return
+    await interaction.followup.send(
+        "♪ What should Wisp eat?",
+        view=menu,
+        ephemeral=True,
+        allowed_mentions=_NO_PING,
+    )
 
 
 class FeedButton(
@@ -355,31 +549,8 @@ class FeedButton(
         return cls()
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        """Offer the snacks the member can feed Wisp right now.
-
-        The interaction is acknowledged first. Persistent buttons have no error
-        hook, so a failure is reported to staff here.
-        """
-        bot = bot_of(interaction)
-        guild_id = require_guild(interaction)
-        user_id = interaction.user.id
-        try:
-            await interaction.response.defer(ephemeral=True, thinking=True)
-            if await _is_banned(bot, guild_id, user_id):
-                await say_privately(interaction, _BANNED)
-                return
-            menu = await _feed_menu(bot, guild_id, user_id)
-            if menu is None:
-                await say_privately(interaction, _NO_SNACKS)
-                return
-            await interaction.followup.send(
-                "♪ What should Wisp eat?",
-                view=menu,
-                ephemeral=True,
-                allowed_mentions=_NO_PING,
-            )
-        except EXPECTED_FAILURES as error:
-            await report_failure(interaction, "the Feed Wisp button", error)
+        """Offer the snacks the member can feed Wisp right now."""
+        await _press(interaction, "the Feed Wisp button", _offer_snacks)
 
 
 def feed_view() -> discord.ui.View:
@@ -390,5 +561,5 @@ def feed_view() -> discord.ui.View:
 
 
 async def setup(bot: "WispBot") -> None:
-    """Register the Feed Wisp button so it still works after a restart."""
-    bot.add_dynamic_items(FeedButton)
+    """Register the persistent buttons so they still work after a restart."""
+    bot.add_dynamic_items(FeedButton, ShopButton, LunchboxButton)

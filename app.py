@@ -13,6 +13,7 @@ import config
 from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
+from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
@@ -104,6 +105,7 @@ class WispBot(commands.Bot):
         self.lives = LifeRepo(self.db)
         self.players = PlayerRepo(self.db)
         self.activity_log = ActivityRepo(self.db)
+        self.keepsakes = KeepsakeRepo(self.db)
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()

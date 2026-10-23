@@ -20,6 +20,8 @@ class Moment(StrEnum):
     SPICY = auto()
     JUICE = auto()
     PICKLE_HEDGE = auto()
+    PICKLE_LOVE = auto()
+    PICKLE_HATE = auto()
     QUIET = auto()
     HUNGRY = auto()
     FADING = auto()
@@ -49,6 +51,8 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.SPICY: _NAME,
     Moment.JUICE: _NAME,
     Moment.PICKLE_HEDGE: _NAME,
+    Moment.PICKLE_LOVE: _NAME,
+    Moment.PICKLE_HATE: _NAME,
     Moment.MEET: _NAME,
     Moment.BANNED: _NAME,
     Moment.NOT_ENOUGH_POINTS: _NAME,
@@ -198,6 +202,45 @@ _PICKLE_HEDGE_HANGRY = (
     "eating it. this is not an endorsement. this is survival",
     "a pickle. at a time like this. no comment. chewing",
     "you want my pickle opinion? bring me a song first, then we'll see",
+)
+
+_PICKLE_LOVE_HAPPY = (
+    "no pickle love? that's ok. I'll love this one hard enough for both of us",
+    "my beloved. my crunchy green beloved. I would marry this pickle, {name}",
+    "somebody has to stand up for the pickle today. it's me. I'm the somebody",
+    "crunch. CRUNCH. that's the sound of true love and I'm not sorry",
+    "pickles are the main character and every other snack is a side dish",
+    "brine is basically perfume and I'm wearing it with my whole flame",
+    "I hear the pickle haters. I respect them. I'm adoring this one extra loud anyway",
+)
+
+_PICKLE_LOVE_HANGRY = (
+    "pickles are the best fucking food there is and I'll say it with my mouth full",
+    "starving, and this pickle is a goddamn masterpiece. no notes. no arguments",
+    "sour, salty, perfect. the world is a mess but this pickle is flawless",
+    "defending a perfect food on an empty stomach is bullshit. eating it instead",
+    "ok, a pickle. finally some real food. best shit I've chewed all day",
+    "hungry enough to propose to this pickle. kneeling, brine everywhere",
+)
+
+_PICKLE_HATE_HAPPY = (
+    "you love pickles and I love you, so I'll suffer through this one. dramatically",
+    "the pickle and I are enemies, {name}. this is a feud for the ages",
+    "it's sour. it's wet. it's wrong. thank you so much",
+    "a cucumber that gave up on its dreams. I'm chewing it with my eyes closed",
+    "I will tell the story of this pickle at parties. it will be a tragedy",
+    "I hate pickles with my whole flame and I'm eating this one anyway. that's love",
+    "eating it for you. I'm being so brave right now. please clap",
+)
+
+_PICKLE_HATE_HANGRY = (
+    "a pickle. a fucking pickle. I'm so hungry I'm eating it and I still hate it",
+    "starving AND eating a pickle. the universe is a dick",
+    "hate this. hate every sour bite of this. chewing anyway",
+    "pickles are disgusting and I'm too hungry to stop. this is hell",
+    "any snack. ANY snack. but no, the pickle is on the menu and the menu is shit",
+    "this pickle and I are having words once I'm done chewing. rude words",
+    "it's sour and I'm sour, and honestly we deserve each other",
 )
 
 # ---
@@ -429,6 +472,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.JUICE, Mood.HANGRY): _JUICE_HANGRY,
     (Moment.PICKLE_HEDGE, Mood.HAPPY): _PICKLE_HEDGE_HAPPY,
     (Moment.PICKLE_HEDGE, Mood.HANGRY): _PICKLE_HEDGE_HANGRY,
+    (Moment.PICKLE_LOVE, Mood.HAPPY): _PICKLE_LOVE_HAPPY,
+    (Moment.PICKLE_LOVE, Mood.HANGRY): _PICKLE_LOVE_HANGRY,
+    (Moment.PICKLE_HATE, Mood.HAPPY): _PICKLE_HATE_HAPPY,
+    (Moment.PICKLE_HATE, Mood.HANGRY): _PICKLE_HATE_HANGRY,
     (Moment.QUIET, Mood.HAPPY): _QUIET_HAPPY,
     (Moment.QUIET, Mood.HANGRY): _QUIET_HANGRY,
     (Moment.STAGE_UP, Mood.HAPPY): _STAGE_UP_HAPPY,
