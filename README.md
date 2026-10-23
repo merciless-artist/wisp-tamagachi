@@ -74,12 +74,14 @@ Member commands:
 
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
-- `/wisp vault` is the shop: buy snacks with your points.
+- `/wisp vault` is the shop: buy snacks with your points, or give Wisp a
+  gift from one of four collections. He might not like it.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks and keepsakes,
   like a Last Ember, with a button to shop the Vault.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
-  favorite snack he picked when he hatched and the expression he uses most.
+  favorite snack he picked when he hatched, the expression he uses most and
+  the gift collections of this life.
   Anyone can look, banned members included.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
 
@@ -113,9 +115,11 @@ posts text only.
   `events/farewell.png`.
 - `shame/*` any images, picked at random when a member is punished.
 - `vault.png` for the first post of The ViiBR Vault thread.
+- `gifts/<key>.png` (512px) for each gift, attached when Wisp keeps it.
 
 App emojis (uploaded to the application in the Developer Portal):
-`snack_<key>` for each snack key, `wisp_coin`, `wisp_happy`, `wisp_hangry`.
+`snack_<key>` for each snack key, `gift_<key>` for each gift key,
+`wisp_coin`, `wisp_happy`, `wisp_hangry`.
 
 ## Testing
 

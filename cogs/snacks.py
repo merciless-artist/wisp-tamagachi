@@ -1,4 +1,4 @@
-"""The ViiBR Vault, Snack Packs and the Feed button: snacks bought and fed to Wisp."""
+"""The ViiBR Vault, Snack Packs and the Feed button: snacks and gifts for Wisp."""
 
 import re
 from collections.abc import Awaitable, Callable
@@ -12,11 +12,24 @@ import discord
 from cogs.announce import say_in_house
 from cogs.assets import ASSETS_DIR, COIN_EMOJI
 from cogs.channels import where_of
+from cogs.gifts import (
+    announce_gift,
+    gift_note,
+    gift_options,
+    gift_rng,
+    gift_section,
+    give_gift,
+    todays_gifts,
+)
 from cogs.groups import require_guild, wisp
 from cogs.players import (
+    CANNOT_FEED,
     EXPECTED_FAILURES,
+    NOT_TAKING,
+    Refusal,
     bot_of,
     can_feed,
+    check_member,
     maybe_meet,
     report_failure,
     say_privately,
@@ -24,9 +37,18 @@ from cogs.players import (
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import PickleStance, casual_bond_grant, meal_grant
+from wisp.gifts import GiftState
 from wisp.life import Life, Mood, Phase, add_growth, feed
 from wisp.lines import Moment
-from wisp.rules import BOND_PER_SNACK, FANCY_SNACK_COST, SNACK_BY_KEY, SNACKS, Snack
+from wisp.rules import (
+    BOND_PER_SNACK,
+    FANCY_SNACK_COST,
+    GIFT_BY_KEY,
+    SNACK_BY_KEY,
+    SNACKS,
+    Gift,
+    Snack,
+)
 from wisp.text import SEPARATOR, count, with_emoji
 
 if TYPE_CHECKING:
@@ -37,11 +59,6 @@ _FEED_ID: Final = "wisp:feed"
 _VAULT_ID: Final = "wisp:vault"
 _SNACK_PACK_ID: Final = "wisp:snackpack"
 
-_BANNED: Final = "♪ Wisp is not taking snacks from you right now."
-_CANNOT_FEED: Final = (
-    "♪ Only members at Active Lounger or higher who have opened /wisp board "
-    "can feed Wisp."
-)
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Snacks have to wait until he is."
 _NO_SNACKS: Final = (
     "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
@@ -62,7 +79,8 @@ _CONTRARY: Final = {
     PickleStance.HATE: (Moment.PICKLE_LOVE, "eat_pickles_love.gif"),
 }
 
-_Choice = Callable[[discord.Interaction, Snack], Awaitable[None]]
+_SnackChoice = Callable[[discord.Interaction, Snack], Awaitable[None]]
+_GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
 _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
@@ -105,9 +123,9 @@ async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> 
     guild_id = require_guild(interaction)
     refusal = None
     if await _is_banned(bot, guild_id, interaction.user.id):
-        refusal = _BANNED
+        refusal = NOT_TAKING
     elif feeding and not await can_feed(bot, guild_id, interaction.user):
-        refusal = _CANNOT_FEED
+        refusal = CANNOT_FEED
     if refusal is not None:
         await say_privately(interaction, refusal)
         return False
@@ -128,11 +146,14 @@ async def _press(
         await report_failure(interaction, context, error)
 
 
-class SnackSelect(discord.ui.Select["SnackMenu"]):
+class SnackSelect(discord.ui.Select["Menu"]):
     """A select of snacks that hands the chosen one to its handler."""
 
     def __init__(
-        self, options: list[discord.SelectOption], placeholder: str, on_choice: _Choice
+        self,
+        options: list[discord.SelectOption],
+        placeholder: str,
+        on_choice: _SnackChoice,
     ) -> None:
         super().__init__(placeholder=placeholder, options=options)
         self._on_choice = on_choice
@@ -142,14 +163,28 @@ class SnackSelect(discord.ui.Select["SnackMenu"]):
         await self._on_choice(interaction, SNACK_BY_KEY[self.values[0]])
 
 
-class SnackMenu(discord.ui.View):
-    """An ephemeral menu with one select of snacks."""
+class GiftSelect(discord.ui.Select["Menu"]):
+    """The Vault's select of gifts, which hands the chosen one to its handler."""
 
     def __init__(
-        self, options: list[discord.SelectOption], placeholder: str, on_choice: _Choice
+        self, options: list[discord.SelectOption], on_choice: _GiftChoice
     ) -> None:
+        super().__init__(placeholder="Give Wisp a gift", options=options)
+        self._on_choice = on_choice
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Pass the chosen gift on."""
+        await self._on_choice(interaction, GIFT_BY_KEY[self.values[0]])
+
+
+class Menu(discord.ui.View):
+    """An ephemeral menu of selects; a failure is reported as `context`."""
+
+    def __init__(self, context: str, *selects: discord.ui.Select["Menu"]) -> None:
         super().__init__()
-        self.add_item(SnackSelect(options, placeholder, on_choice))
+        self._context = context
+        for select in selects:
+            self.add_item(select)
 
     async def on_error(
         self,
@@ -158,7 +193,7 @@ class SnackMenu(discord.ui.View):
         item: discord.ui.Item[Any],
     ) -> None:
         """Report a failure and tell the member."""
-        await report_failure(interaction, "the snack menu", error)
+        await report_failure(interaction, self._context, error)
 
 
 # ---
@@ -167,9 +202,13 @@ class SnackMenu(discord.ui.View):
 
 
 async def _vault_text(
-    bot: "WispBot", guild_id: int, user_id: int, note: str | None = None
+    bot: "WispBot",
+    guild_id: int,
+    user_id: int,
+    gifts: GiftState | None,
+    note: str | None,
 ) -> str:
-    """The balance and the Snack Box, after an optional note."""
+    """The balance, the Snack Box and the Gifts, after an optional note."""
     balance = (await bot.players.get(guild_id, user_id)).balance
     prices = [
         f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
@@ -181,8 +220,54 @@ async def _vault_text(
         SEPARATOR,
         "Snack Box",
         *prices,
+        "",
+        *gift_section(bot, gifts),
     ]
     return "\n".join([note, *lines] if note else lines)
+
+
+async def _vault(
+    bot: "WispBot", guild_id: int, user_id: int, note: str | None = None
+) -> tuple[str, Menu]:
+    """The Vault's text, after an optional note, and its menu.
+
+    The menu has the snack select, plus the gift select when a gift can be
+    given today.
+    """
+    gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
+    snack_options = [
+        _option(
+            bot, snack, snack.name, f"{count(snack.cost, 'point')} ・ {_care(snack)}"
+        )
+        for snack in _MENU
+    ]
+    selects: list[discord.ui.Select[Menu]] = [
+        SnackSelect(snack_options, "Buy a snack", _buy)
+    ]
+    if gift_choices := gift_options(bot, gifts):
+        selects.append(GiftSelect(gift_choices, _give))
+    text = await _vault_text(bot, guild_id, user_id, gifts, note)
+    return text, Menu("the ViiBR Vault menu", *selects)
+
+
+async def _confirm(interaction: discord.Interaction, note: str, context: str) -> None:
+    """Show the Vault again under `note`; a failure is reported as `context`.
+
+    A failure never reaches the caller, so whatever follows the confirmation,
+    such as announcing a gift, still happens.
+    """
+    bot = bot_of(interaction)
+    try:
+        text, menu = await _vault(
+            bot, require_guild(interaction), interaction.user.id, note
+        )
+        await interaction.edit_original_response(
+            content=text, view=menu, allowed_mentions=_NO_PING
+        )
+    except EXPECTED_FAILURES as error:
+        await bot.report_error(
+            interaction.guild, context, error, where=where_of(interaction)
+        )
 
 
 async def _snack_pack_text(
@@ -230,7 +315,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
     await interaction.response.defer()
     player = await bot.players.get(guild_id, user.id)
     if player.is_banned(discord.utils.utcnow()):
-        await say_privately(interaction, _BANNED)
+        await say_privately(interaction, NOT_TAKING)
     elif not await bot.players.spend(guild_id, user.id, snack.cost):
         line = bot.lines.pick(
             Moment.NOT_ENOUGH_POINTS,
@@ -240,19 +325,37 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
         await say_privately(interaction, line)
     else:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
-        note = f"♪ Bought {snack.name} for {count(snack.cost, 'point')}."
-        try:
-            await interaction.edit_original_response(
-                content=await _vault_text(bot, guild_id, user.id, note),
-                allowed_mentions=_NO_PING,
+        await _confirm(
+            interaction,
+            f"♪ Bought {snack.name} for {count(snack.cost, 'point')}.",
+            "confirming a snack purchase (the purchase went through)",
+        )
+
+
+async def _give(interaction: discord.Interaction, gift: Gift) -> None:
+    """Spend the member's points on a gift for Wisp, then show what he did with it.
+
+    The reply shows the Vault again under the result, or under the reason the
+    gift was refused. A given gift is announced in his House. If the
+    confirmation fails, the error posted says the gift went through.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    user = interaction.user
+    await interaction.response.defer()
+    try:
+        async with bot.guild_lock(guild_id):
+            given = await give_gift(
+                bot, gift_rng(bot), guild_id, user, gift, discord.utils.utcnow()
             )
-        except EXPECTED_FAILURES as error:
-            await bot.report_error(
-                interaction.guild,
-                "confirming a snack purchase (the purchase went through)",
-                error,
-                where=where_of(interaction),
-            )
+    except Refusal as refusal:
+        await _confirm(interaction, str(refusal), "showing a refused gift")
+        return
+    await _confirm(
+        interaction, gift_note(given), "confirming a gift (the gift went through)"
+    )
+    await announce_gift(bot, guild_id, given, given.player.name or user.display_name)
+    await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
 
 # ---
@@ -261,21 +364,14 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
 
 
 async def _open_vault(interaction: discord.Interaction) -> None:
-    """Show the Snack Box with a select to buy from it, only to the member."""
+    """Show the Snack Box and the Gifts with selects to buy, only to the member."""
     if not await _admit(interaction):
         return
-    bot = bot_of(interaction)
-    options = [
-        _option(
-            bot, snack, snack.name, f"{count(snack.cost, 'point')} ・ {_care(snack)}"
-        )
-        for snack in _MENU
-    ]
+    text, menu = await _vault(
+        bot_of(interaction), require_guild(interaction), interaction.user.id
+    )
     await interaction.followup.send(
-        await _vault_text(bot, require_guild(interaction), interaction.user.id),
-        view=SnackMenu(options, "Buy a snack", _buy),
-        ephemeral=True,
-        allowed_mentions=_NO_PING,
+        text, view=menu, ephemeral=True, allowed_mentions=_NO_PING
     )
 
 
@@ -391,10 +487,6 @@ def vault_view() -> discord.ui.View:
 # ---
 
 
-class _Refusal(Exception):
-    """A reason the member cannot feed Wisp right now, worded for them."""
-
-
 @dataclass(frozen=True)
 class _Meal:
     """A snack Wisp has eaten: his life afterwards, the feeder and the care it gave."""
@@ -414,31 +506,27 @@ async def _eat(
     """Take the snack and apply it to Wisp. Call this under the guild lock.
 
     Raises:
-        _Refusal: The member is banned or cannot feed Wisp, Wisp is not alive,
+        Refusal: The member is banned or cannot feed Wisp, Wisp is not alive,
             the free snack is used up for today, the member has had their
             meals for today or has none of this snack. Nothing is taken then.
     """
     log = bot.activity_log
     user_id = member.id
-    player = await bot.players.get(guild_id, user_id)
-    if player.is_banned(now):
-        raise _Refusal(_BANNED)
-    if not await can_feed(bot, guild_id, member):
-        raise _Refusal(_CANNOT_FEED)
+    player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
     if life is None or life.id is None or life.phase is not Phase.ALIVE:
-        raise _Refusal(_NOT_HATCHED)
+        raise Refusal(_NOT_HATCHED)
     if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
-        raise _Refusal(_SINE_USED)
+        raise Refusal(_SINE_USED)
     care = meal_grant(await log.meal_points_today(guild_id, user_id, now), snack.care)
     if care == 0:
-        raise _Refusal(_FULL)
+        raise Refusal(_FULL)
     if snack == _FREE:
         kind = InteractionKind.FREE_SNACK
     elif await log.take_snack(guild_id, user_id, snack.key):
         kind = InteractionKind.SNACK
     else:
-        raise _Refusal(f"♪ You're out of {snack.name}.")
+        raise Refusal(f"♪ You're out of {snack.name}.")
     bond = casual_bond_grant(
         await log.casual_bond_today(guild_id, user_id, now), BOND_PER_SNACK
     )
@@ -487,7 +575,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     try:
         async with bot.guild_lock(guild_id):
             meal = await _eat(bot, guild_id, user, snack, discord.utils.utcnow())
-    except _Refusal as refusal:
+    except Refusal as refusal:
         await interaction.edit_original_response(
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
@@ -514,7 +602,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
 
-async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> SnackMenu | None:
+async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> Menu | None:
     """A menu of what the member can feed Wisp now, or None when nothing."""
     owned = await bot.activity_log.inventory(guild_id, user_id)
     options = [
@@ -527,7 +615,9 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> SnackMenu |
     ):
         free = _option(bot, _FREE, f"{_FREE.name} (free today)", _care(_FREE))
         options.insert(0, free)
-    return SnackMenu(options, "Pick a snack", _feed) if options else None
+    if not options:
+        return None
+    return Menu("the snack menu", SnackSelect(options, "Pick a snack", _feed))
 
 
 async def _offer_snacks(interaction: discord.Interaction) -> None:

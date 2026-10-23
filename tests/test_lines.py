@@ -186,6 +186,38 @@ def test_lunchbox_moments_have_about_six_lines_and_no_numbers(
         assert not re.search(r"\d", line), line
 
 
+GIFT_MOMENTS = [
+    Moment.GIFT_KEPT,
+    Moment.GIFT_PASSED,
+    Moment.GIFT_FULL,
+    Moment.COLLECTION_DONE,
+]
+
+
+@pytest.mark.parametrize("moment", GIFT_MOMENTS)
+@pytest.mark.parametrize("mood", list(Mood))
+def test_gift_moments_have_about_six_lines_and_no_numbers(
+    moment: Moment, mood: Mood
+) -> None:
+    lines = LINES[(moment, mood)]
+    assert len(lines) >= 6
+    for line in lines:
+        assert not re.search(r"\d", line), line
+
+
+@pytest.mark.parametrize(
+    ("moment", "fields"),
+    [
+        (Moment.GIFT_KEPT, {"name", "gift"}),
+        (Moment.GIFT_PASSED, {"name", "gift"}),
+        (Moment.GIFT_FULL, {"name", "gift"}),
+        (Moment.COLLECTION_DONE, {"name", "collection"}),
+    ],
+)
+def test_gift_moments_take_their_fields(moment: Moment, fields: set[str]) -> None:
+    assert FIELDS[moment] == fields
+
+
 @pytest.mark.parametrize("moment", FAREWELL_MOMENTS)
 def test_farewell_moment_lines_have_no_numbers(moment: Moment) -> None:
     for line in LINES[(moment, Mood.HAPPY)]:

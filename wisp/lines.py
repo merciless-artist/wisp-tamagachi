@@ -47,9 +47,14 @@ class Moment(StrEnum):
     CHAT_FALLBACK = auto()
     SNACK_FAVORITE = auto()
     FAVORITE_SONG = auto()
+    GIFT_KEPT = auto()
+    GIFT_PASSED = auto()
+    GIFT_FULL = auto()
+    COLLECTION_DONE = auto()
 
 
 _NAME = frozenset({"name"})
+_GIFT = frozenset({"name", "gift"})
 _VERSION = frozenset({"version"})
 _NONE: frozenset[str] = frozenset()
 
@@ -86,12 +91,17 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.CHAT_FALLBACK: _NONE,
     Moment.SNACK_FAVORITE: _NAME,
     Moment.FAVORITE_SONG: _NAME,
+    Moment.GIFT_KEPT: _GIFT,
+    Moment.GIFT_PASSED: _GIFT,
+    Moment.GIFT_FULL: _GIFT,
+    Moment.COLLECTION_DONE: frozenset({"name", "collection"}),
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
 `name` is the member's display name, `version` is Wisp's version number,
-`stage` is the lowercase stage word (child, teen, adult, rockstar) and `word`
-is the word Wisp opens a Rhyme Duel with.
+`stage` is the lowercase stage word (child, teen, adult, rockstar), `word`
+is the word Wisp opens a Rhyme Duel with, `gift` is a gift's title such as
+"Blue Alien Doll" and `collection` is a collection's name such as "Books".
 """
 
 # ---
@@ -147,6 +157,82 @@ _FAVORITE_SONG_HANGRY = (
     "hungry as hell and I still tucked {name}'s track away. that's devotion",
     "keeping this one safe from my own growling stomach",
     "the one thing in my lunchbox I won't eat. {name}'s song. hands off, belly",
+)
+
+# ---
+# Gifts
+# ---
+
+_GIFT_KEPT_HAPPY = (
+    "for ME?? it's going straight in the lunchbox",
+    "oh I LOVE it. {name}, you get me. into the lunchbox it goes",
+    "I'm keeping this forever. like, forever forever. thank you, {name}",
+    "look at it. LOOK at it. my lunchbox just got so much cuter",
+    "{name} brought me a present and I'm being so normal about it. I'm not",
+    "this is my treasure now. nobody touch it. except me. gently",
+)
+
+_GIFT_KEPT_HANGRY = (
+    "not food. somehow still perfect. I'm keeping it, {name}",
+    "I'm starving, and this still made my whole day. lunchbox. now",
+    "can't eat it, don't care. it's mine. thank you, {name}",
+    "hungry as hell, but a {gift}? ok. ok, I'm smiling. shut up",
+    "the plate's empty but the lunchbox isn't. thank you, {name}",
+    "I wanted a song. I got a present. honestly? I'll fucking allow it",
+)
+
+_GIFT_PASSED_HAPPY = (
+    "aww, it's so cute. it's just not my vibe today, {name}. you're still great",
+    "I'm gonna be honest, I don't get it. but I get YOU, {name}, and that counts",
+    "*sniffs it* hmm. *sniffs it again* ...nah. thank you for thinking of me though",
+    "I'm gonna let somebody else love this one. you're sweet for trying, {name}",
+    "not today, little guy. *gently pats it on the head*",
+    "I tried it on. it doesn't go with my headphones. that's on me, not you",
+)
+
+_GIFT_PASSED_HANGRY = (
+    "I can't eat a {gift}, {name}. too hungry to appreciate nice things right now",
+    "my stomach's growling too loud to hear what this even is. ask me after dinner",
+    "nice thought. empty plate. the empty plate is winning this one",
+    "I'd love it on a full stomach. right now it's just a thing that isn't food",
+    "too hangry for presents. it's not you, {name}. it's the famine",
+    "bring it back after somebody posts a song. I'm a way nicer guy when I'm fed",
+)
+
+_GIFT_FULL_HAPPY = (
+    "I already picked my treasure for today, {name}. my lunchbox is saving room",
+    "oh it's lovely. but I already got my present today. I gotta save room",
+    "my lunchbox is full for today. come back tomorrow and try me again?",
+    "aww. I already said yes to something today. saving room, {name}",
+    "today's treasure is already tucked away. this {gift} deserves its own day",
+    "I'm all treasured out for today. ask me again tomorrow, {name}",
+)
+
+_GIFT_FULL_HANGRY = (
+    "I already got my present today. what I need now is a song, {name}",
+    "lunchbox is full. stomach's empty. that's the wrong way round",
+    "saving room. not for gifts. for FOOD. which nobody's bringing",
+    "already kept my treasure today. now I'm a hungry guy with a full lunchbox",
+    "no room for a {gift} today. plenty of room for a track though. hint hint",
+    "got my gift for today. still waiting on dinner. funny how that works",
+)
+
+_COLLECTION_DONE_HAPPY = (
+    "that's every last one of the {collection}! {name}, you finished the set",
+    "the {collection} are COMPLETE. I'm lining them up so I can stare at them",
+    "{name} completed my {collection}. I'm framing this moment",
+    "the full set of {collection}. my lunchbox has never looked this good",
+    "all the {collection}, together at last. thank you, {name}",
+    "every single one of the {collection}! I'm doing my happiest little flicker",
+)
+
+_COLLECTION_DONE_HANGRY = (
+    "the {collection} are complete. I'm starving, but I'm proud. thank you, {name}",
+    "a full set of {collection} and an empty stomach. half of me is thrilled",
+    "{name} finished my {collection}. I'd celebrate with a snack if I had one",
+    "the {collection}, complete. still hungry. but complete. that's something",
+    "all of the {collection}. now if somebody could complete my dinner",
+    "the {collection} set is done and I could cry. partly joy. partly hunger",
 )
 
 # ---
@@ -646,6 +732,14 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.SNACK_FAVORITE, Mood.HANGRY): _SNACK_FAVORITE_HANGRY,
     (Moment.FAVORITE_SONG, Mood.HAPPY): _FAVORITE_SONG_HAPPY,
     (Moment.FAVORITE_SONG, Mood.HANGRY): _FAVORITE_SONG_HANGRY,
+    (Moment.GIFT_KEPT, Mood.HAPPY): _GIFT_KEPT_HAPPY,
+    (Moment.GIFT_KEPT, Mood.HANGRY): _GIFT_KEPT_HANGRY,
+    (Moment.GIFT_PASSED, Mood.HAPPY): _GIFT_PASSED_HAPPY,
+    (Moment.GIFT_PASSED, Mood.HANGRY): _GIFT_PASSED_HANGRY,
+    (Moment.GIFT_FULL, Mood.HAPPY): _GIFT_FULL_HAPPY,
+    (Moment.GIFT_FULL, Mood.HANGRY): _GIFT_FULL_HANGRY,
+    (Moment.COLLECTION_DONE, Mood.HAPPY): _COLLECTION_DONE_HAPPY,
+    (Moment.COLLECTION_DONE, Mood.HANGRY): _COLLECTION_DONE_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
     **_either_mood(Moment.DIED, _DIED),

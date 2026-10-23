@@ -16,6 +16,7 @@ from cogs.channels import may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
+from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
@@ -31,6 +32,7 @@ log = logging.getLogger("wisp")
 EXTENSIONS: tuple[str, ...] = (
     "cogs.studio",
     "cogs.players",
+    "cogs.gifts",
     "cogs.snacks",
     "cogs.vault",
     "cogs.wisp_lunchbox",
@@ -121,6 +123,7 @@ class WispBot(commands.Bot):
         self.keepsakes = KeepsakeRepo(self.db)
         self.notes = NoteRepo(self.db)
         self.wisp_lunchbox = WispLunchboxRepo(self.db)
+        self.gifts = GiftRepo(self.db)
         self.ai = chain_from_config()
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}

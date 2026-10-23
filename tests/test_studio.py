@@ -726,7 +726,25 @@ def test_rules_text_points_to_wisps_lunchbox() -> None:
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nWisp's lunchbox\n")[1].split("\n\n")[0]
-    assert section == "・/wisp lunchbox shows his favorite songs, snack and emoji"
+    assert (
+        section == "・/wisp lunchbox shows his favorite songs, snack, emoji and gifts"
+    )
+
+
+def test_rules_text_explains_gifts_with_numbers_from_the_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "GIFT_COST", 107)
+    monkeypatch.setattr(rules, "BOND_PER_KEPT_GIFT", 109)
+    monkeypatch.setattr(rules, "COLLECTION_BOND_BONUS", 113)
+
+    text = rules_text(rules.MEAL_POINTS)
+
+    section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
+    assert "snacks and gifts" in section
+    assert "・Gifts cost 107 points and he might not keep them" in section
+    assert "109 bond" in section and "113 more" in section
+    assert "New Wisps start over" in section
 
 
 def test_rules_text_covers_every_topic() -> None:

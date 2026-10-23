@@ -18,6 +18,7 @@ from cogs import groups, wisp_lunchbox
 from cogs.wisp_lunchbox import lunchbox_text, pick_favorite_song
 from db.activity import ActivityRepo
 from db.database import Database
+from db.gifts import GiftRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
 from db.players import PlayerRepo
@@ -90,6 +91,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -447,6 +449,7 @@ async def test_an_empty_lunchbox_says_nothing_yet(bot: app.WispBot) -> None:
         ["♪ Wisp's lunchbox"],
         ["Favorite songs", "・Nothing yet"],
         ["Favorite snack", "・Nothing yet", "Favorite emoji", "・Nothing yet"],
+        ["Collections", "・Nothing yet"],
     ]
 
 
@@ -477,6 +480,7 @@ async def test_the_lunchbox_shows_songs_snack_and_emoji(
             "Favorite emoji",
             f"・{emoji_text('wisp_wink', 2)}",
         ],
+        ["Collections", "・Nothing yet"],
     ]
 
 
@@ -506,7 +510,7 @@ async def test_an_emoji_no_longer_uploaded_gives_way_to_the_next(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert text.endswith(f"Favorite emoji\n・{emoji_text('wisp_happy', 1)}")
+    assert f"Favorite emoji\n・{emoji_text('wisp_happy', 1)}\n" in text
 
 
 async def test_no_uploaded_emoji_shows_nothing_yet(
@@ -516,7 +520,7 @@ async def test_no_uploaded_emoji_shows_nothing_yet(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert text.endswith("Favorite emoji\n・Nothing yet")
+    assert "Favorite emoji\n・Nothing yet\n" in text
 
 
 async def test_the_lunchbox_shows_the_newest_songs_only(
@@ -559,7 +563,7 @@ async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
     songs = sections(text)[1][1:]
     assert 0 < len(songs) < rules.FAVORITE_SONGS_SHOWN
     assert songs[0].startswith("・Oct 22 ・")
-    assert text.endswith("Favorite emoji\n・Nothing yet")
+    assert "Favorite emoji\n・Nothing yet\n" in text
 
 
 async def test_a_banned_member_can_still_look(bot: app.WispBot) -> None:

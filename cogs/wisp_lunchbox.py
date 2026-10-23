@@ -1,4 +1,4 @@
-"""Wisp's own lunchbox: a favorite song each day, his favorite snack and emoji."""
+"""Wisp's own lunchbox: favorite songs, snack and emoji, and gift collections."""
 
 import random
 from datetime import UTC, date, datetime, timedelta
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.announce import display_name, say_in_mealtime
+from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
 from wisp.life import Life, mood
 from wisp.lines import Moment
@@ -80,6 +81,15 @@ async def _favorite_emoji(bot: "WispBot", guild_id: int) -> str:
     return _NOTHING_YET
 
 
+async def _collections(bot: "WispBot", guild_id: int) -> list[str]:
+    """The current life's gift collections."""
+    life = await bot.lives.current(guild_id)
+    if life is None or life.id is None:
+        return [_NOTHING_YET]
+    kept = await bot.gifts.kept(guild_id, life.id)
+    return collection_lines(bot, kept) or [_NOTHING_YET]
+
+
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     """Wisp's lunchbox, trimmed from the oldest song so it fits one message."""
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
@@ -95,6 +105,9 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         await _favorite_snack(bot, guild_id),
         "Favorite emoji",
         await _favorite_emoji(bot, guild_id),
+        SEPARATOR,
+        "Collections",
+        *await _collections(bot, guild_id),
     ]
     return fit(head, songs, tail)
 

@@ -11,6 +11,7 @@ import pymysql
 from cogs.announce import say_in_house
 from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
+from db.players import Player
 from wisp.bond import happiness, should_meet
 from wisp.card import render_status
 from wisp.life import Life, Phase, add_growth, is_over
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 EXPECTED_FAILURES: Final = (pymysql.err.Error, discord.DiscordException)
+NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
+CANNOT_FEED: Final = (
+    "♪ Only members at Active Lounger or higher who have opened /wisp board "
+    "can feed Wisp."
+)
 
 # ---
 # Status card text
@@ -61,6 +67,29 @@ async def can_feed(
     if qualifying.isdisjoint(role.id for role in member.roles):
         return False
     return (await bot.players.get(guild_id, member.id)).activated_at is not None
+
+
+class Refusal(Exception):
+    """A reason the member cannot do something with Wisp right now, worded for them."""
+
+
+async def check_member(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    now: datetime,
+) -> Player:
+    """Return the member's player when they may feed Wisp and give him gifts.
+
+    Raises:
+        Refusal: The member is banned or cannot feed Wisp.
+    """
+    player = await bot.players.get(guild_id, member.id)
+    if player.is_banned(now):
+        raise Refusal(NOT_TAKING)
+    if not await can_feed(bot, guild_id, member):
+        raise Refusal(CANNOT_FEED)
+    return player
 
 
 # ---

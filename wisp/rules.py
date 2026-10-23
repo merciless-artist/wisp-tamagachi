@@ -195,6 +195,115 @@ SNACK_BY_KEY: dict[str, Snack] = {snack.key: snack for snack in SNACKS}
 FAVORITE_SONGS_SHOWN = 10
 
 # ---
+# Gifts
+# ---
+
+GIFT_COST = 15
+GIFT_LIKE_CHANCE = 1 / 3
+# Outside the daily casual bond cap.
+BOND_PER_KEPT_GIFT = 5
+COLLECTION_BOND_BONUS = 25
+
+
+@dataclass(frozen=True)
+class Gift:
+    """A gift members can give Wisp from the Vault.
+
+    `collection` is the key of its collection and `title` is how messages name
+    it, such as "Blue Alien Doll".
+    """
+
+    key: str
+    name: str
+    collection: str
+    title: str
+
+    @property
+    def emoji_name(self) -> str:
+        """Name of the app emoji that shows this gift."""
+        return f"gift_{self.key}"
+
+    @property
+    def image_name(self) -> str:
+        """File name of this gift's picture in ASSETS/gifts."""
+        return f"{self.key}.png"
+
+
+@dataclass(frozen=True)
+class GiftCollection:
+    """A set of gifts; `item` names one of them, such as "Alien Doll"."""
+
+    key: str
+    name: str
+    item: str
+    gifts: tuple[Gift, ...]
+
+
+def _collection(
+    key: str, name: str, item: str, gifts: tuple[tuple[str, str], ...]
+) -> GiftCollection:
+    return GiftCollection(
+        key,
+        name,
+        item,
+        tuple(
+            Gift(gift_key, gift_name, key, f"{gift_name} {item}")
+            for gift_key, gift_name in gifts
+        ),
+    )
+
+
+GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
+    _collection(
+        "liners",
+        "Lunchbox Liners",
+        "Lunchbox Liner",
+        (
+            ("liner_bird", "Bird"),
+            ("liner_butterfly", "Butterfly"),
+            ("liner_kitties", "Kitties"),
+            ("liner_poppies", "Poppies"),
+        ),
+    ),
+    _collection(
+        "aliens",
+        "Alien Dolls",
+        "Alien Doll",
+        (
+            ("alien_blue", "Blue"),
+            ("alien_green", "Green"),
+            ("alien_purple", "Purple"),
+            ("alien_yellow", "Yellow"),
+        ),
+    ),
+    _collection(
+        "books",
+        "Books",
+        "Book",
+        (
+            ("book_blue", "Blue"),
+            ("book_green", "Green"),
+            ("book_orange", "Orange"),
+            ("book_red", "Red"),
+        ),
+    ),
+    _collection(
+        "cards",
+        "Affirmation Cards",
+        "Affirmation Card",
+        (
+            ("card_futureisbright", "Future Is Bright"),
+            ("card_goodvibes", "Good Vibes"),
+            ("card_keepcalm", "Keep Calm"),
+            ("card_seeyou", "See You"),
+        ),
+    ),
+)
+GIFT_BY_KEY: dict[str, Gift] = {
+    gift.key: gift for collection in GIFT_COLLECTIONS for gift in collection.gifts
+}
+
+# ---
 # AI voice
 # ---
 

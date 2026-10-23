@@ -11,12 +11,13 @@ from wisp.links import Track
 
 
 class InteractionKind(StrEnum):
-    """What a member did with Wisp. Only FEED is not casual play."""
+    """What a member did with Wisp. FEED and GIFT are not casual play."""
 
     FEED = "feed"
     SNACK = "snack"
     FREE_SNACK = "free"
     PLAY = "play"
+    GIFT = "gift"
 
 
 _CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)

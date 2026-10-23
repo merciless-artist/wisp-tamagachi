@@ -169,9 +169,25 @@ async def say_in_house(
     of the line, `image` attaches a file and `view` adds buttons.
     A missing House channel is reported.
     """
+    await post_in_house(
+        bot, guild_id, prefix + _line(bot, moment, life, name=name), image, view
+    )
+
+
+async def post_in_house(
+    bot: "WispBot",
+    guild_id: int,
+    text: str,
+    image: Path | None = None,
+    view: discord.ui.View | None = None,
+) -> None:
+    """Post text in Wisp's House, with an image or buttons when given.
+
+    A missing House channel is reported.
+    """
     house = _House(bot, guild_id)
     await house.open()
-    await house.say(prefix + _line(bot, moment, life, name=name), image, view)
+    await house.say(text, image, view)
 
 
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:

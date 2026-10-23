@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-23 (gifts)
+
+- Gifts: the ViiBR Vault sells four collections of four gifts (Lunchbox
+  Liners, Alien Dolls, Books, Affirmation Cards) for 15 points each. Buying a
+  gift is giving it to Wisp, from a second select under the snack select.
+- It is a gamble: he keeps a gift one time in three. A kept gift leaves the
+  Vault for this life and gives its giver 5 bond (outside the daily cap) and
+  him a bond moment's growth; finishing a collection gives 25 bond more. A
+  passed gift goes back to the Vault. Points are spent either way.
+- Each collection can be given from once a UTC day, server-wide, and he keeps
+  at most one gift a day: later gifts that day go back to the Vault.
+- Collections are per life: every new Wisp starts empty and the Vault is
+  fully restocked.
+- Wisp's House hears every gift, with its picture when he keeps it, and
+  `/wisp lunchbox` shows this life's collections.
+- The How Wisp Works post explains gifts. To stay under 2,000 characters a
+  few of its lines are shorter, and the three ban lines are now one.
+- New table `gift_attempts`; interactions gain the kind `gift`.
+
 ## 2026-10-23 (Wisp's lunchbox)
 
 - `/wisp lunchbox` ("See the things Wisp keeps in his lunchbox.") shows, only to

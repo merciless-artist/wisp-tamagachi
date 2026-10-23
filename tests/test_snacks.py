@@ -28,6 +28,7 @@ from cogs.snacks import (
 )
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
+from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import Player, PlayerRepo
@@ -90,6 +91,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
 
@@ -290,7 +292,7 @@ async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> 
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert isinstance(kwargs["view"], snacks.SnackMenu)
+    assert isinstance(kwargs["view"], snacks.Menu)
     text = interaction.followup.send.await_args.args[0]
     lines = text.splitlines()
     assert lines[:2] == ["♪ The ViiBR Vault", f"{emoji_text('wisp_coin')} 12 points"]
@@ -455,7 +457,7 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert isinstance(kwargs["view"], snacks.SnackMenu)
+    assert isinstance(kwargs["view"], snacks.Menu)
     text = interaction.followup.send.await_args.args[0]
     assert text.splitlines()[:2] == ["♪ The ViiBR Vault", "12 points"]
 
@@ -1386,7 +1388,7 @@ async def test_a_failing_menu_is_reported_where_it_was_used(
     interaction = make_interaction(bot)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
     error = ValueError("boom")
-    menu = snacks.SnackMenu([], "Pick", AsyncMock())
+    menu = snacks.Menu("the snack menu", snacks.SnackSelect([], "Pick", AsyncMock()))
 
     await menu.on_error(interaction, error, menu.children[0])
 

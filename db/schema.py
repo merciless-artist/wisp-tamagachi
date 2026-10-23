@@ -136,6 +136,17 @@ _DEFINITIONS: dict[str, str] = {
         uses INT NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id, name)
     """,
+    "gift_attempts": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        life_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        gift VARCHAR(30) NOT NULL,
+        kept BOOL NOT NULL,
+        at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_life_at (guild_id, life_id, at)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

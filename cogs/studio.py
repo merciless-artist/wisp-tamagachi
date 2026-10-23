@@ -44,15 +44,12 @@ TRACK_LABELS: dict[TrackKind, str] = {
 # ---
 
 
-def _ban_lines() -> list[str]:
-    lines = []
-    for offence, length in enumerate(rules.BAN_LADDER, start=1):
-        if length is None:
-            lines.append(f"・Offense {offence}: banned from Wisp permanently")
-        else:
-            days = count(length // timedelta(days=1), "day")
-            lines.append(f"・Offense {offence}: banned from Wisp for {days}")
-    return lines
+def _ban_line() -> str:
+    steps = [
+        "permanently" if length is None else count(length // timedelta(days=1), "day")
+        for length in rules.BAN_LADDER
+    ]
+    return f"・Offenses: banned for {', then '.join(steps)}"
 
 
 def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
@@ -85,28 +82,31 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "What counts",
             "・Suno and viibrmusic.com track links in the track drop",
             *meals,
-            "・Every track also earns you leaderboard points",
+            "・Every track also earns leaderboard points",
             f"・Each person's meals count up to {daily_cap} a day",
-            "・The same link only feeds him once, ever",
+            "・Each link only feeds him once, ever",
             "",
             "Your bond",
-            "・Sharing viibrmusic.com tracks, playing and giving snacks all build "
-            "your bond with him",
+            "・viibrmusic.com tracks, games, snacks and kept gifts build your bond",
             f"・After {count(rules.MEET_AFTER_DAYS, 'different day')} with him, "
             "he learns your name",
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault buys snacks with your leaderboard points",
-            "・The leaderboard lives on the pinned Vault post",
-            "・Snacks count toward the daily limit, so music stays his real food",
+            "・/wisp vault buys snacks and gifts with your leaderboard points",
+            "・The leaderboard is pinned on the Vault post",
+            "・Snacks count toward the daily meal limit",
+            f"・Gifts cost {count(rules.GIFT_COST, 'point')} and he might not keep "
+            "them. One per collection a day",
+            f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
+            f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",
             "",
             "Your Snack Pack",
-            "・/wisp snackpack shows your saved snacks and keepsakes",
-            "・Feed saved snacks to him from his status card",
+            "・/wisp snackpack shows your saved snacks and keepsakes; feed them to "
+            "him from his status card",
             "",
             "Wisp's lunchbox",
-            "・/wisp lunchbox shows his favorite songs, snack and emoji",
+            "・/wisp lunchbox shows his favorite songs, snack, emoji and gifts",
             "",
             "His life",
             f"・Around day {rules.OLD_FOGEY_AT_DAY} he gets old and becomes an "
@@ -117,20 +117,18 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"{rules.COAL_EGG_FOOD} of the {egg_meals} it needs",
             f"・The top {count(rules.LAST_EMBER_GIFTS, 'sharer')} of that life "
             "each get his Last Ember in their Snack Pack",
-            "・A Wisp who goes out from neglect leaves no gifts",
+            "・Going out from neglect leaves no Last Ember",
             "",
             "Talking to Wisp",
             "・Mention him or reply to him in Wisp's House",
-            "・He wobbles as an egg, babbles as a baby and learns to talk as he "
-            "grows",
+            "・He wobbles as an egg, babbles as a baby and talks as he " "grows",
             "・Once grown he sometimes chimes in and remembers what you tell him",
-            "・Talking earns nothing: no bond and no points",
+            "・Talking earns no bond and no points",
             "",
             "Fair play",
             "・Fake links do not count, and staff can strip points",
             f"・Names are capped at {count(rules.NAME_MAX, 'character')}",
-            *_ban_lines(),
-            "・Staff can lift any ban",
+            f"{_ban_line()}. Staff can lift any ban",
         ]
     )
 
