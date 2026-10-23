@@ -22,6 +22,7 @@ from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
+from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
@@ -106,6 +107,8 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.notes = NoteRepo(db)
+    monkeypatch.setattr(wisp_bot.ai, "complete", AsyncMock(return_value=""))
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot

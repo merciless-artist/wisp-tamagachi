@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Final
 import discord
 
 from cogs.announce import say_in_house
-from cogs.assets import ASSETS_DIR
+from cogs.assets import ASSETS_DIR, COIN_EMOJI
 from cogs.groups import require_guild, wisp
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_COIN: Final = "wisp_coin"
 _FEED_ID: Final = "wisp:feed"
 _VAULT_ID: Final = "wisp:vault"
 _LUNCHBOX_ID: Final = "wisp:lunchbox"
@@ -167,7 +166,7 @@ async def _vault_text(
     ]
     lines = [
         "♪ The ViiBR Vault",
-        _with_emoji(bot.emoji(_COIN), count(balance, "point")),
+        _with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
         SEPARATOR,
         "Snack Box",
         *prices,
@@ -196,7 +195,7 @@ async def _my_lunchbox_text(
     ]
     lines = [
         f"♪ {player.name or display_name}'s lunchbox",
-        _with_emoji(bot.emoji(_COIN), count(player.balance, "point")),
+        _with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
         SEPARATOR,
         "Snacks",
         *(snacks or ["・Nothing saved yet"]),

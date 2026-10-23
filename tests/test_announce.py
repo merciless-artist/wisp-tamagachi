@@ -13,12 +13,15 @@ import discord
 import pytest
 
 import app
+from ai.chain import AllProvidersFailed
+from ai.prompt import Prompt
 from cogs import announce
 from cogs.announce import next_life, post_events, show_in_thread
 from db.activity import ActivityRepo
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
+from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
@@ -105,9 +108,18 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.notes = NoteRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
+
+
+@pytest.fixture(autouse=True)
+def ai(bot: app.WispBot, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Wisp's AI voice, answering with no words so goodbyes stay canned."""
+    complete = AsyncMock(return_value="")
+    monkeypatch.setattr(bot.ai, "complete", complete)
+    return complete
 
 
 @pytest.fixture(autouse=True)
@@ -571,3 +583,48 @@ async def test_grew_old_is_announced_with_its_image(
     assert said(post.args[0], Moment.GREW_OLD)
     assert post.kwargs["file"].filename == "old_fogey.png"
     assert sends_without_pinging(post.kwargs)
+
+
+async def test_last_ember_goodbye_uses_ai_then_falls_back(
+    bot: app.WispBot, server: FakeServer, assets: Path, ai: AsyncMock
+) -> None:
+    life = await ended_life(bot, Phase.PASSED)
+    await known_sharers(bot, server, life)
+    await bot.notes.add(GUILD_ID, NAMED, "plays bass", discord.utils.utcnow())
+    outage = AllProvidersFailed([("gemini", "timed out")])
+    answers: list[str | AllProvidersFailed] = [
+        "thanks for every track, Aria. the ember's yours <note>x</note>",
+        outage,
+        outage,
+    ]
+    lock_held: list[bool] = []
+
+    async def answer(_prompt: Prompt) -> str:
+        lock_held.append(bot.guild_lock(GUILD_ID).locked())
+        result = answers.pop(0)
+        if isinstance(result, AllProvidersFailed):
+            raise result
+        return result
+
+    ai.side_effect = answer
+
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+
+    named, member, nameless, coal = [
+        call.args[0] for call in server.house.send.await_args_list
+    ]
+    assert named == (
+        "♪ Aria gets Wisp v3's Last Ember\n"
+        "thanks for every track, Aria. the ember's yours"
+    )
+    assert gift_said(member, "Bea", 3)
+    assert gift_said(nameless, f"<@{NAMELESS}>", 3)
+    assert said(coal, Moment.COAL_EGG, version="4")
+    to_aria, to_bea, _ = [call.args[0] for call in ai.await_args_list]
+    assert "Wisp v3" in to_aria.user
+    assert "Aria" in to_aria.user and "plays bass" in to_aria.user
+    assert "Bea" in to_bea.user and "plays bass" not in to_bea.user
+    assert lock_held == [False, False, False]
+    server.errors.send.assert_awaited_once()
+    (report,) = server.errors.send.await_args.args
+    assert report == "Error in Wisp's AI voice: AllProvidersFailed: gemini: timed out"

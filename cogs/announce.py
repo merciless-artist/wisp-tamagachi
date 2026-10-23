@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING, Any, Final
 import discord
 
 from cogs.assets import ASSETS_DIR
+from cogs.speech import ai_reply
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
 from wisp.life import Event, EventKind, Life, Phase, egg_after, is_over, mood
 from wisp.lines import FIELDS, Moment
 from wisp.rules import LAST_EMBER_GIFTS
+from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -201,8 +203,10 @@ async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
     After a full life its top sharers who are not banned get its Last Ember and
     the egg is a coal egg; after any other ending, or none, it is a fresh egg.
     Nothing happens while the current life goes on, so calling this twice is
-    safe. Wisp's House hears who got an ember, then the new egg.
-    Takes `bot.guild_lock`, so it must be called outside it.
+    safe. Wisp's House hears who got an ember, each with a goodbye from his AI
+    voice, then the new egg.
+    Takes `bot.guild_lock`, so it must be called outside it. The goodbyes are
+    written after the lock is released, since AI calls take seconds.
     """
     await _next_life(bot, guild_id, _House(bot, guild_id), now)
 
@@ -222,8 +226,10 @@ async def _next_life(
         guild = bot.get_guild(guild_id)
         for player in embers.receivers:
             name = _display_name(guild, player)
+            notes = await bot.notes.recent(guild_id, player.user_id)
             heading = f"♪ {name} gets {embers.ember.title}"
-            await house.say(f"{heading}\n{_goodbye(bot, embers.life, name)}")
+            goodbye = await _goodbye(bot, guild, embers.life, name, notes)
+            await house.say(f"{heading}\n{goodbye}")
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
     await house.say(_line(bot, moment, egg), _egg_image(egg))
 
@@ -256,9 +262,22 @@ def _display_name(guild: discord.Guild | None, player: Player) -> str:
     return member.display_name if member is not None else f"<@{player.user_id}>"
 
 
-def _goodbye(bot: "WispBot", life: Life, name: str) -> str:
-    """Wisp's goodbye to one member he gives his Last Ember to."""
-    return _line(bot, Moment.LAST_EMBER, life, name=name)
+async def _goodbye(
+    bot: "WispBot",
+    guild: discord.Guild | None,
+    life: Life,
+    name: str,
+    notes: list[str],
+) -> str:
+    """Wisp's goodbye to one member he gives his Last Ember to.
+
+    It is in his AI voice, with what he remembers about them, or his canned
+    line when the AI has no answer.
+    """
+    reply = await ai_reply(bot, guild, goodbye_prompt(life.version, name, notes))
+    if reply is None:
+        return _line(bot, Moment.LAST_EMBER, life, name=name)
+    return reply.text
 
 
 # ---
