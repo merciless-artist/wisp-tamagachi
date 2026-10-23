@@ -140,13 +140,14 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
     now = discord.utils.utcnow()
-    texts = []
     if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
         await bot.players.activate(guild_id, interaction.user.id, now)
-        texts.append("♪ You're on Wisp's radar now.")
-    texts.append(await render_leaderboard(bot, guild_id, now))
-    for text in texts:
-        await say_privately(interaction, text)
+        await say_privately(interaction, "♪ You're on Wisp's radar now.")
+    await say_privately(
+        interaction,
+        await render_leaderboard(bot, guild_id, now),
+        view=vault_view(),
+    )
 
 
 async def setup(bot: "WispBot") -> None:

@@ -199,6 +199,22 @@ async def test_board_activates_once(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
 
 
+async def test_board_puts_the_buttons_on_the_leaderboard_only(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    interaction = make_interaction(bot)
+
+    await run(vault.wisp_board, interaction)
+
+    radar_call, board_call = interaction.followup.send.await_args_list
+    assert "view" not in radar_call.kwargs
+    view = board_call.kwargs["view"]
+    shop, lunchbox = view.children
+    assert isinstance(shop, ShopButton)
+    assert isinstance(lunchbox, LunchboxButton)
+
+
 async def test_board_works_before_any_life_exists(bot: app.WispBot) -> None:
     interaction = make_interaction(bot)
 

@@ -3,7 +3,7 @@
 import contextlib
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import discord
 import pymysql
@@ -51,9 +51,17 @@ def bot_of(interaction: discord.Interaction) -> "WispBot":
     return cast("WispBot", interaction.client)
 
 
-async def say_privately(interaction: discord.Interaction, text: str) -> None:
-    """Answer a deferred interaction with a plain private message."""
-    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
+async def say_privately(
+    interaction: discord.Interaction,
+    text: str,
+    *,
+    view: discord.ui.View | None = None,
+) -> None:
+    """Answer a deferred interaction with a private message, with buttons if given."""
+    extras: dict[str, Any] = {} if view is None else {"view": view}
+    await interaction.followup.send(
+        text, ephemeral=True, allowed_mentions=_NO_PING, **extras
+    )
 
 
 async def report_failure(
