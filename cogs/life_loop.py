@@ -9,8 +9,8 @@ import pymysql
 from discord.ext import commands, tasks
 
 from cogs.announce import next_life, post_events, say_in_house, show_in_thread
-from cogs.lunchbox import feed_view
 from cogs.players import status_text
+from cogs.snacks import feed_view
 from cogs.vault import refresh_vault
 from wisp.bond import happiness
 from wisp.life import Event, Life, Phase, is_over, tick

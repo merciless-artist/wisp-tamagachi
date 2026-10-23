@@ -697,12 +697,12 @@ def test_rules_text_shows_the_food_values_it_is_given() -> None:
     assert "・Suno track: 1 meal point" in text
 
 
-def test_rules_text_has_vault_lunchbox_life_and_talking_sections() -> None:
+def test_rules_text_has_vault_snack_pack_life_and_talking_sections() -> None:
     text = rules_text(rules.MEAL_POINTS)
 
     for heading in (
         "The ViiBR Vault",
-        "Your lunchbox",
+        "Your Snack Pack",
         "His life",
         "Talking to Wisp",
     ):
@@ -715,9 +715,11 @@ def test_rules_text_has_vault_lunchbox_life_and_talking_sections() -> None:
     assert "coal" in text
     assert "neglect" in text
     assert "Mention him or reply to him in Wisp's House" in text
-    section = text.split("\nYour lunchbox\n")[1].split("\n\n")[0]
-    assert "/wisp lunchbox" in section
+    section = text.split("\nYour Snack Pack\n")[1].split("\n\n")[0]
+    assert "/wisp snackpack" in section
     assert "keepsake" in section
+    assert "Last Ember in their Snack Pack" in text
+    assert "your lunchbox" not in text.lower()
 
 
 def test_rules_text_covers_every_topic() -> None:
@@ -729,7 +731,7 @@ def test_rules_text_covers_every_topic() -> None:
         "viibrmusic.com",
         "track drop",
         "bond",
-        "/wisp lunchbox",
+        "/wisp snackpack",
         "banned",
     ):
         assert phrase in text, phrase

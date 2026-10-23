@@ -7,8 +7,8 @@ import discord
 
 from cogs.announce import show_in_thread
 from cogs.groups import require_guild, wisp
-from cogs.lunchbox import vault_view
 from cogs.players import say_privately
+from cogs.snacks import vault_view
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from app import WispBot
 
 _INTRO: Final = (
-    "Snacks and the leaderboard. " "Shop or open your lunchbox with the buttons below."
+    "Snacks and the leaderboard. Shop or open your Snack Pack with the buttons below."
 )
 
 # ---

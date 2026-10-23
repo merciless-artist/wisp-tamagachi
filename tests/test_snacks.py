@@ -1,4 +1,4 @@
-"""Tests for the lunchbox and the Vault: buying snacks and feeding them to Wisp.
+"""Tests for the Vault and Snack Packs: buying snacks and feeding them to Wisp.
 
 Discord objects are fakes; the repositories are the real ones.
 """
@@ -18,8 +18,14 @@ import pytest
 from discord import app_commands
 
 import app
-from cogs import groups, lunchbox
-from cogs.lunchbox import FeedButton, LunchboxButton, ShopButton, feed_view, vault_view
+from cogs import groups, snacks
+from cogs.snacks import (
+    FeedButton,
+    ShopButton,
+    SnackPackButton,
+    feed_view,
+    vault_view,
+)
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
@@ -103,7 +109,7 @@ async def configured(bot: app.WispBot) -> None:
 @pytest.fixture(autouse=True)
 def no_meeting(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     meeting = AsyncMock()
-    monkeypatch.setattr(lunchbox, "maybe_meet", meeting)
+    monkeypatch.setattr(snacks, "maybe_meet", meeting)
     return meeting
 
 
@@ -173,36 +179,36 @@ async def open_vault(
     bot: app.WispBot, user_id: int = USER_ID
 ) -> tuple[MagicMock, discord.ui.Select[Any]]:
     interaction = make_interaction(bot, user_id)
-    await run(lunchbox.wisp_vault, interaction)
+    await run(snacks.wisp_vault, interaction)
     select = interaction.followup.send.await_args.kwargs["view"].children[0]
     return interaction, select
 
 
-async def open_my_lunchbox(
+async def open_my_snack_pack(
     bot: app.WispBot, user_id: int = USER_ID, display_name: str = "Member1"
 ) -> MagicMock:
     interaction = make_interaction(bot, user_id, display_name)
-    await run(lunchbox.wisp_lunchbox, interaction)
+    await run(snacks.wisp_snackpack, interaction)
     return interaction
 
 
 async def vault_command(interaction: MagicMock) -> None:
-    await run(lunchbox.wisp_vault, interaction)
+    await run(snacks.wisp_vault, interaction)
 
 
-async def lunchbox_command(interaction: MagicMock) -> None:
-    await run(lunchbox.wisp_lunchbox, interaction)
+async def snackpack_command(interaction: MagicMock) -> None:
+    await run(snacks.wisp_snackpack, interaction)
 
 
 async def shop_button(interaction: MagicMock) -> None:
     await ShopButton().callback(interaction)
 
 
-async def lunchbox_button(interaction: MagicMock) -> None:
-    await LunchboxButton().callback(interaction)
+async def snack_pack_button(interaction: MagicMock) -> None:
+    await SnackPackButton().callback(interaction)
 
 
-OPENERS = [vault_command, lunchbox_command, shop_button, lunchbox_button]
+OPENERS = [vault_command, snackpack_command, shop_button, snack_pack_button]
 
 
 async def choose(
@@ -284,7 +290,7 @@ async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> 
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert isinstance(kwargs["view"], lunchbox.SnackMenu)
+    assert isinstance(kwargs["view"], snacks.SnackMenu)
     text = interaction.followup.send.await_args.args[0]
     lines = text.splitlines()
     assert lines[:2] == ["♪ The ViiBR Vault", f"{emoji_text('wisp_coin')} 12 points"]
@@ -314,11 +320,11 @@ async def test_vault_without_emojis_stays_tidy(bot: app.WispBot) -> None:
 
 
 # ---
-# Opening a lunchbox
+# Opening a Snack Pack
 # ---
 
 
-async def test_lunchbox_shows_snacks_keepsakes_and_shop_button(
+async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
     bot: app.WispBot,
 ) -> None:
     give_emojis(bot, "wisp_coin", "snack_cloudwave", "snack_sinewave")
@@ -328,7 +334,7 @@ async def test_lunchbox_shows_snacks_keepsakes_and_shop_button(
         GUILD_ID, USER_ID, KeepsakeKind.LAST_EMBER, 3, discord.utils.utcnow()
     )
 
-    interaction = await open_my_lunchbox(bot)
+    interaction = await open_my_snack_pack(bot)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     kwargs = interaction.followup.send.await_args.kwargs
@@ -336,7 +342,7 @@ async def test_lunchbox_shows_snacks_keepsakes_and_shop_button(
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     text = interaction.followup.send.await_args.args[0]
     assert text.splitlines()[:2] == [
-        "♪ Member1's lunchbox",
+        "♪ Member1's Snack Pack",
         f"{emoji_text('wisp_coin')} 12 points",
     ]
     snacks, keepsakes = text.split(SEPARATOR + "\n")[1:]
@@ -351,11 +357,11 @@ async def test_lunchbox_shows_snacks_keepsakes_and_shop_button(
     assert isinstance(button, ShopButton)
 
 
-async def test_lunchbox_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> None:
+async def test_snack_pack_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> None:
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cheese")
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave", 3)
 
-    interaction = await open_my_lunchbox(bot)
+    interaction = await open_my_snack_pack(bot)
 
     snacks = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[1]
     assert snacks.splitlines() == [
@@ -366,14 +372,14 @@ async def test_lunchbox_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> Non
     ]
 
 
-async def test_lunchbox_lists_keepsakes_oldest_first(bot: app.WispBot) -> None:
+async def test_snack_pack_lists_keepsakes_oldest_first(bot: app.WispBot) -> None:
     at = discord.utils.utcnow()
     for version in (4, 2):
         await bot.keepsakes.give(
             GUILD_ID, USER_ID, KeepsakeKind.LAST_EMBER, version, at
         )
 
-    interaction = await open_my_lunchbox(bot)
+    interaction = await open_my_snack_pack(bot)
 
     keepsakes = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[2]
     assert keepsakes.splitlines() == [
@@ -383,32 +389,32 @@ async def test_lunchbox_lists_keepsakes_oldest_first(bot: app.WispBot) -> None:
     ]
 
 
-async def test_empty_lunchbox_says_so(bot: app.WispBot) -> None:
+async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
     await bot.activity_log.record_interaction(
         GUILD_ID, 1, USER_ID, InteractionKind.FREE_SNACK, 0, 0, discord.utils.utcnow()
     )
 
-    interaction = await open_my_lunchbox(bot)
+    interaction = await open_my_snack_pack(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert text.splitlines()[:2] == ["♪ Member1's lunchbox", "0 points"]
+    assert text.splitlines()[:2] == ["♪ Member1's Snack Pack", "0 points"]
     snacks, keepsakes = text.split(SEPARATOR + "\n")[1:]
     assert snacks.splitlines() == ["Snacks", "・Nothing saved yet"]
     assert keepsakes.splitlines() == ["Keepsakes", "・None yet"]
     assert "free today" not in text
 
 
-async def test_lunchbox_is_the_members_own(bot: app.WispBot) -> None:
+async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:
     await bot.players.set_name(GUILD_ID, USER_ID, "Zed")
     await bot.activity_log.add_snack(GUILD_ID, OTHER_USER_ID, "cheese")
     await bot.keepsakes.give(
         GUILD_ID, OTHER_USER_ID, KeepsakeKind.LAST_EMBER, 3, discord.utils.utcnow()
     )
 
-    interaction = await open_my_lunchbox(bot)
+    interaction = await open_my_snack_pack(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert text.startswith("♪ Zed's lunchbox")
+    assert text.startswith("♪ Zed's Snack Pack")
     assert "Cheese" not in text
     assert "Last Ember" not in text
 
@@ -418,7 +424,7 @@ async def test_lunchbox_is_the_members_own(bot: app.WispBot) -> None:
     ("banned_until", "banned_forever"),
     [(None, True), (discord.utils.utcnow() + timedelta(days=1), False)],
 )
-async def test_banned_member_cannot_open_vault_or_lunchbox(
+async def test_banned_member_cannot_open_vault_or_snack_pack(
     bot: app.WispBot,
     opener: Any,
     banned_until: datetime | None,
@@ -449,19 +455,19 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert isinstance(kwargs["view"], lunchbox.SnackMenu)
+    assert isinstance(kwargs["view"], snacks.SnackMenu)
     text = interaction.followup.send.await_args.args[0]
     assert text.splitlines()[:2] == ["♪ The ViiBR Vault", "12 points"]
 
 
-async def test_lunchbox_button_opens_the_members_own_lunchbox(
+async def test_snack_pack_button_opens_the_members_own_snack_pack(
     bot: app.WispBot,
 ) -> None:
     await bot.activity_log.add_snack(GUILD_ID, OTHER_USER_ID, "cheese")
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave", 2)
     interaction = make_interaction(bot, display_name="Member1")
 
-    await LunchboxButton().callback(interaction)
+    await SnackPackButton().callback(interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     kwargs = interaction.followup.send.await_args.kwargs
@@ -470,7 +476,7 @@ async def test_lunchbox_button_opens_the_members_own_lunchbox(
     (button,) = kwargs["view"].children
     assert isinstance(button, ShopButton)
     text = interaction.followup.send.await_args.args[0]
-    assert text.startswith("♪ Member1's lunchbox")
+    assert text.startswith("♪ Member1's Snack Pack")
     assert "Cloud Wave x2" in text
     assert "Cheese" not in text
 
@@ -481,17 +487,17 @@ async def test_vault_view_holds_both_persistent_buttons() -> None:
     shop, mine = view.children
     assert isinstance(shop, ShopButton)
     assert (shop.item.label, shop.item.custom_id) == ("Shop the Vault", "wisp:vault")
-    assert isinstance(mine, LunchboxButton)
+    assert isinstance(mine, SnackPackButton)
     assert (mine.item.label, mine.item.custom_id) == (
-        "Open my lunchbox",
-        "wisp:lunchbox",
+        "Open my Snack Pack",
+        "wisp:snackpack",
     )
     assert view.timeout is None
 
 
 @pytest.mark.parametrize(
     ("button", "custom_id"),
-    [(ShopButton, "wisp:vault"), (LunchboxButton, "wisp:lunchbox")],
+    [(ShopButton, "wisp:vault"), (SnackPackButton, "wisp:snackpack")],
 )
 async def test_vault_buttons_survive_restart(
     bot: app.WispBot, button: Any, custom_id: str
@@ -510,7 +516,7 @@ async def test_vault_buttons_survive_restart(
     ("opener", "context"),
     [
         (shop_button, "the Vault shop button"),
-        (lunchbox_button, "the lunchbox button"),
+        (snack_pack_button, "the Snack Pack button"),
     ],
 )
 @pytest.mark.parametrize(
@@ -544,7 +550,7 @@ async def test_a_failing_vault_button_reports_where_it_was_pressed(
     ("opener", "context"),
     [
         (shop_button, "the Vault shop button"),
-        (lunchbox_button, "the lunchbox button"),
+        (snack_pack_button, "the Snack Pack button"),
     ],
 )
 async def test_a_vault_button_that_cannot_acknowledge_is_reported(
@@ -655,10 +661,10 @@ async def test_feed_button_survives_restart(bot: app.WispBot) -> None:
     assert isinstance(restored, FeedButton)
 
     bot.add_dynamic_items = MagicMock()  # type: ignore[method-assign]
-    await lunchbox.setup(bot)
+    await snacks.setup(bot)
 
     bot.add_dynamic_items.assert_called_once_with(
-        FeedButton, ShopButton, LunchboxButton
+        FeedButton, ShopButton, SnackPackButton
     )
 
 
@@ -735,7 +741,7 @@ async def test_only_qualifying_members_get_a_menu_from_the_button(
 
 
 @pytest.mark.parametrize("opener", OPENERS)
-async def test_members_who_cannot_feed_still_open_the_vault_and_lunchbox(
+async def test_members_who_cannot_feed_still_open_the_vault_and_snack_pack(
     bot: app.WispBot, opener: Any
 ) -> None:
     interaction = make_interaction(bot, NEWCOMER_ID, roles=())
@@ -1095,7 +1101,7 @@ async def test_eating_gif_attached_when_present(
 ) -> None:
     (tmp_path / "eating").mkdir()
     (tmp_path / "eating" / "eat_cloudwave.gif").write_bytes(b"GIF89a")
-    monkeypatch.setattr(lunchbox, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(snacks, "ASSETS_DIR", tmp_path)
     await lay(bot)
 
     await eat(bot, "cloudwave")
@@ -1128,7 +1134,7 @@ async def test_pickles_follow_the_members_stance(
     (tmp_path / "eating").mkdir()
     for name in ("eat_pickles", "eat_pickles_hate", "eat_pickles_love"):
         (tmp_path / "eating" / f"{name}.gif").write_bytes(b"GIF89a")
-    monkeypatch.setattr(lunchbox, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(snacks, "ASSETS_DIR", tmp_path)
     await lay(bot)
     await bot.players.set_pickle_stance(GUILD_ID, USER_ID, stance)
     pick = say(bot, "a pickle take")
@@ -1150,7 +1156,7 @@ async def test_a_missing_stance_gif_means_text_only(
 ) -> None:
     (tmp_path / "eating").mkdir()
     (tmp_path / "eating" / "eat_pickles.gif").write_bytes(b"GIF89a")
-    monkeypatch.setattr(lunchbox, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(snacks, "ASSETS_DIR", tmp_path)
     await lay(bot)
     await bot.players.set_pickle_stance(GUILD_ID, USER_ID, PickleStance.LOVE)
     pick = say(bot)
@@ -1339,12 +1345,12 @@ async def test_a_failing_menu_is_reported_where_it_was_used(
     interaction = make_interaction(bot)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
     error = ValueError("boom")
-    menu = lunchbox.SnackMenu([], "Pick", AsyncMock())
+    menu = snacks.SnackMenu([], "Pick", AsyncMock())
 
     await menu.on_error(interaction, error, menu.children[0])
 
     bot.report_error.assert_awaited_once_with(
-        interaction.guild, "the lunchbox", error, where=interaction.channel
+        interaction.guild, "the snack menu", error, where=interaction.channel
     )
     interaction.response.send_message.assert_awaited_once_with(
         USER_ERROR, ephemeral=True
@@ -1356,17 +1362,17 @@ async def test_a_failing_menu_is_reported_where_it_was_used(
 # ---
 
 
-def test_lunchbox_and_vault_hang_off_the_wisp_group() -> None:
-    assert groups.wisp.get_command("lunchbox") is lunchbox.wisp_lunchbox
-    assert groups.wisp.get_command("vault") is lunchbox.wisp_vault
-    assert isinstance(lunchbox.wisp_lunchbox, app_commands.Command)
-    assert isinstance(lunchbox.wisp_vault, app_commands.Command)
+def test_snack_pack_and_vault_hang_off_the_wisp_group() -> None:
+    assert groups.wisp.get_command("snackpack") is snacks.wisp_snackpack
+    assert groups.wisp.get_command("vault") is snacks.wisp_vault
+    assert isinstance(snacks.wisp_snackpack, app_commands.Command)
+    assert isinstance(snacks.wisp_vault, app_commands.Command)
 
 
 def test_the_commands_say_what_they_do() -> None:
-    assert lunchbox.wisp_lunchbox.description == "See your snacks and keepsakes."
-    assert lunchbox.wisp_vault.description == "Buy snacks for Wisp in the ViiBR Vault."
+    assert snacks.wisp_snackpack.description == "See your snacks and keepsakes."
+    assert snacks.wisp_vault.description == "Buy snacks for Wisp in the ViiBR Vault."
 
 
-def test_lunchbox_is_a_loaded_extension() -> None:
-    assert "cogs.lunchbox" in app.EXTENSIONS
+def test_snacks_is_a_loaded_extension() -> None:
+    assert "cogs.snacks" in app.EXTENSIONS

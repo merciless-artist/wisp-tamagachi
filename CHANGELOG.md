@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-23 (Snack Packs)
+
+- Members' own box is now the Snack Pack. `/wisp lunchbox` is renamed
+  `/wisp snackpack` ("See your snacks and keepsakes."), and the Vault card's
+  button is "Open my Snack Pack" (custom id `wisp:snackpack`). It still holds
+  saved snacks and keepsakes such as a Last Ember.
+- The Vault intro, the How Wisp Works post and this README say Snack Pack; a
+  Last Ember goes in its sharer's Snack Pack.
+- The cog is `cogs/snacks.py` (the Snack Box shop, the Snack Pack and the Feed
+  button). The lunchbox name now belongs to Wisp's own lunchbox.
+
 ## 2026-10-23 (errors in place)
 
 - There is no errors channel any more. Every error is posted as plain text in

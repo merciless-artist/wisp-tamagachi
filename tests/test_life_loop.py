@@ -17,7 +17,7 @@ import pytest
 import app
 from cogs import life_loop
 from cogs.life_loop import LifeLoop
-from cogs.lunchbox import FeedButton
+from cogs.snacks import FeedButton
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.keepsakes import KeepsakeRepo

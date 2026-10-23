@@ -101,8 +101,8 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "・The leaderboard lives on the pinned Vault post",
             "・Snacks count toward the daily limit, so music stays his real food",
             "",
-            "Your lunchbox",
-            "・/wisp lunchbox shows your saved snacks and keepsakes",
+            "Your Snack Pack",
+            "・/wisp snackpack shows your saved snacks and keepsakes",
             "・Feed saved snacks to him from his status card",
             "",
             "His life",
@@ -113,7 +113,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "・The coal becomes the next egg, already fed "
             f"{rules.COAL_EGG_FOOD} of the {egg_meals} it needs",
             f"・The top {count(rules.LAST_EMBER_GIFTS, 'sharer')} of that life "
-            "each get his Last Ember",
+            "each get his Last Ember in their Snack Pack",
             "・A Wisp who goes out from neglect leaves no gifts",
             "",
             "Talking to Wisp",

@@ -154,7 +154,7 @@ QUIET_AFTER = timedelta(hours=9)
 
 @dataclass(frozen=True)
 class Snack:
-    """A snack on the lunchbox menu."""
+    """A snack in the Snack Box."""
 
     key: str
     name: str

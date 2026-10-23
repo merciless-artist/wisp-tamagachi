@@ -15,7 +15,7 @@ from discord import app_commands
 
 import app
 from cogs import groups, vault
-from cogs.lunchbox import LunchboxButton, ShopButton
+from cogs.snacks import ShopButton, SnackPackButton
 from cogs.vault import refresh_vault, render_leaderboard, version_line
 from db.activity import ActivityRepo
 from db.database import Database
@@ -37,7 +37,7 @@ LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 SEPARATOR = "・♪ ────────・──────── ♪・"
 INTRO = (
-    "Snacks and the leaderboard. " "Shop or open your lunchbox with the buttons below."
+    "Snacks and the leaderboard. Shop or open your Snack Pack with the buttons below."
 )
 
 # ---
@@ -206,9 +206,9 @@ async def test_board_puts_the_buttons_on_the_leaderboard_only(
     radar_call, board_call = interaction.followup.send.await_args_list
     assert "view" not in radar_call.kwargs
     view = board_call.kwargs["view"]
-    shop, lunchbox = view.children
+    shop, snack_pack = view.children
     assert isinstance(shop, ShopButton)
-    assert isinstance(lunchbox, LunchboxButton)
+    assert isinstance(snack_pack, SnackPackButton)
 
 
 async def test_board_works_before_any_life_exists(bot: app.WispBot) -> None:
@@ -486,7 +486,7 @@ async def test_refresh_vault_edits_the_pinned_message(
     server.house.send.assert_not_awaited()
 
 
-async def test_refresh_vault_puts_shop_and_lunchbox_buttons_on_the_card(
+async def test_refresh_vault_puts_shop_and_snack_pack_buttons_on_the_card(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -496,9 +496,9 @@ async def test_refresh_vault_puts_shop_and_lunchbox_buttons_on_the_card(
 
     view = server.vault_edit.await_args.kwargs["view"]
     assert view.timeout is None
-    shop, lunchbox = view.children
+    shop, snack_pack = view.children
     assert isinstance(shop, ShopButton)
-    assert isinstance(lunchbox, LunchboxButton)
+    assert isinstance(snack_pack, SnackPackButton)
 
 
 def test_board_command_hangs_off_the_wisp_group() -> None:
@@ -506,7 +506,7 @@ def test_board_command_hangs_off_the_wisp_group() -> None:
     assert isinstance(vault.wisp_board, app_commands.Command)
 
 
-def test_vault_loads_right_after_the_lunchbox() -> None:
+def test_vault_loads_right_after_the_snacks() -> None:
     assert app.EXTENSIONS.index("cogs.vault") == (
-        app.EXTENSIONS.index("cogs.lunchbox") + 1
+        app.EXTENSIONS.index("cogs.snacks") + 1
     )

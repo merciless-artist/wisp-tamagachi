@@ -1,4 +1,4 @@
-"""The ViiBR Vault and lunchboxes: members buy snacks and feed them to Wisp."""
+"""The ViiBR Vault, Snack Packs and the Feed button: snacks bought and fed to Wisp."""
 
 import re
 from collections.abc import Awaitable, Callable
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 _NO_PING: Final = discord.AllowedMentions.none()
 _FEED_ID: Final = "wisp:feed"
 _VAULT_ID: Final = "wisp:vault"
-_LUNCHBOX_ID: Final = "wisp:lunchbox"
+_SNACK_PACK_ID: Final = "wisp:snackpack"
 
 _BANNED: Final = "♪ Wisp is not taking snacks from you right now."
 _CANNOT_FEED: Final = (
@@ -163,7 +163,7 @@ class SnackMenu(discord.ui.View):
         item: discord.ui.Item[Any],
     ) -> None:
         """Report a failure and tell the member."""
-        await report_failure(interaction, "the lunchbox", error)
+        await report_failure(interaction, "the snack menu", error)
 
 
 # ---
@@ -190,7 +190,7 @@ async def _vault_text(
     return "\n".join([note, *lines] if note else lines)
 
 
-async def _my_lunchbox_text(
+async def _snack_pack_text(
     bot: "WispBot", guild_id: int, user_id: int, display_name: str
 ) -> str:
     """The member's balance, snacks and keepsakes."""
@@ -210,7 +210,7 @@ async def _my_lunchbox_text(
         f"・{keepsake.title}" for keepsake in await bot.keepsakes.of(guild_id, user_id)
     ]
     lines = [
-        f"♪ {player.name or display_name}'s lunchbox",
+        f"♪ {player.name or display_name}'s Snack Pack",
         _with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
         SEPARATOR,
         "Snacks",
@@ -261,7 +261,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
 
 
 # ---
-# The Vault and lunchboxes
+# The Vault and Snack Packs
 # ---
 
 
@@ -284,14 +284,14 @@ async def _open_vault(interaction: discord.Interaction) -> None:
     )
 
 
-async def _open_lunchbox(interaction: discord.Interaction) -> None:
+async def _open_snack_pack(interaction: discord.Interaction) -> None:
     """Show the member's own snacks and keepsakes, with a button to the shop."""
     if not await _admit(interaction):
         return
     view = discord.ui.View()
     view.add_item(ShopButton())
     await interaction.followup.send(
-        await _my_lunchbox_text(
+        await _snack_pack_text(
             bot_of(interaction),
             require_guild(interaction),
             interaction.user.id,
@@ -309,10 +309,10 @@ async def wisp_vault(interaction: discord.Interaction["WispBot"]) -> None:
     await _open_vault(interaction)
 
 
-@wisp.command(name="lunchbox", description="See your snacks and keepsakes.")
-async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show the member's own lunchbox, only to them."""
-    await _open_lunchbox(interaction)
+@wisp.command(name="snackpack", description="See your snacks and keepsakes.")
+async def wisp_snackpack(interaction: discord.Interaction["WispBot"]) -> None:
+    """Show the member's own Snack Pack, only to them."""
+    await _open_snack_pack(interaction)
 
 
 class ShopButton(
@@ -349,11 +349,11 @@ class ShopButton(
         await _press(interaction, "the Vault shop button", _open_vault)
 
 
-class LunchboxButton(
+class SnackPackButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
-    template=re.compile(_LUNCHBOX_ID),
+    template=re.compile(_SNACK_PACK_ID),
 ):
-    """The Open my lunchbox button, which shows the presser their own lunchbox.
+    """The Open my Snack Pack button, which shows the presser their own Snack Pack.
 
     Its custom id is fixed, so the button keeps working after the bot restarts.
     """
@@ -361,9 +361,9 @@ class LunchboxButton(
     def __init__(self) -> None:
         super().__init__(
             discord.ui.Button(
-                label="Open my lunchbox",
+                label="Open my Snack Pack",
                 style=discord.ButtonStyle.secondary,
-                custom_id=_LUNCHBOX_ID,
+                custom_id=_SNACK_PACK_ID,
             )
         )
 
@@ -374,20 +374,20 @@ class LunchboxButton(
         item: discord.ui.Item[discord.ui.View],
         match: re.Match[str],
         /,
-    ) -> "LunchboxButton":
+    ) -> "SnackPackButton":
         """Rebuild the button after a restart."""
         return cls()
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        """Open the presser's own lunchbox privately."""
-        await _press(interaction, "the lunchbox button", _open_lunchbox)
+        """Open the presser's own Snack Pack privately."""
+        await _press(interaction, "the Snack Pack button", _open_snack_pack)
 
 
 def vault_view() -> discord.ui.View:
-    """The view that puts the shop and lunchbox buttons on the Vault card."""
+    """The view that puts the shop and Snack Pack buttons on the Vault card."""
     view = discord.ui.View(timeout=None)
     view.add_item(ShopButton())
-    view.add_item(LunchboxButton())
+    view.add_item(SnackPackButton())
     return view
 
 
@@ -589,4 +589,4 @@ def feed_view() -> discord.ui.View:
 
 async def setup(bot: "WispBot") -> None:
     """Register the persistent buttons so they still work after a restart."""
-    bot.add_dynamic_items(FeedButton, ShopButton, LunchboxButton)
+    bot.add_dynamic_items(FeedButton, ShopButton, SnackPackButton)

@@ -75,8 +75,8 @@ Member commands:
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
 - `/wisp vault` is the shop: buy snacks with your points.
-- `/wisp lunchbox` shows your own saved snacks and keepsakes, like a Last Ember,
-  with a button to shop the Vault.
+- `/wisp snackpack` shows your Snack Pack: your saved snacks and keepsakes,
+  like a Last Ember, with a button to shop the Vault.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
