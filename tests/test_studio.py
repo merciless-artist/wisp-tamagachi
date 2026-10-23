@@ -19,6 +19,7 @@ from db.database import Database
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.links import TrackKind
+from wisp.text import MESSAGE_LIMIT
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -665,7 +666,30 @@ def test_studio_is_a_loaded_extension() -> None:
 
 
 def test_rules_text_fits_one_message() -> None:
-    assert len(rules_text()) < 2000
+    assert len(rules_text()) < MESSAGE_LIMIT
+
+
+def test_rules_text_has_vault_lunchbox_life_and_talking_sections() -> None:
+    text = rules_text()
+
+    for heading in (
+        "The ViiBR Vault",
+        "Your lunchbox",
+        "His life",
+        "Talking to Wisp",
+    ):
+        assert f"\n{heading}\n" in text, heading
+    assert "The Lunchbox" not in text
+    assert "/wisp vault" in text
+    assert "leaderboard" in text
+    assert "Old Fogey" in text
+    assert "Last Ember" in text
+    assert "coal" in text
+    assert "neglect" in text
+    assert "Mention him or reply to him in Wisp's House" in text
+    section = text.split("\nYour lunchbox\n")[1].split("\n\n")[0]
+    assert "/wisp lunchbox" in section
+    assert "keepsake" in section
 
 
 def test_rules_text_covers_every_topic() -> None:
@@ -711,9 +735,14 @@ def test_rules_text_numbers_come_from_the_rules(
         (timedelta(days=71), timedelta(days=73), None),
     )
     monkeypatch.setattr(rules, "NAME_MAX", 79)
+    monkeypatch.setattr(rules, "OLD_FOGEY_AT_DAY", 83)
+    monkeypatch.setattr(rules, "FAREWELL_AT_DAY", 89)
+    monkeypatch.setattr(rules, "LAST_EMBER_GIFTS", 97)
+    monkeypatch.setattr(rules, "EGG_FOOD_NEEDED", 101)
+    monkeypatch.setattr(rules, "COAL_EGG_FOOD", 103)
 
     text = rules_text()
 
-    for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79):
+    for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103):
         assert str(number) in text, number
     assert "permanent" in text

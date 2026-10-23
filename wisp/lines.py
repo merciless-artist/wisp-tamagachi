@@ -445,8 +445,8 @@ _BANNED = (
 
 _NOT_ENOUGH_POINTS = (
     "not enough points for that one, {name}. drop a track and come back",
-    "your pockets are empty, {name}. the lunchbox doesn't run tabs",
-    "I love the thought, {name}. the lunchbox wants points though",
+    "your pockets are empty, {name}. the Vault doesn't run tabs",
+    "I love the thought, {name}. the Vault wants points though",
     "can't afford that yet. share some music and we'll talk",
     "{name}, your coin purse just echoed. go post a song",
 )

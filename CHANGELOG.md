@@ -12,6 +12,20 @@
   three sharers of that life who are not banned each get its Last Ember with a
   goodbye from him, then the coal cracks into the next egg, already halfway
   hatched. A neglect death still leaves no gifts and a fresh egg.
+- Vault and lunchbox: `/wisp vault` is the shop where points buy snacks.
+  `/wisp lunchbox` is the member's own box of saved snacks and keepsakes such as
+  Last Embers, with a Shop the Vault button. Pickles now get a reaction that
+  depends on the member's pickle stance.
+- Talking: members mention or reply to Wisp in Wisp's House. The egg wobbles,
+  the baby babbles and from Child on he talks with AI. From Adult on he
+  sometimes chimes in on his own and remembers what people tell him. Talking
+  earns no bond and no points.
+- The How Wisp Works post now explains the Vault, lunchboxes, his whole life
+  (Old Fogey, the farewell, the coal egg and Last Embers) and talking to him.
+- Wisp's "not enough points" lines point at the Vault instead of the lunchbox.
+- Art: `stages/old_fogey.png`, `stages/coal_egg.png`, `events/farewell.png`,
+  `eating/eat_pickles_love.gif`, `eating/eat_pickles_hate.gif` and `vault.png`
+  are read by the bot when they exist. `DOCS/ArtToMake.md` lists what is left.
 
 ## 2026-10-22
 

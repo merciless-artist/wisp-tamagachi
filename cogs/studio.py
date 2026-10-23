@@ -64,6 +64,7 @@ def rules_text() -> str:
         [first_name, *(f"{name} at {needed}" for name, needed in later_tiers)]
     )
     daily_cap = count(rules.DAILY_MEAL_CAP, "point")
+    egg_meals = count(rules.EGG_FOOD_NEEDED, "meal point")
     return "\n".join(
         [
             "♪ How Wisp Works",
@@ -89,10 +90,32 @@ def rules_text() -> str:
             "he learns your name",
             f"・Tiers: {tiers}",
             "",
-            "The Lunchbox",
-            "・/wisp lunchbox opens his snack box",
-            "・Spend leaderboard points on snacks that fill his care",
+            "The ViiBR Vault",
+            "・/wisp vault buys snacks with your leaderboard points",
+            "・The leaderboard lives on the pinned Vault post",
             "・Snacks count toward the daily limit, so music stays his real food",
+            "",
+            "Your lunchbox",
+            "・/wisp lunchbox shows your saved snacks and keepsakes",
+            "・Feed saved snacks to him from his status card",
+            "",
+            "His life",
+            f"・Around day {rules.OLD_FOGEY_AT_DAY} he gets old and becomes an "
+            "Old Fogey",
+            f"・Around day {rules.FAREWELL_AT_DAY} he passes on after a full "
+            "life, as a lump of coal",
+            "・The coal becomes the next egg, already fed "
+            f"{rules.COAL_EGG_FOOD} of the {egg_meals} it needs",
+            f"・The top {count(rules.LAST_EMBER_GIFTS, 'sharer')} of that life "
+            "each get his Last Ember",
+            "・A Wisp who goes out from neglect leaves no gifts",
+            "",
+            "Talking to Wisp",
+            "・Mention him or reply to him in Wisp's House",
+            "・He wobbles as an egg, babbles as a baby and learns to talk as he "
+            "grows",
+            "・Once grown he sometimes chimes in and remembers what you tell him",
+            "・Talking earns nothing: no bond and no points",
             "",
             "Fair play",
             "・Fake links do not count, and staff can strip points",

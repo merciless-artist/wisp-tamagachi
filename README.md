@@ -2,8 +2,10 @@
 
 Wisp is a Discord Tamagotchi for a music community. The whole server shares one
 pet: members feed him by dropping tracks in the track channel and by buying
-snacks from the Lunchbox, and he grows from an egg to a rockstar as long as he
-is cared for. If he is neglected he dies and a new egg is laid.
+snacks from the ViiBR Vault, and he grows from an egg to a rockstar as long as
+he is cared for. If he is neglected he dies and a new egg is laid. If he lives a
+full life he grows old, passes on as a lump of coal and the coal becomes the
+next egg. Members can also talk to him in Wisp's House.
 
 ## Setup
 
@@ -65,8 +67,15 @@ Member commands:
 
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
-- `/wisp lunchbox` buys snacks and shows your own.
+- `/wisp vault` is the shop: buy snacks with your points.
+- `/wisp lunchbox` shows your own saved snacks and keepsakes, like a Last Ember,
+  with a button to shop the Vault.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
+
+Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
+its threads). The egg wobbles, the baby babbles and from Child on he answers with
+AI. From Adult on he sometimes chimes in on his own and remembers things people
+tell him. Talking earns nothing: no bond and no points.
 
 ## Assets
 
@@ -75,7 +84,9 @@ posts text only.
 
 - `eating/eat_<snack>.gif` for each snack key (`sinewave`, `cloudwave`,
   `jellywave`, `juicewave`, `spicywave`, `glitterwave`, `viibrwave`, `cheese`,
-  `pickles`).
+  `pickles`), plus `eating/eat_pickles_love.gif` and
+  `eating/eat_pickles_hate.gif` for pickles with a member whose pickle stance he
+  knows.
 - `stages/<stage>.png` for `baby`, `child`, `teen`, `adult`, `rockstar`,
   `old_fogey`, plus `stages/coal_egg.png` for the egg after a full life.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,

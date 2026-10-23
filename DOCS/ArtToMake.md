@@ -20,10 +20,13 @@ Base prompt (fill in the action):
 ## Launch priority: eating GIFs
 
 DONE (2026-10-22): jelly, spicy, glitter, juice, ViiBR, pickles (the "suspicious, eats it, smug" one is the hedge GIF used until Wisp knows your pickle stance).
-STILL NEEDED: sinewave, cloudwave, cheese. pickles_love / pickles_hate can wait for the AI voice.
+STILL NEEDED: sinewave, cloudwave, cheese, pickles_love, pickles_hate.
 
 Save paths are relative to ASSETS/ and must match exactly, or the bot will not find them.
-The two pickles_love / pickles_hate rows are for the AI voice later (not used by the bot yet).
+The two pickles_love / pickles_hate rows are used now: when Wisp knows a member's pickle
+stance he reacts the opposite way (a member who loves pickles gets the hate GIF). If the file
+is missing he posts text only. The suspicious "eats it, smug" pickles GIF is only for members
+whose stance he does not know.
 
 | Save as | Snack ref | [ACTION] |
 |---|---|---|
@@ -37,7 +40,7 @@ The two pickles_love / pickles_hate rows are for the AI voice later (not used by
 | eating/eat_pickles_love.gif | snack_pickles.png | gobbling the pickles from the second image with huge delight |
 | eating/eat_pickles_hate.gif | snack_pickles.png | biting the pickle from the second image, making a disgusted face, and dramatically spitting it out |
 
-## Launch priority: stage art (2 stills)
+## Launch priority: stage art (4 stills)
 
 Match the existing egg / baby / child / teen stickers in
 wisp_tamagachi (same style, transparent PNG, standing pose, full body).
@@ -47,6 +50,8 @@ The bot posts these as still PNGs (a GIF here would need a code change).
 |---|---|
 | stages/adult.png | Adult Wisp: taller, flowing flame tail, calm and confident |
 | stages/rockstar.png | Rockstar Wisp: maximum energy, guitar, bigger brighter flames (until this exists, a still PNG frame exported from rockwisp.gif can stand in; the GIF itself won't work here) |
+| stages/old_fogey.png | Old Fogey Wisp (around day 45): older and slower, a tiny flame, grey streaks, a cozy cardigan vibe |
+| stages/coal_egg.png | the egg that follows a full life: the lump of coal turning into a new egg, cracks glowing orange (posted with the next egg; text only until it exists) |
 
 ## Nice to have (text-only until they exist)
 
@@ -65,7 +70,12 @@ Use a still frame for the [ACTION] ones.
 | Save as | What |
 |---|---|
 | events/farewell.png | old Wisp shrivelled up into a small lump of glowing coal (still image; a GIF version of him shrinking into coal would be lovely later but needs a code change) |
-| stages/coal_egg.png | the lump of coal turning into a new egg, cracks glowing orange (optional; the normal egg picture works until then) |
+
+## For The ViiBR Vault
+
+| Save as | What |
+|---|---|
+| vault.png | DONE. Attached to the first post of The ViiBR Vault thread when the thread is created, so it becomes the forum thumbnail. |
 
 ## For punishments
 
