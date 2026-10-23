@@ -27,6 +27,7 @@ from wisp.rules import Stage
 
 GUILD_ID = 100
 HOUSE_ID = 20
+TRACKS_ID = 30
 COMMAND_CHANNEL_ID = 40
 STAFF_ID = 9
 MEMBER_ID = 1
@@ -75,7 +76,9 @@ def bot(
 
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
-    await bot.settings.update(GUILD_ID, house_channel_id=HOUSE_ID)
+    await bot.settings.update(
+        GUILD_ID, house_channel_id=HOUSE_ID, tracks_channel_id=TRACKS_ID
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -355,6 +358,44 @@ async def test_a_log_line_with_nowhere_to_go_is_noted(
     (reply,) = replies(interaction)
     assert reply.endswith("\n・The log line could not be posted here.")
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
+
+
+@pytest.mark.parametrize(
+    ("spec", "channel_id", "parent_id"),
+    [
+        (discord.TextChannel, TRACKS_ID, None),
+        (discord.Thread, 41, TRACKS_ID),
+        (discord.PartialMessageable, 42, None),
+    ],
+    ids=["the track drop", "a thread in the track drop", "a partial channel"],
+)
+async def test_punish_in_the_track_drop_logs_in_the_house_instead(
+    bot: app.WispBot,
+    server: FakeServer,
+    spec: type,
+    channel_id: int,
+    parent_id: int | None,
+) -> None:
+    await lay(bot)
+    where = MagicMock(spec=spec)
+    where.id = channel_id
+    if parent_id is not None:
+        where.parent_id = parent_id
+    where.send = AsyncMock()
+    interaction = make_interaction(bot)
+    interaction.channel = where
+
+    await run(discipline.punish, interaction, make_member(), REASON)
+
+    where.send.assert_not_awaited()
+    log_line = f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}"
+    logged = [
+        call for call in server.house.send.await_args_list if call.args == (log_line,)
+    ]
+    assert len(logged) == 1
+    assert logged[0].kwargs["allowed_mentions"].to_dict() == NO_PING
+    (reply,) = replies(interaction)
+    assert reply == "♪ <@1> is banned from Wisp (offense 1, 1 day)."
 
 
 def test_the_reason_is_described_as_public() -> None:

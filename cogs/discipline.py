@@ -10,7 +10,7 @@ from discord import app_commands
 
 from cogs.announce import say_in_house
 from cogs.assets import ASSETS_DIR
-from cogs.channels import where_of
+from cogs.channels import may_post_in, where_of
 from cogs.groups import require_guild, wispadmin
 from wisp.lines import Moment
 from wisp.rules import BAN_LADDER
@@ -66,14 +66,25 @@ def _duration(length: timedelta | None) -> str:
 
 
 async def _log_here(interaction: discord.Interaction["WispBot"], text: str) -> bool:
-    """Post a log line in the command's channel; False if it could not be posted."""
+    """Post a log line in the command's channel; False if it could not be posted.
+
+    Where Wisp may not post, such as the track drop, the line goes to his
+    House instead.
+    """
+    bot = interaction.client
     channel = where_of(interaction)
     if channel is None:
         return False
+    tracks_id = (await bot.settings.get(require_guild(interaction))).tracks_channel_id
+    if not may_post_in(channel, tracks_id):
+        house = await bot.house_channel(interaction.guild)
+        if house is None:
+            return False
+        channel = house
     try:
         await channel.send(text, allowed_mentions=_NO_PING)
     except discord.HTTPException as error:
-        await interaction.client.report_error(
+        await bot.report_error(
             interaction.guild, "logging the punishment", error, where=channel
         )
         return False
@@ -99,7 +110,8 @@ async def punish(
     """Give the member their next offense and the ban that goes with it.
 
     Wisp announces the ban in his House without the reason. The reason goes in
-    a log line posted publicly in the channel the command was run in.
+    a log line posted publicly in the channel the command was run in, or in
+    the House when that is the track drop.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)

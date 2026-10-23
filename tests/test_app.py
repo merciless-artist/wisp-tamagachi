@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from dataclasses import fields
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import discord
 import pymysql
 import pytest
@@ -269,6 +270,31 @@ async def test_report_error_falls_back_to_the_house_when_where_fails(
     thread.send.assert_awaited_once()
     assert posted(house) == ["Error in closing a thread: RuntimeError: boom"]
     assert "Could not post error report for closing a thread" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        aiohttp.ClientConnectionError("connection reset"),
+        TimeoutError(),
+        OSError("network is unreachable"),
+    ],
+    ids=["aiohttp", "timeout", "os error"],
+)
+async def test_report_error_falls_back_to_the_house_on_a_transport_failure(
+    bot: app.WispBot, failure: Exception
+) -> None:
+    house = make_house()
+    thread = make_sender(discord.Thread, channel_id=901, parent_id=10)
+    thread.send.side_effect = failure
+    configured(bot)
+
+    await bot.report_error(
+        make_guild(house), "closing a thread", RuntimeError("boom"), where=thread
+    )
+
+    thread.send.assert_awaited_once()
+    assert posted(house) == ["Error in closing a thread: RuntimeError: boom"]
 
 
 @pytest.mark.parametrize(
@@ -636,11 +662,20 @@ async def test_reporting_everywhere_posts_in_every_house(
         assert posted(house) == ["Error in life loop: RuntimeError: boom"]
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pymysql.err.OperationalError(2003, "down"),
+        RuntimeError("the pool is closed"),
+        AttributeError("'NoneType' object has no attribute 'acquire'"),
+    ],
+    ids=["database down", "closed pool", "unconnected pool"],
+)
 async def test_reporting_everywhere_falls_back_to_the_guilds_the_bot_sees(
-    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
     house = make_house()
-    configured(bot).guilds.side_effect = pymysql.err.OperationalError(2003, "down")
+    configured(bot).guilds.side_effect = failure
     monkeypatch.setattr(
         app.WispBot, "guilds", property(lambda _self: [make_guild(house)])
     )

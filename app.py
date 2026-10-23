@@ -5,14 +5,14 @@ import logging
 import sys
 from typing import Any, Final
 
+import aiohttp
 import discord
-import pymysql
 from discord import app_commands
 from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
-from cogs.channels import in_channel, where_of
+from cogs.channels import may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
@@ -254,7 +254,9 @@ class WispBot(commands.Bot):
     async def _post_everywhere(self, context: str, line: str) -> None:
         """Post a report in Wisp's House of every guild Wisp is set up in.
 
-        When the settings cannot be read, the guilds the bot can see are used.
+        When the guilds cannot be listed for any reason, such as a closed or
+        unconnected pool, the guilds the bot can see are used, so the report
+        always goes out and the caller never sees an exception.
         """
         try:
             guilds = [
@@ -262,7 +264,7 @@ class WispBot(commands.Bot):
                 for guild_id in await self.settings.guilds()
                 if (guild := self.get_guild(guild_id)) is not None
             ]
-        except (pymysql.err.Error, OSError):
+        except Exception:
             log.exception("Could not list Wisp's guilds to report %s", context)
             guilds = list(self.guilds)
         for guild in guilds:
@@ -277,24 +279,19 @@ class WispBot(commands.Bot):
     ) -> None:
         """Post a report in `where`, else in Wisp's House.
 
-        Wisp never posts in the track drop, or in a channel he cannot place (a
-        partial one), so their errors go to the House. When posting in `where`
-        fails, the House is tried once. Without a guild the report is only
-        logged.
+        Where Wisp may not post (see `may_post_in`), the error goes to the House.
+        When posting in `where` fails, through Discord or the network, the House
+        is tried once. Without a guild the report is only logged.
         """
         if guild is None:
             return
         try:
             tracks_id = (await self.settings.get(guild.id)).tracks_channel_id
-            if (
-                where is not None
-                and not isinstance(where, discord.PartialMessageable)
-                and not in_channel(where, tracks_id)
-            ):
+            if where is not None and may_post_in(where, tracks_id):
                 try:
                     await where.send(line, allowed_mentions=_NO_PING)
                     return
-                except discord.DiscordException:
+                except (discord.DiscordException, aiohttp.ClientError, OSError):
                     log.exception("Could not post error report for %s", context)
             house = await self.house_channel(guild)
             if house is not None and house is not where:
