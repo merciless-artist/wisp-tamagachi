@@ -18,9 +18,20 @@ from ai.chain import (
     Prompt,
     Provider,
 )
+from wisp.rules import AI_PROVIDER_COOLDOWN
 
+COOLDOWN = AI_PROVIDER_COOLDOWN.total_seconds()
 PROMPT = Prompt("Be Wisp.", "Say hi.")
 KEY = "secret-test-key"
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
@@ -261,6 +272,108 @@ async def test_connection_refused_falls_through() -> None:
 
 
 # ---
+# Cooldown
+# ---
+
+
+class CountingPair:
+    """Two fake servers' worth of endpoints that count requests and can be broken."""
+
+    def __init__(self) -> None:
+        self.first_requests = 0
+        self.second_requests = 0
+        self.first_status = 500
+        self.second_status = 200
+
+    async def first(self, request: web.Request) -> web.Response:
+        self.first_requests += 1
+        if self.first_status != 200:
+            return web.Response(status=self.first_status, text="down")
+        return gemini_reply({"text": "from first"})
+
+    async def second(self, request: web.Request) -> web.Response:
+        self.second_requests += 1
+        if self.second_status != 200:
+            return web.Response(status=self.second_status, text="also down")
+        return chat_reply("from second")
+
+
+async def test_failed_provider_is_skipped_during_cooldown() -> None:
+    pair = CountingPair()
+    clock = FakeClock()
+    async with serve(gemini=pair.first, chat=pair.second) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ],
+            clock=clock,
+        )
+        try:
+            assert await ai.complete(PROMPT) == "from second"
+            clock.now += COOLDOWN - 1
+            assert await ai.complete(PROMPT) == "from second"
+        finally:
+            await ai.close()
+
+    assert pair.first_requests == 1
+    assert pair.second_requests == 2
+
+
+async def test_cooled_down_provider_is_tried_again() -> None:
+    pair = CountingPair()
+    clock = FakeClock()
+    async with serve(gemini=pair.first, chat=pair.second) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ],
+            clock=clock,
+        )
+        try:
+            assert await ai.complete(PROMPT) == "from second"
+            pair.first_status = 200
+            clock.now += COOLDOWN + 1
+            assert await ai.complete(PROMPT) == "from first"
+            assert await ai.complete(PROMPT) == "from first"
+        finally:
+            await ai.close()
+
+    assert pair.first_requests == 3
+    assert pair.second_requests == 1
+
+
+async def test_all_cooling_down_still_tries_everyone() -> None:
+    pair = CountingPair()
+    pair.second_status = 503
+    clock = FakeClock()
+    async with serve(gemini=pair.first, chat=pair.second) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ],
+            clock=clock,
+        )
+        try:
+            with pytest.raises(AllProvidersFailed):
+                await ai.complete(PROMPT)
+            pair.second_status = 502
+            with pytest.raises(AllProvidersFailed) as raised:
+                await ai.complete(PROMPT)
+        finally:
+            await ai.close()
+
+    assert pair.first_requests == 2
+    assert pair.second_requests == 2
+    assert [reason for _, reason in raised.value.failures] == [
+        "HTTP 500 down",
+        "HTTP 502 also down",
+    ]
+
+
+# ---
 # Failure
 # ---
 
@@ -294,6 +407,32 @@ async def test_all_providers_failing_raises_with_every_reason() -> None:
     text = str(raised.value)
     assert "gemini m" in text and "groq" in text and status_reason in text
     assert KEY not in text
+
+
+async def test_auth_failure_reasons_never_include_the_response_body() -> None:
+    fragment = "sk-live-abcd1234"
+
+    async def unauthorized(request: web.Request) -> web.Response:
+        return web.Response(status=401, text=f"Invalid API key: {fragment}")
+
+    async def forbidden(request: web.Request) -> web.Response:
+        return web.Response(status=403, text=f"Key {fragment} not allowed")
+
+    async with serve(gemini=unauthorized, chat=forbidden) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ]
+        )
+        try:
+            with pytest.raises(AllProvidersFailed) as raised:
+                await ai.complete(PROMPT)
+        finally:
+            await ai.close()
+
+    assert raised.value.failures == [("gemini m", "HTTP 401"), ("groq", "HTTP 403")]
+    assert fragment not in str(raised.value)
 
 
 async def test_empty_chain_raises() -> None:

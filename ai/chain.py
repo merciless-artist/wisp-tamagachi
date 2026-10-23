@@ -1,6 +1,7 @@
 """Wisp's AI provider chain: Gemini, a Gemini fallback, Groq, then OpenRouter."""
 
 import logging
+import time
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
@@ -8,7 +9,7 @@ import aiohttp
 
 import config
 from ai.prompt import Prompt
-from wisp.rules import AI_MAX_OUTPUT_TOKENS, AI_TIMEOUT
+from wisp.rules import AI_MAX_OUTPUT_TOKENS, AI_PROVIDER_COOLDOWN, AI_TIMEOUT
 
 __all__ = [
     "AIChain",
@@ -30,6 +31,8 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Groq sits behind Cloudflare, which refuses requests that have no User-Agent.
 USER_AGENT = "WispBot/1.0"
 ERROR_BODY_CHARS = 200
+# Auth errors can echo part of a key, so their bodies are never kept.
+AUTH_FAILURE_STATUSES = frozenset({401, 403})
 
 # ---
 # Errors
@@ -83,6 +86,8 @@ async def _post_for_text(
         async with session.post(
             url, headers={**headers, "User-Agent": USER_AGENT}, json=body
         ) as response:
+            if response.status in AUTH_FAILURE_STATUSES:
+                raise ProviderError(f"HTTP {response.status}")
             if response.status != 200:
                 text = await response.text()
                 raise ProviderError(f"HTTP {response.status} {text[:ERROR_BODY_CHARS]}")
@@ -176,22 +181,47 @@ class ChatProvider:
 
 
 class AIChain:
-    """Tries each provider in turn and returns the first answer."""
+    """Tries each provider in turn and returns the first answer.
 
-    def __init__(self, providers: Sequence[Provider]) -> None:
+    A provider that fails is skipped for AI_PROVIDER_COOLDOWN, so one that is
+    overloaded does not add its full timeout to every reply.
+    """
+
+    def __init__(
+        self,
+        providers: Sequence[Provider],
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.providers = tuple(providers)
+        self._clock = clock
+        self._cooling_until: dict[str, float] = {}
         self._session: aiohttp.ClientSession | None = None
 
     async def complete(self, prompt: Prompt) -> str:
-        """Return the first provider's answer; raise AllProvidersFailed if none."""
+        """Return the first provider's answer; raise AllProvidersFailed if none.
+
+        If every provider is cooling down, all of them are tried anyway.
+        """
         session = self._open_session()
+        now = self._clock()
+        ready = [
+            provider
+            for provider in self.providers
+            if self._cooling_until.get(provider.name, 0.0) <= now
+        ]
         failures: list[tuple[str, str]] = []
-        for provider in self.providers:
+        for provider in ready or self.providers:
             try:
-                return await provider.complete(session, prompt)
+                answer = await provider.complete(session, prompt)
             except ProviderError as error:
                 log.warning("AI provider %s failed: %s", provider.name, error)
                 failures.append((provider.name, str(error)))
+                self._cooling_until[provider.name] = (
+                    self._clock() + AI_PROVIDER_COOLDOWN.total_seconds()
+                )
+            else:
+                self._cooling_until.pop(provider.name, None)
+                return answer
         raise AllProvidersFailed(failures)
 
     async def close(self) -> None:

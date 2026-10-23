@@ -180,5 +180,6 @@ SNACKS: tuple[Snack, ...] = (
 # AI voice
 # ---
 
-AI_TIMEOUT = timedelta(seconds=20)
+AI_TIMEOUT = timedelta(seconds=12)
+AI_PROVIDER_COOLDOWN = timedelta(minutes=5)
 AI_MAX_OUTPUT_TOKENS = 1024
