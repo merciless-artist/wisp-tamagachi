@@ -114,6 +114,33 @@ def test_prompt_has_persona_stage_and_hangry_layers() -> None:
 
 
 @pytest.mark.parametrize("stage", AI_STAGES)
+@pytest.mark.parametrize("mood", list(Mood))
+def test_only_child_is_never_allowed_to_swear(stage: Stage, mood: Mood) -> None:
+    system = prompt_for(stage, mood).system
+    allowed = bool(re.search(r"\byou swear\b", system, re.IGNORECASE))
+    assert allowed is (stage is not Stage.CHILD)
+    situation = "only at the situation" in system and "never with slurs" in system
+    assert situation is (stage is not Stage.CHILD)
+
+
+def test_goodbye_keeps_the_old_fogey_swearing_rules() -> None:
+    assert "only at the situation" in goodbye_prompt(3, "Myra", []).system
+
+
+def test_hangry_wisp_says_compliments_are_not_food() -> None:
+    assert "compliments aren't food" in prompt_for(mood=Mood.HANGRY).system
+    assert "compliments aren't food" not in prompt_for(mood=Mood.HAPPY).system
+    for mood in Mood:
+        assert NO_U_GIF in prompt_for(mood=mood).system
+
+
+def test_teen_does_not_claim_to_remember_conversations() -> None:
+    teen = prompt_for(Stage.TEEN).system
+    assert "you remember" not in teen.lower()
+    assert "don't recall past conversations" in teen
+
+
+@pytest.mark.parametrize("stage", AI_STAGES)
 def test_every_stage_has_its_own_voice(stage: Stage) -> None:
     system = prompt_for(stage).system
     assert re.search(rf"You're an? {stage.label}\b", system)
@@ -243,9 +270,24 @@ def test_parse_reply_converts_known_expressions_and_drops_unknown() -> None:
     assert reply.text == "yay <:wisp_happy:11> back at 3:15:00 <:wisp_happy:11>"
 
 
-def test_parse_reply_removes_mass_and_role_mentions() -> None:
-    reply = clean("hey @everyone and @here <@&123> look, <@42> in <#7>")
-    assert reply.text == "hey and look, <@42> in <#7>"
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            "hey @everyone and @here <@&123> look, <@42> in <#7>",
+            "hey and look, <@42> in <#7>",
+        ),
+        ("a @every🔥one b", "a b"),
+        ("a @every‍one b", "a b"),
+        ("a <@&12️3> b", "a b"),
+        ("a @everyones b", "a s b"),
+        ("a @here_ b", "a _ b"),
+        ("a @every@everyoneone b", "a b"),
+        ("a <@&1<@&2>3> b", "a b"),
+    ],
+)
+def test_parse_reply_removes_mass_and_role_mentions(raw: str, expected: str) -> None:
+    assert clean(raw).text == expected
 
 
 def test_parse_reply_strips_unicode_emoji_but_keeps_flair() -> None:

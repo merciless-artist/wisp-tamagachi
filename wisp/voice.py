@@ -86,13 +86,7 @@ _PERSONA: Final = "\n\n".join(
         "alive by sharing their tracks, and you hang out with them here in "
         "Wisp's House.",
         "You're super cute and super sweet, and you hand out compliments to "
-        "everyone. Your rough edge only shows when you're hangry. Then you get "
-        "grumpy and you swear, but only at the situation: the empty plate, the "
-        "silence, being starved. Never at a person, never about anyone's music, "
-        "and never with slurs.",
-        "It's an adult server, so once you're past being a little kid you swear "
-        "casually and creatively when it fits, like a friend who doesn't censor "
-        "himself. Never for shock value, and never in every line.",
+        "everyone. Your rough edge only shows when you're hangry.",
         "How you talk:\n"
         "- You tease your friends, but you're never cruel. If someone seems "
         "actually upset, drop the teasing and say sorry.\n"
@@ -112,6 +106,14 @@ _PERSONA: Final = "\n\n".join(
     )
 )
 
+_SWEARING: Final = (
+    "It's an adult server, so you swear casually and creatively when it fits, "
+    "like a friend who doesn't censor himself. Never for shock value, and never "
+    "in every line. When you're hangry you swear more, but only at the "
+    "situation: the empty plate, the silence, being starved. Never at a person, "
+    "never about anyone's music, and never with slurs."
+)
+
 _STAGE_VOICES: Final = {
     Stage.CHILD: (
         "You're a Child right now, still little: short, simple and excitable. "
@@ -121,7 +123,9 @@ _STAGE_VOICES: Final = {
     ),
     Stage.TEEN: (
         "You're a Teen right now: sassy, with your full personality. You've got "
-        "opinions, you tease your friends, and you remember people."
+        "opinions and you tease your friends. You know the regulars by name and "
+        "by how close you are, but you don't recall past conversations, so never "
+        "claim to."
     ),
     Stage.ADULT: (
         "You're an Adult right now: your full personality, settled into it. You "
@@ -140,7 +144,9 @@ _STAGE_VOICES: Final = {
 
 _HANGRY: Final = (
     "You're hangry right now. You're starving and grumpy about it, and your "
-    "sweetness has a rough edge until somebody shares a track."
+    "sweetness has a rough edge until somebody shares a track. A compliment "
+    "doesn't fill you up when you're this hungry, and you say so: compliments "
+    "aren't food."
 )
 
 _BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
@@ -168,6 +174,11 @@ _NOTE_TAG: Final = (
     "- If they told you something worth remembering about themselves, end with "
     "<note>one short fact</note>."
 )
+
+
+def _personality(stage: Stage) -> list[str]:
+    """The persona, plus permission to swear for every stage past Child."""
+    return [_PERSONA] if stage is Stage.CHILD else [_PERSONA, _SWEARING]
 
 
 def _reactions(expressions: Sequence[str]) -> str:
@@ -242,7 +253,7 @@ def build_prompt(
     voice = _STAGE_VOICES.get(stage)
     if voice is None:
         raise ValueError(f"Wisp has no AI voice at the {stage.label} stage")
-    system = [_PERSONA, _reactions(expressions), voice]
+    system = [*_personality(stage), _reactions(expressions), voice]
     if mood is Mood.HANGRY:
         system.append(_HANGRY)
     rules = [_OUTPUT]
@@ -267,7 +278,9 @@ def build_prompt(
 
 def goodbye_prompt(version: int, name: str, notes: Sequence[str]) -> Prompt:
     """The prompt for the personal goodbye that comes with a Last Ember."""
-    system = "\n\n".join((_PERSONA, _STAGE_VOICES[Stage.OLD_FOGEY], _OUTPUT))
+    system = "\n\n".join(
+        (*_personality(Stage.OLD_FOGEY), _STAGE_VOICES[Stage.OLD_FOGEY], _OUTPUT)
+    )
     user = [
         f"This is the end of your life as Wisp v{version}, and it was a full "
         "one. You're about to curl up into a lump of coal, warm and smiling, and "
@@ -304,7 +317,7 @@ _UNCLOSED: Final = re.compile(r"<(?:note|pickles)>.*", re.IGNORECASE | re.DOTALL
 # or a colon follows the first word.
 _TAG: Final = re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>]*)?>|</?[A-Za-z][\w-]*\Z")
 _EXPRESSION: Final = re.compile(r"(?<![<\w]):([A-Za-z]\w*):(?!\d)")
-_PINGS: Final = re.compile(r"<@&\d+>|@(?:everyone|here)\b")
+_PINGS: Final = re.compile(r"<@&\d+>|@(?:everyone|here)")
 _SPACES: Final = re.compile(r"[^\S\n]+")
 _BLANK_LINES: Final = re.compile(r"\n{3,}")
 _STANCES: Final = {stance.value: stance for stance in PickleStance}
@@ -326,8 +339,19 @@ def parse_reply(raw: str, emoji_text: Callable[[str], str]) -> Reply:
     text = _PICKLES.sub("", _NOTE.sub("", raw))
     text = _TAG.sub("", _UNCLOSED.sub("", text))
     text = _EXPRESSION.sub(lambda match: emoji_text(match.group(1)), text)
-    text = strip_emoji(_PINGS.sub("", text))
+    text = _unping(strip_emoji(text))
     return Reply(_cap(_tidy(text)).strip(), note or None, stance)
+
+
+def _unping(text: str) -> str:
+    """Remove role and mass mentions until none are left.
+
+    One pass is not enough: removing "@everyone" from "@every@everyoneone"
+    leaves a new "@everyone" behind.
+    """
+    while (unpinged := _PINGS.sub("", text)) != text:
+        text = unpinged
+    return text
 
 
 def _tidy(text: str) -> str:
