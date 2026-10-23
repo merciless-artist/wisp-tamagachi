@@ -1,6 +1,9 @@
 """Tests for the storage repositories, run against the real test database."""
 
+import asyncio
+import dataclasses
 from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
 
 import pymysql
 import pytest
@@ -75,6 +78,81 @@ async def test_role_list_round_trip(db: Database) -> None:
     await repo.remove_role(GUILD, 7)
     assert await repo.roles(GUILD) == {8}
     assert await repo.roles(OTHER_GUILD) == {9}
+
+
+async def test_settings_are_read_once_then_served_from_the_cache(
+    db: Database,
+) -> None:
+    repo = SettingsRepo(db)
+    await repo.update(GUILD, tracks_channel_id=55)
+    assert (await repo.get(GUILD)).tracks_channel_id == 55
+
+    await db.execute(
+        f"UPDATE {db.t('settings')} SET tracks_channel_id = 66 WHERE guild_id = %s",
+        (GUILD,),
+    )
+
+    assert (await repo.get(GUILD)).tracks_channel_id == 55
+    assert (await SettingsRepo(db).get(GUILD)).tracks_channel_id == 66
+
+
+async def test_update_refreshes_the_cached_settings(db: Database) -> None:
+    repo = SettingsRepo(db)
+    assert (await repo.get(GUILD)).tracks_channel_id is None
+
+    await repo.update(GUILD, tracks_channel_id=55)
+
+    assert (await repo.get(GUILD)).tracks_channel_id == 55
+
+
+async def test_a_read_that_overlaps_an_update_is_not_cached(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = SettingsRepo(db)
+    await repo.update(GUILD, tracks_channel_id=55)
+    fetchone = db.fetchone
+    fetched, release = asyncio.Event(), asyncio.Event()
+
+    async def slow_fetchone(query: str, params: Any = ()) -> Any:
+        row = await fetchone(query, params)
+        fetched.set()
+        await release.wait()
+        return row
+
+    monkeypatch.setattr(db, "fetchone", slow_fetchone)
+    reading = asyncio.ensure_future(repo.get(GUILD))
+    await fetched.wait()
+    await repo.update(GUILD, tracks_channel_id=66)
+    release.set()
+    assert (await reading).tracks_channel_id == 55
+    monkeypatch.setattr(db, "fetchone", fetchone)
+
+    assert (await repo.get(GUILD)).tracks_channel_id == 66
+
+
+async def test_cached_settings_cannot_be_changed_by_a_caller(db: Database) -> None:
+    repo = SettingsRepo(db)
+    settings = await repo.get(GUILD)
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        settings.frozen = True  # type: ignore[misc]
+
+
+async def test_roles_are_cached_until_a_role_changes(db: Database) -> None:
+    repo = SettingsRepo(db)
+    await repo.add_role(GUILD, 7)
+    assert await repo.roles(GUILD) == {7}
+
+    await db.execute(
+        f"INSERT INTO {db.t('qualifying_roles')} (guild_id, role_id) VALUES (%s, 8)",
+        (GUILD,),
+    )
+    assert await repo.roles(GUILD) == {7}
+
+    await repo.remove_role(GUILD, 7)
+    assert await repo.roles(GUILD) == {8}
+    await repo.add_role(GUILD, 9)
+    assert await repo.roles(GUILD) == {8, 9}
 
 
 async def test_guilds_lists_configured_guilds(db: Database) -> None:

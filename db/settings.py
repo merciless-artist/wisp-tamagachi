@@ -6,9 +6,12 @@ from typing import Any
 from db.database import Database
 
 
-@dataclass
+@dataclass(frozen=True)
 class Settings:
-    """One guild's settings row. The guild id is the repository key, not a field."""
+    """One guild's settings row. The guild id is the repository key, not a field.
+
+    It is frozen, so the copy the repository caches can be shared safely.
+    """
 
     tracks_channel_id: int | None = None
     house_channel_id: int | None = None
@@ -28,13 +31,32 @@ _COLUMNS = tuple(field.name for field in fields(Settings))
 
 
 class SettingsRepo:
-    """Reads and writes guild settings and the qualifying role list."""
+    """Reads and writes guild settings and the qualifying role list.
+
+    Both are cached in this process after the first read, since nearly every
+    guild message needs them, and every write here refreshes its guild. There
+    is one bot process, so nothing else changes them behind the cache. A read
+    that overlaps a write is not cached, so it cannot bring back an old value.
+    """
 
     def __init__(self, db: Database) -> None:
         self._db = db
+        self._settings: dict[int, Settings] = {}
+        self._roles: dict[int, frozenset[int]] = {}
+        self._writes: dict[int, int] = {}
 
     async def get(self, guild_id: int) -> Settings:
         """Return a guild's settings, or the defaults when it has no row yet."""
+        cached = self._settings.get(guild_id)
+        if cached is not None:
+            return cached
+        writes = self._writes.get(guild_id, 0)
+        settings = await self._read(guild_id)
+        if self._writes.get(guild_id, 0) == writes:
+            self._settings[guild_id] = settings
+        return settings
+
+    async def _read(self, guild_id: int) -> Settings:
         row = await self._db.fetchone(
             f"SELECT {', '.join(_COLUMNS)} FROM {self._db.t('settings')} "
             "WHERE guild_id = %s",
@@ -57,14 +79,22 @@ class SettingsRepo:
             f"UPDATE {self._db.t('settings')} SET {assignments} WHERE guild_id = %s",
             (*values.values(), guild_id),
         )
+        self._forget(guild_id)
 
-    async def roles(self, guild_id: int) -> set[int]:
+    async def roles(self, guild_id: int) -> frozenset[int]:
         """Return the role ids that qualify a member to feed Wisp."""
+        cached = self._roles.get(guild_id)
+        if cached is not None:
+            return cached
+        writes = self._writes.get(guild_id, 0)
         rows = await self._db.fetchall(
             f"SELECT role_id FROM {self._db.t('qualifying_roles')} WHERE guild_id = %s",
             (guild_id,),
         )
-        return {row["role_id"] for row in rows}
+        roles = frozenset(row["role_id"] for row in rows)
+        if self._writes.get(guild_id, 0) == writes:
+            self._roles[guild_id] = roles
+        return roles
 
     async def add_role(self, guild_id: int, role_id: int) -> None:
         """Add a qualifying role; adding it twice changes nothing."""
@@ -73,6 +103,7 @@ class SettingsRepo:
             "VALUES (%s, %s) ON DUPLICATE KEY UPDATE role_id = role_id",
             (guild_id, role_id),
         )
+        self._forget(guild_id)
 
     async def remove_role(self, guild_id: int, role_id: int) -> None:
         """Remove a qualifying role."""
@@ -81,6 +112,7 @@ class SettingsRepo:
             "WHERE guild_id = %s AND role_id = %s",
             (guild_id, role_id),
         )
+        self._forget(guild_id)
 
     async def guilds(self) -> list[int]:
         """Return every guild that has settings, in id order."""
@@ -88,6 +120,12 @@ class SettingsRepo:
             f"SELECT guild_id FROM {self._db.t('settings')} ORDER BY guild_id"
         )
         return [row["guild_id"] for row in rows]
+
+    def _forget(self, guild_id: int) -> None:
+        """Drop a guild's cached settings and roles after a write."""
+        self._writes[guild_id] = self._writes.get(guild_id, 0) + 1
+        self._settings.pop(guild_id, None)
+        self._roles.pop(guild_id, None)
 
     async def _ensure(self, guild_id: int) -> None:
         await self._db.execute(

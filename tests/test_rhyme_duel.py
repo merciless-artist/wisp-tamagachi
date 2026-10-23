@@ -40,6 +40,7 @@ THREAD_ID = 70
 OTHER_CHANNEL_ID = 71
 USER_ID = 1
 OTHER_USER_ID = 2
+QUALIFYING_ROLE = 7
 SEPARATOR = "・♪ ────────・──────── ♪・"
 NO_PING = discord.AllowedMentions.none().to_dict()
 
@@ -152,6 +153,9 @@ async def configured(bot: app.WispBot) -> None:
     await bot.settings.update(
         GUILD_ID, house_channel_id=HOUSE_ID, error_channel_id=ERRORS_ID
     )
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await bot.players.activate(GUILD_ID, user_id, discord.utils.utcnow())
 
 
 @pytest.fixture(autouse=True)
@@ -198,6 +202,7 @@ def make_interaction(
     server: FakeServer,
     user_id: int = USER_ID,
     display_name: str = "Member1",
+    roles: tuple[int, ...] = (QUALIFYING_ROLE,),
 ) -> MagicMock:
     interaction = MagicMock(spec=discord.Interaction)
     interaction.client = bot
@@ -206,6 +211,9 @@ def make_interaction(
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.user.display_name = display_name
+    interaction.user.roles = [
+        MagicMock(spec=discord.Role, id=role_id) for role_id in roles
+    ]
     interaction.response = MagicMock()
     interaction.response.defer = AsyncMock()
     interaction.followup = MagicMock()
@@ -543,6 +551,34 @@ async def test_duel_counts_as_play(
     assert current is not None
     assert current.growth == life.growth + GROWTH_PER_PLAY
     meeting.assert_awaited_once_with(bot, GUILD_ID, USER_ID, display_name="Member1")
+
+
+@pytest.mark.parametrize(
+    ("roles", "activated"), [((), True), ((QUALIFYING_ROLE,), False)]
+)
+async def test_a_duel_by_someone_who_cannot_feed_keeps_only_the_score(
+    bot: app.WispBot,
+    server: FakeServer,
+    db: Database,
+    wisp_says: Callable[..., list[Any]],
+    roles: tuple[int, ...],
+    activated: bool,
+) -> None:
+    life = await lay(bot)
+    wisp_says(None)
+    newcomer = OTHER_USER_ID + 1
+    if activated:
+        await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
+
+    await start(make_interaction(bot, server, newcomer, roles=roles))
+
+    assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
+    player = await bot.players.get(GUILD_ID, newcomer)
+    assert (player.bond, player.best_rhyme_score) == (0, 2)
+    current = await bot.lives.current(GUILD_ID)
+    assert current is not None
+    assert current.growth == life.growth
 
 
 async def test_play_bond_respects_the_daily_cap(

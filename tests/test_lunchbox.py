@@ -37,6 +37,12 @@ HOUSE_ID = 20
 ERRORS_ID = 40
 USER_ID = 1
 OTHER_USER_ID = 2
+NEWCOMER_ID = 3
+QUALIFYING_ROLE = 7
+CANNOT_FEED = (
+    "♪ Only members at Active Lounger or higher who have opened /wisp board "
+    "can feed Wisp."
+)
 SEPARATOR = "・♪ ────────・──────── ♪・"
 NO_PING = discord.AllowedMentions.none().to_dict()
 
@@ -86,6 +92,9 @@ async def configured(bot: app.WispBot) -> None:
         studio_forum_id=FORUM_ID,
         error_channel_id=ERRORS_ID,
     )
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await bot.players.activate(GUILD_ID, user_id, discord.utils.utcnow())
 
 
 @pytest.fixture(autouse=True)
@@ -96,7 +105,10 @@ def no_meeting(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 
 def make_interaction(
-    bot: app.WispBot, user_id: int = USER_ID, display_name: str = "Member1"
+    bot: app.WispBot,
+    user_id: int = USER_ID,
+    display_name: str = "Member1",
+    roles: tuple[int, ...] = (QUALIFYING_ROLE,),
 ) -> MagicMock:
     interaction = MagicMock(spec=discord.Interaction)
     interaction.client = bot
@@ -105,6 +117,9 @@ def make_interaction(
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.user.display_name = display_name
+    interaction.user.roles = [
+        MagicMock(spec=discord.Role, id=role_id) for role_id in roles
+    ]
     interaction.response = MagicMock()
     interaction.response.is_done.return_value = False
 
@@ -689,6 +704,56 @@ async def test_a_banned_member_gets_no_menu_from_the_button(
     assert "not taking snacks" in reply_text(interaction)
     assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
     assert "view" not in interaction.followup.send.await_args.kwargs
+
+
+@pytest.mark.parametrize(
+    ("user_id", "roles"),
+    [
+        (USER_ID, ()),
+        (USER_ID, (QUALIFYING_ROLE + 1,)),
+        (NEWCOMER_ID, (QUALIFYING_ROLE,)),
+    ],
+)
+async def test_only_qualifying_members_get_a_menu_from_the_button(
+    bot: app.WispBot, server: FakeServer, user_id: int, roles: tuple[int, ...]
+) -> None:
+    await lay(bot)
+    await bot.activity_log.add_snack(GUILD_ID, user_id, "cloudwave")
+    interaction = make_interaction(bot, user_id, roles=roles)
+
+    await FeedButton().callback(interaction)
+
+    assert reply_text(interaction) == CANNOT_FEED
+    assert "view" not in interaction.followup.send.await_args.kwargs
+    server.house.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("opener", OPENERS)
+async def test_members_who_cannot_feed_still_open_the_vault_and_lunchbox(
+    bot: app.WispBot, opener: Any
+) -> None:
+    interaction = make_interaction(bot, NEWCOMER_ID, roles=())
+
+    await opener(interaction)
+
+    assert "view" in interaction.followup.send.await_args.kwargs
+
+
+async def test_losing_the_role_after_the_menu_opened_blocks_eating(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
+    _, select = await open_feeding(bot)
+    select._values = ["cloudwave"]
+    interaction = make_interaction(bot, roles=())
+
+    await select.callback(interaction)
+
+    assert reply_text(interaction) == CANNOT_FEED
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
+    assert (await current_life(bot)).growth == 0
+    server.house.send.assert_not_awaited()
 
 
 # ---

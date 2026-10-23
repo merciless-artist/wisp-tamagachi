@@ -609,6 +609,20 @@ async def test_message_without_a_track_is_silent(
     await assert_untouched(bot, server)
 
 
+async def test_chat_without_a_track_reads_no_settings(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get = AsyncMock()
+    monkeypatch.setattr(bot.settings, "get", get)
+
+    await cog.on_message(message("just chatting"))
+
+    get.assert_not_awaited()
+
+
 async def test_finished_life_is_not_fed(
     cog: Feeding, bot: app.WispBot, server: FakeServer, message: MessageFactory
 ) -> None:

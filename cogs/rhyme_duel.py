@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.groups import play, require_guild
-from cogs.players import maybe_meet, say_privately
+from cogs.players import can_feed, maybe_meet, say_privately
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
@@ -150,17 +150,21 @@ async def _open_thread(
 
 
 async def _record_play(
-    bot: "WispBot", guild_id: int, user_id: int, points: int
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    points: int,
 ) -> bool:
     """Count the duel as play and keep the score if it is the player's best.
 
     The play, with its bond and growth, only counts when the player scored a
-    rhyme, Wisp is still alive and the member has had fewer than PLAYS_PER_DAY
-    counted games today. The best score is always kept. Returns True on a new
-    best score.
+    rhyme, can feed Wisp, Wisp is still alive and the member has had fewer
+    than PLAYS_PER_DAY counted games today. The best score is always kept.
+    Returns True on a new best score.
     """
     now = discord.utils.utcnow()
     log = bot.activity_log
+    user_id = member.id
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
         if (
@@ -168,6 +172,7 @@ async def _record_play(
             and life is not None
             and life.id is not None
             and life.phase is Phase.ALIVE
+            and await can_feed(bot, guild_id, member)
             and await log.plays_today(guild_id, user_id, now) < PLAYS_PER_DAY
         ):
             bond = casual_bond_grant(
@@ -205,7 +210,7 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
         summary_text(line, outcome.reason, outcome.chain, outcome.points),
         allowed_mentions=_NO_PING,
     )
-    new_best = await _record_play(bot, guild_id, user.id, outcome.points)
+    new_best = await _record_play(bot, guild_id, user, outcome.points)
     try:
         await thread.edit(archived=True, locked=True)
     except discord.HTTPException as error:

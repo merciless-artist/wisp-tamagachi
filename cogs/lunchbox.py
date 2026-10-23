@@ -15,6 +15,7 @@ from cogs.groups import require_guild, wisp
 from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
+    can_feed,
     maybe_meet,
     report_failure,
     say_privately,
@@ -36,6 +37,10 @@ _VAULT_ID: Final = "wisp:vault"
 _LUNCHBOX_ID: Final = "wisp:lunchbox"
 
 _BANNED: Final = "♪ Wisp is not taking snacks from you right now."
+_CANNOT_FEED: Final = (
+    "♪ Only members at Active Lounger or higher who have opened /wisp board "
+    "can feed Wisp."
+)
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Snacks have to wait until he is."
 _NO_SNACKS: Final = (
     "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
@@ -92,13 +97,22 @@ async def _is_banned(bot: "WispBot", guild_id: int, user_id: int) -> bool:
     return player.is_banned(discord.utils.utcnow())
 
 
-async def _admit(interaction: discord.Interaction) -> bool:
-    """Acknowledge an interaction privately; False, after saying why, if banned."""
+async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> bool:
+    """Acknowledge an interaction privately; False, after saying why, if turned away.
+
+    Banned members are always turned away. When `feeding`, so are members who
+    cannot feed Wisp.
+    """
     await interaction.response.defer(ephemeral=True, thinking=True)
-    if await _is_banned(
-        bot_of(interaction), require_guild(interaction), interaction.user.id
-    ):
-        await say_privately(interaction, _BANNED)
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    refusal = None
+    if await _is_banned(bot, guild_id, interaction.user.id):
+        refusal = _BANNED
+    elif feeding and not await can_feed(bot, guild_id, interaction.user):
+        refusal = _CANNOT_FEED
+    if refusal is not None:
+        await say_privately(interaction, refusal)
         return False
     return True
 
@@ -393,18 +407,26 @@ class _Meal:
 
 
 async def _eat(
-    bot: "WispBot", guild_id: int, user_id: int, snack: Snack, now: datetime
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    snack: Snack,
+    now: datetime,
 ) -> _Meal:
     """Take the snack and apply it to Wisp. Call this under the guild lock.
 
     Raises:
-        _Refusal: The member is banned, Wisp is not alive, the free snack is
-            used up for today or the member has none of this snack.
+        _Refusal: The member is banned or cannot feed Wisp, Wisp is not alive,
+            the free snack is used up for today or the member has none of this
+            snack.
     """
     log = bot.activity_log
+    user_id = member.id
     player = await bot.players.get(guild_id, user_id)
     if player.is_banned(now):
         raise _Refusal(_BANNED)
+    if not await can_feed(bot, guild_id, member):
+        raise _Refusal(_CANNOT_FEED)
     life = await bot.lives.current(guild_id)
     if life is None or life.id is None or life.phase is not Phase.ALIVE:
         raise _Refusal(_NOT_HATCHED)
@@ -459,7 +481,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     await interaction.response.defer()
     try:
         async with bot.guild_lock(guild_id):
-            meal = await _eat(bot, guild_id, user.id, snack, discord.utils.utcnow())
+            meal = await _eat(bot, guild_id, user, snack, discord.utils.utcnow())
     except _Refusal as refusal:
         await interaction.edit_original_response(
             content=str(refusal), view=None, allowed_mentions=_NO_PING
@@ -503,7 +525,7 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> SnackMenu |
 
 async def _offer_snacks(interaction: discord.Interaction) -> None:
     """Show the member what they can feed Wisp, or say they have nothing."""
-    if not await _admit(interaction):
+    if not await _admit(interaction, feeding=True):
         return
     menu = await _feed_menu(
         bot_of(interaction), require_guild(interaction), interaction.user.id
@@ -523,7 +545,7 @@ class FeedButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_FEED_ID),
 ):
-    """The Feed Wisp button on the status card, which works for everyone.
+    """The Feed Wisp button on the status card, for every member who can feed Wisp.
 
     Its custom id is fixed, so the button keeps working after the bot restarts.
     """

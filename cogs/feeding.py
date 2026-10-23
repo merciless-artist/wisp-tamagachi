@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 
 from cogs.announce import post_events
-from cogs.players import maybe_meet
+from cogs.players import can_feed, maybe_meet
 from cogs.studio import StudioError, studio_thread
 from db.activity import InteractionKind
 from wisp.bond import meal_grant
@@ -60,18 +60,17 @@ class Feeding(commands.Cog):
         author = message.author
         if guild is None or author.bot or not isinstance(author, discord.Member):
             return
-        settings = await self.bot.settings.get(guild.id)
-        if not _in_tracks_channel(message, settings.tracks_channel_id):
-            return
         track = find_track(message.content)
         if track is None:
             return
-        qualifying = await self.bot.settings.roles(guild.id)
-        if qualifying.isdisjoint(role.id for role in author.roles):
+        settings = await self.bot.settings.get(guild.id)
+        if not _in_tracks_channel(message, settings.tracks_channel_id):
+            return
+        if not await can_feed(self.bot, guild.id, author):
             return
         now = discord.utils.utcnow()
         player = await self.bot.players.get(guild.id, author.id)
-        if player.activated_at is None or player.is_banned(now):
+        if player.is_banned(now):
             return
         fed = await self._feed(guild.id, author.id, track, message.id, now)
         if fed is None:

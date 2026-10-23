@@ -42,6 +42,27 @@ async def status_text(
 
 
 # ---
+# Who feeds Wisp
+# ---
+
+
+async def can_feed(
+    bot: "WispBot", guild_id: int, member: discord.User | discord.Member
+) -> bool:
+    """Whether a member may feed Wisp and count as playing with him.
+
+    They need a qualifying role and must have opened /wisp board once. Bans are
+    checked separately, since they get their own reply.
+    """
+    if not isinstance(member, discord.Member):
+        return False
+    qualifying = await bot.settings.roles(guild_id)
+    if qualifying.isdisjoint(role.id for role in member.roles):
+        return False
+    return (await bot.players.get(guild_id, member.id)).activated_at is not None
+
+
+# ---
 # Interaction helpers
 # ---
 
