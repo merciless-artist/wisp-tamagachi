@@ -722,6 +722,13 @@ def test_rules_text_has_vault_snack_pack_life_and_talking_sections() -> None:
     assert "your lunchbox" not in text.lower()
 
 
+def test_rules_text_points_to_wisps_lunchbox() -> None:
+    text = rules_text(rules.MEAL_POINTS)
+
+    section = text.split("\nWisp's lunchbox\n")[1].split("\n\n")[0]
+    assert section == "・/wisp lunchbox shows his favorite songs, snack and emoji"
+
+
 def test_rules_text_covers_every_topic() -> None:
     text = rules_text(rules.MEAL_POINTS)
     for phrase in (

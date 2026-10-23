@@ -1039,6 +1039,47 @@ async def test_snack_line_matches_the_snack(
     pick.assert_called_once_with(moment, Mood.HAPPY, name="Member1")
 
 
+@pytest.mark.parametrize("stance", [None, *PickleStance])
+@pytest.mark.parametrize("key", ["cheese", "pickles", "sinewave", "viibrwave"])
+async def test_his_favorite_snack_gets_its_own_line(
+    bot: app.WispBot, server: FakeServer, key: str, stance: PickleStance | None
+) -> None:
+    life = await lay(bot, care=50.0)
+    life.favorite_snack = key
+    await bot.lives.save(GUILD_ID, life)
+    await bot.players.set_pickle_stance(GUILD_ID, USER_ID, stance)
+    pick = say(bot, "my favorite")
+
+    await eat(bot, key)
+
+    pick.assert_called_once_with(Moment.SNACK_FAVORITE, Mood.HAPPY, name="Member1")
+    assert house_text(server) == "my favorite"
+
+
+async def test_a_snack_that_is_not_his_favorite_gets_the_usual_line(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot, care=5.0)
+    life.favorite_snack = "cheese"
+    await bot.lives.save(GUILD_ID, life)
+    pick = say(bot)
+
+    await eat(bot, "cloudwave")
+
+    pick.assert_called_once_with(Moment.SNACK, Mood.HANGRY, name="Member1")
+
+
+async def test_his_favorite_snack_line_follows_his_mood(bot: app.WispBot) -> None:
+    life = await lay(bot, care=5.0)
+    life.favorite_snack = "cloudwave"
+    await bot.lives.save(GUILD_ID, life)
+    pick = say(bot)
+
+    await eat(bot, "cloudwave")
+
+    pick.assert_called_once_with(Moment.SNACK_FAVORITE, Mood.HANGRY, name="Member1")
+
+
 def test_fancy_starts_at_the_fancy_cost() -> None:
     fancy = {snack.key for snack in SNACKS if snack.cost >= rules.FANCY_SNACK_COST}
 

@@ -45,6 +45,8 @@ class Moment(StrEnum):
     EGG_POKE = auto()
     BABY_TALK = auto()
     CHAT_FALLBACK = auto()
+    SNACK_FAVORITE = auto()
+    FAVORITE_SONG = auto()
 
 
 _NAME = frozenset({"name"})
@@ -82,6 +84,8 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.EGG_POKE: _NONE,
     Moment.BABY_TALK: _NONE,
     Moment.CHAT_FALLBACK: _NONE,
+    Moment.SNACK_FAVORITE: _NAME,
+    Moment.FAVORITE_SONG: _NAME,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -120,6 +124,29 @@ _TRACK_FED_HANGRY = (
     "hell yes. hell YES. more of that, immediately",
     "{name} remembered I exist. I'm writing that down forever",
     "ate it so fast I didn't even get to the chorus. starting over",
+)
+
+# ---
+# Wisp's lunchbox
+# ---
+
+_FAVORITE_SONG_HAPPY = (
+    "this one's going in the lunchbox. no, you can't have it back, {name}",
+    "tucked it in right next to my headphones. it's mine now. keeping it forever",
+    "I hummed {name}'s song all day yesterday. it gets a cozy spot in my lunchbox",
+    "safe and sound in the lunchbox. I'll take it out whenever I need a hug",
+    "into the lunchbox it goes. I'm gonna peek at it every few minutes",
+    "{name}, your track lives in my lunchbox now. I'll check on it a lot",
+    "wrapped it up real careful and tucked it away. it still sounds warm",
+)
+
+_FAVORITE_SONG_HANGRY = (
+    "I'm starving, but I'm not eating this one. it goes in the lunchbox, {name}",
+    "everything in me says eat it. I'm keeping it instead. that's how much I love it",
+    "lunchbox. now. before my stomach gets any ideas",
+    "hungry as hell and I still tucked {name}'s track away. that's devotion",
+    "keeping this one safe from my own growling stomach",
+    "the one thing in my lunchbox I won't eat. {name}'s song. hands off, belly",
 )
 
 # ---
@@ -166,6 +193,24 @@ _SNACK_FANCY_HANGRY = (
     "too hungry to be classy about it. I'm just inhaling it",
     "now THAT is a meal-adjacent object",
     "THAT. that's the shit I needed",
+)
+
+_SNACK_FAVORITE_HAPPY = (
+    "WAIT. this is my favorite. how did you know, {name}",
+    "my favorite snack?? I'm gonna cry. happy tears. sizzly happy tears",
+    "{name} knows my favorite. {name} is officially family",
+    "oh my god it's THE snack. my snack. I'm doing a little spin",
+    "this is the one I'd pick every single time. and you picked it for me",
+    "favorite snack, favorite person. this hour is a whole vibe",
+)
+
+_SNACK_FAVORITE_HANGRY = (
+    "my FAVORITE. on an empty stomach. {name}, you might've saved my whole life",
+    "starving and you bring my favorite. I could kiss you. I won't. chewing",
+    "the good one. THE good one. too hungry to be cute about it. thank you",
+    "favorite snack, worst hunger. perfect fucking timing, {name}",
+    "oh thank god, my favorite. the grumpy is melting already",
+    "still hangry, but this is MY snack. the hangry's losing, {name}",
 )
 
 _SPICY_HAPPY = (
@@ -597,6 +642,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.BABY_TALK, Mood.HANGRY): _BABY_TALK_HANGRY,
     (Moment.CHAT_FALLBACK, Mood.HAPPY): _CHAT_FALLBACK_HAPPY,
     (Moment.CHAT_FALLBACK, Mood.HANGRY): _CHAT_FALLBACK_HANGRY,
+    (Moment.SNACK_FAVORITE, Mood.HAPPY): _SNACK_FAVORITE_HAPPY,
+    (Moment.SNACK_FAVORITE, Mood.HANGRY): _SNACK_FAVORITE_HANGRY,
+    (Moment.FAVORITE_SONG, Mood.HAPPY): _FAVORITE_SONG_HAPPY,
+    (Moment.FAVORITE_SONG, Mood.HANGRY): _FAVORITE_SONG_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
     **_either_mood(Moment.DIED, _DIED),

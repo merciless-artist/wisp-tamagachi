@@ -186,6 +186,13 @@ SNACKS: tuple[Snack, ...] = (
     Snack("cheese", "Cheese", 6, 8, 2),
     Snack("pickles", "Pickles", 6, 8, 2),
 )
+SNACK_BY_KEY: dict[str, Snack] = {snack.key: snack for snack in SNACKS}
+
+# ---
+# Wisp's lunchbox
+# ---
+
+FAVORITE_SONGS_SHOWN = 10
 
 # ---
 # AI voice

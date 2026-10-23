@@ -53,6 +53,7 @@ _DEFINITIONS: dict[str, str] = {
         hatched_by BIGINT NULL,
         peak_stage VARCHAR(10) NOT NULL,
         from_coal BOOL NOT NULL DEFAULT 0,
+        favorite_snack VARCHAR(20) NULL,
         PRIMARY KEY (id),
         UNIQUE KEY uq_guild_version (guild_id, version)
     """,
@@ -119,6 +120,21 @@ _DEFINITIONS: dict[str, str] = {
         at DATETIME NOT NULL,
         PRIMARY KEY (id),
         INDEX idx_guild_user_at (guild_id, user_id, at)
+    """,
+    "favorites": """
+        guild_id BIGINT NOT NULL,
+        day DATE NOT NULL,
+        user_id BIGINT NOT NULL,
+        track_key VARCHAR(80) NOT NULL,
+        url VARCHAR(255) NOT NULL,
+        picked_at DATETIME NOT NULL,
+        PRIMARY KEY (guild_id, day)
+    """,
+    "expression_uses": """
+        guild_id BIGINT NOT NULL,
+        name VARCHAR(40) NOT NULL,
+        uses INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (guild_id, name)
     """,
 }
 

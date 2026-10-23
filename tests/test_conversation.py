@@ -20,6 +20,7 @@ from cogs.speech import expressions
 from db.activity import ActivityRepo
 from db.database import Database
 from db.lives import LifeRepo
+from db.lunchbox import WispLunchboxRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -175,6 +176,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.notes = NoteRepo(db)
+    wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
@@ -275,6 +277,60 @@ async def test_mention_gets_an_ai_reply_without_pings(
     assert (
         await bot.activity_log.people_since(GUILD_ID, START - timedelta(days=30)) == 0
     )
+
+
+async def test_expressions_in_replies_are_counted(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    clock: Clock,
+) -> None:
+    await lay(bot)
+    give_emojis(bot, "wisp_happy", "wisp_wink")
+    ai.return_value = ":wisp_wink: hey :wisp_gone: :wisp_wink:"
+
+    await cog.on_message(message.to_wisp("hi"))
+    ai.return_value = "ok :wisp_happy:"
+    clock.advance(TALK_COOLDOWN)
+    await cog.on_message(message.to_wisp("again"))
+
+    assert await bot.wisp_lunchbox.favorite_expressions(GUILD_ID) == [
+        "wisp_wink",
+        "wisp_happy",
+    ]
+
+
+async def test_expressions_in_chime_ins_are_counted(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    give_emojis(bot, "wisp_happy")
+    ai.return_value = "y'all are cooking :wisp_happy:"
+    cog.rng = FixedRandom(0.0)
+
+    await cog.on_message(message("this mix is wild"))
+
+    assert await bot.wisp_lunchbox.favorite_expressions(GUILD_ID) == ["wisp_happy"]
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.ADULT])
+async def test_canned_lines_count_no_expressions(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    stage: Stage,
+) -> None:
+    await lay(bot, stage)
+    give_emojis(bot, "wisp_happy")
+    ai.side_effect = OUTAGE
+    said = message.to_wisp("hi")
+
+    await cog.on_message(said)
+
+    said.reply.assert_awaited_once()
+    assert await bot.wisp_lunchbox.favorite_expressions(GUILD_ID) == []
 
 
 async def test_reply_to_wisp_counts_as_talking_to_him(

@@ -268,6 +268,13 @@ def test_parse_reply_ignores_an_unknown_stance() -> None:
 def test_parse_reply_converts_known_expressions_and_drops_unknown() -> None:
     reply = clean("yay :wisp_happy: :wisp_missing: back at 3:15:00 <:wisp_happy:11>")
     assert reply.text == "yay <:wisp_happy:11> back at 3:15:00 <:wisp_happy:11>"
+    assert reply.expressions == ("wisp_happy",)
+
+
+def test_parse_reply_lists_every_expression_it_converted_in_order() -> None:
+    reply = clean(":wisp_happy: hi :wisp_missing: :wisp_happy:")
+    assert reply.expressions == ("wisp_happy", "wisp_happy")
+    assert clean("no faces here").expressions == ()
 
 
 @pytest.mark.parametrize(

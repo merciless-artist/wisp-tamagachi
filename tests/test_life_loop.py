@@ -4,6 +4,7 @@ Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
+import random
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -22,6 +23,7 @@ from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
+from db.lunchbox import WispLunchboxRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -31,13 +33,14 @@ from wisp.card import render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
-from wisp.rules import Stage
+from wisp.rules import SNACKS, Stage
 
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 STATUS_ID = 60
 VAULT_ID = 61
+MEALTIME_ID = 62
 CARD_ID = 777
 VAULT_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
@@ -77,6 +80,11 @@ class FakeServer:
         self.vault.get_partial_message.return_value = MagicMock(
             spec=discord.PartialMessage, edit=self.vault_edit
         )
+        self.mealtime = MagicMock(spec=discord.Thread)
+        self.mealtime.id = MEALTIME_ID
+        self.mealtime.parent_id = FORUM_ID
+        self.mealtime.archived = False
+        self.mealtime.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
@@ -84,7 +92,11 @@ class FakeServer:
         self.guild.get_member.return_value = None
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
-        threads = {STATUS_ID: self.status, VAULT_ID: self.vault}
+        threads = {
+            STATUS_ID: self.status,
+            VAULT_ID: self.vault,
+            MEALTIME_ID: self.mealtime,
+        }
         if channel_id not in threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
         return threads[channel_id]
@@ -112,6 +124,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.notes = NoteRepo(db)
+    wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -131,6 +144,7 @@ async def configure(bot: app.WispBot, *, frozen: bool = False) -> None:
         status_message_id=CARD_ID,
         vault_thread_id=VAULT_ID,
         vault_message_id=VAULT_MESSAGE_ID,
+        mealtime_thread_id=MEALTIME_ID,
         frozen=frozen,
     )
 
@@ -211,6 +225,102 @@ async def test_unconfigured_guilds_are_skipped_silently(
     assert await bot.lives.current(GUILD_ID + 1) is None
     server.house.send.assert_not_awaited()
     server.status.send.assert_not_awaited()
+
+
+# ---
+# Wisp's lunchbox
+# ---
+
+
+def viibr_track(ident: int) -> Track:
+    uuid = f"00000000-0000-0000-0000-{ident:012d}"
+    return Track(
+        TrackKind.VIIBR, f"viibr:{uuid}", f"https://viibrmusic.com/songs/{uuid}"
+    )
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+async def test_hatching_picks_his_favorite_snack_with_the_cogs_rng(
+    cog: LifeLoop, bot: app.WispBot, seed: int
+) -> None:
+    await configure(bot)
+    await lay(
+        bot, phase=Phase.HATCHING, phase_seconds=rules.HATCHING_TIME.total_seconds()
+    )
+    cog.rng = random.Random(seed)
+
+    await cog.run_tick(NOW)
+
+    life = await current_life(bot)
+    assert life.phase is Phase.ALIVE
+    assert life.favorite_snack == random.Random(seed).choice(SNACKS).key
+
+
+async def test_only_hatching_picks_a_favorite_snack(
+    cog: LifeLoop, bot: app.WispBot
+) -> None:
+    await configure(bot)
+    await lay(bot, phase=Phase.HATCHING)
+
+    await cog.run_tick(NOW)
+
+    assert (await current_life(bot)).favorite_snack is None
+
+
+async def test_a_living_wisp_keeps_his_favorite_snack(
+    cog: LifeLoop, bot: app.WispBot
+) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    life.favorite_snack = "cheese"
+    await bot.lives.save(GUILD_ID, life)
+
+    await cog.run_tick(NOW)
+
+    assert (await current_life(bot)).favorite_snack == "cheese"
+
+
+async def test_the_tick_picks_yesterdays_favorite_song_once(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    assert life.id is not None
+    track = viibr_track(1)
+    await bot.activity_log.record_feed(
+        GUILD_ID, life.id, USER_ID, track, 5, 9, NOW - timedelta(days=1)
+    )
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+    await LifeLoop(bot).run_tick(NOW + 2 * rules.TICK_EVERY)
+
+    server.mealtime.send.assert_awaited_once()
+    (text,) = server.mealtime.send.await_args.args
+    assert text.startswith(f"♪ Wisp put <@{USER_ID}>'s track in his lunchbox ・ ")
+    assert track.url in text
+    (favorite,) = await bot.wisp_lunchbox.favorites(GUILD_ID, 10)
+    assert favorite.url == track.url
+
+
+async def test_an_unconfigured_guild_picks_no_favorite_song(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(
+        GUILD_ID, house_channel_id=HOUSE_ID, mealtime_thread_id=MEALTIME_ID
+    )
+    await bot.activity_log.record_feed(
+        GUILD_ID, 1, USER_ID, viibr_track(1), 5, 9, NOW - timedelta(days=1)
+    )
+
+    await cog.run_tick(NOW)
+
+    assert await bot.wisp_lunchbox.favorites(GUILD_ID, 10) == []
+    server.mealtime.send.assert_not_awaited()
+
+
+def test_the_cog_has_an_injectable_rng(cog: LifeLoop) -> None:
+    assert isinstance(cog.rng, random.Random)
 
 
 # ---

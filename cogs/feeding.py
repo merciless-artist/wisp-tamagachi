@@ -10,11 +10,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from cogs.announce import post_events, show_in_thread
+from cogs.announce import post_events, say_in_mealtime, show_in_thread
 from cogs.channels import in_channel
 from cogs.groups import require_guild, wispadmin
 from cogs.players import can_feed, maybe_meet
-from cogs.studio import TRACK_LABELS, StudioError, rules_post, studio_thread
+from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
 from db.settings import meal_points
 from wisp.bond import meal_grant
@@ -132,14 +132,7 @@ class Feeding(commands.Cog):
             f"♪ {author.mention} fed Wisp ・ {track.url}\n"
             f"{f'{emoji} ' if emoji else ''}{reaction}"
         )
-        thread: discord.Thread | None = None
-        try:
-            thread = await studio_thread(self.bot, guild.id, "mealtime_thread_id")
-            await thread.send(text, allowed_mentions=_NO_PING)
-        except (discord.DiscordException, StudioError) as error:
-            await self.bot.report_error(
-                guild, "forwarding a track to Mealtime", error, where=thread
-            )
+        await say_in_mealtime(self.bot, guild, text, "forwarding a track to Mealtime")
 
 
 # ---

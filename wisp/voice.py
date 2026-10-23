@@ -302,11 +302,16 @@ def goodbye_prompt(version: int, name: str, notes: Sequence[str]) -> Prompt:
 
 @dataclass(frozen=True)
 class Reply:
-    """A cleaned AI reply, plus the note and pickle stance it reported."""
+    """A cleaned AI reply, plus the note and pickle stance it reported.
+
+    `expressions` names each expression the reply turned into an emoji, in
+    order, once per use.
+    """
 
     text: str
     note: str | None
     pickle_stance: PickleStance | None
+    expressions: tuple[str, ...] = ()
 
 
 _NOTE: Final = re.compile(r"<note>(.*?)</note>", re.IGNORECASE | re.DOTALL)
@@ -336,11 +341,20 @@ def parse_reply(raw: str, emoji_text: Callable[[str], str]) -> Reply:
         _STANCES.get(stance_match.group(1).strip().lower()) if stance_match else None
     )
 
+    converted: list[str] = []
+
+    def expression(match: re.Match[str]) -> str:
+        name = match.group(1)
+        emoji = emoji_text(name)
+        if emoji:
+            converted.append(name)
+        return emoji
+
     text = _PICKLES.sub("", _NOTE.sub("", raw))
     text = _TAG.sub("", _UNCLOSED.sub("", text))
-    text = _EXPRESSION.sub(lambda match: emoji_text(match.group(1)), text)
+    text = _EXPRESSION.sub(expression, text)
     text = _unping(strip_emoji(text))
-    return Reply(_cap(_tidy(text)).strip(), note or None, stance)
+    return Reply(_cap(_tidy(text)).strip(), note or None, stance, tuple(converted))
 
 
 def _unping(text: str) -> str:

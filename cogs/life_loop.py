@@ -1,6 +1,7 @@
 """The life loop: time passes for Wisp, events are announced and his card stays live."""
 
 import asyncio
+import random
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -12,10 +13,11 @@ from cogs.announce import next_life, post_events, say_in_house, show_in_thread
 from cogs.players import status_text
 from cogs.snacks import feed_view
 from cogs.vault import refresh_vault
+from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.bond import happiness
-from wisp.life import Event, Life, Phase, is_over, tick
+from wisp.life import Event, EventKind, Life, Phase, is_over, tick
 from wisp.lines import Moment
-from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, TICK_EVERY
+from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, SNACKS, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -26,10 +28,15 @@ if TYPE_CHECKING:
 
 
 class LifeLoop(commands.Cog):
-    """Ticks every guild's Wisp, announces what happens and keeps the status card."""
+    """Ticks every guild's Wisp, announces what happens and keeps the status card.
+
+    `rng` picks his favorite snack when he hatches and his favorite song of
+    each day.
+    """
 
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
+        self.rng = random.Random()
         self._quiet_announced: set[int] = set()
 
     async def cog_load(self) -> None:
@@ -78,7 +85,8 @@ class LifeLoop(commands.Cog):
         settings = await bot.settings.get(guild_id)
         if settings.house_channel_id is None or settings.status_thread_id is None:
             return
-        if bot.get_guild(guild_id) is None:
+        guild = bot.get_guild(guild_id)
+        if guild is None:
             return
         frozen = settings.frozen
         happy = happiness(
@@ -99,11 +107,15 @@ class LifeLoop(commands.Cog):
         await self._speak_if_quiet(guild_id, current, frozen, now)
         await self._update_card(guild_id, current, now, happy)
         await refresh_vault(bot, guild_id)
+        await pick_favorite_song(bot, guild, current, self.rng, now)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
     ) -> list[Event]:
-        """Tick a life and save it, even when frozen; return what happened."""
+        """Tick a life and save it, even when frozen; return what happened.
+
+        A Wisp who hatches picks his favorite snack.
+        """
         caretakers = 0
         if (
             life.phase is Phase.ALIVE
@@ -114,6 +126,8 @@ class LifeLoop(commands.Cog):
                 guild_id, life.id, life.stage_started_at
             )
         events = tick(life, now, frozen=frozen, happiness=happy, caretakers=caretakers)
+        if any(event.kind is EventKind.HATCHED for event in events):
+            life.favorite_snack = self.rng.choice(SNACKS).key
         await self.bot.lives.save(guild_id, life)
         return events
 

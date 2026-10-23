@@ -11,12 +11,21 @@ from wisp.life import Mood
 from wisp.lines import FIELDS, LINES, LinePicker, Moment
 from wisp.rules import Stage
 
-SAMPLE_FIELDS = {"name": "Myra", "version": "4", "stage": "teen", "word": "fire"}
+SAMPLE_FIELDS = {
+    "name": "Myra",
+    "version": "4",
+    "stage": "teen",
+    "word": "fire",
+    "gift": "Blue Alien Doll",
+    "collection": "Alien Dolls",
+}
 LONGEST_FIELDS = {
     "name": "W" * 32,
     "version": "9999",
     "stage": "rockstar",
     "word": "w" * 40,
+    "gift": "Future Is Bright Affirmation Card",
+    "collection": "Affirmation Cards",
 }
 ONE_MOOD_MOMENTS = {
     Moment.HUNGRY,
@@ -159,6 +168,22 @@ def test_farewell_and_coal_egg_lines_name_the_version(moment: Moment) -> None:
 def test_last_ember_lines_speak_to_the_member() -> None:
     for line in LINES[(Moment.LAST_EMBER, Mood.HAPPY)]:
         assert "name" in placeholders(line), line
+
+
+@pytest.mark.parametrize("moment", [Moment.FAVORITE_SONG, Moment.SNACK_FAVORITE])
+def test_lunchbox_moments_speak_of_the_member(moment: Moment) -> None:
+    assert FIELDS[moment] == {"name"}
+
+
+@pytest.mark.parametrize("moment", [Moment.FAVORITE_SONG, Moment.SNACK_FAVORITE])
+@pytest.mark.parametrize("mood", list(Mood))
+def test_lunchbox_moments_have_about_six_lines_and_no_numbers(
+    moment: Moment, mood: Mood
+) -> None:
+    lines = LINES[(moment, mood)]
+    assert len(lines) >= 6
+    for line in lines:
+        assert not re.search(r"\d", line), line
 
 
 @pytest.mark.parametrize("moment", FAREWELL_MOMENTS)

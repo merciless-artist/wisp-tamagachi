@@ -12,7 +12,7 @@ from cogs.snacks import vault_view
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
+from wisp.text import SEPARATOR, count, fit
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -54,16 +54,6 @@ def version_line(life: Life, now: datetime) -> str:
             if life.hatched_by is not None:
                 facts.append(f"hatched by <@{life.hatched_by}>")
             return prefix + " ・ ".join(facts)
-
-
-def _fit(head: list[str], history: list[str]) -> str:
-    """Join the head and as many whole history lines as fit in one message."""
-    lines = head
-    for line in history:
-        if len("\n".join([*lines, line])) > MESSAGE_LIMIT:
-            break
-        lines = [*lines, line]
-    return "\n".join(lines)
 
 
 async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
@@ -109,7 +99,7 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
         "Versions",
     ]
     versions = [version_line(life, now) for life in history] or ["・None yet"]
-    return _fit(head, versions)
+    return fit(head, versions)
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:

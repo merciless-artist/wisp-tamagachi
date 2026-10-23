@@ -82,7 +82,11 @@ class Event:
 
 @dataclass
 class Life:
-    """One Wisp, from egg to its end. Mirrors a row of the lives table."""
+    """One Wisp, from egg to its end. Mirrors a row of the lives table.
+
+    `favorite_snack` is the key of the snack he loves most, chosen when he
+    hatches; None while he is an egg.
+    """
 
     id: int | None
     version: int
@@ -103,6 +107,7 @@ class Life:
     warned: EventKind | None = None
     hatched_by: int | None = None
     from_coal: bool = False
+    favorite_snack: str | None = None
 
 
 # ---

@@ -169,7 +169,8 @@ class Conversation(commands.Cog):
     ) -> None:
         """Answer in Wisp's AI voice, or with a canned line when it fails.
 
-        A pickle stance in the answer is saved; a note only from Adult on.
+        A pickle stance in the answer is saved; a note only from Adult on. The
+        expressions it used count toward his favorite emoji.
         """
         bot = self.bot
         remembers = keeps_notes(life.stage)
@@ -194,6 +195,7 @@ class Conversation(commands.Cog):
             await _reply(message, bot.lines.pick(Moment.CHAT_FALLBACK, mood(life)))
             return
         await _reply(message, reply.text)
+        await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
         if reply.pickle_stance is not None:
             await bot.players.set_pickle_stance(
                 guild.id, player.user_id, reply.pickle_stance
@@ -217,7 +219,8 @@ class Conversation(commands.Cog):
 
         At most once per CHIME_IN_GAP per guild. The gap is checked again after
         the lookups, since another message may have chimed in meanwhile. Nothing
-        is said when the AI fails, and nothing is saved from the line.
+        is said when the AI fails. Only the expressions a posted line used are
+        kept, toward his favorite emoji.
         """
         if not self._chime_in_due(guild.id, now) or (
             self.rng.random() >= CHIME_IN_CHANCE
@@ -241,6 +244,8 @@ class Conversation(commands.Cog):
             await message.channel.send(reply.text, allowed_mentions=_NO_PING)
         except discord.HTTPException as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
+            return
+        await self.bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
 
 
 async def setup(bot: "WispBot") -> None:

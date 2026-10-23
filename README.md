@@ -77,6 +77,10 @@ Member commands:
 - `/wisp vault` is the shop: buy snacks with your points.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks and keepsakes,
   like a Last Ember, with a button to shop the Vault.
+- `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
+  at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
+  favorite snack he picked when he hatched and the expression he uses most.
+  Anyone can look, banned members included.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not

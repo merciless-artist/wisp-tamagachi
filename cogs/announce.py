@@ -1,4 +1,4 @@
-"""Announcements in Wisp's House, shared by the feeding listener and the life loop."""
+"""Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -101,6 +101,27 @@ class _House:
             await self._channel.send(text, allowed_mentions=_NO_PING, **extras)
         except discord.DiscordException as error:
             await self._bot.report_error(self._guild, "posting to Wisp's House", error)
+
+
+# ---
+# Mealtime
+# ---
+
+
+async def say_in_mealtime(
+    bot: "WispBot", guild: discord.Guild, text: str, context: str
+) -> None:
+    """Post in the Mealtime thread without pinging anyone.
+
+    A failure is reported as `context`, in Mealtime, or in Wisp's House when
+    Mealtime cannot be reached.
+    """
+    thread: discord.Thread | None = None
+    try:
+        thread = await studio_thread(bot, guild.id, "mealtime_thread_id")
+        await thread.send(text, allowed_mentions=_NO_PING)
+    except (discord.DiscordException, StudioError) as error:
+        await bot.report_error(guild, context, error, where=thread)
 
 
 # ---
@@ -219,7 +240,7 @@ async def _next_life(
     if embers is not None:
         guild = bot.get_guild(guild_id)
         for player in embers.receivers:
-            name = _display_name(guild, player)
+            name = display_name(guild, player)
             notes = await bot.notes.recent(guild_id, player.user_id)
             heading = f"♪ {name} gets {embers.ember.title}"
             goodbye = await _goodbye(bot, guild, embers.life, name, notes)
@@ -248,7 +269,7 @@ async def _give_last_embers(
     return _Embers(ended, ember, tuple(receivers))
 
 
-def _display_name(guild: discord.Guild | None, player: Player) -> str:
+def display_name(guild: discord.Guild | None, player: Player) -> str:
     """The name Wisp calls a member, else their server name, else a mention."""
     if player.name is not None:
         return player.name

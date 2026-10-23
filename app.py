@@ -18,6 +18,7 @@ from db.activity import ActivityRepo
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
+from db.lunchbox import WispLunchboxRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
@@ -32,6 +33,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.players",
     "cogs.snacks",
     "cogs.vault",
+    "cogs.wisp_lunchbox",
     "cogs.rhyme_duel",
     "cogs.feeding",
     "cogs.conversation",
@@ -118,6 +120,7 @@ class WispBot(commands.Bot):
         self.activity_log = ActivityRepo(self.db)
         self.keepsakes = KeepsakeRepo(self.db)
         self.notes = NoteRepo(self.db)
+        self.wisp_lunchbox = WispLunchboxRepo(self.db)
         self.ai = chain_from_config()
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}

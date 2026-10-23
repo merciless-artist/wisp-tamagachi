@@ -25,6 +25,7 @@ _COLUMNS = (
     "hatched_by",
     "peak_stage",
     "from_coal",
+    "favorite_snack",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -50,6 +51,7 @@ def _from_row(row: Row) -> Life:
         hatched_by=row["hatched_by"],
         peak_stage=Stage(row["peak_stage"]),
         from_coal=bool(row["from_coal"]),
+        favorite_snack=row["favorite_snack"],
     )
 
 
@@ -74,6 +76,7 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.hatched_by,
         life.peak_stage.value,
         life.from_coal,
+        life.favorite_snack,
     )
 
 

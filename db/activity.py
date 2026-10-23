@@ -22,7 +22,7 @@ class InteractionKind(StrEnum):
 _CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)
 
 
-def _utc_day(now: datetime) -> tuple[datetime, datetime]:
+def utc_day(now: datetime) -> tuple[datetime, datetime]:
     """The naive UTC bounds [midnight, next midnight) of the day containing `now`."""
     start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     return to_db_time(start), to_db_time(start + timedelta(days=1))
@@ -184,7 +184,7 @@ class ActivityRepo:
     async def _count_today(
         self, kind: InteractionKind, guild_id: int, user_id: int, now: datetime
     ) -> int:
-        start, end = _utc_day(now)
+        start, end = utc_day(now)
         row = await self._db.fetchone(
             f"SELECT COUNT(*) AS times FROM {self._db.t('interactions')} "
             "WHERE guild_id = %s AND user_id = %s AND kind = %s "
@@ -202,7 +202,7 @@ class ActivityRepo:
         user_id: int,
         now: datetime,
     ) -> int:
-        start, end = _utc_day(now)
+        start, end = utc_day(now)
         marks = ", ".join(["%s"] * len(kinds))
         row = await self._db.fetchone(
             f"SELECT COALESCE(SUM({column}), 0) AS total FROM "

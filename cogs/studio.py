@@ -105,6 +105,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "・/wisp snackpack shows your saved snacks and keepsakes",
             "・Feed saved snacks to him from his status card",
             "",
+            "Wisp's lunchbox",
+            "・/wisp lunchbox shows his favorite songs, snack and emoji",
+            "",
             "His life",
             f"・Around day {rules.OLD_FOGEY_AT_DAY} he gets old and becomes an "
             "Old Fogey",

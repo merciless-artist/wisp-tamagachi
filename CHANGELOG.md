@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-23 (Wisp's lunchbox)
+
+- `/wisp lunchbox` ("See the things Wisp keeps in his lunchbox.") shows, only to
+  the member who asks, what Wisp keeps: his favorite songs, his favorite snack
+  and his favorite emoji. Anyone may look; it is read-only.
+- Favorite songs: the first life-loop tick after UTC midnight picks one of the
+  previous day's viibrmusic.com feeds at random and posts it in Mealtime with a
+  new line from Wisp. A day without viibrmusic.com tracks has no pick, and a
+  day is never picked twice. Picks belong to the guild and carry across lives.
+  The lunchbox shows the newest ten.
+- Favorite snack: every Wisp picks a random favorite snack when he hatches.
+  Feeding it to him gets its own delighted line instead of the usual one.
+- Favorite emoji: the expression he has used most in his AI replies and
+  chime-ins in the guild, skipping any that is no longer uploaded.
+- The How Wisp Works post and the README list Wisp's lunchbox.
+- New tables `favorites` and `expression_uses`; new column
+  `lives.favorite_snack`.
+
 ## 2026-10-23 (Snack Packs)
 
 - Members' own box is now the Snack Pack. `/wisp lunchbox` is renamed

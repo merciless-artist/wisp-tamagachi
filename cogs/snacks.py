@@ -26,8 +26,8 @@ from db.players import Player
 from wisp.bond import PickleStance, casual_bond_grant, meal_grant
 from wisp.life import Life, Mood, Phase, add_growth, feed
 from wisp.lines import Moment
-from wisp.rules import BOND_PER_SNACK, FANCY_SNACK_COST, SNACKS, Snack
-from wisp.text import SEPARATOR, count
+from wisp.rules import BOND_PER_SNACK, FANCY_SNACK_COST, SNACK_BY_KEY, SNACKS, Snack
+from wisp.text import SEPARATOR, count, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -51,7 +51,6 @@ _FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
 _MENU: Final = tuple(snack for snack in SNACKS if snack.cost > 0)
-_BY_KEY: Final = {snack.key: snack for snack in SNACKS}
 _PICKLES: Final = "pickles"
 _MOMENTS: Final = {
     "spicywave": Moment.SPICY,
@@ -71,16 +70,12 @@ _Action = Callable[[discord.Interaction], Awaitable[None]]
 # ---
 
 
-def _with_emoji(emoji: str, text: str) -> str:
-    return f"{emoji} {text}" if emoji else text
-
-
 def _care(snack: Snack) -> str:
     return f"care +{snack.care}"
 
 
 def _named(bot: "WispBot", snack: Snack) -> str:
-    return _with_emoji(bot.emoji(snack.emoji_name), snack.name)
+    return with_emoji(bot.emoji(snack.emoji_name), snack.name)
 
 
 def _option(
@@ -144,7 +139,7 @@ class SnackSelect(discord.ui.Select["SnackMenu"]):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Pass the chosen snack on."""
-        await self._on_choice(interaction, _BY_KEY[self.values[0]])
+        await self._on_choice(interaction, SNACK_BY_KEY[self.values[0]])
 
 
 class SnackMenu(discord.ui.View):
@@ -182,7 +177,7 @@ async def _vault_text(
     ]
     lines = [
         "♪ The ViiBR Vault",
-        _with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
+        with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
         SEPARATOR,
         "Snack Box",
         *prices,
@@ -211,7 +206,7 @@ async def _snack_pack_text(
     ]
     lines = [
         f"♪ {player.name or display_name}'s Snack Pack",
-        _with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
+        with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
         SEPARATOR,
         "Snacks",
         *(snacks or ["・Nothing saved yet"]),
@@ -462,11 +457,16 @@ def _moment(snack: Snack) -> Moment:
     return Moment.SNACK_FANCY if snack.cost >= FANCY_SNACK_COST else Moment.SNACK
 
 
-def _reaction(snack: Snack, stance: PickleStance | None) -> tuple[Moment, str]:
+def _reaction(
+    snack: Snack, stance: PickleStance | None, favorite: str | None
+) -> tuple[Moment, str]:
     """The moment Wisp reacts with and the name of his eating GIF.
 
-    Pickles go the other way from the member's stance; every other snack ignores it.
+    His favorite snack always gets its own line. Otherwise pickles go the other
+    way from the member's stance; every other snack ignores it.
     """
+    if snack.key == favorite:
+        return Moment.SNACK_FAVORITE, snack.gif_name
     if snack.key == _PICKLES and stance is not None:
         return _CONTRARY[stance]
     return _moment(snack), snack.gif_name
@@ -499,7 +499,9 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
         content=text, view=None, allowed_mentions=_NO_PING
     )
     emoji = bot.emoji(snack.emoji_name)
-    moment, gif_name = _reaction(snack, meal.player.pickle_stance)
+    moment, gif_name = _reaction(
+        snack, meal.player.pickle_stance, meal.life.favorite_snack
+    )
     await say_in_house(
         bot,
         guild_id,
