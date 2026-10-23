@@ -96,3 +96,15 @@ Decisions made during the build where the spec or plan left a choice open. Each 
 - Parked: report_error_everywhere only catches pymysql/OSError from settings.guilds(); another type would escape the tick-loop error hook and stop the loop — Ruling: real but very unlikely (aiomysql raises pymysql errors, TimeoutError is OSError); deferred, flagged to Myra
 - Parked: a guild that first sees an outage during another guild's cooldown gets "cooling down" reasons with no root cause — Ruling: acceptable, one report per streak per guild still holds
 - Parked: food value 0 makes that track kind silently not feed (0-50 per ruling); rules post refreshes only via /wispadmin food; studio _ARCHIVE_AFTER_MINUTES outside rules.py; _record_play no ban check — Ruling: deferred minors
+
+## Snack Packs, Wisp's lunchbox and gifts
+
+- daily gift limits (one buy per collection, one kept gift) count per life and per UTC day, so a new Wisp starts the day fresh as well as restocked — matches "collections are per life" — cost: none
+- gift titles take "an" before a vowel ("an Orange Book") in headings; lines never put an article before {gift} — the brief's "a {gift}" read wrong for Orange — cost: none
+- favorite songs are picked whatever phase Wisp is in, egg included — the brief only requires a set-up guild, and picks belong to the guild across lives — cost: an egg "puts a track in his lunchbox"
+- his favorite snack beats the pickle stance: feeding it always gets SNACK_FAVORITE — "instead of the normal snack line" — cost: none
+- the ban refusal reads "snacks or gifts", shared by the Vault, the Feed button and gifts — one check, one wording — cost: none
+- the gift RNG lives on a small Gifts cog, reached with bot.get_cog — the Vault's handlers are module functions, not cog methods — cost: a LookupError reported if the cog is not loaded
+- ViiBR feeds are detected from the stored url with find_track(url).kind, no kind column on feeds — no migration of live rows — cost: re-parsing a day's urls once per tick
+- the favorite snack is never the free Sine Wave; it is picked from the paid snacks only (controller ruling) — otherwise its line would answer every member's daily free snack for the whole life — cost: none
+- once he has kept a gift today, the Vault's Gifts section says "Wisp already picked his treasure today. Anything you give him goes back to the Vault." while the select stays open (controller ruling) — members see it before paying — cost: one line

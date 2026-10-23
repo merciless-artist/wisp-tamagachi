@@ -44,6 +44,7 @@ from wisp.rules import (
     BOND_PER_SNACK,
     FANCY_SNACK_COST,
     GIFT_BY_KEY,
+    PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
     Gift,
@@ -67,7 +68,7 @@ _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomo
 _FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
-_MENU: Final = tuple(snack for snack in SNACKS if snack.cost > 0)
+_MENU: Final = PAID_SNACKS
 _PICKLES: Final = "pickles"
 _MOMENTS: Final = {
     "spicywave": Moment.SPICY,
@@ -394,7 +395,9 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
     )
 
 
-@wisp.command(name="vault", description="Buy snacks for Wisp in the ViiBR Vault.")
+@wisp.command(
+    name="vault", description="Buy snacks and gifts for Wisp in the ViiBR Vault."
+)
 async def wisp_vault(interaction: discord.Interaction["WispBot"]) -> None:
     """Show the Vault shop, only to the member."""
     await _open_vault(interaction)

@@ -698,6 +698,37 @@ async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None
     assert "alien_green" in options
 
 
+async def test_the_vault_warns_when_he_already_kept_a_gift_today(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "alien_blue", True, now)
+
+    text, selects = await open_vault(bot)
+
+    gift_lines = text.split("\n\n")[1].splitlines()
+    assert gift_lines[1] == (
+        "・Wisp already picked his treasure today. "
+        "Anything you give him goes back to the Vault."
+    )
+    assert "book_red" in [option.value for option in gift_select(selects).options]
+
+
+async def test_no_warning_before_he_keeps_a_gift_today(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "alien_blue", False, now)
+    yesterday = now - timedelta(days=1)
+    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "book_red", True, yesterday)
+
+    text, _ = await open_vault(bot)
+
+    assert "treasure" not in text
+
+
 async def test_with_nothing_to_give_there_is_no_gift_select(
     bot: app.WispBot,
 ) -> None:

@@ -205,6 +205,12 @@ def test_gift_moments_have_about_six_lines_and_no_numbers(
         assert not re.search(r"\d", line), line
 
 
+def test_gift_lines_never_put_an_article_before_the_gift() -> None:
+    for moment, line in every_line():
+        if "gift" in FIELDS[moment]:
+            assert not re.search(r"\ban? \{gift\}", line, re.IGNORECASE), line
+
+
 @pytest.mark.parametrize(
     ("moment", "fields"),
     [

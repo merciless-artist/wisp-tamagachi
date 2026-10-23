@@ -187,6 +187,7 @@ SNACKS: tuple[Snack, ...] = (
     Snack("pickles", "Pickles", 6, 8, 2),
 )
 SNACK_BY_KEY: dict[str, Snack] = {snack.key: snack for snack in SNACKS}
+PAID_SNACKS: tuple[Snack, ...] = tuple(snack for snack in SNACKS if snack.cost > 0)
 
 # ---
 # Wisp's lunchbox

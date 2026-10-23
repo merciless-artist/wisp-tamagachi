@@ -17,7 +17,7 @@ from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.bond import happiness
 from wisp.life import Event, EventKind, Life, Phase, is_over, tick
 from wisp.lines import Moment
-from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, SNACKS, TICK_EVERY
+from wisp.rules import HAPPINESS_WINDOW, PAID_SNACKS, QUIET_AFTER, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -114,7 +114,8 @@ class LifeLoop(commands.Cog):
     ) -> list[Event]:
         """Tick a life and save it, even when frozen; return what happened.
 
-        A Wisp who hatches picks his favorite snack.
+        A Wisp who hatches picks his favorite snack, never the free one, or
+        its line would answer every member's daily free snack.
         """
         caretakers = 0
         if (
@@ -127,7 +128,7 @@ class LifeLoop(commands.Cog):
             )
         events = tick(life, now, frozen=frozen, happiness=happy, caretakers=caretakers)
         if any(event.kind is EventKind.HATCHED for event in events):
-            life.favorite_snack = self.rng.choice(SNACKS).key
+            life.favorite_snack = self.rng.choice(PAID_SNACKS).key
         await self.bot.lives.save(guild_id, life)
         return events
 

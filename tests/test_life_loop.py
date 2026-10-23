@@ -33,13 +33,14 @@ from wisp.card import render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
-from wisp.rules import SNACKS, Stage
+from wisp.rules import PAID_SNACKS, SNACKS, Stage
 
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 STATUS_ID = 60
 VAULT_ID = 61
+FREE_SNACK_SEED = 2
 MEALTIME_ID = 62
 CARD_ID = 777
 VAULT_MESSAGE_ID = 778
@@ -253,7 +254,24 @@ async def test_hatching_picks_his_favorite_snack_with_the_cogs_rng(
 
     life = await current_life(bot)
     assert life.phase is Phase.ALIVE
-    assert life.favorite_snack == random.Random(seed).choice(SNACKS).key
+    assert life.favorite_snack == random.Random(seed).choice(PAID_SNACKS).key
+
+
+async def test_his_favorite_snack_is_never_the_free_one(
+    cog: LifeLoop, bot: app.WispBot
+) -> None:
+    await configure(bot)
+    await lay(
+        bot, phase=Phase.HATCHING, phase_seconds=rules.HATCHING_TIME.total_seconds()
+    )
+    cog.rng = random.Random(FREE_SNACK_SEED)
+
+    await cog.run_tick(NOW)
+
+    favorite = (await current_life(bot)).favorite_snack
+    assert random.Random(FREE_SNACK_SEED).choice(SNACKS).key == "sinewave"
+    assert favorite == random.Random(FREE_SNACK_SEED).choice(PAID_SNACKS).key
+    assert all(snack.cost > 0 for snack in PAID_SNACKS)
 
 
 async def test_only_hatching_picks_a_favorite_snack(

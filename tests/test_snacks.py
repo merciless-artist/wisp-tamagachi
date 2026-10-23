@@ -1414,7 +1414,9 @@ def test_snack_pack_and_vault_hang_off_the_wisp_group() -> None:
 
 def test_the_commands_say_what_they_do() -> None:
     assert snacks.wisp_snackpack.description == "See your snacks and keepsakes."
-    assert snacks.wisp_vault.description == "Buy snacks for Wisp in the ViiBR Vault."
+    assert snacks.wisp_vault.description == (
+        "Buy snacks and gifts for Wisp in the ViiBR Vault."
+    )
 
 
 def test_snacks_is_a_loaded_extension() -> None:

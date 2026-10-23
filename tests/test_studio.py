@@ -690,6 +690,38 @@ def test_rules_text_fits_one_message() -> None:
     assert len(rules_text(biggest)) < MESSAGE_LIMIT
 
 
+def test_rules_text_fits_with_every_number_at_four_digits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "DAILY_MEAL_CAP",
+        "MEET_AFTER_DAYS",
+        "NAME_MAX",
+        "OLD_FOGEY_AT_DAY",
+        "FAREWELL_AT_DAY",
+        "LAST_EMBER_GIFTS",
+        "EGG_FOOD_NEEDED",
+        "COAL_EGG_FOOD",
+        "GIFT_COST",
+        "BOND_PER_KEPT_GIFT",
+        "COLLECTION_BOND_BONUS",
+    ):
+        monkeypatch.setattr(rules, name, 9999)
+    monkeypatch.setattr(
+        rules,
+        "BOND_TIERS",
+        (("New face", 0), ("Familiar", 9999), ("Friend", 9999), ("Bandmate", 9999)),
+    )
+    monkeypatch.setattr(
+        rules, "BAN_LADDER", (timedelta(days=9999), timedelta(days=9999), None)
+    )
+
+    text = rules_text({kind: 9999 for kind in TrackKind})
+
+    assert "9999" in text
+    assert len(text) < MESSAGE_LIMIT
+
+
 def test_rules_text_shows_the_food_values_it_is_given() -> None:
     text = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
 

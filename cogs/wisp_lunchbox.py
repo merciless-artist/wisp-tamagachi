@@ -65,8 +65,7 @@ def _short_day(day: date) -> str:
     return f"{day:%b} {day.day}"
 
 
-async def _favorite_snack(bot: "WispBot", guild_id: int) -> str:
-    life = await bot.lives.current(guild_id)
+def _favorite_snack(bot: "WispBot", life: Life | None) -> str:
     snack = None if life is None else SNACK_BY_KEY.get(life.favorite_snack or "")
     if snack is None:
         return _NOTHING_YET
@@ -81,9 +80,8 @@ async def _favorite_emoji(bot: "WispBot", guild_id: int) -> str:
     return _NOTHING_YET
 
 
-async def _collections(bot: "WispBot", guild_id: int) -> list[str]:
-    """The current life's gift collections."""
-    life = await bot.lives.current(guild_id)
+async def _collections(bot: "WispBot", guild_id: int, life: Life | None) -> list[str]:
+    """The gift collections of the current life, `life`."""
     if life is None or life.id is None:
         return [_NOTHING_YET]
     kept = await bot.gifts.kept(guild_id, life.id)
@@ -93,6 +91,7 @@ async def _collections(bot: "WispBot", guild_id: int) -> list[str]:
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     """Wisp's lunchbox, trimmed from the oldest song so it fits one message."""
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
+    life = await bot.lives.current(guild_id)
     songs = [
         f"・{_short_day(favorite.day)} ・ <@{favorite.user_id}> ・ {favorite.url}"
         for favorite in favorites
@@ -102,12 +101,12 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         *([] if songs else [_NOTHING_YET]),
         SEPARATOR,
         "Favorite snack",
-        await _favorite_snack(bot, guild_id),
+        _favorite_snack(bot, life),
         "Favorite emoji",
         await _favorite_emoji(bot, guild_id),
         SEPARATOR,
         "Collections",
-        *await _collections(bot, guild_id),
+        *await _collections(bot, guild_id, life),
     ]
     return fit(head, songs, tail)
 

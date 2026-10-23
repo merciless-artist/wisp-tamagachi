@@ -49,7 +49,7 @@ def _ban_line() -> str:
         "permanently" if length is None else count(length // timedelta(days=1), "day")
         for length in rules.BAN_LADDER
     ]
-    return f"・Offenses: banned for {', then '.join(steps)}"
+    return f"・Offenses: banned {', then '.join(steps)}"
 
 
 def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
@@ -73,17 +73,17 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "♪ How Wisp Works",
             "Wisp is one little guy for the whole server. Share music and he "
             "grows from an egg into a Rockstar. If nobody feeds him, he fades "
-            "away and a new egg takes his place.",
+            "and a new egg takes his place.",
             SEPARATOR,
             "Who can feed him",
             "・Active Lounger or higher",
             "・Open /wisp board once to join in",
             "",
             "What counts",
-            "・Suno and viibrmusic.com track links in the track drop",
+            "・Suno and viibrmusic.com links in the track drop",
             *meals,
             "・Every track also earns leaderboard points",
-            f"・Each person's meals count up to {daily_cap} a day",
+            f"・Your meals count up to {daily_cap} a day",
             "・Each link only feeds him once, ever",
             "",
             "Your bond",
@@ -93,42 +93,41 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault buys snacks and gifts with your leaderboard points",
-            "・The leaderboard is pinned on the Vault post",
-            "・Snacks count toward the daily meal limit",
+            "・/wisp vault spends leaderboard points on snacks and gifts",
+            "・The leaderboard is the pinned Vault post",
+            "・Snacks count toward the meal limit",
             f"・Gifts cost {count(rules.GIFT_COST, 'point')} and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
             f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",
             "",
             "Your Snack Pack",
-            "・/wisp snackpack shows your saved snacks and keepsakes; feed them to "
-            "him from his status card",
+            "・/wisp snackpack shows your saved snacks and keepsakes; feed them "
+            "from his status card",
             "",
             "Wisp's lunchbox",
             "・/wisp lunchbox shows his favorite songs, snack, emoji and gifts",
             "",
             "His life",
-            f"・Around day {rules.OLD_FOGEY_AT_DAY} he gets old and becomes an "
-            "Old Fogey",
-            f"・Around day {rules.FAREWELL_AT_DAY} he passes on after a full "
-            "life, as a lump of coal",
-            "・The coal becomes the next egg, already fed "
-            f"{rules.COAL_EGG_FOOD} of the {egg_meals} it needs",
-            f"・The top {count(rules.LAST_EMBER_GIFTS, 'sharer')} of that life "
-            "each get his Last Ember in their Snack Pack",
-            "・Going out from neglect leaves no Last Ember",
+            f"・Around day {rules.OLD_FOGEY_AT_DAY} he grows into an Old Fogey",
+            f"・Around day {rules.FAREWELL_AT_DAY} he passes on, a lump of coal "
+            "after a full life",
+            f"・The coal becomes the next egg, with {rules.COAL_EGG_FOOD} of its "
+            f"{egg_meals} already fed",
+            f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} each get "
+            "his Last Ember in their Snack Pack",
+            "・Dying of neglect leaves no Last Ember",
             "",
             "Talking to Wisp",
             "・Mention him or reply to him in Wisp's House",
-            "・He wobbles as an egg, babbles as a baby and talks as he " "grows",
-            "・Once grown he sometimes chimes in and remembers what you tell him",
-            "・Talking earns no bond and no points",
+            "・He wobbles as an egg, babbles as a baby and talks as he grows",
+            "・Once grown he sometimes chimes in and remembers what you say",
+            "・Talking earns no bond or points",
             "",
             "Fair play",
-            "・Fake links do not count, and staff can strip points",
+            "・Fake links don't count; staff can strip points",
             f"・Names are capped at {count(rules.NAME_MAX, 'character')}",
-            f"{_ban_line()}. Staff can lift any ban",
+            f"{_ban_line()}. Staff can lift bans",
         ]
     )
 

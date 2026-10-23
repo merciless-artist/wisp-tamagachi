@@ -176,7 +176,7 @@ _GIFT_KEPT_HANGRY = (
     "not food. somehow still perfect. I'm keeping it, {name}",
     "I'm starving, and this still made my whole day. lunchbox. now",
     "can't eat it, don't care. it's mine. thank you, {name}",
-    "hungry as hell, but a {gift}? ok. ok, I'm smiling. shut up",
+    "hungry as hell, but this {gift}? ok. ok, I'm smiling. damn it",
     "the plate's empty but the lunchbox isn't. thank you, {name}",
     "I wanted a song. I got a present. honestly? I'll fucking allow it",
 )
@@ -191,7 +191,7 @@ _GIFT_PASSED_HAPPY = (
 )
 
 _GIFT_PASSED_HANGRY = (
-    "I can't eat a {gift}, {name}. too hungry to appreciate nice things right now",
+    "I can't eat the {gift}, {name}. too hungry to appreciate nice things now",
     "my stomach's growling too loud to hear what this even is. ask me after dinner",
     "nice thought. empty plate. the empty plate is winning this one",
     "I'd love it on a full stomach. right now it's just a thing that isn't food",
@@ -213,7 +213,7 @@ _GIFT_FULL_HANGRY = (
     "lunchbox is full. stomach's empty. that's the wrong way round",
     "saving room. not for gifts. for FOOD. which nobody's bringing",
     "already kept my treasure today. now I'm a hungry guy with a full lunchbox",
-    "no room for a {gift} today. plenty of room for a track though. hint hint",
+    "no room for the {gift} today. plenty of room for a track though. hint hint",
     "got my gift for today. still waiting on dinner. funny how that works",
 )
 

@@ -40,6 +40,10 @@ if TYPE_CHECKING:
 
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Gifts have to wait until he is."
 _BACK_IN_VAULT: Final = "♪ It's back in the ViiBR Vault."
+_KEPT_TODAY: Final = (
+    "・Wisp already picked his treasure today. "
+    "Anything you give him goes back to the Vault."
+)
 _MOMENTS: Final = {
     Outcome.KEPT: Moment.GIFT_KEPT,
     Outcome.PASSED: Moment.GIFT_PASSED,
@@ -122,13 +126,17 @@ def _stock(bot: "WispBot", state: GiftState, collection: GiftCollection) -> str:
 
 
 def gift_section(bot: "WispBot", state: GiftState | None) -> list[str]:
-    """The Vault's Gifts lines: each collection's stock, or why it is shut."""
+    """The Vault's Gifts lines: each collection's stock, or why it is shut.
+
+    Once he has kept a gift today, a line says so before anyone pays.
+    """
     price = with_emoji(bot.emoji(COIN_EMOJI), f"{count(GIFT_COST, 'point')} each")
     heading = f"Gifts ・ {price} ・ he might not like it"
     if state is None:
         return [heading, "・He takes gifts once he has hatched"]
     return [
         heading,
+        *([_KEPT_TODAY] if state.kept_today else []),
         *(
             f"・{collection.name}: {_stock(bot, state, collection)}"
             for collection in GIFT_COLLECTIONS
