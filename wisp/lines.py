@@ -209,17 +209,17 @@ _PICKLE_LOVE_HAPPY = (
     "my beloved. my crunchy green beloved. I would marry this pickle, {name}",
     "somebody has to stand up for the pickle today. it's me. I'm the somebody",
     "crunch. CRUNCH. that's the sound of true love and I'm not sorry",
-    "pickles are the main character and every other snack is a side dish",
+    "pickles are the main character and I'm just the narrator",
     "brine is basically perfume and I'm wearing it with my whole flame",
     "I hear the pickle haters. I respect them. I'm adoring this one extra loud anyway",
 )
 
 _PICKLE_LOVE_HANGRY = (
-    "pickles are the best fucking food there is and I'll say it with my mouth full",
+    "pickles are a goddamn miracle and I'll say it with my mouth full",
     "starving, and this pickle is a goddamn masterpiece. no notes. no arguments",
     "sour, salty, perfect. the world is a mess but this pickle is flawless",
-    "defending a perfect food on an empty stomach is bullshit. eating it instead",
-    "ok, a pickle. finally some real food. best shit I've chewed all day",
+    "defending a perfect pickle on an empty stomach is bullshit. eating it instead",
+    "ok, a pickle. thank god. best shit I've chewed all day",
     "hungry enough to propose to this pickle. kneeling, brine everywhere",
 )
 
