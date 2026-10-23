@@ -271,9 +271,7 @@ def _moment(snack: Snack) -> Moment:
 
 
 def _eating_gif(snack: Snack) -> Path | None:
-    """The GIF of Wisp eating this snack; pickles wait for his stance on them."""
-    if _moment(snack) is Moment.PICKLE_HEDGE:
-        return None
+    """The GIF of Wisp eating this snack, when the art is on disk."""
     path = ASSETS_DIR / "eating" / snack.gif_name
     return path if path.is_file() else None
 

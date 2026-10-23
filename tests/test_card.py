@@ -7,6 +7,7 @@ import pytest
 from wisp.card import bar, render_status
 from wisp.life import Life, Phase, new_egg
 from wisp.rules import EGG_FOOD_NEEDED, EGG_WARMTH, HATCHING_TIME, Stage
+from wisp.text import SEPARATOR
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 
@@ -61,7 +62,9 @@ def test_egg_card() -> None:
     egg.phase_seconds = EGG_WARMTH.total_seconds() / 4
     egg.egg_food = EGG_FOOD_NEEDED // 2
     expected = (
-        "♪ WISP v4 ・ EGG\n" "warmth     ████████░░  75\n" "hatching   █████░░░░░  50"
+        "♪ WISP v4 ・ EGG\n"
+        "warmth     ████████░░  75\n"
+        "hatching   █████░░░░░  50\n" + SEPARATOR
     )
     assert render_status(egg, NOW, happiness=0, fed_today=0) == expected
 
@@ -70,8 +73,15 @@ def test_hatching_card() -> None:
     egg = new_egg(4, NOW)
     egg.phase = Phase.HATCHING
     egg.phase_seconds = HATCHING_TIME.total_seconds() / 5
-    expected = "♪ WISP v4 ・ HATCHING\nemerging   ██░░░░░░░░  20"
+    expected = "♪ WISP v4 ・ HATCHING\nemerging   ██░░░░░░░░  20\n" + SEPARATOR
     assert render_status(egg, NOW, happiness=0, fed_today=0) == expected
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
+def test_unhatched_cards_end_with_separator(phase: Phase) -> None:
+    life = new_egg(1, NOW)
+    life.phase = phase
+    assert render_status(life, NOW, happiness=0, fed_today=0).endswith(SEPARATOR)
 
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD])

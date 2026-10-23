@@ -46,7 +46,7 @@ The bot posts these as still PNGs (a GIF here would need a code change).
 | Save as | What |
 |---|---|
 | stages/adult.png | Adult Wisp: taller, flowing flame tail, calm and confident |
-| stages/rockstar.png | Rockstar Wisp: maximum energy, guitar, bigger brighter flames (rockwisp.gif can stand in until this exists) |
+| stages/rockstar.png | Rockstar Wisp: maximum energy, guitar, bigger brighter flames (until this exists, a still PNG frame exported from rockwisp.gif can stand in; the GIF itself won't work here) |
 
 ## Nice to have (text-only until they exist)
 
@@ -59,6 +59,13 @@ Use a still frame for the [ACTION] ones.
 | events/egg_cold.png | an egg never hatched | (still image is fine) the egg from the egg sticker, grey and frosted over, no glow |
 | react_hangry | for the AI voice later (not used by the bot yet): hangry moments | arms crossed, flame flickering red and annoyed, tapping his foot, glaring |
 | react_hungry_stare | for the AI voice later (not used by the bot yet): hungry warnings | staring longingly at the viewer with big pleading eyes, stomach growling, flame low |
+
+## For the farewell (end of a full life, around day 60)
+
+| Save as | What |
+|---|---|
+| events/farewell.png | old Wisp shrivelled up into a small lump of glowing coal (still image; a GIF version of him shrinking into coal would be lovely later but needs a code change) |
+| stages/coal_egg.png | the lump of coal turning into a new egg, cracks glowing orange (optional; the normal egg picture works until then) |
 
 ## For punishments
 

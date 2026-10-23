@@ -26,11 +26,12 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
                 title + "EGG",
                 _row("warmth", warmth),
                 _row("hatching", _share(life.egg_food, EGG_FOOD_NEEDED)),
+                SEPARATOR,
             ]
         )
     if life.phase is Phase.HATCHING:
         emerging = _share(life.phase_seconds, HATCHING_TIME.total_seconds())
-        return "\n".join([title + "HATCHING", _row("emerging", emerging)])
+        return "\n".join([title + "HATCHING", _row("emerging", emerging), SEPARATOR])
     if life.phase is Phase.ALIVE:
         people = "1 person" if fed_today == 1 else f"{fed_today} people"
         return "\n".join(

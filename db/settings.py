@@ -35,14 +35,14 @@ class SettingsRepo:
         self._db = db
 
     async def get(self, guild_id: int) -> Settings:
-        """Return a guild's settings, creating the defaults on first read."""
-        await self._ensure(guild_id)
+        """Return a guild's settings, or the defaults when it has no row yet."""
         row = await self._db.fetchone(
             f"SELECT {', '.join(_COLUMNS)} FROM {self._db.t('settings')} "
             "WHERE guild_id = %s",
             (guild_id,),
         )
-        assert row is not None
+        if row is None:
+            return Settings()
         return Settings(**{**row, "frozen": bool(row["frozen"])})
 
     async def update(self, guild_id: int, **values: Any) -> None:

@@ -31,11 +31,19 @@ def track(ident: str, kind: TrackKind = TrackKind.SUNO) -> Track:
 # ---
 
 
+async def test_settings_get_does_not_write(db: Database) -> None:
+    repo = SettingsRepo(db)
+    assert await repo.get(GUILD) == Settings()
+    assert await repo.guilds() == []
+
+
 async def test_settings_default_then_update(db: Database) -> None:
     repo = SettingsRepo(db)
     assert await repo.get(GUILD) == Settings()
+    assert await repo.guilds() == []
 
     await repo.update(GUILD, tracks_channel_id=55, frozen=True)
+    assert await repo.guilds() == [GUILD]
     settings = await repo.get(GUILD)
     assert settings.tracks_channel_id == 55
     assert settings.frozen is True
@@ -69,7 +77,7 @@ async def test_role_list_round_trip(db: Database) -> None:
 async def test_guilds_lists_configured_guilds(db: Database) -> None:
     repo = SettingsRepo(db)
     assert await repo.guilds() == []
-    await repo.get(OTHER_GUILD)
+    await repo.update(OTHER_GUILD, frozen=False)
     await repo.update(GUILD, frozen=False)
     assert await repo.guilds() == [GUILD, OTHER_GUILD]
 

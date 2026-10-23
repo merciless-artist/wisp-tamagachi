@@ -86,15 +86,14 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
 └─ 💬 Wisp's Studio    <span class="d">forum:</span>
    ├─ Status           <span class="d">live status card, edited in place</span>
    ├─ Mealtime         <span class="d">every track that feeds him</span>
-   ├─ The Lunchbox     <span class="d">Snack Box, badges, song listens</span>
+   ├─ The ViiBR Vault  <span class="d">Snack Box, song listens, badges + the leaderboard</span>
    ├─ The Jam Space    <span class="d">his music space</span>
-   ├─ The Billboard    <span class="d">leaderboard + version history</span>
    └─ How Wisp Works   <span class="d">the rules</span></pre>
     <ul class="star">
       <li><strong>Wisp's House</strong> is the hangout: talk to him, play, give snacks. Death, new eggs, cracking, hatching and stage-ups happen here.</li>
       <li><strong>Mealtime:</strong> members keep posting in the track drop channel as normal. Each qualifying Suno or viibrmusic.com track is forwarded here automatically and feeds him.</li>
       <li><strong>The Jam Space</strong> is where he talks music: his favorite songs from the community, every friendship song (one post each, maybe also shared to announcements), the lyrics he starts writing once he's older, and his song listens, the rarest and most expensive thing a member can get.</li>
-      <li><strong>The Lunchbox</strong> also sells <strong>badges</strong>: role icons like “Team Wisp” that show by your name and raise your bond with him.</li>
+      <li><strong>The ViiBR Vault</strong> also sells <strong>badges</strong>: role icons like “Team Wisp” that show by your name and raise your bond with him.</li>
     </ul>
   </section>
 
@@ -110,9 +109,29 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
         <tr><td class="stage">Teen</td><td>Craves loud bass</td><td>Day 7+, 60 growth, 5 different caretakers</td></tr>
         <tr><td class="stage">Adult</td><td>Master of the vibe</td><td>Day 14+, 150 growth, 8 different caretakers</td></tr>
         <tr><td class="stage rock">Rockstar</td><td>Maximum energy</td><td>Special evolution: an Adult who stays very happy for 7 days straight</td></tr>
+        <tr><td class="stage">Old Fogey</td><td>Slow, chill, full of life lessons</td><td>Around day 45, from Adult or Rockstar. Drains slower. Mutters old-timer advice (Foggy's idea).</td></tr>
+        <tr><td class="stage">Farewell</td><td>Passes the torch</td><td>Around day 60: a celebrated goodbye ("lived a full life"). He shrivels up into a lump of coal, and the coal becomes the next egg, already half warm (Foggy's idea). The top three sharers of that life each get that life's <strong>Last Ember</strong> (for example "Wisp v3's Last Ember") in their lunchbox, plus a personal goodbye from him. Only for a full life, never for neglect.</td></tr>
       </tbody>
     </table></div>
     <p><strong>Food keeps him alive. Care makes him grow.</strong> Growth points come from everything that isn't a plain meal: snacks (+1, more for fancy ones), playtime (+2), and bond moments like learning someone's name or a friendship song (+5). Caretakers are the different people who interacted with him during that stage, so a couple of regulars can't raise him alone. If he reaches the day but not the rest, he stays put until the server catches up. He's a late bloomer, nothing bad happens. All numbers are <span class="sv">starting values</span>.</p>
+  </section>
+
+  <section aria-labelledby="s-talk">
+    <h2 id="s-talk"><span class="n">♪</span>He learns to talk as he grows</h2>
+    <p>Wisp's AI voice is part of launch, and how much of it comes through depends on his stage.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Stage</th><th>How he talks</th></tr></thead>
+      <tbody>
+        <tr><td class="stage">Egg</td><td>Doesn't talk. A wobble or crackle when poked. No AI.</td></tr>
+        <tr><td class="stage">Baby</td><td>Baby noises and single words from a pre-written set. No AI.</td></tr>
+        <tr><td class="stage">Child</td><td>AI switches on: short, simple, excitable, gets things a bit wrong. Answers when mentioned.</td></tr>
+        <tr><td class="stage">Teen</td><td>Full personality: sassy, swears when hangry, teases friends, remembers people.</td></tr>
+        <tr><td class="stage">Adult</td><td>Full personality plus memory notes about people. Sometimes joins the conversation on his own.</td></tr>
+        <tr><td class="stage rock">Rockstar</td><td>Everything, maximum energy. Friendship songs and song listens shine here.</td></tr>
+        <tr><td class="stage">Old Fogey</td><td>Slow and wise-ish, muttering old-timer life lessons.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Game events (hatching, stage-ups, dying) keep their pre-written lines, so AI use goes to real conversation. Gemini first, then Groq, then OpenRouter, then pre-written lines, so he never breaks and it stays free.</p>
   </section>
 
   <section aria-labelledby="s-eat">
@@ -166,8 +185,8 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
   </section>
 
   <section aria-labelledby="s-shop">
-    <h2 id="s-shop"><span class="n">♪</span>The Lunchbox</h2>
-    <p>Wisp keeps everything he values in his lunchbox. <code>/wisp lunchbox</code> opens it. Inside are the <strong>Snack Box</strong>, his <strong>song listens</strong>, and room for any treasures added later.</p>
+    <h2 id="s-shop"><span class="n">♪</span>The ViiBR Vault and your lunchbox</h2>
+    <p><strong>The ViiBR Vault</strong> is Wisp's: the <strong>Snack Box</strong>, his <strong>song listens</strong>, and the <strong>leaderboard</strong> all live there. <strong>Your lunchbox</strong> is yours: <code>/wisp lunchbox</code> shows the snacks you've saved and any gifts Wisp has given you, with a button to visit the Vault and buy more.</p>
     <h3>Snack Box</h3>
     <p>Wisp eats sound. Every snack is a picture of sound, plus two human foods he's weirdly into. Fancier snacks fill his care meter more, and he reacts to each one differently.</p>
     <div class="tbl"><table>
@@ -186,7 +205,7 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
     </table></div>
     <p class="muted">Costs and care values are starting values. Art by Myra; emoji names follow <code>snack_&lt;name&gt;</code>.</p>
     <ul class="star">
-      <li><strong>How it works:</strong> <code>/wisp lunchbox</code> to buy, then the <strong>Feed</strong> button on his status card to pick a snack from your inventory. Wisp eats it on screen, emoji and all. (His emojis live on his bot account, which Discord only lets <em>him</em> use, so members pick them from a menu rather than typing them.)</li>
+      <li><strong>How it works:</strong> <code>/wisp lunchbox</code> → Visit the Vault to buy, then the <strong>Feed</strong> button on his status card to pick a snack from your inventory. Wisp eats it on screen, emoji and all. (His emojis live on his bot account, which Discord only lets <em>him</em> use, so members pick them from a menu rather than typing them.)</li>
       <li><strong>Paid with leaderboard points</strong> from a spending balance. Your rank counts everything you've ever earned, so buying Wisp a treat never drops you down the board.</li>
       <li>Snacks count toward the daily feeding limit, so nobody can buy him back from the dead alone. Music is still his real food.</li>
     </ul>
@@ -194,7 +213,7 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
     <p>Wisp actually listens to a song you made and reacts to it: what he loved, what stuck with him, what it made him feel. He accepts mp3 uploads, public Suno links and viibrmusic.com links.</p>
     <ul class="star">
       <li><strong>The first one is a gift.</strong> When you reach Bandmate, Wisp trusts you enough to offer a listen on his own. It happens once per person, ever, and it survives if he dies.</li>
-      <li><strong>After that, listens come from the Lunchbox</strong> for 40 points <span class="sv">starting value</span>, available to Bandmates only.</li>
+      <li><strong>After that, listens come from the ViiBR Vault</strong> for 40 points <span class="sv">starting value</span>, available to Bandmates only.</li>
       <li>His usual rule applies: he's never cruel about anyone's music. He's honest about what he loved, and he amplifies.</li>
     </ul>
   </section>
@@ -208,7 +227,7 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
       <li>Wisp says a word, you have 15 seconds to rhyme it, then he rhymes back. No repeats. It ends when someone runs out of rhymes or time. Your score is the points from your rhymes.</li>
       <li>A <strong>perfect rhyme</strong> scores 2 points, a <strong>slant rhyme</strong> (same vowel sound, different ending, like fire and mine) scores 1. Rhymes are checked with a pronunciation dictionary, no AI.</li>
       <li><strong>He gets better as he grows.</strong> A Baby Wisp runs out of rhymes fast; a Rockstar is almost unbeatable.</li>
-      <li>Your best score goes on the Billboard.</li>
+      <li>Your best score goes on the leaderboard.</li>
     </ul>
   </section>
 
@@ -274,7 +293,7 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
   </section>
 
   <section aria-labelledby="s-board">
-    <h2 id="s-board"><span class="n">♪</span>The Billboard</h2>
+    <h2 id="s-board"><span class="n">♪</span>The leaderboard (in the ViiBR Vault)</h2>
     <p><code>/wisp board</code> shows:</p>
     <ul class="star">
       <li>Top sharers for the current Wisp</li>
@@ -312,7 +331,7 @@ fed today by 4 people
     <h2 id="s-later"><span class="n">♪</span>Not in version one</h2>
     <ul class="star">
       <li><strong>Coins:</strong> leaderboard points and bonds are bragging rights for now. Feeding can pay out website points later, once the economy exists.</li>
-      <li><strong>AI voice:</strong> Wisp talks in pre-written lines first. His AI personality comes after the core game works.</li>
+      <li><strong>Friendship songs and song listens:</strong> right after launch (they need Bandmate bond, which nobody has on day one).</li>
     </ul>
   </section>
 
@@ -325,7 +344,7 @@ fed today by 4 people
       <li>Freeze for holidays: yes?</li>
       <li>Do leaderboard points match meal points (Suno 1, viibrmusic.com 5)?</li>
       <li>How does Wisp choose his favorite community songs for the Jam Space?</li>
-      <li>Badge names and prices for the Lunchbox.</li>
+      <li>Badge names and prices for the ViiBR Vault.</li>
       <li>More easy text games to join Rhyme Duel.</li>
     </ol>
   </section>

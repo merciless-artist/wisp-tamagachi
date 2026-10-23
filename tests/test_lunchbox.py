@@ -745,7 +745,7 @@ async def test_eating_gif_attached_when_present(
     assert "file" not in second.kwargs
 
 
-async def test_pickles_never_get_an_eating_gif(
+async def test_pickles_attach_the_hedge_gif_while_stance_unknown(
     bot: app.WispBot,
     server: FakeServer,
     tmp_path: Path,
@@ -755,10 +755,15 @@ async def test_pickles_never_get_an_eating_gif(
     (tmp_path / "eating" / "eat_pickles.gif").write_bytes(b"GIF89a")
     monkeypatch.setattr(lunchbox, "ASSETS_DIR", tmp_path)
     await lay(bot)
+    pick = say(bot, "no comment on the pickle")
 
     await eat(bot, "pickles")
 
-    assert "file" not in server.house.send.await_args.kwargs
+    pick.assert_called_once_with(Moment.PICKLE_HEDGE, Mood.HAPPY, name="Member1")
+    assert house_text(server) == "no comment on the pickle"
+    attached = server.house.send.await_args.kwargs["file"]
+    assert isinstance(attached, discord.File)
+    assert attached.filename == "eat_pickles.gif"
 
 
 async def test_feeding_lets_wisp_meet_the_member(
