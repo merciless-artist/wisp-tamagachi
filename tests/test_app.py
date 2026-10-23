@@ -564,3 +564,9 @@ async def test_unhandled_listener_error_without_a_guild_is_reported_without_one(
         await bot.on_error("on_ready", *args)
 
     bot.report_error.assert_awaited_once_with(None, "on_ready", error)
+
+
+async def test_tests_never_reach_a_real_ai_provider() -> None:
+    bot = app.WispBot()
+
+    assert bot.ai.providers == ()

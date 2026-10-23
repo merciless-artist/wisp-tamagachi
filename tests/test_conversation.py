@@ -264,7 +264,7 @@ async def test_mention_gets_an_ai_reply_without_pings(
 
     assert reply_text(said) == "hey you <:wisp_happy:1>"
     (prompt,) = prompts(ai)
-    assert prompt.user.endswith("Member1 says to you: Wisp hi there")
+    assert prompt.user.endswith("Member1 says to you: hi there")
     assert ":wisp_happy:" in prompt.system
     assert "wisp_coin" not in prompt.system
     assert "snack_cheese" not in prompt.system
@@ -592,7 +592,7 @@ async def test_named_member_is_called_by_their_wisp_name(
 
     (prompt,) = prompts(ai)
     assert "You're talking to Aria." in prompt.system
-    assert prompt.user.endswith("Aria says to you: Wisp hi")
+    assert prompt.user.endswith("Aria says to you: hi")
 
 
 # ---
@@ -698,6 +698,13 @@ async def test_context_includes_recent_house_lines(
         )
     )
     await cog.on_message(message("my own line <:wisp_happy:1>", author=WISP))
+    await cog.on_message(
+        message(
+            f"hi <@{WISP_ID}>  beep",
+            author=make_user(3, "Helper", bot=True),
+            mentions=[WISP],
+        )
+    )
     await cog.on_message(message(long_line, author=MEMBERS[SECOND]))
     await cog.on_message(
         message(
@@ -712,12 +719,13 @@ async def test_context_includes_recent_house_lines(
             "Member1: first line",
             "Member2: hey Member1 look at this",
             "Wisp: my own line :wisp_happy:",
+            "Helper: hi beep",
             f"Member2: {'x' * CONTEXT_LINE_CHARS}",
         )
     )
     assert f"{chat}\n\n" in prompt.user
     assert prompt.user.count("thoughts on") == 1
-    assert prompt.user.endswith("Member1 says to you: Wisp thoughts on Member2?")
+    assert prompt.user.endswith("Member1 says to you: thoughts on Member2?")
 
 
 async def test_context_keeps_only_the_latest_lines(

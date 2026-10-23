@@ -108,7 +108,6 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.notes = NoteRepo(db)
-    monkeypatch.setattr(wisp_bot.ai, "complete", AsyncMock(return_value=""))
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot

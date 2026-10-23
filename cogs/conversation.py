@@ -47,13 +47,16 @@ _CUSTOM_EMOJI: Final = re.compile(r"<a?:(\w+):\d+>")
 # ---
 
 
-def _clean(message: discord.Message) -> str:
+def _clean(message: discord.Message, wisp: discord.ClientUser) -> str:
     """The message's text on one line, without Discord markup.
 
-    A mentioned member becomes their display name; any other mention is
-    dropped. Custom emojis become ":name:", the way Wisp writes his own.
+    A mentioned member becomes their display name; Wisp's own mention and any
+    other mention are dropped. Custom emojis become ":name:", the way Wisp
+    writes his own.
     """
-    names = {user.id: user.display_name for user in message.mentions}
+    names = {
+        user.id: user.display_name for user in message.mentions if user.id != wisp.id
+    }
     text = _MEMBER_MENTION.sub(
         lambda match: names.get(int(match.group(1)), ""), message.content
     )
@@ -103,14 +106,14 @@ class Conversation(commands.Cog):
         if guild is None:
             return
         settings = await self.bot.settings.get(guild.id)
-        if message.channel.id != settings.house_channel_id:
+        wisp = self.bot.user
+        if message.channel.id != settings.house_channel_id or wisp is None:
             return
-        text = _clean(message)
+        text = _clean(message, wisp)
         chat = self._chat.setdefault(guild.id, deque(maxlen=CONTEXT_LINES))
         earlier = tuple(chat)
         chat.append(ChatLine(message.author.display_name, text[:CONTEXT_LINE_CHARS]))
-        wisp = self.bot.user
-        if message.author.bot or wisp is None:
+        if message.author.bot:
             return
         now = discord.utils.utcnow()
         if _aimed_at(message, wisp):
