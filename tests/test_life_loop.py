@@ -20,6 +20,7 @@ from cogs.life_loop import LifeLoop
 from cogs.lunchbox import FeedButton
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
+from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -28,6 +29,7 @@ from wisp.bond import happiness
 from wisp.card import render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
+from wisp.links import Track, TrackKind
 from wisp.rules import Stage
 
 GUILD_ID = 100
@@ -80,6 +82,7 @@ class FakeServer:
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
         self.guild.get_channel_or_thread.side_effect = channels.get
+        self.guild.get_member.return_value = None
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
         threads = {STATUS_ID: self.status, VAULT_ID: self.vault}
@@ -102,6 +105,7 @@ def bot(
     wisp_bot.lives = LifeRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
+    wisp_bot.keepsakes = KeepsakeRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -475,6 +479,31 @@ async def test_finished_life_is_replaced_by_next_egg(
 
     assert (await current_life(bot)).version == 2
     server.house.send.assert_awaited_once()
+
+
+async def test_over_life_at_tick_start_uses_next_life(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    passed = await lay(bot, phase=Phase.PASSED, care=40.0)
+    assert passed.id is not None
+    track = Track(TrackKind.VIIBR, "track", "https://viibrmusic.com/songs/track")
+    await bot.activity_log.record_feed(
+        GUILD_ID, passed.id, USER_ID, track, 5, 1, NOW - timedelta(days=1)
+    )
+
+    await cog.run_tick(NOW)
+
+    egg = await current_life(bot)
+    assert (egg.version, egg.phase, egg.from_coal) == (2, Phase.EGG, True)
+    assert egg.last_tick_at == NOW
+    gift, laid = house_texts(server)
+    assert gift.startswith(f"♪ <@{USER_ID}> gets Wisp v1's Last Ember\n")
+    assert mentions_version(laid, 2)
+    keepsakes = await bot.keepsakes.of(GUILD_ID, USER_ID)
+    assert [keepsake.title for keepsake in keepsakes] == ["Wisp v1's Last Ember"]
+    content = server.card_edit.await_args.kwargs["content"]
+    assert content.startswith("♪ WISP v2 ・ EGG")
 
 
 async def test_frozen_guild_does_not_drain(

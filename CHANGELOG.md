@@ -7,6 +7,11 @@
   the Shop the Vault and Open my lunchbox buttons, and carries
   `ASSETS/vault.png` when it exists. Version lines now show the stage, "from
   coal" eggs and full lives.
+- Old age and the farewell: Wisp's House hears him grow into an Old Fogey and,
+  after a full life, a celebrated farewell as he shrivels into coal. The top
+  three sharers of that life who are not banned each get its Last Ember with a
+  goodbye from him, then the coal cracks into the next egg, already halfway
+  hatched. A neglect death still leaves no gifts and a fresh egg.
 
 ## 2026-10-22
 

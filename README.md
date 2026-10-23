@@ -76,8 +76,10 @@ posts text only.
 - `eating/eat_<snack>.gif` for each snack key (`sinewave`, `cloudwave`,
   `jellywave`, `juicewave`, `spicywave`, `glitterwave`, `viibrwave`, `cheese`,
   `pickles`).
-- `stages/<stage>.png` for `baby`, `child`, `teen`, `adult`, `rockstar`.
-- `events/died.png`, `events/egg_cold.png`, `events/hatched.png`.
+- `stages/<stage>.png` for `baby`, `child`, `teen`, `adult`, `rockstar`,
+  `old_fogey`, plus `stages/coal_egg.png` for the egg after a full life.
+- `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
+  `events/farewell.png`.
 - `shame/*` any images, picked at random when a member is punished.
 - `vault.png` for the first post of The ViiBR Vault thread.
 

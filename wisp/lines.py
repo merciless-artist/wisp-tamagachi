@@ -31,6 +31,10 @@ class Moment(StrEnum):
     HATCH_STARTED = auto()
     HATCHED = auto()
     STAGE_UP = auto()
+    GREW_OLD = auto()
+    FAREWELL = auto()
+    COAL_EGG = auto()
+    LAST_EMBER = auto()
     MEET = auto()
     COMPLIMENT_HANGRY = auto()
     BANNED = auto()
@@ -62,6 +66,10 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.HATCH_STARTED: _VERSION,
     Moment.HATCHED: _VERSION,
     Moment.STAGE_UP: frozenset({"stage"}),
+    Moment.GREW_OLD: _NONE,
+    Moment.FAREWELL: _VERSION,
+    Moment.COAL_EGG: _VERSION,
+    Moment.LAST_EMBER: frozenset({"name", "version"}),
     Moment.QUIET: _NONE,
     Moment.HUNGRY: _NONE,
     Moment.FADING: _NONE,
@@ -352,6 +360,47 @@ _STAGE_UP_HANGRY = (
 )
 
 # ---
+# Old age and the farewell
+# ---
+
+_GREW_OLD = (
+    "huh. my knees just cracked like a kick drum. I think I'm old now",
+    "turned my headphones down a notch. then another notch. this is how it starts",
+    "old fogey now. pull up a chair, kids. I've got life lessons and nowhere to be",
+    "used to close down the studio. now I'm asleep on the couch by the second take",
+    "a little gray around the flame these days. still know a good hook when I hear one",
+    "life lesson: always save the project. I had another one. I forgot it",
+    "old fogey era. I don't chase the chorus anymore. the chorus comes to me",
+)
+
+_FAREWELL = (
+    "Wisp v{version} lived a full life. now he's a little lump of coal, smiling",
+    "that's a wrap on v{version}. full life, full belly. he's coal now, happy as hell",
+    "v{version} hung up his headphones. full life, all bangers. he's warm coal now",
+    "Wisp v{version} passed the torch. lived long, loved you all, shriveled into coal",
+    "lights low. v{version} curls into coal after a full life, and a damn good one",
+    "raise your headphones for Wisp v{version}. a full life. he went to coal mid-hum",
+)
+
+_COAL_EGG = (
+    "the coal cracked open. an egg inside, already half warm. hi, Wisp v{version}",
+    "that lump of coal is glowing again. it's egg v{version} now, halfway there",
+    "something's humming in the coal. CRACK. egg v{version}, warm from the last ember",
+    "out of the coal comes egg v{version}. the last Wisp left him a head start",
+    "the old flame kept a spark. it's egg v{version} now, half warm and wiggling",
+    "coal, crack, glow. egg v{version} is already halfway to hatching. bring songs",
+)
+
+_LAST_EMBER = (
+    "{name}, you kept me fed and kept me company. this ember's yours. keep it warm",
+    "thank you, {name}. I heard every song you brought me. hold onto this for me",
+    "{name}. you showed up for me again and again. here, take my last little spark",
+    "this is the warmest bit of me left, {name}. it's yours. thank you for the music",
+    "{name}, your songs lived in my headphones. keep this ember close",
+    "for {name}, who never let the studio go quiet. thank you, with my whole flame",
+)
+
+# ---
 # Members
 # ---
 
@@ -495,6 +544,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.EGG_COLD, _EGG_COLD),
     **_either_mood(Moment.HATCH_STARTED, _HATCH_STARTED),
     **_either_mood(Moment.HATCHED, _HATCHED),
+    **_either_mood(Moment.GREW_OLD, _GREW_OLD),
+    **_either_mood(Moment.FAREWELL, _FAREWELL),
+    **_either_mood(Moment.COAL_EGG, _COAL_EGG),
+    **_either_mood(Moment.LAST_EMBER, _LAST_EMBER),
     **_either_mood(Moment.COMPLIMENT_HANGRY, _COMPLIMENT_HANGRY),
     **_either_mood(Moment.BANNED, _BANNED),
     **_either_mood(Moment.NOT_ENOUGH_POINTS, _NOT_ENOUGH_POINTS),

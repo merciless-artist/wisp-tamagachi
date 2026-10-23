@@ -29,7 +29,17 @@ ONE_MOOD_MOMENTS = {
     Moment.COMPLIMENT_HANGRY,
     Moment.BANNED,
     Moment.NOT_ENOUGH_POINTS,
+    Moment.GREW_OLD,
+    Moment.FAREWELL,
+    Moment.COAL_EGG,
+    Moment.LAST_EMBER,
 }
+FAREWELL_MOMENTS = [
+    Moment.GREW_OLD,
+    Moment.FAREWELL,
+    Moment.COAL_EGG,
+    Moment.LAST_EMBER,
+]
 ALL_KEYS = sorted(LINES)
 GROWN_STAGES = [Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 STAGE_NOUNS = ("Wisp", "era", "years", "phase")
@@ -118,6 +128,36 @@ def test_rhyme_start_lines_say_the_word() -> None:
     for mood in Mood:
         for line in LINES[(Moment.RHYME_START, mood)]:
             assert placeholders(line) == {"word"}, line
+
+
+@pytest.mark.parametrize(
+    ("moment", "fields"),
+    [
+        (Moment.GREW_OLD, set()),
+        (Moment.FAREWELL, {"version"}),
+        (Moment.COAL_EGG, {"version"}),
+        (Moment.LAST_EMBER, {"name", "version"}),
+    ],
+)
+def test_farewell_moments_take_their_fields(moment: Moment, fields: set[str]) -> None:
+    assert FIELDS[moment] == fields
+
+
+@pytest.mark.parametrize("moment", [Moment.FAREWELL, Moment.COAL_EGG])
+def test_farewell_and_coal_egg_lines_name_the_version(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        assert placeholders(line) == {"version"}, line
+
+
+def test_last_ember_lines_speak_to_the_member() -> None:
+    for line in LINES[(Moment.LAST_EMBER, Mood.HAPPY)]:
+        assert "name" in placeholders(line), line
+
+
+@pytest.mark.parametrize("moment", FAREWELL_MOMENTS)
+def test_farewell_moment_lines_have_no_numbers(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        assert not re.search(r"\d", line), line
 
 
 # ---

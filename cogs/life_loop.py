@@ -8,12 +8,12 @@ import discord
 import pymysql
 from discord.ext import commands, tasks
 
-from cogs.announce import post_events, say_in_house, show_in_thread
+from cogs.announce import next_life, post_events, say_in_house, show_in_thread
 from cogs.lunchbox import feed_view
 from cogs.players import status_text
 from cogs.vault import refresh_vault
 from wisp.bond import happiness
-from wisp.life import Event, Life, Phase, is_over, new_egg, tick
+from wisp.life import Event, Life, Phase, is_over, tick
 from wisp.lines import Moment
 from wisp.rules import HAPPINESS_WINDOW, QUIET_AFTER, TICK_EVERY
 
@@ -84,18 +84,15 @@ class LifeLoop(commands.Cog):
         happy = happiness(
             await bot.activity_log.people_since(guild_id, now - HAPPINESS_WINDOW)
         )
-        events: list[Event] = []
-        laid: Life | None = None
+        events: list[Event] | None = None
         async with bot.guild_lock(guild_id):
             life = await bot.lives.current(guild_id)
-            if life is None or is_over(life):
-                version = await bot.lives.next_version(guild_id)
-                laid = await bot.lives.insert(guild_id, new_egg(version, now))
-            else:
+            if life is not None and not is_over(life):
                 events = await self._advance(guild_id, life, now, frozen, happy)
-        if laid is not None:
-            await say_in_house(bot, guild_id, Moment.NEW_EGG, laid)
-        await post_events(bot, guild_id, events)
+        if events is None:
+            await next_life(bot, guild_id, now)
+        else:
+            await post_events(bot, guild_id, events)
         current = await bot.lives.current(guild_id)
         if current is None:
             return

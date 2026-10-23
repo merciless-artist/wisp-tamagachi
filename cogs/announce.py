@@ -1,5 +1,7 @@
 """Announcements in Wisp's House, shared by the feeding listener and the life loop."""
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -7,14 +9,17 @@ import discord
 
 from cogs.assets import ASSETS_DIR
 from cogs.studio import StudioError, studio_thread
-from wisp.life import Event, EventKind, Life, is_over, mood, new_egg
+from db.keepsakes import Keepsake, KeepsakeKind
+from db.players import Player
+from wisp.life import Event, EventKind, Life, Phase, egg_after, is_over, mood
 from wisp.lines import FIELDS, Moment
+from wisp.rules import LAST_EMBER_GIFTS
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD})
+_ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
 _BABY_STAGE: Final = "baby"
 
 # ---
@@ -28,13 +33,19 @@ def _image_for(event: Event) -> Path | None:
     events = ASSETS_DIR / "events"
     candidates: list[Path] = []
     match event.kind:
-        case EventKind.STAGE_UP if event.stage is not None:
+        case EventKind.STAGE_UP | EventKind.GREW_OLD if event.stage is not None:
             candidates = [stages / f"{event.stage.value}.png"]
         case EventKind.HATCHED:
             candidates = [stages / f"{_BABY_STAGE}.png", events / "hatched.png"]
-        case EventKind.DIED | EventKind.EGG_COLD:
+        case EventKind.DIED | EventKind.EGG_COLD | EventKind.FAREWELL:
             candidates = [events / f"{event.kind.value}.png"]
     return next((path for path in candidates if path.is_file()), None)
+
+
+def _egg_image(egg: Life) -> Path | None:
+    """Return the coal egg's image for an egg from coal when it exists."""
+    coal = ASSETS_DIR / "stages" / "coal_egg.png"
+    return coal if egg.from_coal and coal.is_file() else None
 
 
 # ---
@@ -50,9 +61,13 @@ class _House:
         self._guild_id = guild_id
         self._guild: discord.Guild | None = None
         self._channel: discord.abc.Messageable | None = None
+        self._opened = False
 
     async def open(self) -> None:
-        """Find the House channel, or report to staff that it cannot be found."""
+        """Find the House channel once, or report to staff that it cannot be found."""
+        if self._opened:
+            return
+        self._opened = True
         self._guild = self._bot.get_guild(self._guild_id)
         settings = await self._bot.settings.get(self._guild_id)
         found = (
@@ -142,26 +157,13 @@ async def say_in_house(
     await house.say(prefix + _line(bot, moment, life, name=name), image, view)
 
 
-async def _lay_next_egg(bot: "WispBot", guild_id: int, house: _House) -> None:
-    """Insert the next egg once the current life is over, then announce it."""
-    async with bot.guild_lock(guild_id):
-        ended = await bot.lives.current(guild_id)
-        if ended is None or not is_over(ended):
-            return
-        egg = await bot.lives.insert(
-            guild_id,
-            new_egg(await bot.lives.next_version(guild_id), discord.utils.utcnow()),
-        )
-    await house.say(_line(bot, Moment.NEW_EGG, egg))
-
-
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:
     """Announce life events in Wisp's House.
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
-    A death or a cold egg is followed by the next egg being laid and announced,
-    unless the current life is not over, which means the ending is stale.
-    A missing House channel is reported to staff once; the eggs are still laid.
+    A death, a cold egg or a farewell is followed by the next life, unless the
+    current life is not over, which means the ending is stale.
+    A missing House channel is reported to staff once; the next life still comes.
     """
     if not events:
         return
@@ -176,7 +178,87 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         moment = Moment(event.kind.value)
         await house.say(_line(bot, moment, life, event), _image_for(event))
         if event.kind in _ENDINGS:
-            await _lay_next_egg(bot, guild_id, house)
+            await _next_life(bot, guild_id, house, discord.utils.utcnow())
+
+
+# ---
+# The next life
+# ---
+
+
+@dataclass(frozen=True)
+class _Embers:
+    """A full life's Last Ember and the members it was newly given to."""
+
+    life: Life
+    ember: Keepsake
+    receivers: tuple[Player, ...]
+
+
+async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
+    """Follow an ended life, or no life at all, with the next egg.
+
+    After a full life its top sharers who are not banned get its Last Ember and
+    the egg is a coal egg; after any other ending, or none, it is a fresh egg.
+    Nothing happens while the current life goes on, so calling this twice is
+    safe. Wisp's House hears who got an ember, then the new egg.
+    Takes `bot.guild_lock`, so it must be called outside it.
+    """
+    await _next_life(bot, guild_id, _House(bot, guild_id), now)
+
+
+async def _next_life(
+    bot: "WispBot", guild_id: int, house: _House, now: datetime
+) -> None:
+    async with bot.guild_lock(guild_id):
+        ended = await bot.lives.current(guild_id)
+        if ended is not None and not is_over(ended):
+            return
+        embers = await _give_last_embers(bot, guild_id, ended, now)
+        version = await bot.lives.next_version(guild_id)
+        egg = await bot.lives.insert(guild_id, egg_after(ended, version, now))
+    await house.open()
+    if embers is not None:
+        guild = bot.get_guild(guild_id)
+        for player in embers.receivers:
+            name = _display_name(guild, player)
+            heading = f"♪ {name} gets {embers.ember.title}"
+            await house.say(f"{heading}\n{_goodbye(bot, embers.life, name)}")
+    moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
+    await house.say(_line(bot, moment, egg), _egg_image(egg))
+
+
+async def _give_last_embers(
+    bot: "WispBot", guild_id: int, ended: Life | None, now: datetime
+) -> _Embers | None:
+    """Give a full life's Last Ember to its top sharers who are not banned."""
+    if ended is None or ended.phase is not Phase.PASSED or ended.id is None:
+        return None
+    ember = Keepsake(KeepsakeKind.LAST_EMBER, ended.version, now)
+    receivers: list[Player] = []
+    top = await bot.activity_log.top_this_life(guild_id, ended.id, LAST_EMBER_GIFTS)
+    for user_id, _points in top:
+        player = await bot.players.get(guild_id, user_id)
+        if player.is_banned(now):
+            continue
+        if await bot.keepsakes.give(
+            guild_id, user_id, ember.kind, ember.version, ember.given_at
+        ):
+            receivers.append(player)
+    return _Embers(ended, ember, tuple(receivers))
+
+
+def _display_name(guild: discord.Guild | None, player: Player) -> str:
+    """The name Wisp calls a member, else their server name, else a mention."""
+    if player.name is not None:
+        return player.name
+    member = guild.get_member(player.user_id) if guild is not None else None
+    return member.display_name if member is not None else f"<@{player.user_id}>"
+
+
+def _goodbye(bot: "WispBot", life: Life, name: str) -> str:
+    """Wisp's goodbye to one member he gives his Last Ember to."""
+    return _line(bot, Moment.LAST_EMBER, life, name=name)
 
 
 # ---

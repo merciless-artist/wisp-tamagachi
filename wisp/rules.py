@@ -66,6 +66,7 @@ STAGE_RULES: dict[Stage, tuple[int, int, int]] = {
 
 OLD_FOGEY_AT_DAY = 45
 FAREWELL_AT_DAY = 60
+LAST_EMBER_GIFTS = 3
 
 ROCKSTAR_HAPPY_FOR = timedelta(days=7)
 ROCKSTAR_HAPPINESS = 80
