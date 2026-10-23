@@ -1,8 +1,10 @@
+import logging
+
 import pymysql
 import pytest
 
 from db.database import Database
-from db.schema import TABLES, create_tables
+from db.schema import TABLES, SchemaError, create_tables
 
 
 async def test_create_tables_is_idempotent(db: Database) -> None:
@@ -35,3 +37,45 @@ async def test_track_key_is_unique_per_guild(db: Database) -> None:
     await db.insert(insert)
     with pytest.raises(pymysql.err.IntegrityError):
         await db.insert(insert)
+
+
+async def test_matching_tables_pass_the_column_check(
+    db: Database, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="wisp"):
+        await create_tables(db)
+
+    assert caplog.records == []
+
+
+async def test_a_table_missing_a_column_refuses_to_start(db: Database) -> None:
+    notes = db.t("notes")
+    await db.execute(f"ALTER TABLE {notes} DROP COLUMN note")
+    try:
+        with pytest.raises(SchemaError, match=rf"{notes}.*\bnote\b"):
+            await create_tables(db)
+    finally:
+        await db.execute(f"DROP TABLE {notes}")
+        await create_tables(db)
+
+    columns = await db.fetchall(f"SHOW COLUMNS FROM {notes}")
+    assert "note" in {column["Field"] for column in columns}
+
+
+async def test_an_extra_column_is_only_a_warning(
+    db: Database, caplog: pytest.LogCaptureFixture
+) -> None:
+    notes = db.t("notes")
+    await db.execute(f"ALTER TABLE {notes} ADD COLUMN leftover INT NULL")
+    try:
+        with caplog.at_level(logging.WARNING, logger="wisp"):
+            await create_tables(db)
+    finally:
+        await db.execute(f"ALTER TABLE {notes} DROP COLUMN leftover")
+
+    assert any(
+        record.levelno == logging.WARNING
+        and notes in record.getMessage()
+        and "leftover" in record.getMessage()
+        for record in caplog.records
+    )

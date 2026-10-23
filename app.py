@@ -6,6 +6,7 @@ import sys
 from typing import Any
 
 import discord
+import pymysql
 from discord import app_commands
 from discord.ext import commands
 
@@ -118,12 +119,14 @@ class WispBot(commands.Bot):
         self.failing_displays: set[tuple[int, str]] = set()
         self.rhyme_duels: set[tuple[int, int]] = set()
         self._guild_locks: dict[int, asyncio.Lock] = {}
+        self._startup_reports: list[tuple[str, str]] = []
 
     async def setup_hook(self) -> None:
         """Connect storage, fetch emojis, load the cogs and sync the commands.
 
         The cogs attach their commands to the shared groups as they load, so the
-        groups join the command tree only once all of them are in.
+        groups join the command tree only once all of them are in. A cog that
+        fails to load is logged now and posted to staff once the bot is ready.
         """
         await self.db.connect()
         await create_tables(self.db)
@@ -135,11 +138,19 @@ class WispBot(commands.Bot):
             try:
                 await self.load_extension(extension)
             except commands.ExtensionError as error:
-                await self.report_error(None, f"loading {extension}", error)
+                context = f"loading {extension}"
+                log.error("Error in %s", context, exc_info=error)
+                self._startup_reports.append((context, _report_line(context, error)))
         self.tree.add_command(wisp)
         self.tree.add_command(wispadmin)
         synced = await self.tree.sync()
         log.info("Synced %d commands", len(synced))
+
+    async def on_ready(self) -> None:
+        """Post the errors from startup to every staff channel, the first time only."""
+        reports, self._startup_reports = self._startup_reports, []
+        for context, line in reports:
+            await self._post_everywhere(context, line)
 
     async def on_message(self, message: discord.Message) -> None:
         """Ignore direct messages. Guild messages reach the cogs' own listeners."""
@@ -211,13 +222,47 @@ class WispBot(commands.Bot):
         This never raises: a failure to report is only logged.
         """
         log.error("Error in %s", context, exc_info=error)
-        line = f"Error in {context}: {type(error).__name__}: {error}"
+        await self._post_to_staff(guild, context, _report_line(context, error))
+
+    async def report_error_everywhere(self, context: str, error: BaseException) -> None:
+        """Log an error that belongs to no one guild and post it to every guild.
+
+        This never raises: a failure to report is only logged.
+        """
+        log.error("Error in %s", context, exc_info=error)
+        await self._post_everywhere(context, _report_line(context, error))
+
+    async def _post_everywhere(self, context: str, line: str) -> None:
+        """Post a report to the staff channel of every guild Wisp is set up in.
+
+        When the settings cannot be read, the guilds the bot can see are used.
+        """
+        try:
+            guilds = [
+                guild
+                for guild_id in await self.settings.guilds()
+                if (guild := self.get_guild(guild_id)) is not None
+            ]
+        except (pymysql.err.Error, OSError):
+            log.exception("Could not list Wisp's guilds to report %s", context)
+            guilds = list(self.guilds)
+        for guild in guilds:
+            await self._post_to_staff(guild, context, line)
+
+    async def _post_to_staff(
+        self, guild: discord.Guild | None, context: str, line: str
+    ) -> None:
         try:
             channel = await self.staff_channel(guild)
             if channel is not None:
-                await channel.send(line[:MESSAGE_LIMIT])
+                await channel.send(line)
         except Exception:
             log.exception("Could not post error report for %s", context)
+
+
+def _report_line(context: str, error: BaseException) -> str:
+    """The plain staff report for an error, cut to one message."""
+    return f"Error in {context}: {type(error).__name__}: {error}"[:MESSAGE_LIMIT]
 
 
 # ---

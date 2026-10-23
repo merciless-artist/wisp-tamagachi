@@ -1,6 +1,12 @@
 """Table definitions. Every statement is safe to run repeatedly."""
 
+import logging
+
 from db.database import Database
+
+log = logging.getLogger("wisp")
+
+_KEY_LINE_STARTS = ("PRIMARY", "UNIQUE", "INDEX", "KEY")
 
 _DEFINITIONS: dict[str, str] = {
     "settings": """
@@ -122,11 +128,40 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
 TABLES: tuple[str, ...] = tuple(_DEFINITIONS)
 
 
+class SchemaError(Exception):
+    """A table in the database lacks columns the code needs."""
+
+
+def _defined_columns(name: str) -> set[str]:
+    """The column names of a table: the first word of each non-key line."""
+    lines = (line.strip() for line in _DEFINITIONS[name].splitlines())
+    columns = {
+        line.split()[0]
+        for line in lines
+        if line and not line.upper().startswith(_KEY_LINE_STARTS)
+    }
+    return columns | set(_ADDED_COLUMNS.get(name, {}))
+
+
+async def _columns(db: Database, name: str) -> set[str]:
+    rows = await db.fetchall(
+        "SELECT column_name AS name FROM information_schema.columns "
+        "WHERE table_schema = DATABASE() AND table_name = %s",
+        (db.t(name),),
+    )
+    return {row["name"] for row in rows}
+
+
 async def create_tables(db: Database) -> None:
     """Create every table that does not exist yet, then add any missing columns.
 
     Columns that are already there are skipped, so a normal startup does not
-    draw a duplicate column note from the server.
+    draw a duplicate column note from the server. Afterwards every table is
+    checked against its definition: extra columns are logged as a warning.
+
+    Raises:
+        SchemaError: A table lacks a defined column, so it was built from an
+            older schema and must be rebuilt.
     """
     rows = await db.fetchall(
         "SELECT table_name AS name FROM information_schema.tables "
@@ -140,17 +175,27 @@ async def create_tables(db: Database) -> None:
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             )
     for name, added in _ADDED_COLUMNS.items():
-        present = {
-            row["name"]
-            for row in await db.fetchall(
-                "SELECT column_name AS name FROM information_schema.columns "
-                "WHERE table_schema = DATABASE() AND table_name = %s",
-                (db.t(name),),
-            )
-        }
+        present = await _columns(db, name)
         for column, definition in added.items():
             if column not in present:
                 await db.execute(
                     f"ALTER TABLE {db.t(name)} "
                     f"ADD COLUMN IF NOT EXISTS {column} {definition}"
                 )
+    await _check_columns(db)
+
+
+async def _check_columns(db: Database) -> None:
+    for name in _DEFINITIONS:
+        defined = _defined_columns(name)
+        present = await _columns(db, name)
+        if missing := defined - present:
+            raise SchemaError(
+                f"Table {db.t(name)} is missing columns: {', '.join(sorted(missing))}"
+            )
+        if extra := present - defined:
+            log.warning(
+                "Table %s has columns Wisp does not use: %s",
+                db.t(name),
+                ", ".join(sorted(extra)),
+            )

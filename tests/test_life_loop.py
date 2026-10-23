@@ -694,14 +694,20 @@ async def test_guild_the_bot_cannot_see_is_skipped(
 # ---
 
 
-async def test_loop_error_is_reported_and_loop_continues(
+async def test_loop_error_is_reported_to_every_guild_and_loop_continues(
     cog: LifeLoop,
     bot: app.WispBot,
+    server: FakeServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    other = FakeServer()
+    other.guild.id = GUILD_ID + 1
+    guilds = {GUILD_ID: server.guild, GUILD_ID + 1: other.guild}
+    monkeypatch.setattr(bot, "get_guild", guilds.get)
+    for guild_id in guilds:
+        await bot.settings.update(guild_id, error_channel_id=ERRORS_ID)
     ticks = 0
     recovered = asyncio.Event()
-    reported: Any = AsyncMock()
 
     async def flaky(now: datetime) -> None:
         nonlocal ticks
@@ -711,7 +717,6 @@ async def test_loop_error_is_reported_and_loop_continues(
         recovered.set()
 
     monkeypatch.setattr(cog, "run_tick", flaky)
-    monkeypatch.setattr(bot, "report_error", reported)
     monkeypatch.setattr(bot, "wait_until_ready", AsyncMock())
     monkeypatch.setattr(life_loop, "TICK_EVERY", timedelta(milliseconds=10))
     cog.tick_loop.change_interval(seconds=0.01)
@@ -722,11 +727,9 @@ async def test_loop_error_is_reported_and_loop_continues(
     finally:
         await cog.cog_unload()
 
-    reported.assert_awaited_once()
-    guild, context, error = reported.await_args.args
-    assert guild is None
-    assert context == "life loop"
-    assert isinstance(error, RuntimeError)
+    line = "Error in life loop: RuntimeError: database went away"
+    server.errors.send.assert_awaited_once_with(line)
+    other.errors.send.assert_awaited_once_with(line)
     assert ticks >= 2
 
 
@@ -736,7 +739,7 @@ async def test_loop_waits_before_restarting_after_an_error(
     ticks = AsyncMock(side_effect=RuntimeError("bug"))
     monkeypatch.setattr(cog, "run_tick", ticks)
     monkeypatch.setattr(bot, "wait_until_ready", AsyncMock())
-    monkeypatch.setattr(bot, "report_error", AsyncMock())
+    monkeypatch.setattr(bot, "report_error_everywhere", AsyncMock())
 
     await cog.cog_load()
     await asyncio.sleep(0.2)

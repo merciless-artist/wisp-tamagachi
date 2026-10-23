@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 from discord import app_commands
 from discord.ext import commands
@@ -399,7 +400,6 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
 
     monkeypatch.setattr(bot.tree, "sync", sync)
     monkeypatch.setattr(bot.tree, "add_command", record_add_command)
-    bot.report_error = AsyncMock()  # type: ignore[method-assign]
 
     await bot.setup_hook()
 
@@ -416,13 +416,59 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
     assert bot.tree.get_command("wisp") is groups.wisp
     assert bot.tree.get_command("wispadmin") is groups.wispadmin
     assert bot.emojis_by_name == {"a": emoji}
-    bot.report_error.assert_awaited_once()
-    call = bot.report_error.await_args
-    assert call is not None
-    guild, context, error = call.args
-    assert guild is None
-    assert "cogs.broken" in context
-    assert isinstance(error, commands.ExtensionFailed)
+
+
+async def test_a_failed_extension_reaches_every_staff_channel_once_after_ready(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    first, second = make_channel(), make_channel()
+    first.send, second.send = AsyncMock(), AsyncMock()
+    guilds = {7: make_guild(first, 7), 8: make_guild(second, 8)}
+    bot.settings = AsyncMock()
+    bot.settings.guilds.return_value = [7, 8]
+    bot.settings.get.return_value = Settings(error_channel_id=555)
+    monkeypatch.setattr(bot, "get_guild", guilds.get)
+
+    async def load_extension(name: str) -> None:
+        raise commands.ExtensionFailed(name, ValueError("nope"))
+
+    monkeypatch.setattr(app, "EXTENSIONS", ("cogs.broken",))
+    monkeypatch.setattr(app, "create_tables", AsyncMock())
+    monkeypatch.setattr(bot.db, "connect", AsyncMock())
+    monkeypatch.setattr(bot, "fetch_application_emojis", AsyncMock(return_value=[]))
+    monkeypatch.setattr(bot, "load_extension", load_extension)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        await bot.setup_hook()
+
+    assert "cogs.broken" in caplog.text
+    first.send.assert_not_awaited()
+
+    await bot.on_ready()
+    await bot.on_ready()
+
+    for channel in (first, second):
+        channel.send.assert_awaited_once()
+        (line,) = channel.send.await_args.args
+        assert line.startswith("Error in loading cogs.broken: ExtensionFailed:")
+
+
+async def test_reporting_everywhere_falls_back_to_the_guilds_the_bot_sees(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    channel = make_channel()
+    channel.send = AsyncMock()
+    bot.settings = AsyncMock()
+    bot.settings.guilds.side_effect = pymysql.err.OperationalError(2003, "down")
+    bot.settings.get.return_value = Settings(error_channel_id=555)
+    monkeypatch.setattr(
+        app.WispBot, "guilds", property(lambda _self: [make_guild(channel)])
+    )
+
+    await bot.report_error_everywhere("life loop", RuntimeError("boom"))
+
+    channel.send.assert_awaited_once_with("Error in life loop: RuntimeError: boom")
 
 
 async def test_close_closes_the_database_after_the_client(

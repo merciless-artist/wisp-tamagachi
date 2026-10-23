@@ -50,7 +50,7 @@ class LifeLoop(commands.Cog):
 
     @tick_loop.error
     async def _on_tick_loop_error(self, error: BaseException) -> None:
-        await self.bot.report_error(None, "life loop", error)
+        await self.bot.report_error_everywhere("life loop", error)
         await asyncio.sleep(TICK_EVERY.total_seconds())
         self.tick_loop.restart()
 
