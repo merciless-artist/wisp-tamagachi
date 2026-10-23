@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-23 (plan 2 final fixes)
+
+- Staff see every error: a life loop failure is posted to every guild's errors
+  channel, and a cog that fails to load at startup is posted once the bot is
+  ready.
+- Startup refuses a stale database: a table missing a column stops the bot
+  with a SchemaError naming it. Extra columns are only logged.
+- Guild settings and qualifying roles are cached in the bot, so most messages
+  no longer wait on the database, and the errors channel still works during a
+  database outage. The track drop only reads settings for messages with a
+  track link.
+- Only qualifying members (Active Lounger or higher who have opened
+  `/wisp board`) can use the Feed Wisp button or eat snacks with him. Rhyme
+  Duels stay open to everyone, but only qualifying members get play credit.
+- `/wispadmin food viibr suno` sets each track's meal points per guild and
+  updates the How Wisp Works post. Until set, the values in `wisp/rules.py`
+  apply.
+- At the daily meal limit a snack, the free Sine Wave included, is refused and
+  kept for tomorrow.
+- Wisp only meets members once he has hatched.
+- Mentioning Wisp's role counts as talking to him.
+- When every AI provider is cooling down, Wisp falls back to his canned lines
+  at once instead of waiting on each provider.
+- No send can ping anyone, and more emoji are filtered from AI replies.
+- Database connections are recycled every hour.
+- The README permission list now matches what Wisp uses, and the Vault intro no
+  longer mentions song listens, which are not built yet.
+
 ## 2026-10-22 (plan 2)
 
 - The ViiBR Vault: the Studio's Lunchbox and Billboard threads are replaced by

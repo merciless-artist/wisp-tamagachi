@@ -200,17 +200,22 @@ class AIChain:
     async def complete(self, prompt: Prompt) -> str:
         """Return the first provider's answer; raise AllProvidersFailed if none.
 
-        If every provider is cooling down, all of them are tried anyway.
+        If every provider is cooling down, it fails at once without asking any
+        of them, so an outage cannot hold up every reply.
         """
-        session = self._open_session()
         now = self._clock()
         ready = [
             provider
             for provider in self.providers
             if self._cooling_until.get(provider.name, 0.0) <= now
         ]
+        if not ready:
+            raise AllProvidersFailed(
+                [(provider.name, "cooling down") for provider in self.providers]
+            )
+        session = self._open_session()
         failures: list[tuple[str, str]] = []
-        for provider in ready or self.providers:
+        for provider in ready:
             try:
                 answer = await provider.complete(session, prompt)
             except ProviderError as error:

@@ -344,7 +344,7 @@ async def test_cooled_down_provider_is_tried_again() -> None:
     assert pair.second_requests == 1
 
 
-async def test_all_cooling_down_still_tries_everyone() -> None:
+async def test_all_cooling_down_fails_at_once_without_asking_anyone() -> None:
     pair = CountingPair()
     pair.second_status = 503
     clock = FakeClock()
@@ -359,17 +359,19 @@ async def test_all_cooling_down_still_tries_everyone() -> None:
         try:
             with pytest.raises(AllProvidersFailed):
                 await ai.complete(PROMPT)
-            pair.second_status = 502
             with pytest.raises(AllProvidersFailed) as raised:
                 await ai.complete(PROMPT)
+            clock.now += COOLDOWN + 1
+            pair.first_status = 200
+            assert await ai.complete(PROMPT) == "from first"
         finally:
             await ai.close()
 
     assert pair.first_requests == 2
-    assert pair.second_requests == 2
-    assert [reason for _, reason in raised.value.failures] == [
-        "HTTP 500 down",
-        "HTTP 502 also down",
+    assert pair.second_requests == 1
+    assert raised.value.failures == [
+        ("gemini m", "cooling down"),
+        ("groq", "cooling down"),
     ]
 
 

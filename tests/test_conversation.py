@@ -41,6 +41,7 @@ OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
 ERRORS_ID = 40
 WISP_ID = 999
+WISP_ROLE_ID = 998
 FIRST = 1
 SECOND = 2
 START = datetime(2026, 10, 23, 12, 0, tzinfo=UTC)
@@ -79,6 +80,9 @@ class FakeServer:
         self.errors = make_channel(ERRORS_ID)
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
+        self.wisp_role = MagicMock(spec=discord.Role)
+        self.wisp_role.id = WISP_ROLE_ID
+        self.guild.self_role = self.wisp_role
         self.guild.get_channel_or_thread.side_effect = {
             HOUSE_ID: self.house,
             ERRORS_ID: self.errors,
@@ -99,6 +103,7 @@ class MessageFactory:
         author: MagicMock = MEMBERS[FIRST],
         channel: MagicMock | None = None,
         mentions: Sequence[MagicMock] = (),
+        role_mentions: Sequence[MagicMock] = (),
         replying_to: MagicMock | None = None,
     ) -> MagicMock:
         self._next_id += 1
@@ -109,6 +114,7 @@ class MessageFactory:
         message.channel = self._server.house if channel is None else channel
         message.content = content
         message.mentions = list(mentions)
+        message.role_mentions = list(role_mentions)
         message.reference = None
         if replying_to is not None:
             message.reference = MagicMock(spec=discord.MessageReference)
@@ -294,6 +300,22 @@ async def test_reply_to_wisp_counts_as_talking_to_him(
     assert prompts(ai)[0].user.endswith("Member1 says to you: what do you mean")
     to_member.reply.assert_not_awaited()
     assert ai.await_count == 1
+
+
+async def test_mentioning_wisps_role_counts_as_talking_to_him(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    said = message(f"<@&{WISP_ROLE_ID}> hi there", role_mentions=[server.wisp_role])
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "hey you"
+    assert prompts(ai)[0].user.endswith("Member1 says to you: hi there")
 
 
 async def test_messages_outside_the_house_are_ignored(

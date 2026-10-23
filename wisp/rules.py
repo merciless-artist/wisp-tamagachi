@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum, auto
+from typing import Final
 
 from wisp.links import TrackKind
 
@@ -112,6 +113,8 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 # Rhyme Duel
 # ---
 
+# Discord only allows 60, 1440, 4320 or 10080 minutes.
+RHYME_THREAD_ARCHIVE_MINUTES: Final = 60
 RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
 RHYME_SLANT_POINTS = 1
@@ -129,12 +132,18 @@ RHYME_SKILL: dict[Stage, float] = {
 }
 
 # ---
+# The Vault card
+# ---
+
+LEADERBOARD_SIZE = 10
+RHYME_LEADERBOARD_SIZE = 5
+
+# ---
 # Timing
 # ---
 
 MAX_CREDITED_GAP = timedelta(minutes=15)
 TICK_EVERY = timedelta(minutes=5)
-COMPLIMENT_COOLDOWN = timedelta(minutes=10)
 HAPPINESS_WINDOW = timedelta(hours=24)
 QUIET_AFTER = timedelta(hours=9)
 
@@ -190,6 +199,8 @@ AI_MAX_CHARS = 600
 # ---
 # Talking
 # ---
+
+LINES_REMEMBERED = 5
 
 TALK_COOLDOWN = timedelta(seconds=15)
 CHIME_IN_CHANCE = 0.04

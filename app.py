@@ -104,6 +104,7 @@ class WispBot(commands.Bot):
             intents=intents,
             help_command=None,
             tree_cls=WispTree,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
         self.db = Database(config.TABLE_PREFIX)
         self.settings = SettingsRepo(self.db)

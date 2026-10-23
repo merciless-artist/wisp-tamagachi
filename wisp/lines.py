@@ -5,6 +5,7 @@ from collections import deque
 from enum import StrEnum, auto
 
 from wisp.life import Mood
+from wisp.rules import LINES_REMEMBERED
 
 # ---
 # Moments
@@ -36,7 +37,6 @@ class Moment(StrEnum):
     COAL_EGG = auto()
     LAST_EMBER = auto()
     MEET = auto()
-    COMPLIMENT_HANGRY = auto()
     BANNED = auto()
     NOT_ENOUGH_POINTS = auto()
     RHYME_START = auto()
@@ -76,7 +76,6 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.QUIET: _NONE,
     Moment.HUNGRY: _NONE,
     Moment.FADING: _NONE,
-    Moment.COMPLIMENT_HANGRY: _NONE,
     Moment.RHYME_START: frozenset({"word"}),
     Moment.RHYME_WISP_STUCK: _NONE,
     Moment.RHYME_PLAYER_STUCK: _NONE,
@@ -424,17 +423,6 @@ _MEET_HANGRY = (
     "wait, I know you. I'm too hungry to guess your name right. just tell me",
 )
 
-_COMPLIMENT_HANGRY = (
-    "compliments aren't food.",
-    "cute doesn't fill a stomach",
-    "love you too. feed me.",
-    "aw. that's sweet. I can't eat sweet. I can eat songs",
-    "know what's cuter than me? a song in the tracks channel",
-    "say it with a track",
-    "I'm adorable and I'm starving. you can only fix one of those",
-    "sweet words. empty plate.",
-)
-
 _BANNED = (
     "{name} is off the guest list. staff's call, not mine",
     "staff pulled {name}'s backstage pass. I'm staying out of it",
@@ -620,7 +608,6 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.FAREWELL, _FAREWELL),
     **_either_mood(Moment.COAL_EGG, _COAL_EGG),
     **_either_mood(Moment.LAST_EMBER, _LAST_EMBER),
-    **_either_mood(Moment.COMPLIMENT_HANGRY, _COMPLIMENT_HANGRY),
     **_either_mood(Moment.BANNED, _BANNED),
     **_either_mood(Moment.NOT_ENOUGH_POINTS, _NOT_ENOUGH_POINTS),
     **_either_mood(Moment.EGG_POKE, _EGG_POKE),
@@ -629,8 +616,6 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
 # ---
 # Picker
 # ---
-
-_MAX_REMEMBERED = 5
 
 
 class LinePicker:
@@ -654,7 +639,7 @@ class LinePicker:
         options = LINES[(moment, mood)]
         recent = self._recent.setdefault(
             (moment, mood),
-            deque(maxlen=min(len(options) - 1, _MAX_REMEMBERED)),
+            deque(maxlen=min(len(options) - 1, LINES_REMEMBERED)),
         )
         line = self._rng.choice([option for option in options if option not in recent])
         recent.append(line)

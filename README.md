@@ -43,7 +43,9 @@ next egg. Members can also talk to him in Wisp's House.
 - Developer Portal, Bot tab: turn on the Message Content intent.
 - Developer Portal, Installation: User Install off. Public Bot off.
 - Bot permissions: Send Messages, Send Messages in Threads, Create Public
-  Threads, Manage Threads, Pin Messages, Manage Roles.
+  Threads, Manage Threads, Pin Messages, Read Message History, Attach Files
+  (event art, eating GIFs, shame images, Vault art) and Embed Links (the "no u"
+  GIF, track previews).
 - Upload the app emojis listed under Assets.
 - In the server, run `/wispadmin setup`, then `/wispadmin roles add` for each
   role allowed to feed Wisp.

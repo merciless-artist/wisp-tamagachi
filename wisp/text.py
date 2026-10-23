@@ -7,9 +7,13 @@ SEPARATOR: Final = "・♪ ────────・──────── �
 MESSAGE_LIMIT: Final = 2000
 USER_ERROR: Final = "Something went wrong. Staff have been told."
 
-# Pictographs and symbol emoji, minus the music notes ♪ and ♫, plus the
-# variation selector and zero-width joiner that build emoji sequences.
-_EMOJI: Final = re.compile("[\U0001f000-\U0001faff☀-♩♬-➿️‍]")
+# Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
+# music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and
+# zero-width joiner that build emoji sequences.
+_EMOJI: Final = re.compile(
+    "[\U0001f000-\U0001faff\u2300-\u23ff\u2600-\u2669\u266c-\u27bf"
+    "\u2b00-\u2bff\u203c\u2049\u20e3\ufe0f\u200d]"
+)
 
 
 def count(amount: int, noun: str) -> str:

@@ -11,16 +11,14 @@ from cogs.lunchbox import vault_view
 from cogs.players import say_privately
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
+from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
 
 if TYPE_CHECKING:
     from app import WispBot
 
-_TOP: Final = 10
-_TOP_RHYMES: Final = 5
 _INTRO: Final = (
-    "Snacks, song listens and the leaderboard. "
-    "Shop or open your lunchbox with the buttons below."
+    "Snacks and the leaderboard. " "Shop or open your lunchbox with the buttons below."
 )
 
 # ---
@@ -76,11 +74,11 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
     history = await bot.lives.history(guild_id)
     current_id = history[0].id if history else None
     this_life = (
-        await bot.activity_log.top_this_life(guild_id, current_id, _TOP)
+        await bot.activity_log.top_this_life(guild_id, current_id, LEADERBOARD_SIZE)
         if current_id is not None
         else []
     )
-    all_time = await bot.players.top_lifetime(guild_id, _TOP)
+    all_time = await bot.players.top_lifetime(guild_id, LEADERBOARD_SIZE)
     this_life_lines = [
         f"・{place}. <@{user_id}> ・ {count(points, 'point')}"
         for place, (user_id, points) in enumerate(this_life, start=1)
@@ -90,7 +88,7 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
         f" ・ {tier_for(player.bond)}"
         for place, player in enumerate(all_time, start=1)
     ] or ["・Nobody has points yet"]
-    rhymers = await bot.players.top_rhyme(guild_id, _TOP_RHYMES)
+    rhymers = await bot.players.top_rhyme(guild_id, RHYME_LEADERBOARD_SIZE)
     rhyme_lines = [
         f"・{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
         for place, player in enumerate(rhymers, start=1)

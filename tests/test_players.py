@@ -267,17 +267,27 @@ async def test_an_already_met_player_is_a_cheap_no_op(
     server.house.send.assert_not_awaited()
 
 
-async def test_meeting_gives_no_growth_to_an_egg(
-    bot: app.WispBot, server: FakeServer
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
+async def test_an_egg_meets_nobody_until_he_hatches(
+    bot: app.WispBot, server: FakeServer, phase: Phase
 ) -> None:
     await configure(bot)
-    egg = await bot.lives.insert(GUILD_ID, make_life(1, Phase.EGG))
+    egg = await bot.lives.insert(GUILD_ID, make_life(1, phase))
     await play_on_days(bot, egg, FIRST_USER, [2, 1, 0])
 
     await maybe_meet(bot, GUILD_ID, FIRST_USER)
 
+    server.house.send.assert_not_awaited()
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).met_at is None
+
+    egg.phase = Phase.ALIVE
+    egg.stage = Stage.BABY
+    await bot.lives.save(GUILD_ID, egg)
+    await maybe_meet(bot, GUILD_ID, FIRST_USER)
+
     server.house.send.assert_awaited_once()
-    assert (await current_life(bot)).growth == 0
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).met_at is not None
+    assert (await current_life(bot)).growth == rules.GROWTH_PER_BOND_MOMENT
 
 
 async def test_no_life_means_no_meeting(bot: app.WispBot, server: FakeServer) -> None:

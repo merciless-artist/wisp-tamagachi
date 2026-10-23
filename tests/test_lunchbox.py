@@ -885,12 +885,36 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
 
-    await eat(bot, "cloudwave")
 
+@pytest.mark.parametrize("key", ["cloudwave", "sinewave"])
+async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
+    bot: app.WispBot, server: FakeServer, db: Database, key: str
+) -> None:
+    life = await lay(bot, care=40.0)
+    assert life.id is not None
+    await bot.activity_log.record_interaction(
+        GUILD_ID,
+        life.id,
+        USER_ID,
+        InteractionKind.FEED,
+        0,
+        rules.DAILY_MEAL_CAP,
+        discord.utils.utcnow(),
+    )
+
+    full = await eat(bot, key)
+
+    assert reply_text(full) == "♪ Wisp is full from you today. Save it for tomorrow."
+    inventory = {} if key == "sinewave" else {key: 1}
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == inventory
+    now = discord.utils.utcnow()
+    assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
+    rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
+    assert rows == [{"kind": InteractionKind.FEED.value}]
     life = await current_life(bot)
-    assert (life.care, life.growth) == (43.0, 2)
-    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
-    assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 2
+    assert (life.care, life.growth) == (40.0, 0)
+    assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
+    server.house.send.assert_not_awaited()
 
 
 @pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])

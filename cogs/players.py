@@ -12,7 +12,7 @@ from cogs.announce import say_in_house
 from cogs.groups import require_guild, wisp
 from wisp.bond import happiness, should_meet
 from wisp.card import render_status
-from wisp.life import Life, add_growth, is_over
+from wisp.life import Life, Phase, add_growth, is_over
 from wisp.lines import Moment
 from wisp.rules import GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
 from wisp.text import USER_ERROR, count
@@ -226,7 +226,8 @@ async def maybe_meet(
     Call this after every interaction. Once, the member is marked as met, Wisp
     grows a little and says hello in his House with a button to tell him their
     name. Until they do, he uses their name from the server (`display_name`, or
-    a mention when the caller has none).
+    a mention when the caller has none). An egg does not talk, so a member is
+    only met once Wisp has hatched.
     """
     if (await bot.players.get(guild_id, user_id)).met_at is not None:
         return
@@ -234,7 +235,11 @@ async def maybe_meet(
         life = await bot.lives.current(guild_id)
         player = await bot.players.get(guild_id, user_id)
         days = await bot.activity_log.distinct_days(guild_id, user_id)
-        if life is None or not should_meet(days, met=player.met_at is not None):
+        if (
+            life is None
+            or life.phase is not Phase.ALIVE
+            or not should_meet(days, met=player.met_at is not None)
+        ):
             return
         await bot.players.mark_met(guild_id, user_id, discord.utils.utcnow())
         add_growth(life, GROWTH_PER_BOND_MOMENT)

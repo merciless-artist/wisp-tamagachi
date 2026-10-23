@@ -46,6 +46,7 @@ _NO_SNACKS: Final = (
     "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
 )
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
+_FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
 _MENU: Final = tuple(snack for snack in SNACKS if snack.cost > 0)
@@ -417,8 +418,8 @@ async def _eat(
 
     Raises:
         _Refusal: The member is banned or cannot feed Wisp, Wisp is not alive,
-            the free snack is used up for today or the member has none of this
-            snack.
+            the free snack is used up for today, the member has had their
+            meals for today or has none of this snack. Nothing is taken then.
     """
     log = bot.activity_log
     user_id = member.id
@@ -430,15 +431,17 @@ async def _eat(
     life = await bot.lives.current(guild_id)
     if life is None or life.id is None or life.phase is not Phase.ALIVE:
         raise _Refusal(_NOT_HATCHED)
+    if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
+        raise _Refusal(_SINE_USED)
+    care = meal_grant(await log.meal_points_today(guild_id, user_id, now), snack.care)
+    if care == 0:
+        raise _Refusal(_FULL)
     if snack == _FREE:
-        if await log.free_snack_used_today(guild_id, user_id, now):
-            raise _Refusal(_SINE_USED)
         kind = InteractionKind.FREE_SNACK
     elif await log.take_snack(guild_id, user_id, snack.key):
         kind = InteractionKind.SNACK
     else:
         raise _Refusal(f"♪ You're out of {snack.name}.")
-    care = meal_grant(await log.meal_points_today(guild_id, user_id, now), snack.care)
     bond = casual_bond_grant(
         await log.casual_bond_today(guild_id, user_id, now), BOND_PER_SNACK
     )

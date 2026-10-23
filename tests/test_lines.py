@@ -26,7 +26,6 @@ ONE_MOOD_MOMENTS = {
     Moment.EGG_COLD,
     Moment.HATCH_STARTED,
     Moment.HATCHED,
-    Moment.COMPLIMENT_HANGRY,
     Moment.BANNED,
     Moment.NOT_ENOUGH_POINTS,
     Moment.GREW_OLD,

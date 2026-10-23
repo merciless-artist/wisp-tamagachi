@@ -54,7 +54,10 @@ class Database:
         self._pool: Any = None
 
     async def connect(self) -> None:
-        """Open the pool. Every connection autocommits in UTC."""
+        """Open the pool. Every connection autocommits in UTC.
+
+        Connections are replaced after an hour, before the server drops idle ones.
+        """
         self._pool = await aiomysql.create_pool(
             **config.MYSQL,
             charset="utf8mb4",
@@ -63,6 +66,7 @@ class Database:
             cursorclass=aiomysql.DictCursor,
             minsize=1,
             maxsize=5,
+            pool_recycle=3600,
         )
 
     async def close(self) -> None:

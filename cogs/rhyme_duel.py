@@ -14,14 +14,19 @@ from wisp.bond import casual_bond_grant
 from wisp.life import Life, Phase, add_growth, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
-from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, PLAYS_PER_DAY, RHYME_TURN
+from wisp.rules import (
+    BOND_PER_PLAY,
+    GROWTH_PER_PLAY,
+    PLAYS_PER_DAY,
+    RHYME_THREAD_ARCHIVE_MINUTES,
+    RHYME_TURN,
+)
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_ARCHIVE_AFTER_MINUTES: Final = 60
 _CUT: Final = "..."
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
@@ -145,7 +150,7 @@ async def _open_thread(
     return await house.create_thread(
         name=f"Rhyme Duel ・ {name}",
         type=discord.ChannelType.public_thread,
-        auto_archive_duration=_ARCHIVE_AFTER_MINUTES,
+        auto_archive_duration=RHYME_THREAD_ARCHIVE_MINUTES,
     )
 
 

@@ -38,8 +38,7 @@ LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 SEPARATOR = "・♪ ────────・──────── ♪・"
 INTRO = (
-    "Snacks, song listens and the leaderboard. "
-    "Shop or open your lunchbox with the buttons below."
+    "Snacks and the leaderboard. " "Shop or open your lunchbox with the buttons below."
 )
 
 # ---

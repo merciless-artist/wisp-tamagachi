@@ -68,6 +68,12 @@ def test_no_text_commands_are_registered(bot: app.WispBot) -> None:
     assert not bot.commands
 
 
+def test_every_send_pings_nobody_by_default(bot: app.WispBot) -> None:
+    mentions = bot.allowed_mentions
+    assert mentions is not None
+    assert mentions.to_dict() == discord.AllowedMentions.none().to_dict()
+
+
 # ---
 # Direct messages
 # ---

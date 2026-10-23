@@ -65,8 +65,11 @@ def _clean(message: discord.Message, wisp: discord.ClientUser) -> str:
 
 
 def _aimed_at(message: discord.Message, wisp: discord.ClientUser) -> bool:
-    """Whether the message mentions Wisp or replies to one of his messages."""
+    """Whether the message mentions Wisp or his role, or replies to him."""
     if any(user.id == wisp.id for user in message.mentions):
+        return True
+    guild = message.guild
+    if guild is not None and guild.self_role in message.role_mentions:
         return True
     reference = message.reference
     replied_to = reference.resolved if reference is not None else None
