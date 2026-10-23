@@ -33,6 +33,7 @@ ONE_MOOD_MOMENTS = {
     Moment.FAREWELL,
     Moment.COAL_EGG,
     Moment.LAST_EMBER,
+    Moment.EGG_POKE,
 }
 FAREWELL_MOMENTS = [
     Moment.GREW_OLD,
@@ -141,6 +142,13 @@ def test_rhyme_start_lines_say_the_word() -> None:
 )
 def test_farewell_moments_take_their_fields(moment: Moment, fields: set[str]) -> None:
     assert FIELDS[moment] == fields
+
+
+@pytest.mark.parametrize(
+    "moment", [Moment.EGG_POKE, Moment.BABY_TALK, Moment.CHAT_FALLBACK]
+)
+def test_talk_moments_take_no_fields(moment: Moment) -> None:
+    assert FIELDS[moment] == set()
 
 
 @pytest.mark.parametrize("moment", [Moment.FAREWELL, Moment.COAL_EGG])

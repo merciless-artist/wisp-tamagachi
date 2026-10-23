@@ -16,6 +16,7 @@ from db.activity import ActivityRepo
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
+from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
 from db.settings import SettingsRepo
@@ -108,6 +109,7 @@ class WispBot(commands.Bot):
         self.players = PlayerRepo(self.db)
         self.activity_log = ActivityRepo(self.db)
         self.keepsakes = KeepsakeRepo(self.db)
+        self.notes = NoteRepo(self.db)
         self.ai = chain_from_config()
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}

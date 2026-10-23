@@ -9,12 +9,13 @@ from db.activity import ActivityRepo, InteractionKind
 from db.database import Database, to_db_time
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
+from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
 from wisp.bond import PickleStance
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
-from wisp.rules import COAL_EGG_FOOD, Stage
+from wisp.rules import COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, Stage
 
 GUILD = 100
 OTHER_GUILD = 200
@@ -563,3 +564,35 @@ async def test_other_integrity_errors_are_not_reported_as_already_given(
         await KeepsakeRepo(db).give(
             GUILD, USER, KeepsakeKind.LAST_EMBER, None, NOW  # type: ignore[arg-type]
         )
+
+
+# ---
+# Notes
+# ---
+
+
+async def test_notes_keep_only_the_newest(db: Database) -> None:
+    repo = NoteRepo(db)
+    await repo.add(GUILD, OTHER_USER, "someone else", NOW)
+    await repo.add(OTHER_GUILD, USER, "another server", NOW)
+    notes = [f"fact {index}" for index in range(NOTES_KEPT + 2)]
+    for index, note in enumerate(notes):
+        await repo.add(GUILD, USER, note, NOW + timedelta(minutes=index))
+
+    assert await repo.recent(GUILD, USER) == notes[2:]
+    assert await repo.recent(GUILD, OTHER_USER) == ["someone else"]
+    assert await repo.recent(OTHER_GUILD, USER) == ["another server"]
+    assert await repo.recent(GUILD, 99) == []
+
+
+async def test_notes_in_the_same_second_keep_their_order(db: Database) -> None:
+    repo = NoteRepo(db)
+    for note in ("first", "second", "third"):
+        await repo.add(GUILD, USER, note, NOW)
+    assert await repo.recent(GUILD, USER) == ["first", "second", "third"]
+
+
+async def test_notes_are_truncated(db: Database) -> None:
+    repo = NoteRepo(db)
+    await repo.add(GUILD, USER, "x" * (NOTE_MAX_CHARS + 50), NOW)
+    assert await repo.recent(GUILD, USER) == ["x" * NOTE_MAX_CHARS]

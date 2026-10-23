@@ -183,3 +183,15 @@ SNACKS: tuple[Snack, ...] = (
 AI_TIMEOUT = timedelta(seconds=12)
 AI_PROVIDER_COOLDOWN = timedelta(minutes=5)
 AI_MAX_OUTPUT_TOKENS = 1024
+AI_MAX_CHARS = 600
+
+# ---
+# Talking
+# ---
+
+TALK_COOLDOWN = timedelta(seconds=15)
+CHIME_IN_CHANCE = 0.04
+CHIME_IN_GAP = timedelta(minutes=90)
+CONTEXT_LINES = 12
+NOTES_KEPT = 8
+NOTE_MAX_CHARS = 200

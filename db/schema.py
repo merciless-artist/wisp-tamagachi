@@ -103,6 +103,15 @@ _DEFINITIONS: dict[str, str] = {
         given_at DATETIME NOT NULL,
         PRIMARY KEY (guild_id, user_id, kind, version)
     """,
+    "notes": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        note VARCHAR(200) NOT NULL,
+        at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_user_at (guild_id, user_id, at)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

@@ -42,6 +42,9 @@ class Moment(StrEnum):
     RHYME_START = auto()
     RHYME_WISP_STUCK = auto()
     RHYME_PLAYER_STUCK = auto()
+    EGG_POKE = auto()
+    BABY_TALK = auto()
+    CHAT_FALLBACK = auto()
 
 
 _NAME = frozenset({"name"})
@@ -77,6 +80,9 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.RHYME_START: frozenset({"word"}),
     Moment.RHYME_WISP_STUCK: _NONE,
     Moment.RHYME_PLAYER_STUCK: _NONE,
+    Moment.EGG_POKE: _NONE,
+    Moment.BABY_TALK: _NONE,
+    Moment.CHAT_FALLBACK: _NONE,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -497,6 +503,68 @@ _RHYME_PLAYER_STUCK_HANGRY = (
 )
 
 # ---
+# Talking
+# ---
+
+_EGG_POKE = (
+    "*wobble*",
+    "the egg wobbles a little. something inside hums back",
+    "*crackle* ...the shell is warm. it rocks once, then settles",
+    "the egg leans toward your voice like it's trying to hear better",
+    "*tiny tap from inside the shell*",
+    "the egg rocks side to side, keeping time with nothing",
+    "*crrk* a faint crackle. nothing hatches. not yet",
+    "the egg hums one low note and goes still",
+    "*wobble wobble* the shell feels warmer where you poked it",
+)
+
+_BABY_TALK_HAPPY = (
+    "ba! ba ba!",
+    "♪ mmm. music?",
+    "hi! hi hi!",
+    "*happy gurgle*",
+    "song? song!",
+    "wuh? ...hehe",
+    "you! friend!",
+    "headphone!",
+    "da da da ♪",
+)
+
+_BABY_TALK_HANGRY = (
+    "hungy.",
+    "nom? NOM?",
+    "*grumpy baby noises*",
+    "song. want. NOW.",
+    "waaah",
+    "food. food food food",
+    "*tiny angry sizzle*",
+    "no. hungy.",
+)
+
+_CHAT_FALLBACK_HAPPY = (
+    "my brain's buffering. say that again in a bit?",
+    "words aren't loading right now. I'm just gonna hum at you ♪",
+    "sorry, my headphones cut out for a sec. I missed that one",
+    "brain static. total brain static. try me again soon",
+    "my thoughts are stuck on mute. catch me in a minute",
+    "lost the signal on that one. my fault, not yours",
+    "*taps headphones* ...nope, nothing. ask me again later",
+    "I'm all out of words for a minute. still vibing though",
+    "the studio's too loud in my head right now. give me a sec",
+)
+
+_CHAT_FALLBACK_HANGRY = (
+    "too hungry to think. words aren't happening right now",
+    "my brain's out of gas. I missed all of that",
+    "can't talk. starving. the words won't come",
+    "everything sounds like static when I'm this hungry",
+    "I'd answer, but my head's empty. like my plate",
+    "hungry brain. no thoughts. just growling",
+    "lost that one. my stomach's louder than the whole chat right now",
+    "running on empty. the words got eaten before I could say them",
+)
+
+# ---
 # Line table
 # ---
 
@@ -537,6 +605,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.RHYME_WISP_STUCK, Mood.HANGRY): _RHYME_WISP_STUCK_HANGRY,
     (Moment.RHYME_PLAYER_STUCK, Mood.HAPPY): _RHYME_PLAYER_STUCK_HAPPY,
     (Moment.RHYME_PLAYER_STUCK, Mood.HANGRY): _RHYME_PLAYER_STUCK_HANGRY,
+    (Moment.BABY_TALK, Mood.HAPPY): _BABY_TALK_HAPPY,
+    (Moment.BABY_TALK, Mood.HANGRY): _BABY_TALK_HANGRY,
+    (Moment.CHAT_FALLBACK, Mood.HAPPY): _CHAT_FALLBACK_HAPPY,
+    (Moment.CHAT_FALLBACK, Mood.HANGRY): _CHAT_FALLBACK_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
     **_either_mood(Moment.DIED, _DIED),
@@ -551,6 +623,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.COMPLIMENT_HANGRY, _COMPLIMENT_HANGRY),
     **_either_mood(Moment.BANNED, _BANNED),
     **_either_mood(Moment.NOT_ENOUGH_POINTS, _NOT_ENOUGH_POINTS),
+    **_either_mood(Moment.EGG_POKE, _EGG_POKE),
 }
 
 # ---

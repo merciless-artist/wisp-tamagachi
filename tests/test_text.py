@@ -1,6 +1,6 @@
 import pytest
 
-from wisp.text import count
+from wisp.text import count, strip_emoji
 
 
 @pytest.mark.parametrize(
@@ -9,3 +9,7 @@ from wisp.text import count
 )
 def test_count_pluralises_unless_one(amount: int, expected: str) -> None:
     assert count(amount, "point") == expected
+
+
+def test_strip_emoji_keeps_dots_and_notes() -> None:
+    assert strip_emoji("・♪ hi ♫ 🔥✨☀️❤️👩‍🎤🇺🇸 ok ─ <3") == "・♪ hi ♫  ok ─ <3"
