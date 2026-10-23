@@ -22,6 +22,9 @@ _DEFINITIONS: dict[str, str] = {
         vault_message_id BIGINT NULL,
         jam_thread_id BIGINT NULL,
         rules_thread_id BIGINT NULL,
+        rules_message_id BIGINT NULL,
+        viibr_meal_points INT NULL,
+        suno_meal_points INT NULL,
         frozen BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id)
     """,

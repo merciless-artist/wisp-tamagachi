@@ -1,6 +1,7 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Final
@@ -10,7 +11,7 @@ from discord import app_commands
 
 from cogs.assets import ASSETS_DIR
 from cogs.groups import require_guild, wispadmin
-from db.settings import Settings
+from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.links import TrackKind
 from wisp.text import SEPARATOR, count
@@ -32,7 +33,7 @@ _NUMBER_WORDS: Final = (
     "nine",
     "ten",
 )
-_TRACK_LABELS: dict[TrackKind, str] = {
+TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
 }
@@ -53,11 +54,15 @@ def _ban_lines() -> list[str]:
     return lines
 
 
-def rules_text() -> str:
-    """Return the How Wisp Works post, with every number taken from the rules."""
+def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
+    """Return the How Wisp Works post.
+
+    The meal points are the guild's effective values; every other number is
+    taken from the rules.
+    """
     meals = [
-        f"・{_TRACK_LABELS[kind]}: {count(points, 'meal point')}"
-        for kind, points in rules.MEAL_POINTS.items()
+        f"・{TRACK_LABELS[kind]}: {count(points, 'meal point')}"
+        for kind, points in meal_values.items()
     ]
     (first_name, _), *later_tiers = rules.BOND_TIERS
     tiers = ", ".join(
@@ -131,13 +136,22 @@ def rules_text() -> str:
 # ---
 
 
+def rules_post(settings: Settings) -> str:
+    """The How Wisp Works post with the guild's own food values."""
+    return rules_text(meal_points(settings))
+
+
 @dataclass(frozen=True)
 class StudioThread:
-    """One thread of the Studio forum and the settings that remember it."""
+    """One thread of the Studio forum and the settings that remember it.
+
+    `content` is the first post's text, or a function that writes it from the
+    guild's settings when the thread is created.
+    """
 
     attr: str
     name: str
-    content: str
+    content: str | Callable[[Settings], str]
     message_attr: str | None = None
     locked: bool = False
     image: str | None = None
@@ -167,7 +181,13 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "The Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
     ),
-    StudioThread("rules_thread_id", "How Wisp Works", rules_text(), locked=True),
+    StudioThread(
+        "rules_thread_id",
+        "How Wisp Works",
+        rules_post,
+        message_attr="rules_message_id",
+        locked=True,
+    ),
 )
 
 _THREAD_ATTRS = frozenset(spec.attr for spec in STUDIO_THREADS)
@@ -213,15 +233,16 @@ async def _open_thread(
 
 
 async def _create_thread(
-    bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread
+    bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread, settings: Settings
 ) -> tuple[discord.Thread, int]:
     """Create one Studio thread and remember it; return it and its first message id."""
     art: dict[str, Any] = {}
     if spec.image is not None and (path := ASSETS_DIR / spec.image).is_file():
         art["file"] = discord.File(path)
+    content = spec.content if isinstance(spec.content, str) else spec.content(settings)
     created = await forum.create_thread(
         name=spec.name,
-        content=spec.content,
+        content=content,
         auto_archive_duration=_ARCHIVE_AFTER_MINUTES,
         **art,
     )
@@ -281,7 +302,7 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
             thread = await _open_thread(bot, forum.id, stored)
             message_id: int | None
             if thread is None:
-                thread, message_id = await _create_thread(bot, forum, spec)
+                thread, message_id = await _create_thread(bot, forum, spec, settings)
                 if stored is not None:
                     recreated.append(spec.name)
             else:

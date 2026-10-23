@@ -239,16 +239,17 @@ async def test_setup_creates_five_threads_with_the_vault(
 
     status = server.thread_named("Status")
     vault = server.thread_named("The ViiBR Vault")
+    rules_thread = server.thread_named("How Wisp Works")
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
-    server.messages[status.id].pin.assert_awaited_once()
-    server.messages[vault.id].pin.assert_awaited_once()
-    for name in ("Mealtime", "The Jam Space", "How Wisp Works"):
+    assert settings.rules_message_id == server.messages[rules_thread.id].id
+    for thread in (status, vault, rules_thread):
+        server.messages[thread.id].pin.assert_awaited_once()
+    for name in ("Mealtime", "The Jam Space"):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
-    rules_thread = server.thread_named("How Wisp Works")
-    assert server.messages[rules_thread.id].content == rules_text()
+    assert server.messages[rules_thread.id].content == rules_text(rules.MEAL_POINTS)
     rules_thread.edit.assert_awaited_once_with(locked=True)
     for thread in server.threads.values():
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
@@ -257,6 +258,18 @@ async def test_setup_creates_five_threads_with_the_vault(
     text = sent_text(interaction)
     assert all(name in text for name in THREAD_NAMES)
     server.errors.send.assert_not_awaited()
+
+
+async def test_a_new_rules_post_shows_the_current_food_values(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, viibr_meal_points=12)
+
+    await run_setup(bot, server)
+
+    rules_thread = server.thread_named("How Wisp Works")
+    content = server.messages[rules_thread.id].content
+    assert content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
 
 
 async def test_vault_post_attaches_the_vault_art_when_present(
@@ -666,11 +679,20 @@ def test_studio_is_a_loaded_extension() -> None:
 
 
 def test_rules_text_fits_one_message() -> None:
-    assert len(rules_text()) < MESSAGE_LIMIT
+    assert len(rules_text(rules.MEAL_POINTS)) < MESSAGE_LIMIT
+    biggest = {kind: rules.MEAL_POINTS_MAX for kind in TrackKind}
+    assert len(rules_text(biggest)) < MESSAGE_LIMIT
+
+
+def test_rules_text_shows_the_food_values_it_is_given() -> None:
+    text = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+
+    assert "・viibrmusic.com track: 12 meal points" in text
+    assert "・Suno track: 1 meal point" in text
 
 
 def test_rules_text_has_vault_lunchbox_life_and_talking_sections() -> None:
-    text = rules_text()
+    text = rules_text(rules.MEAL_POINTS)
 
     for heading in (
         "The ViiBR Vault",
@@ -693,7 +715,7 @@ def test_rules_text_has_vault_lunchbox_life_and_talking_sections() -> None:
 
 
 def test_rules_text_covers_every_topic() -> None:
-    text = rules_text()
+    text = rules_text(rules.MEAL_POINTS)
     for phrase in (
         "Active Lounger or higher",
         "/wisp board",
@@ -710,7 +732,7 @@ def test_rules_text_covers_every_topic() -> None:
 
 
 def test_rules_text_uses_bot_style() -> None:
-    text = rules_text()
+    text = rules_text(rules.MEAL_POINTS)
     assert "・" in text
     assert "♪" in text
     assert "・♪ ────────・──────── ♪・" in text
@@ -741,7 +763,7 @@ def test_rules_text_numbers_come_from_the_rules(
     monkeypatch.setattr(rules, "EGG_FOOD_NEEDED", 101)
     monkeypatch.setattr(rules, "COAL_EGG_FOOD", 103)
 
-    text = rules_text()
+    text = rules_text(rules.MEAL_POINTS)
 
     for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103):
         assert str(number) in text, number

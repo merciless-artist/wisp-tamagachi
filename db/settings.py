@@ -1,9 +1,11 @@
-"""Per-guild settings: channels, threads, qualifying roles and the freeze."""
+"""Per-guild settings: channels, threads, roles, food values and the freeze."""
 
 from dataclasses import dataclass, fields
 from typing import Any
 
 from db.database import Database
+from wisp import rules
+from wisp.links import TrackKind
 
 
 @dataclass(frozen=True)
@@ -24,10 +26,25 @@ class Settings:
     vault_message_id: int | None = None
     jam_thread_id: int | None = None
     rules_thread_id: int | None = None
+    rules_message_id: int | None = None
+    viibr_meal_points: int | None = None
+    suno_meal_points: int | None = None
     frozen: bool = False
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
+
+
+def meal_points(settings: Settings) -> dict[TrackKind, int]:
+    """The meal points each kind of track feeds: staff's value, else the rules'."""
+    chosen = {
+        TrackKind.VIIBR: settings.viibr_meal_points,
+        TrackKind.SUNO: settings.suno_meal_points,
+    }
+    return {
+        kind: default if (value := chosen[kind]) is None else value
+        for kind, default in rules.MEAL_POINTS.items()
+    }
 
 
 class SettingsRepo:

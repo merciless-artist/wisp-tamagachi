@@ -13,11 +13,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
+from discord import app_commands
 
 import app
-from cogs import announce
+from cogs import announce, feeding, groups
 from cogs.announce import post_events
 from cogs.feeding import Feeding
+from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.lives import LifeRepo
@@ -34,6 +36,8 @@ HOUSE_ID = 20
 TRACKS_ID = 30
 ERRORS_ID = 40
 MEALTIME_ID = 50
+RULES_ID = 51
+RULES_MESSAGE_ID = 52
 QUALIFYING_ROLE = 7
 OTHER_ROLE = 8
 FIRST_USER = 1
@@ -62,6 +66,14 @@ class FakeServer:
         self.mealtime.parent_id = FORUM_ID
         self.mealtime.archived = False
         self.mealtime.send = AsyncMock()
+        self.rules_edit: Any = AsyncMock()
+        self.rules = MagicMock(spec=discord.Thread)
+        self.rules.id = RULES_ID
+        self.rules.parent_id = FORUM_ID
+        self.rules.archived = False
+        self.rules.get_partial_message.return_value = MagicMock(
+            spec=discord.PartialMessage, edit=self.rules_edit
+        )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.channels: dict[int, MagicMock] = {
@@ -71,9 +83,10 @@ class FakeServer:
         self.guild.get_channel_or_thread.side_effect = self.channels.get
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
-        if channel_id != MEALTIME_ID:
+        threads = {MEALTIME_ID: self.mealtime, RULES_ID: self.rules}
+        if channel_id not in threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
-        return self.mealtime
+        return threads[channel_id]
 
 
 def make_member(user_id: int = FIRST_USER, role_id: int = QUALIFYING_ROLE) -> MagicMock:
@@ -327,6 +340,89 @@ async def test_suno_track_feeds_one_no_bond(
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (1, 0)
     server.mealtime.send.assert_awaited_once()
+
+
+async def test_staff_food_values_set_what_each_track_feeds(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await bot.settings.update(GUILD_ID, viibr_meal_points=12)
+
+    await cog.on_message(message(VIIBR_URL))
+    await cog.on_message(message(SUNO_URL))
+
+    assert (await current_life(bot)).care == 50.0 + 12 + rules.MEAL_POINTS[
+        TrackKind.SUNO
+    ]
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert player.lifetime_points == 12 + rules.MEAL_POINTS[TrackKind.SUNO]
+
+
+async def test_unset_food_values_use_the_rules(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "MEAL_POINTS", {TrackKind.VIIBR: 7, TrackKind.SUNO: 2})
+    await bot.settings.update(GUILD_ID, suno_meal_points=3)
+
+    await cog.on_message(message(VIIBR_URL))
+    await cog.on_message(message(SUNO_URL))
+
+    assert (await current_life(bot)).care == 50.0 + 7 + 3
+
+
+def make_staff_interaction(bot: app.WispBot) -> MagicMock:
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.client = bot
+    interaction.guild_id = GUILD_ID
+    interaction.response = MagicMock()
+    interaction.response.defer = AsyncMock()
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    return interaction
+
+
+async def test_food_command_saves_the_values_and_updates_the_rules_post(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(
+        GUILD_ID, rules_thread_id=RULES_ID, rules_message_id=RULES_MESSAGE_ID
+    )
+    interaction = make_staff_interaction(bot)
+    command: Any = feeding.set_food
+
+    await command.callback(interaction, 12, 1)
+
+    settings = await bot.settings.get(GUILD_ID)
+    assert (settings.viibr_meal_points, settings.suno_meal_points) == (12, 1)
+    server.rules.get_partial_message.assert_called_once_with(RULES_MESSAGE_ID)
+    expected = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    assert server.rules_edit.await_args.kwargs["content"] == expected
+    interaction.followup.send.assert_awaited_once_with(
+        "♪ Food values: viibrmusic.com track 12 meal points, "
+        "Suno track 1 meal point.",
+        ephemeral=True,
+    )
+    server.errors.send.assert_not_awaited()
+
+
+def test_food_command_takes_two_staff_values_from_zero_to_the_maximum() -> None:
+    command = groups.wispadmin.get_command("food")
+    assert isinstance(command, app_commands.Command)
+    params = {parameter.name: parameter for parameter in command.parameters}
+    assert list(params) == ["viibr", "suno"]
+    for parameter in params.values():
+        assert (parameter.min_value, parameter.max_value) == (
+            0,
+            rules.MEAL_POINTS_MAX,
+        )
+    assert command.checks
 
 
 async def test_unqualified_role_is_silent(

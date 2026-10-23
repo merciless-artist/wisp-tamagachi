@@ -1,20 +1,27 @@
-"""Feeding: tracks shared in the track drop feed Wisp and are forwarded to Mealtime."""
+"""Feeding: tracks shared in the track drop feed Wisp and are forwarded to Mealtime.
+
+Staff set how many meal points each kind of track is worth with /wispadmin food.
+"""
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
-from cogs.announce import post_events
+from cogs.announce import post_events, show_in_thread
+from cogs.groups import require_guild, wispadmin
 from cogs.players import can_feed, maybe_meet
-from cogs.studio import StudioError, studio_thread
+from cogs.studio import TRACK_LABELS, StudioError, rules_post, studio_thread
 from db.activity import InteractionKind
+from db.settings import meal_points
 from wisp.bond import meal_grant
 from wisp.life import Event, Mood, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind, find_track
-from wisp.rules import BOND_PER_VIIBR_TRACK, MEAL_POINTS
+from wisp.rules import BOND_PER_VIIBR_TRACK, MEAL_POINTS_MAX
+from wisp.text import count
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -72,7 +79,8 @@ class Feeding(commands.Cog):
         player = await self.bot.players.get(guild.id, author.id)
         if player.is_banned(now):
             return
-        fed = await self._feed(guild.id, author.id, track, message.id, now)
+        points = meal_points(settings)[track.kind]
+        fed = await self._feed(guild.id, author.id, track, points, message.id, now)
         if fed is None:
             return
         events, feeling = fed
@@ -84,9 +92,15 @@ class Feeding(commands.Cog):
         )
 
     async def _feed(
-        self, guild_id: int, user_id: int, track: Track, message_id: int, now: datetime
+        self,
+        guild_id: int,
+        user_id: int,
+        track: Track,
+        points: int,
+        message_id: int,
+        now: datetime,
     ) -> tuple[list[Event], Mood] | None:
-        """Record the feed and apply it to Wisp; None when nothing was fed."""
+        """Record a feed worth `points` and apply it; None when nothing was fed."""
         bot = self.bot
         async with bot.guild_lock(guild_id):
             if (await bot.players.get(guild_id, user_id)).is_banned(now):
@@ -95,7 +109,7 @@ class Feeding(commands.Cog):
             if life is None or life.id is None or is_over(life):
                 return None
             eaten = await bot.activity_log.meal_points_today(guild_id, user_id, now)
-            grant = meal_grant(eaten, MEAL_POINTS[track.kind])
+            grant = meal_grant(eaten, points)
             if grant == 0:
                 return None
             if not await bot.activity_log.record_feed(
@@ -135,6 +149,48 @@ class Feeding(commands.Cog):
             await self.bot.report_error(guild, "forwarding a track to Mealtime", error)
 
 
+# ---
+# Food values
+# ---
+
+
+async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
+    """Bring the How Wisp Works post up to date with the guild's food values."""
+    await show_in_thread(
+        bot,
+        guild_id,
+        "rules_thread_id",
+        "rules_message_id",
+        rules_post(await bot.settings.get(guild_id)),
+        "How Wisp Works post",
+    )
+
+
+@wispadmin.command(name="food", description="Set the meal points each track feeds.")
+@app_commands.describe(
+    viibr="Meal points for a viibrmusic.com track",
+    suno="Meal points for a Suno track",
+)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def set_food(
+    interaction: discord.Interaction["WispBot"],
+    viibr: app_commands.Range[int, 0, MEAL_POINTS_MAX],
+    suno: app_commands.Range[int, 0, MEAL_POINTS_MAX],
+) -> None:
+    """Save both food values and update the How Wisp Works post to match."""
+    bot = interaction.client
+    guild_id = require_guild(interaction)
+    await interaction.response.defer(ephemeral=True)
+    await bot.settings.update(guild_id, viibr_meal_points=viibr, suno_meal_points=suno)
+    await refresh_rules(bot, guild_id)
+    await interaction.followup.send(
+        f"♪ Food values: {TRACK_LABELS[TrackKind.VIIBR]} "
+        f"{count(viibr, 'meal point')}, {TRACK_LABELS[TrackKind.SUNO]} "
+        f"{count(suno, 'meal point')}.",
+        ephemeral=True,
+    )
+
+
 async def setup(bot: "WispBot") -> None:
-    """Load the feeding cog."""
+    """Load the feeding cog; the food command joins the shared group on import."""
     await bot.add_cog(Feeding(bot))

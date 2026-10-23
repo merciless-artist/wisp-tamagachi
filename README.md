@@ -57,6 +57,10 @@ Staff commands need the Manage Server permission.
   threads that are missing.
 - `/wispadmin roles add`, `roles remove`, `roles list` choose which roles can
   feed Wisp.
+- `/wispadmin food viibr suno` sets how many meal points a viibrmusic.com track
+  and a Suno track feed Wisp (0 to 50 each; leaderboard points match), and
+  updates the How Wisp Works post. Until staff set them, the starting values
+  in `wisp/rules.py` apply.
 - `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
 - `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
 - `/wispadmin unban` lifts a member's ban.
