@@ -10,7 +10,8 @@ from discord.ext import commands, tasks
 
 from cogs.announce import post_events, say_in_house, show_in_thread
 from cogs.lunchbox import feed_view
-from cogs.players import refresh_billboard, status_text
+from cogs.players import status_text
+from cogs.vault import refresh_vault
 from wisp.bond import happiness
 from wisp.life import Event, Life, Phase, is_over, new_egg, tick
 from wisp.lines import Moment
@@ -100,7 +101,7 @@ class LifeLoop(commands.Cog):
             return
         await self._speak_if_quiet(guild_id, current, frozen, now)
         await self._update_card(guild_id, current, now, happy)
-        await refresh_billboard(bot, guild_id)
+        await refresh_vault(bot, guild_id)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int

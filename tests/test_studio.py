@@ -4,6 +4,7 @@ import asyncio
 import re
 from collections.abc import Iterator
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -29,17 +30,15 @@ ERRORS_ID = 40
 THREAD_NAMES = (
     "Status",
     "Mealtime",
-    "The Lunchbox",
+    "The ViiBR Vault",
     "The Jam Space",
-    "The Billboard",
     "How Wisp Works",
 )
 THREAD_ATTRS = (
     "status_thread_id",
     "mealtime_thread_id",
-    "lunchbox_thread_id",
+    "vault_thread_id",
     "jam_thread_id",
-    "billboard_thread_id",
     "rules_thread_id",
 )
 
@@ -140,6 +139,13 @@ def server() -> FakeServer:
     return FakeServer()
 
 
+@pytest.fixture(autouse=True)
+def art_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An empty ASSETS folder, so tests never attach the real art."""
+    monkeypatch.setattr(studio, "ASSETS_DIR", tmp_path)
+    return tmp_path
+
+
 @pytest.fixture
 def bot(
     db: Database, server: FakeServer, monkeypatch: pytest.MonkeyPatch
@@ -216,7 +222,7 @@ def sent_text(interaction: MagicMock) -> str:
 # ---
 
 
-async def test_setup_creates_all_six_threads(
+async def test_setup_creates_five_threads_with_the_vault(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     interaction = await run_setup(bot, server)
@@ -231,12 +237,12 @@ async def test_setup_creates_all_six_threads(
         assert getattr(settings, attr) == server.thread_named(name).id
 
     status = server.thread_named("Status")
-    billboard = server.thread_named("The Billboard")
+    vault = server.thread_named("The ViiBR Vault")
     assert settings.status_message_id == server.messages[status.id].id
-    assert settings.billboard_message_id == server.messages[billboard.id].id
+    assert settings.vault_message_id == server.messages[vault.id].id
     server.messages[status.id].pin.assert_awaited_once()
-    server.messages[billboard.id].pin.assert_awaited_once()
-    for name in ("Mealtime", "The Lunchbox", "The Jam Space", "How Wisp Works"):
+    server.messages[vault.id].pin.assert_awaited_once()
+    for name in ("Mealtime", "The Jam Space", "How Wisp Works"):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -252,6 +258,33 @@ async def test_setup_creates_all_six_threads(
     server.errors.send.assert_not_awaited()
 
 
+async def test_vault_post_attaches_the_vault_art_when_present(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    (art_dir / "vault.png").write_bytes(b"png")
+
+    await run_setup(bot, server)
+
+    attached = {
+        thread.name: thread.create_kwargs.get("file")
+        for thread in server.threads.values()
+    }
+    art = attached.pop("The ViiBR Vault")
+    assert isinstance(art, discord.File)
+    assert art.filename == "vault.png"
+    art.close()
+    assert set(attached.values()) == {None}
+
+
+async def test_vault_post_without_art_is_text_only(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    vault = server.thread_named("The ViiBR Vault")
+    assert vault.create_kwargs == {"auto_archive_duration": 10080}
+
+
 async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None:
     await run_setup(bot, server)
     first = await bot.settings.get(GUILD_ID)
@@ -260,7 +293,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "already" in sent_text(interaction)
+    assert "Studio threads: all five already exist" in sent_text(interaction)
     assert server.thread_named("How Wisp Works").edit.await_count == 1
     assert server.messages[server.thread_named("Status").id].pin.await_count == 1
     server.errors.send.assert_not_awaited()
@@ -292,13 +325,13 @@ async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
 ) -> None:
     await run_setup(bot, server)
     before = await bot.settings.get(GUILD_ID)
-    del server.threads[before.billboard_thread_id or 0]
+    del server.threads[before.vault_thread_id or 0]
 
     settings = await ensure_studio(bot, GUILD_ID)
 
-    assert settings.billboard_thread_id != before.billboard_thread_id
-    assert settings.billboard_message_id != before.billboard_message_id
-    new_thread = server.thread_named("The Billboard")
+    assert settings.vault_thread_id != before.vault_thread_id
+    assert settings.vault_message_id != before.vault_message_id
+    new_thread = server.thread_named("The ViiBR Vault")
     server.messages[new_thread.id].pin.assert_awaited_once()
 
 
@@ -321,7 +354,7 @@ async def test_pin_failure_is_reported_and_setup_carries_on(
     assert server.created_names == list(THREAD_NAMES)
     lines = [call.args[0] for call in server.errors.send.await_args_list]
     assert any("pinning the card in Status" in line for line in lines)
-    assert any("pinning the card in The Billboard" in line for line in lines)
+    assert any("pinning the card in The ViiBR Vault" in line for line in lines)
 
 
 async def test_lock_failure_is_reported_and_setup_carries_on(
@@ -372,8 +405,8 @@ async def test_rerun_pins_an_existing_unpinned_card(
     assert server.created_names == list(THREAD_NAMES)
     assert status_message.pinned is True
     assert status_message.pin.await_count == 2
-    billboard_message = server.messages[server.thread_named("The Billboard").id]
-    billboard_message.pin.assert_awaited_once()
+    vault_message = server.messages[server.thread_named("The ViiBR Vault").id]
+    vault_message.pin.assert_awaited_once()
 
 
 async def test_rerun_skips_a_card_whose_message_is_gone(
@@ -398,7 +431,7 @@ async def test_thread_in_another_forum_is_recreated(
 
     settings = await ensure_studio(bot, GUILD_ID)
 
-    assert len(server.created_names) == 12
+    assert len(server.created_names) == 2 * len(THREAD_NAMES)
     for attr in THREAD_ATTRS:
         thread_id = getattr(settings, attr)
         assert server.threads[thread_id].parent_id == OTHER_FORUM_ID

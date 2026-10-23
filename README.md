@@ -64,7 +64,7 @@ Staff commands need the Manage Server permission.
 Member commands:
 
 - `/wisp status` shows how Wisp is doing.
-- `/wisp board` shows the Billboard and Wisp's past versions.
+- `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
 - `/wisp lunchbox` buys snacks and shows your own.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
 
@@ -79,7 +79,7 @@ posts text only.
 - `stages/<stage>.png` for `baby`, `child`, `teen`, `adult`, `rockstar`.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`.
 - `shame/*` any images, picked at random when a member is punished.
-- `lunchbox.png` for the Lunchbox menu.
+- `vault.png` for the first post of The ViiBR Vault thread.
 
 App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `wisp_coin`, `wisp_happy`, `wisp_hangry`.

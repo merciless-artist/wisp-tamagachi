@@ -48,7 +48,7 @@ class FakeThread:
 
 
 class FakeServer:
-    """A guild with an errors channel and the Status and Billboard threads."""
+    """A guild with an errors channel and the Status and Vault threads."""
 
     def __init__(self) -> None:
         self.errors = MagicMock(spec=discord.TextChannel)
@@ -90,8 +90,8 @@ async def configured(bot: app.WispBot) -> None:
         error_channel_id=ERRORS_ID,
         status_thread_id=STATUS_ID,
         status_message_id=STATUS_MESSAGE_ID,
-        billboard_thread_id=BOARD_ID,
-        billboard_message_id=BOARD_MESSAGE_ID,
+        vault_thread_id=BOARD_ID,
+        vault_message_id=BOARD_MESSAGE_ID,
     )
 
 
@@ -113,10 +113,10 @@ async def show_board(bot: app.WispBot, content: str = "board") -> None:
     await show_in_thread(
         bot,
         GUILD_ID,
-        "billboard_thread_id",
-        "billboard_message_id",
+        "vault_thread_id",
+        "vault_message_id",
         content,
-        "Billboard",
+        "ViiBR Vault card",
     )
 
 
@@ -174,7 +174,7 @@ async def test_lost_message_is_reposted_pinned_and_stored(
     )
     server.board.reposted.pin.assert_awaited_once()
     settings = await bot.settings.get(GUILD_ID)
-    assert settings.billboard_message_id == REPOSTED_ID
+    assert settings.vault_message_id == REPOSTED_ID
     assert settings.status_message_id == STATUS_MESSAGE_ID
     server.errors.send.assert_not_awaited()
 
@@ -238,10 +238,10 @@ async def test_pin_failure_is_reported_with_the_label_and_the_message_kept(
 
     await show_board(bot)
 
-    assert (await bot.settings.get(GUILD_ID)).billboard_message_id == REPOSTED_ID
+    assert (await bot.settings.get(GUILD_ID)).vault_message_id == REPOSTED_ID
     server.errors.send.assert_awaited_once()
     (report,) = server.errors.send.await_args.args
-    assert report.startswith("Error in pinning the Billboard: Forbidden")
+    assert report.startswith("Error in pinning the ViiBR Vault card: Forbidden")
 
 
 async def test_edit_failure_is_reported_with_the_label(

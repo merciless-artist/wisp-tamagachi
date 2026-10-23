@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
-from cogs.announce import ASSETS_DIR, say_in_house
+from cogs.announce import say_in_house
+from cogs.assets import ASSETS_DIR
 from cogs.groups import require_guild, wisp
 from cogs.players import (
     EXPECTED_FAILURES,

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
+from cogs.assets import ASSETS_DIR
 from cogs.studio import StudioError, studio_thread
 from wisp.life import Event, EventKind, Life, is_over, mood, new_egg
 from wisp.lines import FIELDS, Moment
@@ -12,7 +13,6 @@ from wisp.lines import FIELDS, Moment
 if TYPE_CHECKING:
     from app import WispBot
 
-ASSETS_DIR: Final = Path(__file__).resolve().parent.parent / "ASSETS"
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD})
 _BABY_STAGE: Final = "baby"

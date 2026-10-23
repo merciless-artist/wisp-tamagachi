@@ -12,10 +12,9 @@ _DEFINITIONS: dict[str, str] = {
         status_thread_id BIGINT NULL,
         status_message_id BIGINT NULL,
         mealtime_thread_id BIGINT NULL,
-        lunchbox_thread_id BIGINT NULL,
+        vault_thread_id BIGINT NULL,
+        vault_message_id BIGINT NULL,
         jam_thread_id BIGINT NULL,
-        billboard_thread_id BIGINT NULL,
-        billboard_message_id BIGINT NULL,
         rules_thread_id BIGINT NULL,
         frozen BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id)

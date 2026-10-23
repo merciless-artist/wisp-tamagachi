@@ -1,4 +1,4 @@
-"""Players: /wisp status and board, the Billboard and Wisp learning members' names."""
+"""Players: /wisp status and Wisp learning members' names."""
 
 import contextlib
 import re
@@ -8,115 +8,20 @@ from typing import TYPE_CHECKING, Final, cast
 import discord
 import pymysql
 
-from cogs.announce import say_in_house, show_in_thread
+from cogs.announce import say_in_house
 from cogs.groups import require_guild, wisp
-from wisp.bond import happiness, should_meet, tier_for
+from wisp.bond import happiness, should_meet
 from wisp.card import render_status
-from wisp.life import Life, Phase, add_growth, age_days, is_over
+from wisp.life import Life, add_growth, is_over
 from wisp.lines import Moment
 from wisp.rules import GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, USER_ERROR, count
+from wisp.text import USER_ERROR, count
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_TOP: Final = 10
-_TOP_RHYMES: Final = 5
 EXPECTED_FAILURES: Final = (pymysql.err.Error, discord.DiscordException)
-
-# ---
-# Billboard
-# ---
-
-
-def _version_line(life: Life, now: datetime) -> str:
-    prefix = f"v{life.version} ・ "
-    match life.phase:
-        case Phase.EGG:
-            return prefix + "still an egg"
-        case Phase.HATCHING:
-            return prefix + "hatching now"
-        case Phase.ALIVE:
-            return prefix + f"going strong ・ {count(age_days(life, now), 'day')}"
-    if life.hatched_at is None:
-        return prefix + "never hatched"
-    facts = [
-        f"lived {count(age_days(life, life.ended_at or now), 'day')}",
-        f"reached {life.peak_stage.value.capitalize()}",
-    ]
-    if life.hatched_by is not None:
-        facts.append(f"hatched by <@{life.hatched_by}>")
-    return prefix + " ・ ".join(facts)
-
-
-def _fit(head: list[str], history: list[str]) -> str:
-    """Join the head and as many whole history lines as fit in one message."""
-    lines = head
-    for line in history:
-        if len("\n".join([*lines, line])) > MESSAGE_LIMIT:
-            break
-        lines = [*lines, line]
-    return "\n".join(lines)
-
-
-async def render_billboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
-    """Build the Billboard: two top tens, the top rhymers, then every version.
-
-    The history is trimmed from the oldest end so the text fits one message.
-    """
-    history = await bot.lives.history(guild_id)
-    current_id = history[0].id if history else None
-    this_life = (
-        await bot.activity_log.top_this_life(guild_id, current_id, _TOP)
-        if current_id is not None
-        else []
-    )
-    all_time = await bot.players.top_lifetime(guild_id, _TOP)
-    this_life_lines = [
-        f"・{place}. <@{user_id}> ・ {count(points, 'point')}"
-        for place, (user_id, points) in enumerate(this_life, start=1)
-    ] or ["・Nobody has fed him yet"]
-    all_time_lines = [
-        f"・{place}. <@{player.user_id}> ・ {count(player.lifetime_points, 'point')}"
-        f" ・ {tier_for(player.bond)}"
-        for place, player in enumerate(all_time, start=1)
-    ] or ["・Nobody has points yet"]
-    rhymers = await bot.players.top_rhyme(guild_id, _TOP_RHYMES)
-    rhyme_lines = [
-        f"・{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
-        for place, player in enumerate(rhymers, start=1)
-    ] or ["・Nobody has dueled him yet"]
-    head = [
-        "♪ The Billboard",
-        SEPARATOR,
-        "This life",
-        *this_life_lines,
-        SEPARATOR,
-        "All time",
-        *all_time_lines,
-        SEPARATOR,
-        "Rhyme Duel",
-        *rhyme_lines,
-        SEPARATOR,
-        "Versions",
-    ]
-    versions = [_version_line(life, now) for life in history] or ["・None yet"]
-    return _fit(head, versions)
-
-
-async def refresh_billboard(bot: "WispBot", guild_id: int) -> None:
-    """Bring the pinned Billboard in the Studio up to date."""
-    text = await render_billboard(bot, guild_id, discord.utils.utcnow())
-    await show_in_thread(
-        bot,
-        guild_id,
-        "billboard_thread_id",
-        "billboard_message_id",
-        text,
-        "Billboard",
-    )
-
 
 # ---
 # Status card text
@@ -338,22 +243,6 @@ async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
         )
         text = await status_text(bot, guild_id, life, now, happy)
     await say_privately(interaction, text)
-
-
-@wisp.command(name="board", description="See the leaderboard and Wisp's versions.")
-async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show the Billboard to the member who asked, and join them in on first use."""
-    bot = interaction.client
-    guild_id = require_guild(interaction)
-    await interaction.response.defer(ephemeral=True)
-    now = discord.utils.utcnow()
-    texts = []
-    if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
-        await bot.players.activate(guild_id, interaction.user.id, now)
-        texts.append("♪ You're on Wisp's radar now.")
-    texts.append(await render_billboard(bot, guild_id, now))
-    for text in texts:
-        await say_privately(interaction, text)
 
 
 async def setup(bot: "WispBot") -> None:

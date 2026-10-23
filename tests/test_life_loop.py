@@ -35,9 +35,9 @@ FORUM_ID = 10
 HOUSE_ID = 20
 ERRORS_ID = 40
 STATUS_ID = 60
-BILLBOARD_ID = 61
+VAULT_ID = 61
 CARD_ID = 777
-BILLBOARD_MESSAGE_ID = 778
+VAULT_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
 USER_ID = 1
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
@@ -68,13 +68,13 @@ class FakeServer:
         self.partial = MagicMock(spec=discord.PartialMessage)
         self.partial.edit = self.card_edit
         self.status.get_partial_message.return_value = self.partial
-        self.billboard_edit: Any = AsyncMock()
-        self.billboard = MagicMock(spec=discord.Thread)
-        self.billboard.id = BILLBOARD_ID
-        self.billboard.parent_id = FORUM_ID
-        self.billboard.archived = False
-        self.billboard.get_partial_message.return_value = MagicMock(
-            spec=discord.PartialMessage, edit=self.billboard_edit
+        self.vault_edit: Any = AsyncMock()
+        self.vault = MagicMock(spec=discord.Thread)
+        self.vault.id = VAULT_ID
+        self.vault.parent_id = FORUM_ID
+        self.vault.archived = False
+        self.vault.get_partial_message.return_value = MagicMock(
+            spec=discord.PartialMessage, edit=self.vault_edit
         )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
@@ -82,7 +82,7 @@ class FakeServer:
         self.guild.get_channel_or_thread.side_effect = channels.get
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
-        threads = {STATUS_ID: self.status, BILLBOARD_ID: self.billboard}
+        threads = {STATUS_ID: self.status, VAULT_ID: self.vault}
         if channel_id not in threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
         return threads[channel_id]
@@ -120,8 +120,8 @@ async def configure(bot: app.WispBot, *, frozen: bool = False) -> None:
         error_channel_id=ERRORS_ID,
         status_thread_id=STATUS_ID,
         status_message_id=CARD_ID,
-        billboard_thread_id=BILLBOARD_ID,
-        billboard_message_id=BILLBOARD_MESSAGE_ID,
+        vault_thread_id=VAULT_ID,
+        vault_message_id=VAULT_MESSAGE_ID,
         frozen=frozen,
     )
 
@@ -284,7 +284,6 @@ async def test_edited_status_keeps_feed_button(
     (button,) = view.children
     assert isinstance(button, FeedButton)
     assert view.timeout is None
-    assert "view" not in server.billboard_edit.await_args.kwargs
 
 
 async def test_reposted_status_keeps_feed_button(
@@ -377,11 +376,11 @@ async def test_card_failure_is_reported_once_per_streak(
 
 
 # ---
-# Billboard
+# The Vault
 # ---
 
 
-async def test_tick_refreshes_the_billboard_after_the_status_card(
+async def test_tick_refreshes_the_vault_after_the_status_card(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -390,22 +389,22 @@ async def test_tick_refreshes_the_billboard_after_the_status_card(
     await interact(bot, life, NOW - timedelta(hours=2))
     order: list[str] = []
     server.card_edit.side_effect = lambda **_: order.append("card")
-    server.billboard_edit.side_effect = lambda **_: order.append("billboard")
+    server.vault_edit.side_effect = lambda **_: order.append("vault")
 
     await cog.run_tick(NOW)
 
-    assert order == ["card", "billboard"]
-    content = server.billboard_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ The Billboard")
+    assert order == ["card", "vault"]
+    content = server.vault_edit.await_args.kwargs["content"]
+    assert content.startswith("♪ The ViiBR Vault")
     assert f"<@{USER_ID}>" in content
 
 
-async def test_billboard_failure_is_reported_without_losing_the_card(
+async def test_vault_failure_is_reported_without_losing_the_card(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.billboard_edit.side_effect = discord.Forbidden(
+    server.vault_edit.side_effect = discord.Forbidden(
         MagicMock(status=403), "Missing Access"
     )
 
@@ -414,7 +413,7 @@ async def test_billboard_failure_is_reported_without_losing_the_card(
     server.card_edit.assert_awaited_once()
     server.errors.send.assert_awaited_once()
     (report,) = server.errors.send.await_args.args
-    assert report.startswith("Error in updating the Billboard: Forbidden")
+    assert report.startswith("Error in updating the ViiBR Vault card: Forbidden")
 
 
 # ---
@@ -601,8 +600,8 @@ async def test_failing_guild_is_reported_and_the_next_one_still_ticks(
             error_channel_id=ERRORS_ID,
             status_thread_id=STATUS_ID,
             status_message_id=CARD_ID,
-            billboard_thread_id=BILLBOARD_ID,
-            billboard_message_id=BILLBOARD_MESSAGE_ID,
+            vault_thread_id=VAULT_ID,
+            vault_message_id=VAULT_MESSAGE_ID,
         )
     await lay(bot)
     current = bot.lives.current

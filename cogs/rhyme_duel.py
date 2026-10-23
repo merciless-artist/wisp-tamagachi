@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.groups import play, require_guild
-from cogs.players import maybe_meet, refresh_billboard, say_privately
+from cogs.players import maybe_meet, say_privately
+from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
 from wisp.life import Life, Phase, add_growth, mood
@@ -210,7 +211,7 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
     except discord.HTTPException as error:
         await bot.report_error(interaction.guild, "closing a Rhyme Duel thread", error)
     if new_best:
-        await refresh_billboard(bot, guild_id)
+        await refresh_vault(bot, guild_id)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
 

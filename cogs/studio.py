@@ -3,11 +3,12 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import discord
 from discord import app_commands
 
+from cogs.assets import ASSETS_DIR
 from cogs.groups import require_guild, wispadmin
 from db.settings import Settings
 from wisp import rules
@@ -18,6 +19,19 @@ if TYPE_CHECKING:
     from app import WispBot
 
 _ARCHIVE_AFTER_MINUTES: Final = 10080
+_NUMBER_WORDS: Final = (
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+)
 _TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -103,6 +117,7 @@ class StudioThread:
     content: str
     message_attr: str | None = None
     locked: bool = False
+    image: str | None = None
 
 
 STUDIO_THREADS: tuple[StudioThread, ...] = (
@@ -118,20 +133,16 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Every track that feeds Wisp lands here.",
     ),
     StudioThread(
-        "lunchbox_thread_id",
-        "The Lunchbox",
-        "Snacks, badges and song listens. Open the lunchbox with /wisp lunchbox.",
+        "vault_thread_id",
+        "The ViiBR Vault",
+        "The ViiBR Vault is opening.",
+        message_attr="vault_message_id",
+        image="vault.png",
     ),
     StudioThread(
         "jam_thread_id",
         "The Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
-    ),
-    StudioThread(
-        "billboard_thread_id",
-        "The Billboard",
-        "The leaderboard and Wisp's version history will appear here.",
-        message_attr="billboard_message_id",
     ),
     StudioThread("rules_thread_id", "How Wisp Works", rules_text(), locked=True),
 )
@@ -182,10 +193,14 @@ async def _create_thread(
     bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread
 ) -> tuple[discord.Thread, int]:
     """Create one Studio thread and remember it; return it and its first message id."""
+    art: dict[str, Any] = {}
+    if spec.image is not None and (path := ASSETS_DIR / spec.image).is_file():
+        art["file"] = discord.File(path)
     created = await forum.create_thread(
         name=spec.name,
         content=spec.content,
         auto_archive_duration=_ARCHIVE_AFTER_MINUTES,
+        **art,
     )
     values = {spec.attr: created.thread.id}
     if spec.message_attr is not None:
@@ -346,7 +361,7 @@ async def setup_studio(
     threads = (
         f"Created threads: {', '.join(created)}"
         if created
-        else "Studio threads: all six already exist"
+        else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )
     await interaction.followup.send(
         "\n".join(

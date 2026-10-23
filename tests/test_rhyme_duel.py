@@ -17,7 +17,7 @@ from discord import app_commands
 
 import app
 from cogs import groups, rhyme_duel
-from cogs.players import render_billboard
+from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.lives import LifeRepo
@@ -162,9 +162,9 @@ def meeting(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 
 @pytest.fixture(autouse=True)
-def billboard(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+def vault(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     refresh = AsyncMock()
-    monkeypatch.setattr(rhyme_duel, "refresh_billboard", refresh)
+    monkeypatch.setattr(rhyme_duel, "refresh_vault", refresh)
     return refresh
 
 
@@ -655,10 +655,10 @@ async def test_no_play_credit_when_wisp_died_during_the_duel(
     assert current.growth == life.growth
 
 
-async def test_new_best_goes_on_billboard(
+async def test_new_best_goes_on_the_vault(
     bot: app.WispBot,
     server: FakeServer,
-    billboard: AsyncMock,
+    vault: AsyncMock,
     wisp_says: Callable[..., list[Any]],
 ) -> None:
     await lay(bot)
@@ -666,20 +666,20 @@ async def test_new_best_goes_on_billboard(
 
     await duel(bot, server, said("choir"))
 
-    billboard.assert_awaited_once_with(bot, GUILD_ID)
-    board = await render_billboard(bot, GUILD_ID, discord.utils.utcnow())
+    vault.assert_awaited_once_with(bot, GUILD_ID)
+    board = await render_leaderboard(bot, GUILD_ID, discord.utils.utcnow())
     assert f"Rhyme Duel\n・1. <@{USER_ID}> ・ 2 points" in board
 
     await duel(bot, server)
 
-    billboard.assert_awaited_once()
+    vault.assert_awaited_once()
     assert (await bot.players.get(GUILD_ID, USER_ID)).best_rhyme_score == 2
 
 
 async def test_a_thread_that_cannot_close_still_finishes_the_duel(
     bot: app.WispBot,
     server: FakeServer,
-    billboard: AsyncMock,
+    vault: AsyncMock,
     meeting: AsyncMock,
     wisp_says: Callable[..., list[Any]],
 ) -> None:
@@ -691,7 +691,7 @@ async def test_a_thread_that_cannot_close_still_finishes_the_duel(
 
     await duel(bot, server, said("choir"))
 
-    billboard.assert_awaited_once_with(bot, GUILD_ID)
+    vault.assert_awaited_once_with(bot, GUILD_ID)
     meeting.assert_awaited_once()
     report = server.errors.send.await_args.args[0]
     assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")

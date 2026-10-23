@@ -1,10 +1,9 @@
-"""Tests for activation, the Billboard and Wisp learning members' names.
+"""Tests for the status command and Wisp learning members' names.
 
 Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
-import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -17,13 +16,7 @@ from discord import app_commands
 
 import app
 from cogs import groups, players
-from cogs.players import (
-    NameButton,
-    NameModal,
-    maybe_meet,
-    refresh_billboard,
-    render_billboard,
-)
+from cogs.players import NameButton, NameModal, maybe_meet
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.lives import LifeRepo
@@ -32,20 +25,14 @@ from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
-from wisp.links import Track, TrackKind
 from wisp.rules import Stage
 
 GUILD_ID = 100
-FORUM_ID = 10
 HOUSE_ID = 20
 ERRORS_ID = 40
-BOARD_ID = 61
-BOARD_MESSAGE_ID = 778
 FIRST_USER = 1
 SECOND_USER = 2
-LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-SEPARATOR = "・♪ ────────・──────── ♪・"
 
 # ---
 # Fakes
@@ -53,30 +40,17 @@ SEPARATOR = "・♪ ────────・──────── ♪・"
 
 
 class FakeServer:
-    """A guild with Wisp's House, an errors channel and the Billboard thread."""
+    """A guild with Wisp's House and an errors channel."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
         self.errors = MagicMock(spec=discord.TextChannel)
         self.errors.send = AsyncMock()
-        self.board_edit: Any = AsyncMock()
-        self.board = MagicMock(spec=discord.Thread)
-        self.board.id = BOARD_ID
-        self.board.parent_id = FORUM_ID
-        self.board.archived = False
-        self.board.get_partial_message.return_value = MagicMock(
-            spec=discord.PartialMessage, edit=self.board_edit
-        )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
         self.guild.get_channel_or_thread.side_effect = channels.get
-
-    async def fetch_channel(self, channel_id: int) -> MagicMock:
-        if channel_id != BOARD_ID:
-            raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
-        return self.board
 
 
 @pytest.fixture
@@ -94,7 +68,6 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
-    monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
 
 
@@ -102,10 +75,7 @@ async def configure(bot: app.WispBot) -> None:
     await bot.settings.update(
         GUILD_ID,
         house_channel_id=HOUSE_ID,
-        studio_forum_id=FORUM_ID,
         error_channel_id=ERRORS_ID,
-        billboard_thread_id=BOARD_ID,
-        billboard_message_id=BOARD_MESSAGE_ID,
     )
 
 
@@ -150,20 +120,14 @@ def make_life(
     phase: Phase,
     *,
     hatched_ago: timedelta | None = None,
-    lived: timedelta | None = None,
-    peak: Stage = Stage.BABY,
-    hatched_by: int | None = None,
 ) -> Life:
     life = new_egg(version, NOW - timedelta(days=90))
     life.phase = phase
-    life.peak_stage = peak
-    life.stage = peak if phase is Phase.ALIVE else Stage.EGG
-    life.hatched_by = hatched_by
+    life.peak_stage = Stage.BABY
+    life.stage = Stage.BABY if phase is Phase.ALIVE else Stage.EGG
     life.care = 50.0
     if hatched_ago is not None:
         life.hatched_at = NOW - hatched_ago
-        if lived is not None:
-            life.ended_at = life.hatched_at + lived
     return life
 
 
@@ -188,50 +152,6 @@ async def play_on_days(
             0,
             now - timedelta(days=days),
         )
-
-
-async def feed_points(
-    bot: app.WispBot, life: Life, user_id: int, points: int, key: str
-) -> None:
-    assert life.id is not None
-    track = Track(TrackKind.SUNO, key, f"https://suno.com/song/{key}")
-    await bot.activity_log.record_feed(
-        GUILD_ID, life.id, user_id, track, points, 1, NOW
-    )
-    await bot.players.add_points(GUILD_ID, user_id, points)
-
-
-# ---
-# Activation and the board command
-# ---
-
-
-async def test_board_activates_once(bot: app.WispBot, server: FakeServer) -> None:
-    await configure(bot)
-    await lay(bot)
-
-    first = make_interaction(bot)
-    await run(players.wisp_board, first)
-    activated = (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at
-    assert activated is not None
-    first.response.defer.assert_awaited_once_with(ephemeral=True)
-    radar, board = followups(first)
-    assert "radar" in radar
-    assert board.startswith("♪ The Billboard")
-
-    second = make_interaction(bot)
-    await run(players.wisp_board, second)
-    (board_only,) = followups(second)
-    assert board_only.startswith("♪ The Billboard")
-    assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
-
-
-async def test_board_works_before_any_life_exists(bot: app.WispBot) -> None:
-    interaction = make_interaction(bot)
-
-    await run(players.wisp_board, interaction)
-
-    assert "Nobody" in followups(interaction)[-1]
 
 
 # ---
@@ -269,200 +189,6 @@ async def test_status_while_between_lives_says_so(bot: app.WispBot) -> None:
 
     (text,) = followups(interaction)
     assert "no life" in text
-
-
-# ---
-# Billboard
-# ---
-
-
-async def test_billboard_lists_versions_including_never_hatched(
-    bot: app.WispBot,
-) -> None:
-    await bot.lives.insert(
-        GUILD_ID,
-        make_life(
-            1,
-            Phase.DEAD,
-            hatched_ago=timedelta(days=40),
-            lived=timedelta(days=18, hours=3),
-            peak=Stage.TEEN,
-            hatched_by=SECOND_USER,
-        ),
-    )
-    await bot.lives.insert(GUILD_ID, make_life(2, Phase.COLD))
-    await bot.lives.insert(
-        GUILD_ID,
-        make_life(3, Phase.ALIVE, hatched_ago=timedelta(days=12, hours=1)),
-    )
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    versions = text.split("\n")[-3:]
-    assert versions == [
-        "v3 ・ going strong ・ 12 days",
-        "v2 ・ never hatched",
-        f"v1 ・ lived 18 days ・ reached Teen ・ hatched by <@{SECOND_USER}>",
-    ]
-
-
-async def test_billboard_describes_eggs_and_a_lone_day(bot: app.WispBot) -> None:
-    await bot.lives.insert(
-        GUILD_ID,
-        make_life(
-            1,
-            Phase.DEAD,
-            hatched_ago=timedelta(days=5),
-            lived=timedelta(days=1),
-            peak=Stage.BABY,
-        ),
-    )
-    await bot.lives.insert(GUILD_ID, make_life(2, Phase.EGG))
-    await bot.lives.insert(GUILD_ID, make_life(3, Phase.HATCHING))
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    assert text.split("\n")[-3:] == [
-        "v3 ・ hatching now",
-        "v2 ・ still an egg",
-        "v1 ・ lived 1 day ・ reached Baby",
-    ]
-
-
-async def test_billboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
-    life = await bot.lives.insert(
-        GUILD_ID, make_life(2, Phase.ALIVE, hatched_ago=timedelta(days=1))
-    )
-    await feed_points(bot, life, FIRST_USER, 1, "aaaa")
-    await feed_points(bot, life, SECOND_USER, 5, "bbbb")
-    await bot.players.add_points(GUILD_ID, FIRST_USER, 200)
-    await bot.players.add_bond(GUILD_ID, FIRST_USER, 150)
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    this_life, all_time, _rhymes, _versions = text.split(SEPARATOR + "\n")[1:]
-    assert this_life.splitlines() == [
-        "This life",
-        f"・1. <@{SECOND_USER}> ・ 5 points",
-        f"・2. <@{FIRST_USER}> ・ 1 point",
-    ]
-    assert all_time.splitlines() == [
-        "All time",
-        f"・1. <@{FIRST_USER}> ・ 201 points ・ Friend",
-        f"・2. <@{SECOND_USER}> ・ 5 points ・ New face",
-    ]
-
-
-async def test_billboard_shows_top_rhyme_scores(bot: app.WispBot) -> None:
-    await lay(bot)
-    for offset, best in enumerate([4, 12, 7, 9, 2, 15]):
-        await bot.players.record_rhyme_score(GUILD_ID, 10 + offset, best)
-    await bot.players.record_rhyme_score(GUILD_ID, FIRST_USER, 1)
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    _this_life, _all_time, rhymes, versions = text.split(SEPARATOR + "\n")[1:]
-    assert rhymes.splitlines() == [
-        "Rhyme Duel",
-        "・1. <@15> ・ 15 points",
-        "・2. <@11> ・ 12 points",
-        "・3. <@13> ・ 9 points",
-        "・4. <@12> ・ 7 points",
-        "・5. <@10> ・ 4 points",
-    ]
-    assert versions.startswith("Versions\nv1 ・ going strong")
-
-
-async def test_billboard_is_empty_but_tidy_for_a_new_server(bot: app.WispBot) -> None:
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    assert text == "\n".join(
-        [
-            "♪ The Billboard",
-            SEPARATOR,
-            "This life",
-            "・Nobody has fed him yet",
-            SEPARATOR,
-            "All time",
-            "・Nobody has points yet",
-            SEPARATOR,
-            "Rhyme Duel",
-            "・Nobody has dueled him yet",
-            SEPARATOR,
-            "Versions",
-            "・None yet",
-        ]
-    )
-
-
-async def test_billboard_uses_bot_style(bot: app.WispBot) -> None:
-    life = await lay(bot)
-    await feed_points(bot, life, FIRST_USER, 3, "cccc")
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    assert "・" in text
-    assert "♪" in text
-    assert SEPARATOR in text
-    assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
-
-
-async def test_billboard_fits_one_message(
-    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    life = await bot.lives.insert(
-        GUILD_ID, make_life(61, Phase.ALIVE, hatched_ago=timedelta(days=3))
-    )
-    for offset in range(10):
-        member = LONG_ID + offset
-        await feed_points(bot, life, member, 100 + offset, f"track{offset}")
-        await bot.players.add_bond(GUILD_ID, member, 400)
-        await bot.players.record_rhyme_score(GUILD_ID, member, 1000 + offset)
-    history = [life] + [
-        make_life(
-            version,
-            Phase.DEAD,
-            hatched_ago=timedelta(days=90),
-            lived=timedelta(days=18),
-            peak=Stage.ROCKSTAR,
-            hatched_by=LONG_ID,
-        )
-        for version in range(60, 0, -1)
-    ]
-    monkeypatch.setattr(bot.lives, "history", AsyncMock(return_value=history))
-
-    text = await render_billboard(bot, GUILD_ID, NOW)
-
-    assert len(text) <= 2000
-    lines = text.splitlines()
-    assert sum(line.startswith("・") and ". <@" in line for line in lines) == 25
-    version_lines = [line for line in lines if re.match(r"v\d+ ・", line)]
-    assert 0 < len(version_lines) < len(history)
-    assert version_lines[0].startswith("v61 ・ going strong")
-    assert version_lines[1].startswith("v60 ・")
-    expected = [f"v{n} ・" for n in range(61, 61 - len(version_lines), -1)]
-    assert [line[: len(prefix)] for line, prefix in zip(version_lines, expected)] == (
-        expected
-    )
-    assert all(line.endswith(f"hatched by <@{LONG_ID}>") for line in version_lines[1:])
-
-
-async def test_refresh_billboard_edits_the_pinned_message(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await configure(bot)
-    await lay(bot)
-
-    await refresh_billboard(bot, GUILD_ID)
-
-    server.board.get_partial_message.assert_called_once_with(BOARD_MESSAGE_ID)
-    kwargs = server.board_edit.await_args.kwargs
-    assert kwargs["content"].startswith("♪ The Billboard")
-    assert "v1 ・ going strong" in kwargs["content"]
-    assert kwargs["allowed_mentions"].to_dict() == (
-        discord.AllowedMentions.none().to_dict()
-    )
-    server.errors.send.assert_not_awaited()
 
 
 # ---
@@ -871,8 +597,7 @@ async def test_setup_registers_the_button_for_restarts(bot: app.WispBot) -> None
 
 def test_member_commands_hang_off_the_wisp_group() -> None:
     assert groups.wisp.get_command("status") is players.wisp_status
-    assert groups.wisp.get_command("board") is players.wisp_board
-    assert isinstance(players.wisp_board, app_commands.Command)
+    assert isinstance(players.wisp_status, app_commands.Command)
 
 
 def test_players_is_a_loaded_extension() -> None:

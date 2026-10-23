@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-22 (plan 2)
+
+- The ViiBR Vault: the Studio's Lunchbox and Billboard threads are replaced by
+  one thread, The ViiBR Vault. Its pinned first post is the leaderboard with
+  the Shop the Vault and Open my lunchbox buttons, and carries
+  `ASSETS/vault.png` when it exists. Version lines now show the stage, "from
+  coal" eggs and full lives.
+
 ## 2026-10-22
 
 Wisp v1 core.

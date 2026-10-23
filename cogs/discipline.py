@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Final
 import discord
 from discord import app_commands
 
-from cogs.announce import ASSETS_DIR, say_in_house
+from cogs.announce import say_in_house
+from cogs.assets import ASSETS_DIR
 from cogs.groups import require_guild, wispadmin
 from wisp.lines import Moment
 from wisp.rules import BAN_LADDER

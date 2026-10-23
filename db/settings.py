@@ -17,10 +17,9 @@ class Settings:
     status_thread_id: int | None = None
     status_message_id: int | None = None
     mealtime_thread_id: int | None = None
-    lunchbox_thread_id: int | None = None
+    vault_thread_id: int | None = None
+    vault_message_id: int | None = None
     jam_thread_id: int | None = None
-    billboard_thread_id: int | None = None
-    billboard_message_id: int | None = None
     rules_thread_id: int | None = None
     frozen: bool = False
 
