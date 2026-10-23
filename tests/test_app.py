@@ -464,6 +464,67 @@ async def test_close_closes_the_database_even_if_the_client_fails(
     close_db.assert_awaited_once()
 
 
+async def test_close_closes_the_ai_session_between_the_client_and_the_database(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    async def close_ai() -> None:
+        calls.append("ai")
+
+    async def close_db() -> None:
+        calls.append("db")
+
+    async def close_client(self: commands.Bot) -> None:
+        calls.append("client")
+
+    monkeypatch.setattr(bot.ai, "close", close_ai)
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", close_client)
+
+    await bot.close()
+
+    assert calls == ["client", "ai", "db"]
+
+
+async def test_close_closes_the_ai_session_even_if_the_client_fails(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    close_ai = AsyncMock()
+    close_db = AsyncMock()
+
+    async def failing_close(self: commands.Bot) -> None:
+        raise RuntimeError("client close failed")
+
+    monkeypatch.setattr(bot.ai, "close", close_ai)
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", failing_close)
+
+    with pytest.raises(RuntimeError, match="client close failed"):
+        await bot.close()
+
+    close_ai.assert_awaited_once()
+    close_db.assert_awaited_once()
+
+
+async def test_close_closes_the_database_even_if_the_ai_session_fails(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    close_db = AsyncMock()
+
+    async def failing_close_ai() -> None:
+        raise RuntimeError("ai close failed")
+
+    monkeypatch.setattr(bot.ai, "close", failing_close_ai)
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", AsyncMock())
+
+    with pytest.raises(RuntimeError, match="ai close failed"):
+        await bot.close()
+
+    close_db.assert_awaited_once()
+
+
 async def test_close_before_connecting_is_safe() -> None:
     await app.WispBot().close()
 

@@ -17,3 +17,17 @@ MYSQL: dict[str, str | int] = {
 }
 
 TABLE_PREFIX: str = os.environ.get("WISP_TABLE_PREFIX", "wisp_")
+
+
+def _optional(name: str) -> str | None:
+    """Return an environment setting, or None if it is unset or empty."""
+    return os.environ.get(name) or None
+
+
+GOOGLE_API_KEY: str | None = _optional("GOOGLE_API_KEY")
+GOOGLE_CHAT_MODEL: str | None = _optional("GOOGLE_CHAT_MODEL")
+GOOGLE_FALLBACK_MODEL: str | None = _optional("GOOGLE_FALLBACK_MODEL")
+GROQ_API_KEY: str | None = _optional("GROQ_API_KEY")
+GROQ_MODEL: str | None = _optional("GROQ_MODEL")
+OPENROUTER_API_KEY: str | None = _optional("OPENROUTER_API_KEY")
+OPENROUTER_MODEL: str | None = _optional("OPENROUTER_MODEL")

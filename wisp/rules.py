@@ -175,3 +175,10 @@ SNACKS: tuple[Snack, ...] = (
     Snack("cheese", "Cheese", 6, 8, 2),
     Snack("pickles", "Pickles", 6, 8, 2),
 )
+
+# ---
+# AI voice
+# ---
+
+AI_TIMEOUT = timedelta(seconds=20)
+AI_MAX_OUTPUT_TOKENS = 1024

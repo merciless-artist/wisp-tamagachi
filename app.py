@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
+from ai.chain import chain_from_config
 from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
@@ -107,6 +108,7 @@ class WispBot(commands.Bot):
         self.players = PlayerRepo(self.db)
         self.activity_log = ActivityRepo(self.db)
         self.keepsakes = KeepsakeRepo(self.db)
+        self.ai = chain_from_config()
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()
@@ -154,11 +156,17 @@ class WispBot(commands.Bot):
         )
 
     async def close(self) -> None:
-        """Shut the client down, then close the database pool."""
+        """Shut the client down, then close the AI session and the database pool.
+
+        A failure in one step never skips the later ones.
+        """
         try:
             await super().close()
         finally:
-            await self.db.close()
+            try:
+                await self.ai.close()
+            finally:
+                await self.db.close()
 
     def emoji(self, name: str) -> str:
         """Return an application emoji's text, or "" if it has not been uploaded."""
