@@ -9,6 +9,7 @@ import discord
 import pymysql
 
 from cogs.announce import say_in_house
+from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
 from wisp.bond import happiness, should_meet
 from wisp.card import render_status
@@ -88,12 +89,14 @@ async def say_privately(
 async def report_failure(
     interaction: discord.Interaction, context: str, error: BaseException
 ) -> None:
-    """Tell staff about a failure and the member that something went wrong.
+    """Post a failure where it happened and tell the member it is posted there.
 
     Persistent buttons have no error hook of their own, so they catch
     `EXPECTED_FAILURES` and call this.
     """
-    await bot_of(interaction).report_error(interaction.guild, context, error)
+    await bot_of(interaction).report_error(
+        interaction.guild, context, error, where=where_of(interaction)
+    )
     with contextlib.suppress(discord.DiscordException):
         if interaction.response.is_done():
             await interaction.followup.send(USER_ERROR, ephemeral=True)
@@ -152,7 +155,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
     async def on_error(  # type: ignore[override]
         self, interaction: discord.Interaction, error: Exception
     ) -> None:
-        """Report a failure to staff and tell the member."""
+        """Report a failure and tell the member."""
         await report_failure(interaction, "the naming form", error)
 
 
@@ -190,7 +193,7 @@ class NameButton(
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Turn away anyone but its member, and a member who may not name themselves.
 
-        A failure is reported to staff and also turns the member away.
+        A failure is reported and also turns the member away.
         """
         try:
             reply: str | None
@@ -206,7 +209,7 @@ class NameButton(
         return False
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        """Open the name form; a failure is reported to staff."""
+        """Open the name form; a failure is reported."""
         try:
             await interaction.response.send_modal(NameModal())
         except EXPECTED_FAILURES as error:

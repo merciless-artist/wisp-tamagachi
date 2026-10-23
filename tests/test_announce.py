@@ -3,6 +3,7 @@
 Discord objects are fakes; the repositories are the real ones.
 """
 
+import logging
 from collections.abc import Iterator
 from datetime import timedelta
 from pathlib import Path
@@ -33,7 +34,6 @@ from wisp.rules import Stage
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
-ERRORS_ID = 40
 STATUS_ID = 60
 BOARD_ID = 61
 STATUS_MESSAGE_ID = 777
@@ -68,21 +68,16 @@ class FakeThread:
 
 
 class FakeServer:
-    """A guild with Wisp's House, an errors channel and the Status and Vault threads."""
+    """A guild with Wisp's House and the Status and Vault threads."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
         self.status = FakeThread(STATUS_ID)
         self.board = FakeThread(BOARD_ID)
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        self.guild.get_channel_or_thread.side_effect = {
-            HOUSE_ID: self.house,
-            ERRORS_ID: self.errors,
-        }.get
+        self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
         self.members: dict[int, MagicMock] = {}
         self.guild.get_member.side_effect = self.members.get
 
@@ -128,7 +123,6 @@ async def configured(bot: app.WispBot) -> None:
         GUILD_ID,
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
-        error_channel_id=ERRORS_ID,
         status_thread_id=STATUS_ID,
         status_message_id=STATUS_MESSAGE_ID,
         vault_thread_id=BOARD_ID,
@@ -187,7 +181,7 @@ async def test_stored_message_is_edited_without_pinging(
         discord.AllowedMentions.none().to_dict()
     )
     server.status.thread.send.assert_not_awaited()
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_each_display_uses_its_own_thread_and_message(
@@ -217,7 +211,7 @@ async def test_lost_message_is_reposted_pinned_and_stored(
     settings = await bot.settings.get(GUILD_ID)
     assert settings.vault_message_id == REPOSTED_ID
     assert settings.status_message_id == STATUS_MESSAGE_ID
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_no_stored_message_posts_one(
@@ -269,7 +263,7 @@ async def test_without_a_view_the_message_keeps_its_buttons(
 # ---
 
 
-async def test_pin_failure_is_reported_with_the_label_and_the_message_kept(
+async def test_pin_failure_is_posted_in_the_thread_and_the_message_kept(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     server.board.edit.side_effect = not_found()
@@ -280,21 +274,23 @@ async def test_pin_failure_is_reported_with_the_label_and_the_message_kept(
     await show_board(bot)
 
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == REPOSTED_ID
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    assert server.board.thread.send.await_count == 2
+    (report,) = server.board.thread.send.await_args.args
     assert report.startswith("Error in pinning the ViiBR Vault card: Forbidden")
+    server.house.send.assert_not_awaited()
 
 
-async def test_edit_failure_is_reported_with_the_label(
+async def test_edit_failure_is_posted_in_the_thread_with_the_label(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     server.status.edit.side_effect = forbidden()
 
     await show_status(bot)
 
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    server.status.thread.send.assert_awaited_once()
+    (report,) = server.status.thread.send.await_args.args
     assert report.startswith("Error in updating the status card: Forbidden")
+    server.house.send.assert_not_awaited()
 
 
 async def test_failure_is_reported_once_per_streak(
@@ -303,14 +299,14 @@ async def test_failure_is_reported_once_per_streak(
     server.status.edit.side_effect = forbidden()
     await show_status(bot)
     await show_status(bot)
-    assert server.errors.send.await_count == 1
+    assert server.status.thread.send.await_count == 1
 
     server.status.edit.side_effect = None
     await show_status(bot)
     server.status.edit.side_effect = forbidden()
     await show_status(bot)
 
-    assert server.errors.send.await_count == 2
+    assert server.status.thread.send.await_count == 2
 
 
 async def test_streaks_are_tracked_per_display(
@@ -324,18 +320,19 @@ async def test_streaks_are_tracked_per_display(
     await show_status(bot)
     await show_board(bot)
 
-    assert server.errors.send.await_count == 2
+    assert server.status.thread.send.await_count == 1
+    assert server.board.thread.send.await_count == 1
 
 
-async def test_unreachable_studio_is_reported_not_raised(
+async def test_unreachable_studio_is_posted_in_the_house_not_raised(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await bot.settings.update(GUILD_ID, studio_forum_id=None, status_thread_id=None)
 
     await show_status(bot)
 
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    server.house.send.assert_awaited_once()
+    (report,) = server.house.send.await_args.args
     assert report.startswith("Error in updating the status card: StudioError")
 
 
@@ -550,20 +547,23 @@ async def test_next_life_leaves_a_living_wisp_alone(
     server.house.send.assert_not_awaited()
 
 
-async def test_farewell_with_missing_house_is_reported_once_and_gifts_still_given(
-    bot: app.WispBot, server: FakeServer, assets: Path
+async def test_farewell_with_missing_house_is_logged_once_and_gifts_still_given(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     await bot.settings.update(GUILD_ID, house_channel_id=None)
     life = await ended_life(bot, Phase.PASSED)
     await known_sharers(bot, server, life)
 
-    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
     assert (await current_life(bot)).version == 4
     assert await embers(bot, NAMED) == ["Wisp v3's Last Ember"]
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
-    assert report.startswith("Error in posting to Wisp's House")
+    server.house.send.assert_not_awaited()
+    assert caplog.text.count("Error in posting to Wisp's House") == 1
 
 
 async def test_grew_old_is_announced_with_its_image(
@@ -610,7 +610,7 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
 
     await next_life(bot, GUILD_ID, discord.utils.utcnow())
 
-    named, member, nameless, coal = [
+    named, report, member, nameless, coal = [
         call.args[0] for call in server.house.send.await_args_list
     ]
     assert named == (
@@ -625,6 +625,4 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
     assert "Aria" in to_aria.user and "plays bass" in to_aria.user
     assert "Bea" in to_bea.user and "plays bass" not in to_bea.user
     assert lock_held == [False, False, False]
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
     assert report == "Error in Wisp's AI voice: AllProvidersFailed: gemini: timed out"

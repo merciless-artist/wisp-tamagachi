@@ -26,10 +26,10 @@ from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import Stage
+from wisp.text import USER_ERROR
 
 GUILD_ID = 100
 HOUSE_ID = 20
-ERRORS_ID = 40
 FIRST_USER = 1
 SECOND_USER = 2
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
@@ -40,16 +40,14 @@ NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 
 
 class FakeServer:
-    """A guild with Wisp's House and an errors channel."""
+    """A guild with Wisp's House."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
+        channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
 
@@ -75,7 +73,6 @@ async def configure(bot: app.WispBot) -> None:
     await bot.settings.update(
         GUILD_ID,
         house_channel_id=HOUSE_ID,
-        error_channel_id=ERRORS_ID,
     )
 
 
@@ -86,6 +83,7 @@ def make_interaction(
     interaction.client = bot
     interaction.guild = MagicMock(spec=discord.Guild)
     interaction.guild_id = GUILD_ID
+    interaction.channel = MagicMock(spec=discord.TextChannel)
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.user.display_name = display_name
@@ -446,7 +444,7 @@ def test_modal_input_matches_the_name_limit() -> None:
     assert NameModal.name.max_length == rules.NAME_MAX
 
 
-async def test_modal_failure_is_reported_to_staff(bot: app.WispBot) -> None:
+async def test_modal_failure_is_reported_where_it_happened(bot: app.WispBot) -> None:
     interaction = make_interaction(bot)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
     error = ValueError("boom")
@@ -454,9 +452,11 @@ async def test_modal_failure_is_reported_to_staff(bot: app.WispBot) -> None:
     await NameModal().on_error(interaction, error)
 
     bot.report_error.assert_awaited_once_with(
-        interaction.guild, "the naming form", error
+        interaction.guild, "the naming form", error, where=interaction.channel
     )
-    interaction.response.send_message.assert_awaited_once()
+    interaction.response.send_message.assert_awaited_once_with(
+        USER_ERROR, ephemeral=True
+    )
 
 
 # ---
@@ -572,9 +572,11 @@ async def test_a_failing_name_check_is_reported_and_turns_the_member_away(
 
     assert not await NameButton(FIRST_USER).interaction_check(interaction)
 
-    reported.assert_awaited_once_with(interaction.guild, "the name button", error)
+    reported.assert_awaited_once_with(
+        interaction.guild, "the name button", error, where=interaction.channel
+    )
     interaction.response.send_message.assert_awaited_once_with(
-        "Something went wrong. Staff have been told.", ephemeral=True
+        USER_ERROR, ephemeral=True
     )
 
 
@@ -589,7 +591,9 @@ async def test_a_failing_name_form_opening_is_reported(
 
     await NameButton(FIRST_USER).callback(interaction)
 
-    reported.assert_awaited_once_with(interaction.guild, "the name button", expired)
+    reported.assert_awaited_once_with(
+        interaction.guild, "the name button", expired, where=interaction.channel
+    )
 
 
 # ---

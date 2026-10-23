@@ -135,7 +135,7 @@ class Conversation(commands.Cog):
         """Answer someone talking to Wisp, as his stage allows.
 
         A member who was answered within TALK_COOLDOWN gets nothing. A failure
-        to post is reported to staff.
+        to post is reported in the House.
         """
         life = await self.bot.lives.current(guild.id)
         level = talk_level(life)
@@ -155,7 +155,7 @@ class Conversation(commands.Cog):
             else:
                 await _reply(message, self.bot.lines.pick(_CANNED[level], mood(life)))
         except discord.HTTPException as error:
-            await self.bot.report_error(guild, _CONTEXT, error)
+            await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
 
     async def _talk(
         self,
@@ -240,7 +240,7 @@ class Conversation(commands.Cog):
         try:
             await message.channel.send(reply.text, allowed_mentions=_NO_PING)
         except discord.HTTPException as error:
-            await self.bot.report_error(guild, _CONTEXT, error)
+            await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
 
 
 async def setup(bot: "WispBot") -> None:

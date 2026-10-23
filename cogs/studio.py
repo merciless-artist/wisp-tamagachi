@@ -19,6 +19,7 @@ from wisp.text import SEPARATOR, count
 if TYPE_CHECKING:
     from app import WispBot
 
+_NO_PING: Final = discord.AllowedMentions.none()
 _ARCHIVE_AFTER_MINUTES: Final = 10080
 _NUMBER_WORDS: Final = (
     "zero",
@@ -262,14 +263,15 @@ async def _finish_thread(
 ) -> None:
     """Lock the rules thread and pin the card, skipping whatever is already done.
 
-    A failed step is reported to staff and retried the next time the Studio is
-    ensured. A card whose message is gone is left for the status loop to repost.
+    A failed step is posted in the thread and retried the next time the Studio
+    is ensured. A card whose message is gone is left for the status loop to
+    repost.
     """
     if spec.locked and not thread.locked:
         try:
             await thread.edit(locked=True)
         except discord.HTTPException as error:
-            await bot.report_error(guild, f"locking {spec.name}", error)
+            await bot.report_error(guild, f"locking {spec.name}", error, where=thread)
     if spec.message_attr is None or message_id is None:
         return
     try:
@@ -279,7 +281,9 @@ async def _finish_thread(
     except discord.NotFound:
         return
     except discord.HTTPException as error:
-        await bot.report_error(guild, f"pinning the card in {spec.name}", error)
+        await bot.report_error(
+            guild, f"pinning the card in {spec.name}", error, where=thread
+        )
 
 
 async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
@@ -287,8 +291,8 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
 
     Threads that already exist are left alone apart from reopening an archived
     one and finishing any lock or pin that is still missing. Threads that were
-    stored but have been deleted are recreated, and staff are told about them in
-    the errors channel.
+    stored but have been deleted are recreated, and Wisp's House is told about
+    them.
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -317,11 +321,13 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
 
 
 async def _announce(bot: "WispBot", guild: discord.Guild, names: list[str]) -> None:
-    channel = await bot.staff_channel(guild)
-    if channel is None:
+    house = await bot.house_channel(guild)
+    if house is None:
         return
     try:
-        await channel.send(f"Wisp's Studio: recreated {', '.join(names)}.")
+        await house.send(
+            f"Wisp's Studio: recreated {', '.join(names)}.", allowed_mentions=_NO_PING
+        )
     except discord.HTTPException as error:
         await bot.report_error(guild, "announcing recreated Studio threads", error)
 
@@ -370,7 +376,6 @@ roles = app_commands.Group(
     house="Where Wisp talks and announces his big moments",
     studio="The forum for Wisp's Studio threads",
     tracks="The track drop channel Wisp eats from",
-    errors="Where Wisp reports errors to staff",
 )
 @app_commands.checks.has_permissions(manage_guild=True)
 async def setup_studio(
@@ -378,7 +383,6 @@ async def setup_studio(
     house: discord.TextChannel,
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
-    errors: discord.TextChannel,
 ) -> None:
     """Save the channels, then create whichever Studio threads are missing."""
     bot = interaction.client
@@ -390,7 +394,6 @@ async def setup_studio(
         house_channel_id=house.id,
         studio_forum_id=studio.id,
         tracks_channel_id=tracks.id,
-        error_channel_id=errors.id,
     )
     try:
         after = await ensure_studio(bot, guild_id)
@@ -414,7 +417,6 @@ async def setup_studio(
                 f"・Wisp's House: {house.mention}",
                 f"・Wisp's Studio: {studio.mention}",
                 f"・Track drop: {tracks.mention}",
-                f"・Errors: {errors.mention}",
                 f"・{threads}",
             ]
         ),

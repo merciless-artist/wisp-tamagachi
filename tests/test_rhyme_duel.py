@@ -35,7 +35,6 @@ from wisp.rules import (
 
 GUILD_ID = 100
 HOUSE_ID = 20
-ERRORS_ID = 40
 THREAD_ID = 70
 OTHER_CHANNEL_ID = 71
 USER_ID = 1
@@ -50,7 +49,7 @@ NO_PING = discord.AllowedMentions.none().to_dict()
 
 
 class FakeServer:
-    """A guild with Wisp's House, which opens one duel thread, and errors."""
+    """A guild with Wisp's House, which opens one duel thread."""
 
     def __init__(self) -> None:
         self.thread = MagicMock(spec=discord.Thread)
@@ -60,11 +59,10 @@ class FakeServer:
         self.thread.edit = AsyncMock()
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.create_thread = AsyncMock(return_value=self.thread)
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
+        self.house.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
+        channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
     def posts(self) -> list[str]:
@@ -150,9 +148,7 @@ def bot(
 
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
-    await bot.settings.update(
-        GUILD_ID, house_channel_id=HOUSE_ID, error_channel_id=ERRORS_ID
-    )
+    await bot.settings.update(GUILD_ID, house_channel_id=HOUSE_ID)
     await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
     for user_id in (USER_ID, OTHER_USER_ID):
         await bot.players.activate(GUILD_ID, user_id, discord.utils.utcnow())
@@ -729,8 +725,9 @@ async def test_a_thread_that_cannot_close_still_finishes_the_duel(
 
     vault.assert_awaited_once_with(bot, GUILD_ID)
     meeting.assert_awaited_once()
-    report = server.errors.send.await_args.args[0]
+    report = server.posts()[-1]
     assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
+    server.house.send.assert_not_awaited()
 
 
 # ---

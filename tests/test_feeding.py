@@ -4,6 +4,7 @@ Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import Iterator
 from datetime import timedelta
@@ -34,7 +35,6 @@ GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 TRACKS_ID = 30
-ERRORS_ID = 40
 MEALTIME_ID = 50
 RULES_ID = 51
 RULES_MESSAGE_ID = 52
@@ -54,13 +54,11 @@ SUNO_URL = "https://suno.com/song/33333333-3333-3333-3333-333333333333"
 
 
 class FakeServer:
-    """A guild with Wisp's House, an errors channel and the Mealtime thread."""
+    """A guild with Wisp's House and the Mealtime thread."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
         self.mealtime = MagicMock(spec=discord.Thread)
         self.mealtime.id = MEALTIME_ID
         self.mealtime.parent_id = FORUM_ID
@@ -76,10 +74,7 @@ class FakeServer:
         )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        self.channels: dict[int, MagicMock] = {
-            HOUSE_ID: self.house,
-            ERRORS_ID: self.errors,
-        }
+        self.channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = self.channels.get
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
@@ -175,7 +170,6 @@ async def configure(
         tracks_channel_id=TRACKS_ID,
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
-        error_channel_id=ERRORS_ID,
         mealtime_thread_id=MEALTIME_ID,
     )
     for role_id in roles:
@@ -241,7 +235,6 @@ async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
     server.mealtime.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
-    server.errors.send.assert_not_awaited()
 
 
 # ---
@@ -409,7 +402,7 @@ async def test_food_command_saves_the_values_and_updates_the_rules_post(
         "Suno track 1 meal point.",
         ephemeral=True,
     )
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 def test_food_command_takes_two_staff_values_from_zero_to_the_maximum() -> None:
@@ -733,7 +726,31 @@ async def test_finished_life_is_not_fed(
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
 
 
-async def test_failed_forward_is_reported_and_keeps_the_feed(
+async def test_failed_forward_is_posted_in_mealtime_and_keeps_the_feed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    server.mealtime.send.side_effect = [
+        discord.HTTPException(MagicMock(status=400), "Invalid Form Body"),
+        None,
+    ]
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).care == 55.0
+    assert server.mealtime.send.await_count == 2
+    report = server.mealtime.send.await_args
+    assert report.args[0].startswith(
+        "Error in forwarding a track to Mealtime: HTTPException"
+    )
+    assert sends_without_pinging(report.kwargs)
+    server.house.send.assert_not_awaited()
+
+
+async def test_forward_failure_goes_to_the_house_when_mealtime_cannot_be_posted_to(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -747,9 +764,56 @@ async def test_failed_forward_is_reported_and_keeps_the_feed(
     await cog.on_message(message(VIIBR_URL))
 
     assert (await current_life(bot)).care == 55.0
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    assert server.mealtime.send.await_count == 2
+    server.house.send.assert_awaited_once()
+    (report,) = server.house.send.await_args.args
     assert report.startswith("Error in forwarding a track to Mealtime: Forbidden")
+    assert sends_without_pinging(server.house.send.await_args.kwargs)
+
+
+async def test_forward_failure_without_a_mealtime_thread_goes_to_the_house(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await bot.settings.update(GUILD_ID, studio_forum_id=None)
+
+    await cog.on_message(message(VIIBR_URL))
+
+    server.mealtime.send.assert_not_awaited()
+    (report,) = server.house.send.await_args.args
+    assert report.startswith("Error in forwarding a track to Mealtime: StudioError")
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+async def test_a_listener_error_in_the_track_drop_is_posted_in_the_house(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+    monkeypatch: pytest.MonkeyPatch,
+    in_thread: bool,
+) -> None:
+    channel = make_thread(TRACKS_ID) if in_thread else make_channel()
+    channel.send = AsyncMock()
+    post = message(VIIBR_URL, channel=channel)
+    monkeypatch.setattr(
+        bot.lives, "current", AsyncMock(side_effect=RuntimeError("bug"))
+    )
+
+    try:
+        await cog.on_message(post)
+    except RuntimeError:
+        await bot.on_error("on_message", post)
+
+    channel.send.assert_not_awaited()
+    server.house.send.assert_awaited_once()
+    assert server.house.send.await_args.args == (
+        "Error in on_message: RuntimeError: bug",
+    )
 
 
 # ---
@@ -928,20 +992,22 @@ async def test_stale_ending_is_not_announced(
     assert (await current_life(bot)).version == 1
 
 
-async def test_missing_house_channel_is_reported_once_and_egg_still_laid(
-    bot: app.WispBot, server: FakeServer, assets: Path
+async def test_missing_house_channel_is_logged_once_and_egg_still_laid(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     await configure(bot)
     await bot.settings.update(GUILD_ID, house_channel_id=None)
     await start_life(bot, phase=Phase.DEAD, care=0.0)
 
-    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
     assert (await current_life(bot)).version == 2
     server.house.send.assert_not_awaited()
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
-    assert report.startswith("Error in posting to Wisp's House")
+    assert caplog.text.count("Error in posting to Wisp's House") == 1
 
 
 async def test_failed_house_post_is_reported_and_egg_still_laid(
@@ -956,7 +1022,9 @@ async def test_failed_house_post_is_reported_and_egg_still_laid(
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
     assert (await current_life(bot)).version == 2
-    assert server.errors.send.await_count == 2
+    assert server.house.send.await_count == 4
+    (report,) = server.house.send.await_args_list[1].args
+    assert report.startswith("Error in posting to Wisp's House: Forbidden")
 
 
 async def test_no_events_posts_nothing(

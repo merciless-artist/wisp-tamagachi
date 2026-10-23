@@ -36,7 +36,6 @@ from wisp.rules import Stage
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
-ERRORS_ID = 40
 STATUS_ID = 60
 VAULT_ID = 61
 CARD_ID = 777
@@ -52,13 +51,11 @@ FULL_GAP = rules.MAX_CREDITED_GAP
 
 
 class FakeServer:
-    """A guild with Wisp's House, an errors channel and the Status thread."""
+    """A guild with Wisp's House and the Status and Vault threads."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
         self.card = MagicMock(spec=discord.Message)
         self.card.id = REPOSTED_CARD_ID
         self.card.pin = AsyncMock()
@@ -76,12 +73,13 @@ class FakeServer:
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
         self.vault.archived = False
+        self.vault.send = AsyncMock()
         self.vault.get_partial_message.return_value = MagicMock(
             spec=discord.PartialMessage, edit=self.vault_edit
         )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
+        channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
         self.guild.get_member.return_value = None
 
@@ -95,6 +93,12 @@ class FakeServer:
 @pytest.fixture
 def server() -> FakeServer:
     return FakeServer()
+
+
+def house_reports(server: FakeServer) -> list[str]:
+    """The error lines posted in Wisp's House."""
+    lines = [str(call.args[0]) for call in server.house.send.await_args_list]
+    return [line for line in lines if line.startswith("Error in ")]
 
 
 @pytest.fixture
@@ -123,7 +127,6 @@ async def configure(bot: app.WispBot, *, frozen: bool = False) -> None:
         GUILD_ID,
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
-        error_channel_id=ERRORS_ID,
         status_thread_id=STATUS_ID,
         status_message_id=CARD_ID,
         vault_thread_id=VAULT_ID,
@@ -207,7 +210,7 @@ async def test_unconfigured_guilds_are_skipped_silently(
     assert await bot.lives.current(GUILD_ID) is None
     assert await bot.lives.current(GUILD_ID + 1) is None
     server.house.send.assert_not_awaited()
-    server.errors.send.assert_not_awaited()
+    server.status.send.assert_not_awaited()
 
 
 # ---
@@ -275,7 +278,7 @@ async def test_missing_status_message_is_reposted(
     server.card.pin.assert_awaited_once()
     stored = (await bot.settings.get(GUILD_ID)).status_message_id
     assert stored == REPOSTED_CARD_ID
-    server.errors.send.assert_not_awaited()
+    assert house_reports(server) == []
 
 
 async def test_edited_status_keeps_feed_button(
@@ -324,7 +327,7 @@ async def test_card_is_posted_when_none_is_stored(
     assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_CARD_ID
 
 
-async def test_pin_failure_is_reported_and_the_card_kept(
+async def test_pin_failure_is_posted_in_the_status_thread_and_the_card_kept(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -339,12 +342,13 @@ async def test_pin_failure_is_reported_and_the_card_kept(
     await cog.run_tick(NOW)
 
     assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_CARD_ID
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    assert server.status.send.await_count == 2
+    (report,) = server.status.send.await_args.args
     assert report.startswith("Error in pinning the status card: Forbidden")
+    assert house_reports(server) == []
 
 
-async def test_forbidden_card_edit_is_reported_and_the_tick_kept(
+async def test_forbidden_card_edit_is_posted_in_the_status_thread(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -356,9 +360,29 @@ async def test_forbidden_card_edit_is_reported_and_the_tick_kept(
     await cog.run_tick(NOW)
 
     assert (await current_life(bot)).last_tick_at == NOW
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    server.status.send.assert_awaited_once()
+    (report,) = server.status.send.await_args.args
     assert report.startswith("Error in updating the status card: Forbidden")
+    assert server.status.send.await_args.kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
+    assert house_reports(server) == []
+
+
+async def test_card_failure_goes_to_the_house_when_the_status_thread_is_gone(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, studio_forum_id=None)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    assert any(
+        report.startswith("Error in updating the status card: StudioError")
+        for report in house_reports(server)
+    )
+    server.status.send.assert_not_awaited()
 
 
 async def test_card_failure_is_reported_once_per_streak(
@@ -371,14 +395,14 @@ async def test_card_failure_is_reported_once_per_streak(
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + FULL_GAP)
-    assert server.errors.send.await_count == 1
+    assert server.status.send.await_count == 1
 
     server.card_edit.side_effect = None
     await cog.run_tick(NOW + 2 * FULL_GAP)
     server.card_edit.side_effect = forbidden
     await cog.run_tick(NOW + 3 * FULL_GAP)
 
-    assert server.errors.send.await_count == 2
+    assert server.status.send.await_count == 2
 
 
 # ---
@@ -417,8 +441,8 @@ async def test_vault_failure_is_reported_without_losing_the_card(
     await cog.run_tick(NOW)
 
     server.card_edit.assert_awaited_once()
-    server.errors.send.assert_awaited_once()
-    (report,) = server.errors.send.await_args.args
+    server.vault.send.assert_awaited_once()
+    (report,) = server.vault.send.await_args.args
     assert report.startswith("Error in updating the ViiBR Vault card: Forbidden")
 
 
@@ -499,7 +523,8 @@ async def test_over_life_at_tick_start_uses_next_life(
     egg = await current_life(bot)
     assert (egg.version, egg.phase, egg.from_coal) == (2, Phase.EGG, True)
     assert egg.last_tick_at == NOW
-    gift, laid = house_texts(server)
+    outage, gift, laid = house_texts(server)
+    assert outage.startswith("Error in Wisp's AI voice: AllProvidersFailed")
     assert gift.startswith(f"♪ <@{USER_ID}> gets Wisp v1's Last Ember\n")
     assert mentions_version(laid, 2)
     keepsakes = await bot.keepsakes.of(GUILD_ID, USER_ID)
@@ -628,7 +653,6 @@ async def test_failing_guild_is_reported_and_the_next_one_still_ticks(
             guild_id,
             house_channel_id=HOUSE_ID,
             studio_forum_id=FORUM_ID,
-            error_channel_id=ERRORS_ID,
             status_thread_id=STATUS_ID,
             status_message_id=CARD_ID,
             vault_thread_id=VAULT_ID,
@@ -686,7 +710,7 @@ async def test_guild_the_bot_cannot_see_is_skipped(
     assert life.last_tick_at == NOW - FULL_GAP
     server.house.send.assert_not_awaited()
     server.card_edit.assert_not_awaited()
-    server.errors.send.assert_not_awaited()
+    server.status.send.assert_not_awaited()
 
 
 # ---
@@ -694,7 +718,7 @@ async def test_guild_the_bot_cannot_see_is_skipped(
 # ---
 
 
-async def test_loop_error_is_reported_to_every_guild_and_loop_continues(
+async def test_loop_error_is_posted_in_every_house_and_loop_continues(
     cog: LifeLoop,
     bot: app.WispBot,
     server: FakeServer,
@@ -705,7 +729,7 @@ async def test_loop_error_is_reported_to_every_guild_and_loop_continues(
     guilds = {GUILD_ID: server.guild, GUILD_ID + 1: other.guild}
     monkeypatch.setattr(bot, "get_guild", guilds.get)
     for guild_id in guilds:
-        await bot.settings.update(guild_id, error_channel_id=ERRORS_ID)
+        await bot.settings.update(guild_id, house_channel_id=HOUSE_ID)
     ticks = 0
     recovered = asyncio.Event()
 
@@ -728,8 +752,9 @@ async def test_loop_error_is_reported_to_every_guild_and_loop_continues(
         await cog.cog_unload()
 
     line = "Error in life loop: RuntimeError: database went away"
-    server.errors.send.assert_awaited_once_with(line)
-    other.errors.send.assert_awaited_once_with(line)
+    for house in (server.house, other.house):
+        house.send.assert_awaited_once()
+        assert house.send.await_args.args == (line,)
     assert ticks >= 2
 
 

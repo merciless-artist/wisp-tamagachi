@@ -39,7 +39,6 @@ GUILD_ID = 100
 HOUSE_ID = 20
 OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
-ERRORS_ID = 40
 WISP_ID = 999
 WISP_ROLE_ID = 998
 FIRST = 1
@@ -73,20 +72,16 @@ MEMBERS = {FIRST: make_user(FIRST, "Member1"), SECOND: make_user(SECOND, "Member
 
 
 class FakeServer:
-    """A guild with Wisp's House and an errors channel."""
+    """A guild with Wisp's House."""
 
     def __init__(self) -> None:
         self.house = make_channel(HOUSE_ID)
-        self.errors = make_channel(ERRORS_ID)
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.wisp_role = MagicMock(spec=discord.Role)
         self.wisp_role.id = WISP_ROLE_ID
         self.guild.self_role = self.wisp_role
-        self.guild.get_channel_or_thread.side_effect = {
-            HOUSE_ID: self.house,
-            ERRORS_ID: self.errors,
-        }.get
+        self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
 
 
 class MessageFactory:
@@ -200,9 +195,7 @@ def message(server: FakeServer) -> MessageFactory:
 
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
-    await bot.settings.update(
-        GUILD_ID, house_channel_id=HOUSE_ID, error_channel_id=ERRORS_ID
-    )
+    await bot.settings.update(GUILD_ID, house_channel_id=HOUSE_ID)
 
 
 async def lay(
@@ -246,7 +239,9 @@ def is_line(text: str, moment: Moment) -> bool:
 
 
 def reports(server: FakeServer) -> list[str]:
-    return [call.args[0] for call in server.errors.send.await_args_list]
+    """The error lines posted in Wisp's House."""
+    lines = [str(call.args[0]) for call in server.house.send.await_args_list]
+    return [line for line in lines if line.startswith("Error in ")]
 
 
 # ---
@@ -529,10 +524,10 @@ async def test_reply_with_no_words_left_falls_back(
 
     assert is_line(reply_text(said), Moment.CHAT_FALLBACK)
     assert await bot.notes.recent(GUILD_ID, FIRST) == []
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
-async def test_failed_reply_is_reported_to_staff(
+async def test_failed_reply_is_posted_in_the_house(
     cog: Conversation,
     bot: app.WispBot,
     message: MessageFactory,
@@ -548,6 +543,10 @@ async def test_failed_reply_is_reported_to_staff(
 
     (report,) = reports(server)
     assert report.startswith("Error in talking in Wisp's House: Forbidden")
+    server.house.send.assert_awaited_once()
+    assert server.house.send.await_args.kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
 
 
 # ---
@@ -665,7 +664,7 @@ async def test_adult_chimes_in_rarely_and_not_back_to_back(
     assert server.house.send.await_count == 2
 
 
-async def test_failed_chime_in_stays_quiet_and_reports(
+async def test_failed_chime_in_says_nothing_but_the_report(
     cog: Conversation,
     bot: app.WispBot,
     ai: AsyncMock,
@@ -678,7 +677,7 @@ async def test_failed_chime_in_stays_quiet_and_reports(
 
     await cog.on_message(message("anyone around"))
 
-    server.house.send.assert_not_awaited()
+    server.house.send.assert_awaited_once()
     (report,) = reports(server)
     assert report.startswith("Error in Wisp's AI voice")
 

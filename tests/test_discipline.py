@@ -27,7 +27,7 @@ from wisp.rules import Stage
 
 GUILD_ID = 100
 HOUSE_ID = 20
-ERRORS_ID = 40
+COMMAND_CHANNEL_ID = 40
 STAFF_ID = 9
 MEMBER_ID = 1
 REASON = "posted a fake track link"
@@ -39,18 +39,19 @@ NO_PING = discord.AllowedMentions.none().to_dict()
 
 
 class FakeServer:
-    """A guild with Wisp's House and an errors channel."""
+    """A guild with Wisp's House and the channel staff run commands in."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
+        self.here = MagicMock(spec=discord.TextChannel)
+        self.here.id = COMMAND_CHANNEL_ID
+        self.here.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.channels: dict[int, MagicMock] = {
             HOUSE_ID: self.house,
-            ERRORS_ID: self.errors,
+            COMMAND_CHANNEL_ID: self.here,
         }
         self.guild.get_channel_or_thread.side_effect = self.channels.get
 
@@ -74,9 +75,7 @@ def bot(
 
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
-    await bot.settings.update(
-        GUILD_ID, house_channel_id=HOUSE_ID, error_channel_id=ERRORS_ID
-    )
+    await bot.settings.update(GUILD_ID, house_channel_id=HOUSE_ID)
 
 
 @pytest.fixture(autouse=True)
@@ -102,6 +101,7 @@ def make_interaction(bot: app.WispBot, *, staff: bool = True) -> MagicMock:
     interaction.client = bot
     interaction.guild = bot.get_guild(GUILD_ID)
     interaction.guild_id = GUILD_ID
+    interaction.channel = interaction.guild.get_channel_or_thread(COMMAND_CHANNEL_ID)
     interaction.permissions = discord.Permissions(manage_guild=staff)
     interaction.user = make_member(STAFF_ID, "Staffer")
     interaction.response = MagicMock()
@@ -166,8 +166,9 @@ def house_text(server: FakeServer) -> str:
 
 
 def staff_log(server: FakeServer) -> str:
-    server.errors.send.assert_awaited_once()
-    return str(server.errors.send.await_args.args[0])
+    """The log line posted in the channel the command was run in."""
+    server.here.send.assert_awaited_once()
+    return str(server.here.send.await_args.args[0])
 
 
 # ---
@@ -203,7 +204,7 @@ async def test_simultaneous_punishes_are_two_distinct_offenses(
     await asyncio.gather(punish(bot), punish(bot))
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert player.offenses == 2
-    logs = sorted(str(call.args[0]) for call in server.errors.send.await_args_list)
+    logs = sorted(str(call.args[0]) for call in server.here.send.await_args_list)
     assert ["offense 1, 1 day" in logs[0], "offense 2, 7 days" in logs[1]] == [True] * 2
 
 
@@ -247,16 +248,18 @@ async def test_punish_uses_the_chosen_name_in_the_house(
     assert house_text(server) in banned_lines("Nova")
 
 
-async def test_the_reason_goes_only_to_the_staff_log(
+async def test_the_log_line_is_posted_in_the_channel_the_command_was_run_in(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
-    await punish(bot, make_member(display_name="Cheater"))
+    interaction = await punish(bot, make_member(display_name="Cheater"))
     assert staff_log(server) == (
         f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}"
     )
     assert REASON not in house_text(server)
-    assert server.errors.send.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert server.here.send.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+    (reply,) = replies(interaction)
+    assert reply == "♪ <@1> is banned from Wisp (offense 1, 1 day)."
 
 
 async def test_the_staff_log_names_the_permanent_ban(
@@ -326,31 +329,39 @@ async def test_punish_without_a_life_still_bans_and_logs(
     assert "no life" in reply
 
 
-async def test_punish_without_a_staff_log_says_the_reason_was_not_recorded(
+async def test_a_failed_log_line_is_reported_where_it_failed_and_noted(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
-    await bot.settings.update(GUILD_ID, error_channel_id=None)
-    interaction = await punish(bot)
-    (reply,) = replies(interaction)
-    assert "not recorded" in reply
-    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
-
-
-async def test_a_failed_staff_log_is_reported_and_noted(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await lay(bot)
-    server.errors.send.side_effect = [
+    server.here.send.side_effect = [
         discord.HTTPException(MagicMock(status=500), "boom"),
         None,
     ]
     interaction = await punish(bot)
     (reply,) = replies(interaction)
-    assert "not recorded" in reply
-    assert "Error in logging the punishment" in str(
-        server.errors.send.await_args.args[0]
-    )
+    assert reply.endswith("\n・The log line could not be posted here.")
+    assert "not recorded" not in reply
+    assert "Error in logging the punishment" in str(server.here.send.await_args.args[0])
+    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
+
+
+async def test_a_log_line_with_nowhere_to_go_is_noted(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    interaction = make_interaction(bot)
+    interaction.channel = MagicMock(spec=discord.CategoryChannel)
+    await run(discipline.punish, interaction, make_member(), REASON)
+    (reply,) = replies(interaction)
+    assert reply.endswith("\n・The log line could not be posted here.")
+    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
+
+
+def test_the_reason_is_described_as_public() -> None:
+    reason = discipline.punish.get_parameter("reason")
+    assert reason is not None
+    assert "only staff" not in reason.description
+    assert "posted in this channel" in reason.description
 
 
 # ---
@@ -493,7 +504,7 @@ async def test_bots_are_refused(
     assert reply == "♪ <@7> is a bot, and bots do not play with Wisp."
     assert (await bot.players.get(GUILD_ID, 7)).offenses == 0
     server.house.send.assert_not_awaited()
-    server.errors.send.assert_not_awaited()
+    server.here.send.assert_not_awaited()
 
 
 def test_every_discipline_leaf_is_staff_only() -> None:

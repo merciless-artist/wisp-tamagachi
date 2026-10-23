@@ -29,7 +29,6 @@ from wisp.rules import Stage
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
-ERRORS_ID = 40
 VAULT_ID = 61
 VAULT_MESSAGE_ID = 778
 FIRST_USER = 1
@@ -47,24 +46,23 @@ INTRO = (
 
 
 class FakeServer:
-    """A guild with Wisp's House, an errors channel and the Vault thread."""
+    """A guild with Wisp's House and the Vault thread."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
         self.vault_edit: Any = AsyncMock()
         self.vault = MagicMock(spec=discord.Thread)
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
         self.vault.archived = False
+        self.vault.send = AsyncMock()
         self.vault.get_partial_message.return_value = MagicMock(
             spec=discord.PartialMessage, edit=self.vault_edit
         )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
+        channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
@@ -97,7 +95,6 @@ async def configure(bot: app.WispBot) -> None:
         GUILD_ID,
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
-        error_channel_id=ERRORS_ID,
         vault_thread_id=VAULT_ID,
         vault_message_id=VAULT_MESSAGE_ID,
     )
@@ -485,7 +482,8 @@ async def test_refresh_vault_edits_the_pinned_message(
     assert kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
-    server.errors.send.assert_not_awaited()
+    server.vault.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_refresh_vault_puts_shop_and_lunchbox_buttons_on_the_card(

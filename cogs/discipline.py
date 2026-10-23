@@ -10,6 +10,7 @@ from discord import app_commands
 
 from cogs.announce import say_in_house
 from cogs.assets import ASSETS_DIR
+from cogs.channels import where_of
 from cogs.groups import require_guild, wispadmin
 from wisp.lines import Moment
 from wisp.rules import BAN_LADDER
@@ -64,15 +65,17 @@ def _duration(length: timedelta | None) -> str:
     return count(length // timedelta(days=1), "day")
 
 
-async def _log_to_staff(bot: "WispBot", guild: discord.Guild | None, text: str) -> bool:
-    """Post a line to the staff errors channel; False if it could not be posted."""
-    channel = await bot.staff_channel(guild)
+async def _log_here(interaction: discord.Interaction["WispBot"], text: str) -> bool:
+    """Post a log line in the command's channel; False if it could not be posted."""
+    channel = where_of(interaction)
     if channel is None:
         return False
     try:
         await channel.send(text, allowed_mentions=_NO_PING)
     except discord.HTTPException as error:
-        await bot.report_error(guild, "logging the punishment", error)
+        await interaction.client.report_error(
+            interaction.guild, "logging the punishment", error, where=channel
+        )
         return False
     return True
 
@@ -85,7 +88,7 @@ async def _log_to_staff(bot: "WispBot", guild: discord.Guild | None, text: str) 
 @wispadmin.command(name="punish", description="Ban a member from Wisp.")
 @app_commands.describe(
     member="The member who broke the rules",
-    reason="Why; only staff see this",
+    reason="Why; posted in this channel with the punishment",
 )
 @app_commands.checks.has_permissions(manage_guild=True)
 async def punish(
@@ -95,8 +98,8 @@ async def punish(
 ) -> None:
     """Give the member their next offense and the ban that goes with it.
 
-    Wisp announces the ban in his House without the reason, which goes to the
-    errors channel as a staff log.
+    Wisp announces the ban in his House without the reason. The reason goes in
+    a log line posted publicly in the channel the command was run in.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
@@ -128,14 +131,13 @@ async def punish(
             image=_shame_image(),
         )
     duration = _duration(length)
-    logged = await _log_to_staff(
-        bot,
-        interaction.guild,
+    logged = await _log_here(
+        interaction,
         f"♪ {interaction.user.mention} punished {member.mention} "
         f"(offense {offense}, {duration}): {reason}",
     )
     if not logged:
-        notes.append("The reason was not recorded: the errors channel is unavailable.")
+        notes.append("The log line could not be posted here.")
     await _reply(
         interaction,
         "\n".join(

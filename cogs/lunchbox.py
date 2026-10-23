@@ -11,6 +11,7 @@ import discord
 
 from cogs.announce import say_in_house
 from cogs.assets import ASSETS_DIR, COIN_EMOJI
+from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -121,7 +122,7 @@ async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> 
 async def _press(
     interaction: discord.Interaction, context: str, action: _Action
 ) -> None:
-    """Run what a persistent button does, reporting a failure to staff.
+    """Run what a persistent button does, reporting a failure.
 
     Persistent buttons have no error hook of their own, so the failures they can
     expect are caught here.
@@ -161,7 +162,7 @@ class SnackMenu(discord.ui.View):
         error: Exception,
         item: discord.ui.Item[Any],
     ) -> None:
-        """Report a failure to staff and tell the member."""
+        """Report a failure and tell the member."""
         await report_failure(interaction, "the lunchbox", error)
 
 
@@ -226,7 +227,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
 
     The interaction is acknowledged first so slow storage cannot make the
     purchase look failed after it went through. If the confirmation itself
-    fails, staff are told the purchase went through.
+    fails, the error posted says the purchase went through.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -255,6 +256,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
                 interaction.guild,
                 "confirming a snack purchase (the purchase went through)",
                 error,
+                where=where_of(interaction),
             )
 
 

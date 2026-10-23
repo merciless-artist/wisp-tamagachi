@@ -18,7 +18,6 @@ class Settings:
     tracks_channel_id: int | None = None
     house_channel_id: int | None = None
     studio_forum_id: int | None = None
-    error_channel_id: int | None = None
     status_thread_id: int | None = None
     status_message_id: int | None = None
     mealtime_thread_id: int | None = None

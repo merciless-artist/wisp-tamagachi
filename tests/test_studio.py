@@ -26,7 +26,6 @@ FORUM_ID = 10
 OTHER_FORUM_ID = 11
 HOUSE_ID = 20
 TRACKS_ID = 30
-ERRORS_ID = 40
 
 THREAD_NAMES = (
     "Status",
@@ -57,12 +56,14 @@ class FakeServer:
         self.messages: dict[int, MagicMock] = {}
         self.created_names: list[str] = []
         self._next_id = 1000
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
+        self.house = MagicMock(spec=discord.TextChannel)
+        self.house.id = HOUSE_ID
+        self.house.mention = f"<#{HOUSE_ID}>"
+        self.house.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.guild.get_channel.side_effect = self._get_channel
-        self.guild.get_channel_or_thread.side_effect = self._get_errors
+        self.guild.get_channel_or_thread.side_effect = self._get_house
         self.forum = self.make_forum(forum_id)
         self.forums = {forum_id: self.forum}
 
@@ -85,8 +86,8 @@ class FakeServer:
     def _get_channel(self, channel_id: int) -> MagicMock | None:
         return self.forums.get(channel_id)
 
-    def _get_errors(self, channel_id: int) -> MagicMock | None:
-        return self.errors if channel_id == ERRORS_ID else None
+    def _get_house(self, channel_id: int) -> MagicMock | None:
+        return self.house if channel_id == HOUSE_ID else None
 
     def _create_thread(
         self, forum_id: int, *, name: str, content: str, **kwargs: Any
@@ -98,6 +99,7 @@ class FakeServer:
         thread.parent_id = forum_id
         thread.archived = False
         thread.locked = False
+        thread.send = AsyncMock()
         thread.edit = AsyncMock(side_effect=lambda **fields: self._edit(thread, fields))
         thread.fetch_message = AsyncMock(
             side_effect=lambda message_id: self._fetch_message(thread, message_id)
@@ -193,10 +195,9 @@ async def run_setup(bot: app.WispBot, server: FakeServer) -> MagicMock:
     await invoke(
         studio.setup_studio,
         interaction,
-        make_channel(discord.TextChannel, HOUSE_ID),
+        server.house,
         server.forum,
         make_channel(discord.TextChannel, TRACKS_ID),
-        make_channel(discord.TextChannel, ERRORS_ID),
     )
     return interaction
 
@@ -233,7 +234,6 @@ async def test_setup_creates_five_threads_with_the_vault(
     assert settings.house_channel_id == HOUSE_ID
     assert settings.studio_forum_id == FORUM_ID
     assert settings.tracks_channel_id == TRACKS_ID
-    assert settings.error_channel_id == ERRORS_ID
     for name, attr in zip(THREAD_NAMES, THREAD_ATTRS, strict=True):
         assert getattr(settings, attr) == server.thread_named(name).id
 
@@ -257,7 +257,8 @@ async def test_setup_creates_five_threads_with_the_vault(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     text = sent_text(interaction)
     assert all(name in text for name in THREAD_NAMES)
-    server.errors.send.assert_not_awaited()
+    assert "Errors" not in text
+    server.house.send.assert_not_awaited()
 
 
 async def test_a_new_rules_post_shows_the_current_food_values(
@@ -310,7 +311,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert "Studio threads: all five already exist" in sent_text(interaction)
     assert server.thread_named("How Wisp Works").edit.await_count == 1
     assert server.messages[server.thread_named("Status").id].pin.await_count == 1
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_setup_recreates_deleted_thread(
@@ -328,10 +329,12 @@ async def test_setup_recreates_deleted_thread(
     assert settings.mealtime_thread_id == server.thread_named("Mealtime").id
     assert settings.status_thread_id == before.status_thread_id
     assert settings.status_message_id == before.status_message_id
-    server.errors.send.assert_awaited_once()
-    (line,) = server.errors.send.await_args.args
-    assert "Mealtime" in line
-    assert "Status" not in line
+    server.house.send.assert_awaited_once()
+    (line,) = server.house.send.await_args.args
+    assert line == "Wisp's Studio: recreated Mealtime."
+    assert server.house.send.await_args.kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
 
 
 async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
@@ -349,7 +352,7 @@ async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
     server.messages[new_thread.id].pin.assert_awaited_once()
 
 
-async def test_pin_failure_is_reported_and_setup_carries_on(
+async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     original = server.forum.create_thread.side_effect
@@ -366,12 +369,14 @@ async def test_pin_failure_is_reported_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    lines = [call.args[0] for call in server.errors.send.await_args_list]
-    assert any("pinning the card in Status" in line for line in lines)
-    assert any("pinning the card in The ViiBR Vault" in line for line in lines)
+    for name in ("Status", "The ViiBR Vault"):
+        (line,) = server.thread_named(name).send.await_args.args
+        assert line.startswith(f"Error in pinning the card in {name}: Forbidden")
+    server.thread_named("Mealtime").send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
-async def test_lock_failure_is_reported_and_setup_carries_on(
+async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     original = server.forum.create_thread.side_effect
@@ -389,8 +394,9 @@ async def test_lock_failure_is_reported_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    (line,) = [call.args[0] for call in server.errors.send.await_args_list]
+    (line,) = server.thread_named("How Wisp Works").send.await_args.args
     assert line.startswith("Error in locking How Wisp Works: Forbidden")
+    server.house.send.assert_not_awaited()
 
 
 async def test_rerun_locks_an_existing_unlocked_rules_thread(
@@ -433,7 +439,7 @@ async def test_rerun_skips_a_card_whose_message_is_gone(
     await ensure_studio(bot, GUILD_ID)
 
     assert server.created_names == list(THREAD_NAMES)
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_thread_in_another_forum_is_recreated(
@@ -462,7 +468,7 @@ async def test_archived_thread_is_unarchived_not_recreated(
 
     assert server.created_names == list(THREAD_NAMES)
     mealtime.edit.assert_awaited_once_with(archived=False)
-    server.errors.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
 
 
 async def test_ensure_studio_without_a_forum_raises(bot: app.WispBot) -> None:
@@ -539,7 +545,7 @@ async def test_studio_thread_recreates_a_deleted_thread(
     assert thread is not old
     assert thread is server.thread_named("Mealtime")
     assert (await bot.settings.get(GUILD_ID)).mealtime_thread_id == thread.id
-    server.errors.send.assert_awaited_once()
+    server.house.send.assert_awaited_once()
 
 
 async def test_studio_thread_rejects_an_unknown_setting(
@@ -647,7 +653,7 @@ def test_setup_command_options() -> None:
     command = groups.wispadmin.get_command("setup")
     assert isinstance(command, app_commands.Command)
     params = {parameter.name: parameter for parameter in command.parameters}
-    assert list(params) == ["house", "studio", "tracks", "errors"]
+    assert list(params) == ["house", "studio", "tracks"]
     assert discord.ChannelType.forum in params["studio"].channel_types
     assert discord.ChannelType.text not in params["studio"].channel_types
     assert discord.ChannelType.forum in params["tracks"].channel_types

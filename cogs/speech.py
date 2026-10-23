@@ -32,8 +32,8 @@ async def ai_reply(
     """Ask Wisp's AI voice for a line, cleaned for posting.
 
     Returns None when every provider failed or no words were left after
-    cleaning. An outage is reported to staff once per streak per guild, and the
-    next answer ends the streak.
+    cleaning. An outage is reported in Wisp's House once per streak per guild,
+    and the next answer ends the streak.
     """
     try:
         raw = await bot.ai.complete(prompt)
@@ -49,7 +49,7 @@ async def ai_reply(
 async def _report_outage(
     bot: "WispBot", guild: discord.Guild | None, error: AllProvidersFailed
 ) -> None:
-    """Tell staff the AI voice is down, unless this guild's streak was reported."""
+    """Report that the AI voice is down, unless this guild's streak was reported."""
     if guild is not None:
         key = (guild.id, _OUTAGE_STREAK)
         if key in bot.failing_displays:

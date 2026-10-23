@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import sys
-from typing import Any
+from typing import Any, Final
 
 import discord
 import pymysql
@@ -12,6 +12,7 @@ from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
+from cogs.channels import in_channel, where_of
 from cogs.groups import wisp, wispadmin
 from db.activity import ActivityRepo
 from db.database import Database
@@ -39,6 +40,7 @@ EXTENSIONS: tuple[str, ...] = (
 )
 
 _REFUSAL = "That command is for staff."
+_NO_PING: Final = discord.AllowedMentions.none()
 
 # ---
 # Command tree
@@ -46,16 +48,17 @@ _REFUSAL = "That command is for staff."
 
 
 class WispTree(app_commands.CommandTree["WispBot"]):
-    """Command tree that tells the user and staff when a command fails."""
+    """Command tree that tells the user when a command fails and posts the error."""
 
     async def on_error(
         self,
         interaction: discord.Interaction["WispBot"],
         error: app_commands.AppCommandError,
     ) -> None:
-        """Refuse failed checks politely; otherwise apologise and report to staff.
+        """Refuse failed checks politely; otherwise tell the user and post the error.
 
-        A bot that lacks permissions is a fault staff must fix, not a refusal.
+        The error is posted in the channel or thread the command was used in. A
+        bot that lacks permissions is a fault staff must fix, not a refusal.
         """
         command = interaction.command
         context = f"/{command.qualified_name}" if command else "an interaction"
@@ -70,7 +73,9 @@ class WispTree(app_commands.CommandTree["WispBot"]):
             else error
         )
         await self._reply(interaction, USER_ERROR, context)
-        await self.client.report_error(interaction.guild, context, cause)
+        await self.client.report_error(
+            interaction.guild, context, cause, where=where_of(interaction)
+        )
 
     async def _reply(
         self, interaction: discord.Interaction["WispBot"], text: str, context: str
@@ -127,7 +132,8 @@ class WispBot(commands.Bot):
 
         The cogs attach their commands to the shared groups as they load, so the
         groups join the command tree only once all of them are in. A cog that
-        fails to load is logged now and posted to staff once the bot is ready.
+        fails to load is logged now and posted in Wisp's House once the bot is
+        ready.
         """
         await self.db.connect()
         await create_tables(self.db)
@@ -148,7 +154,7 @@ class WispBot(commands.Bot):
         log.info("Synced %d commands", len(synced))
 
     async def on_ready(self) -> None:
-        """Post the errors from startup to every staff channel, the first time only."""
+        """Post the errors from startup in every Wisp's House, the first time only."""
         reports, self._startup_reports = self._startup_reports, []
         for context, line in reports:
             await self._post_everywhere(context, line)
@@ -159,15 +165,20 @@ class WispBot(commands.Bot):
             return
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
-        """Report an exception raised in an event listener to staff.
+        """Report an exception raised in an event listener.
 
-        The guild comes from the event's first argument when it has one.
+        The guild comes from the event's first argument when it has one. When
+        that argument is a message, the error is posted in its channel.
         """
         error = sys.exc_info()[1]
         assert error is not None
-        guild = getattr(args[0], "guild", None) if args else None
+        first = args[0] if args else None
+        guild = getattr(first, "guild", None)
         await self.report_error(
-            guild if isinstance(guild, discord.Guild) else None, event_method, error
+            guild if isinstance(guild, discord.Guild) else None,
+            event_method,
+            error,
+            where=first.channel if isinstance(first, discord.Message) else None,
         )
 
     async def close(self) -> None:
@@ -197,33 +208,40 @@ class WispBot(commands.Bot):
         """Return the lock that serialises life updates for one guild."""
         return self._guild_locks.setdefault(guild_id, asyncio.Lock())
 
-    async def staff_channel(
+    async def house_channel(
         self, guild: discord.Guild | None
     ) -> discord.abc.Messageable | None:
-        """Return the guild's staff errors channel, or None if it cannot be used.
+        """Return the guild's Wisp's House channel, or None if it cannot be used.
 
         A channel that is set but cannot be seen is logged.
         """
         if guild is None:
             return None
-        channel_id = (await self.settings.get(guild.id)).error_channel_id
+        channel_id = (await self.settings.get(guild.id)).house_channel_id
         if channel_id is None:
             return None
         channel = guild.get_channel_or_thread(channel_id)
         if isinstance(channel, discord.abc.Messageable):
             return channel
-        log.error("Staff channel %d is not available", channel_id)
+        log.error("Wisp's House %d is not available", channel_id)
         return None
 
     async def report_error(
-        self, guild: discord.Guild | None, context: str, error: BaseException
+        self,
+        guild: discord.Guild | None,
+        context: str,
+        error: BaseException,
+        *,
+        where: discord.abc.Messageable | None = None,
     ) -> None:
-        """Log an error and post it as plain text to the guild's error channel.
+        """Log an error and post it as plain text where it happened.
 
-        This never raises: a failure to report is only logged.
+        `where` is the channel or thread the error happened in. Without one, or
+        when it is in the track drop, the error goes to Wisp's House. This
+        never raises: a failure to report is only logged.
         """
         log.error("Error in %s", context, exc_info=error)
-        await self._post_to_staff(guild, context, _report_line(context, error))
+        await self._post_report(guild, context, _report_line(context, error), where)
 
     async def report_error_everywhere(self, context: str, error: BaseException) -> None:
         """Log an error that belongs to no one guild and post it to every guild.
@@ -234,7 +252,7 @@ class WispBot(commands.Bot):
         await self._post_everywhere(context, _report_line(context, error))
 
     async def _post_everywhere(self, context: str, line: str) -> None:
-        """Post a report to the staff channel of every guild Wisp is set up in.
+        """Post a report in Wisp's House of every guild Wisp is set up in.
 
         When the settings cannot be read, the guilds the bot can see are used.
         """
@@ -248,21 +266,45 @@ class WispBot(commands.Bot):
             log.exception("Could not list Wisp's guilds to report %s", context)
             guilds = list(self.guilds)
         for guild in guilds:
-            await self._post_to_staff(guild, context, line)
+            await self._post_report(guild, context, line)
 
-    async def _post_to_staff(
-        self, guild: discord.Guild | None, context: str, line: str
+    async def _post_report(
+        self,
+        guild: discord.Guild | None,
+        context: str,
+        line: str,
+        where: discord.abc.Messageable | None = None,
     ) -> None:
+        """Post a report in `where`, else in Wisp's House.
+
+        Wisp never posts in the track drop, or in a channel he cannot place (a
+        partial one), so their errors go to the House. When posting in `where`
+        fails, the House is tried once. Without a guild the report is only
+        logged.
+        """
+        if guild is None:
+            return
         try:
-            channel = await self.staff_channel(guild)
-            if channel is not None:
-                await channel.send(line)
+            tracks_id = (await self.settings.get(guild.id)).tracks_channel_id
+            if (
+                where is not None
+                and not isinstance(where, discord.PartialMessageable)
+                and not in_channel(where, tracks_id)
+            ):
+                try:
+                    await where.send(line, allowed_mentions=_NO_PING)
+                    return
+                except discord.DiscordException:
+                    log.exception("Could not post error report for %s", context)
+            house = await self.house_channel(guild)
+            if house is not None and house is not where:
+                await house.send(line, allowed_mentions=_NO_PING)
         except Exception:
             log.exception("Could not post error report for %s", context)
 
 
 def _report_line(context: str, error: BaseException) -> str:
-    """The plain staff report for an error, cut to one message."""
+    """The plain error report, cut to one message."""
     return f"Error in {context}: {type(error).__name__}: {error}"[:MESSAGE_LIMIT]
 
 

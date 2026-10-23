@@ -4,6 +4,7 @@ Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import Iterator
 from datetime import datetime, timedelta
@@ -30,11 +31,12 @@ from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import SNACKS, Stage
+from wisp.text import USER_ERROR
 
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
-ERRORS_ID = 40
+STATUS_ID = 40
 USER_ID = 1
 OTHER_USER_ID = 2
 NEWCOMER_ID = 3
@@ -52,16 +54,18 @@ NO_PING = discord.AllowedMentions.none().to_dict()
 
 
 class FakeServer:
-    """A guild with Wisp's House and an errors channel."""
+    """A guild with Wisp's House and the Status thread."""
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.errors = MagicMock(spec=discord.TextChannel)
-        self.errors.send = AsyncMock()
+        self.status = MagicMock(spec=discord.Thread)
+        self.status.id = STATUS_ID
+        self.status.parent_id = FORUM_ID
+        self.status.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        channels: dict[int, MagicMock] = {HOUSE_ID: self.house, ERRORS_ID: self.errors}
+        channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
 
@@ -90,7 +94,6 @@ async def configured(bot: app.WispBot) -> None:
         GUILD_ID,
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
-        error_channel_id=ERRORS_ID,
     )
     await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
     for user_id in (USER_ID, OTHER_USER_ID):
@@ -114,6 +117,7 @@ def make_interaction(
     interaction.client = bot
     interaction.guild = MagicMock(spec=discord.Guild)
     interaction.guild_id = GUILD_ID
+    interaction.channel = MagicMock(spec=discord.Thread)
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.user.display_name = display_name
@@ -516,7 +520,7 @@ async def test_vault_buttons_survive_restart(
         discord.Forbidden(MagicMock(status=403), "Missing Access"),
     ],
 )
-async def test_a_failing_vault_button_reports_to_staff_and_the_member(
+async def test_a_failing_vault_button_reports_where_it_was_pressed(
     bot: app.WispBot,
     monkeypatch: pytest.MonkeyPatch,
     opener: Any,
@@ -530,10 +534,10 @@ async def test_a_failing_vault_button_reports_to_staff_and_the_member(
 
     await opener(interaction)
 
-    reported.assert_awaited_once_with(interaction.guild, context, error)
-    interaction.followup.send.assert_awaited_once_with(
-        "Something went wrong. Staff have been told.", ephemeral=True
+    reported.assert_awaited_once_with(
+        interaction.guild, context, error, where=interaction.channel
     )
+    interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
 
 
 @pytest.mark.parametrize(
@@ -554,7 +558,9 @@ async def test_a_vault_button_that_cannot_acknowledge_is_reported(
 
     await opener(interaction)
 
-    reported.assert_awaited_once_with(interaction.guild, context, expired)
+    reported.assert_awaited_once_with(
+        interaction.guild, context, expired, where=interaction.channel
+    )
 
 
 # ---
@@ -1188,17 +1194,19 @@ async def test_a_refused_feed_does_not_meet_anyone(
     no_meeting.assert_not_awaited()
 
 
-async def test_a_missing_house_is_reported_and_the_snack_still_counts(
-    bot: app.WispBot, server: FakeServer
+async def test_a_missing_house_is_logged_and_the_snack_still_counts(
+    bot: app.WispBot, server: FakeServer, caplog: pytest.LogCaptureFixture
 ) -> None:
     await bot.settings.update(GUILD_ID, house_channel_id=None)
     await lay(bot)
 
-    interaction = await eat(bot, "cloudwave")
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        interaction = await eat(bot, "cloudwave")
 
     assert (await current_life(bot)).growth == 1
     assert reply_text(interaction).startswith("♪ Wisp ate your Cloud Wave")
-    server.errors.send.assert_awaited_once()
+    server.house.send.assert_not_awaited()
+    assert "Error in posting to Wisp's House" in caplog.text
 
 
 # ---
@@ -1213,7 +1221,7 @@ async def test_a_missing_house_is_reported_and_the_snack_still_counts(
         discord.Forbidden(MagicMock(status=403), "Missing Access"),
     ],
 )
-async def test_a_failing_feed_button_reports_to_staff_and_the_member(
+async def test_a_failing_feed_button_reports_where_it_was_pressed(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
     interaction = make_interaction(bot)
@@ -1223,10 +1231,31 @@ async def test_a_failing_feed_button_reports_to_staff_and_the_member(
 
     await FeedButton().callback(interaction)
 
-    reported.assert_awaited_once_with(interaction.guild, "the Feed Wisp button", error)
-    interaction.followup.send.assert_awaited_once_with(
-        "Something went wrong. Staff have been told.", ephemeral=True
+    reported.assert_awaited_once_with(
+        interaction.guild, "the Feed Wisp button", error, where=interaction.channel
     )
+    interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
+
+
+async def test_a_feed_button_failure_is_posted_in_the_status_thread(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot)
+    interaction.guild = server.guild
+    interaction.channel = server.status
+    error = pymysql.err.OperationalError(2013, "Lost connection")
+    monkeypatch.setattr(bot.activity_log, "inventory", AsyncMock(side_effect=error))
+
+    await FeedButton().callback(interaction)
+
+    server.status.send.assert_awaited_once()
+    report = server.status.send.await_args
+    assert report.args == (
+        "Error in the Feed Wisp button: OperationalError: (2013, 'Lost connection')",
+    )
+    assert report.kwargs["allowed_mentions"].to_dict() == NO_PING
+    server.house.send.assert_not_awaited()
+    interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
 
 
 async def test_a_feed_button_that_cannot_even_acknowledge_is_reported(
@@ -1241,7 +1270,7 @@ async def test_a_feed_button_that_cannot_even_acknowledge_is_reported(
     await FeedButton().callback(interaction)
 
     reported.assert_awaited_once_with(
-        interaction.guild, "the Feed Wisp button", expired
+        interaction.guild, "the Feed Wisp button", expired, where=interaction.channel
     )
 
 
@@ -1279,7 +1308,7 @@ async def test_buying_acknowledges_before_touching_storage(
     interaction.followup.send.assert_awaited_once()
 
 
-async def test_a_failed_confirmation_tells_staff_the_purchase_went_through(
+async def test_a_failed_confirmation_says_the_purchase_went_through(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await bot.players.add_points(GUILD_ID, USER_ID, 10)
@@ -1299,11 +1328,12 @@ async def test_a_failed_confirmation_tells_staff_the_purchase_went_through(
         interaction.guild,
         "confirming a snack purchase (the purchase went through)",
         expired,
+        where=interaction.channel,
     )
     interaction.followup.send.assert_not_awaited()
 
 
-async def test_a_failing_menu_is_reported_to_staff_and_the_member(
+async def test_a_failing_menu_is_reported_where_it_was_used(
     bot: app.WispBot,
 ) -> None:
     interaction = make_interaction(bot)
@@ -1313,9 +1343,11 @@ async def test_a_failing_menu_is_reported_to_staff_and_the_member(
 
     await menu.on_error(interaction, error, menu.children[0])
 
-    bot.report_error.assert_awaited_once_with(interaction.guild, "the lunchbox", error)
+    bot.report_error.assert_awaited_once_with(
+        interaction.guild, "the lunchbox", error, where=interaction.channel
+    )
     interaction.response.send_message.assert_awaited_once_with(
-        "Something went wrong. Staff have been told.", ephemeral=True
+        USER_ERROR, ephemeral=True
     )
 
 

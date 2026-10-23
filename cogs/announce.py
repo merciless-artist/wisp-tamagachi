@@ -66,19 +66,13 @@ class _House:
         self._opened = False
 
     async def open(self) -> None:
-        """Find the House channel once, or report to staff that it cannot be found."""
+        """Find the House channel once, or report that it cannot be found."""
         if self._opened:
             return
         self._opened = True
         self._guild = self._bot.get_guild(self._guild_id)
-        settings = await self._bot.settings.get(self._guild_id)
-        found = (
-            self._guild.get_channel_or_thread(settings.house_channel_id)
-            if self._guild is not None and settings.house_channel_id is not None
-            else None
-        )
-        if isinstance(found, discord.abc.Messageable):
-            self._channel = found
+        self._channel = await self._bot.house_channel(self._guild)
+        if self._channel is not None:
             return
         await self._bot.report_error(
             self._guild,
@@ -94,7 +88,7 @@ class _House:
     ) -> None:
         """Post a line, with an image or buttons when given.
 
-        A failure is reported to staff.
+        A failure is reported.
         """
         if self._channel is None:
             return
@@ -152,7 +146,7 @@ async def say_in_house(
 
     `name` fills the line's name when the moment has one, `prefix` goes in front
     of the line, `image` attaches a file and `view` adds buttons.
-    A missing House channel is reported to staff.
+    A missing House channel is reported.
     """
     house = _House(bot, guild_id)
     await house.open()
@@ -165,7 +159,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     Each event is spoken in Wisp's voice with the image for it when one exists.
     A death, a cold egg or a farewell is followed by the next life, unless the
     current life is not over, which means the ending is stale.
-    A missing House channel is reported to staff once; the next life still comes.
+    A missing House channel is reported once; the next life still comes.
     """
     if not events:
         return
@@ -307,17 +301,20 @@ async def show_in_thread(
         view: Buttons to show on the message, or None to leave it as it is.
 
     The stored message is edited. If it is gone, a new one is posted, pinned and
-    stored. A failure is reported to staff once per streak of failures and never
-    raised, so one broken display cannot stop the rest of a tick.
+    stored. A failure is posted in the thread, or in Wisp's House when the
+    thread cannot be reached, once per streak of failures. It is never raised,
+    so one broken display cannot stop the rest of a tick.
     """
     key = (guild_id, message_attr)
+    thread: discord.Thread | None = None
     try:
-        await _show(bot, guild_id, thread_attr, message_attr, content, label, view)
+        thread = await studio_thread(bot, guild_id, thread_attr)
+        await _show(bot, guild_id, thread, message_attr, content, label, view)
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
             await bot.report_error(
-                bot.get_guild(guild_id), f"updating the {label}", error
+                bot.get_guild(guild_id), f"updating the {label}", error, where=thread
             )
     else:
         bot.failing_displays.discard(key)
@@ -326,14 +323,13 @@ async def show_in_thread(
 async def _show(
     bot: "WispBot",
     guild_id: int,
-    thread_attr: str,
+    thread: discord.Thread,
     message_attr: str,
     content: str,
     label: str,
     view: discord.ui.View | None,
 ) -> None:
     extras: dict[str, Any] = {} if view is None else {"view": view}
-    thread = await studio_thread(bot, guild_id, thread_attr)
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
         try:
@@ -348,4 +344,6 @@ async def _show(
     try:
         await posted.pin()
     except discord.HTTPException as error:
-        await bot.report_error(bot.get_guild(guild_id), f"pinning the {label}", error)
+        await bot.report_error(
+            bot.get_guild(guild_id), f"pinning the {label}", error, where=thread
+        )

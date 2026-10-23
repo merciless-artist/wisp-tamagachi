@@ -219,7 +219,9 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
     try:
         await thread.edit(archived=True, locked=True)
     except discord.HTTPException as error:
-        await bot.report_error(interaction.guild, "closing a Rhyme Duel thread", error)
+        await bot.report_error(
+            interaction.guild, "closing a Rhyme Duel thread", error, where=thread
+        )
     if new_best:
         await refresh_vault(bot, guild_id)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)

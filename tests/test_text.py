@@ -1,6 +1,6 @@
 import pytest
 
-from wisp.text import count, strip_emoji
+from wisp.text import USER_ERROR, count, strip_emoji
 
 
 @pytest.mark.parametrize(
@@ -32,3 +32,7 @@ def test_strip_emoji_removes_the_symbol_blocks(text: str, expected: str) -> None
 
 def test_strip_emoji_keeps_the_flair() -> None:
     assert strip_emoji("・♪ ────────・──────── ♪・ ♫") == "・♪ ────────・──────── ♪・ ♫"
+
+
+def test_the_member_is_told_where_the_error_is() -> None:
+    assert USER_ERROR == "That didn't work. The error is posted in this channel."

@@ -5,7 +5,7 @@ from typing import Final
 
 SEPARATOR: Final = "・♪ ────────・──────── ♪・"
 MESSAGE_LIMIT: Final = 2000
-USER_ERROR: Final = "Something went wrong. Staff have been told."
+USER_ERROR: Final = "That didn't work. The error is posted in this channel."
 
 # Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
 # music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and

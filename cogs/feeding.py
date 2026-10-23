@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs.announce import post_events, show_in_thread
+from cogs.channels import in_channel
 from cogs.groups import require_guild, wispadmin
 from cogs.players import can_feed, maybe_meet
 from cogs.studio import TRACK_LABELS, StudioError, rules_post, studio_thread
@@ -28,21 +29,6 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _MOOD_EMOJIS: Final = {Mood.HAPPY: "wisp_happy", Mood.HANGRY: "wisp_hangry"}
-
-# ---
-# Rules for who counts
-# ---
-
-
-def _in_tracks_channel(message: discord.Message, tracks_channel_id: int | None) -> bool:
-    """Whether a message is in the track drop or in a thread/post inside it."""
-    channel = message.channel
-    parent_id = channel.parent_id if isinstance(channel, discord.Thread) else None
-    return tracks_channel_id is not None and tracks_channel_id in (
-        channel.id,
-        parent_id,
-    )
-
 
 # ---
 # Listener
@@ -71,7 +57,7 @@ class Feeding(commands.Cog):
         if track is None:
             return
         settings = await self.bot.settings.get(guild.id)
-        if not _in_tracks_channel(message, settings.tracks_channel_id):
+        if not in_channel(message.channel, settings.tracks_channel_id):
             return
         if not await can_feed(self.bot, guild.id, author):
             return
@@ -135,18 +121,25 @@ class Feeding(commands.Cog):
         name: str,
         feeling: Mood,
     ) -> None:
-        """Post the track and Wisp's reaction in Mealtime; failures go to staff."""
+        """Post the track and Wisp's reaction in Mealtime.
+
+        A failure is posted in Mealtime, or in Wisp's House when Mealtime cannot
+        be reached.
+        """
         reaction = self.bot.lines.pick(Moment.TRACK_FED, feeling, name=name)
         emoji = self.bot.emoji(_MOOD_EMOJIS[feeling])
         text = (
             f"♪ {author.mention} fed Wisp ・ {track.url}\n"
             f"{f'{emoji} ' if emoji else ''}{reaction}"
         )
+        thread: discord.Thread | None = None
         try:
             thread = await studio_thread(self.bot, guild.id, "mealtime_thread_id")
             await thread.send(text, allowed_mentions=_NO_PING)
         except (discord.DiscordException, StudioError) as error:
-            await self.bot.report_error(guild, "forwarding a track to Mealtime", error)
+            await self.bot.report_error(
+                guild, "forwarding a track to Mealtime", error, where=thread
+            )
 
 
 # ---

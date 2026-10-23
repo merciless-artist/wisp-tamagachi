@@ -14,7 +14,6 @@ _DEFINITIONS: dict[str, str] = {
         tracks_channel_id BIGINT NULL,
         house_channel_id BIGINT NULL,
         studio_forum_id BIGINT NULL,
-        error_channel_id BIGINT NULL,
         status_thread_id BIGINT NULL,
         status_message_id BIGINT NULL,
         mealtime_thread_id BIGINT NULL,
