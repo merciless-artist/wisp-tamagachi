@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-24 (the egg and baby talk, and dropped connections)
+
+- Database reads retry once on another connection when the connection was
+  lost (MySQL errors 2006 and 2013); the lost connection is closed so the pool
+  never hands it out again. Writes are never retried, since a lost write may
+  already have been applied. Pooled connections are recycled after 4 idle
+  minutes instead of an hour, since the network drops idle ones.
+
 ## 2026-10-24 (new toys)
 
 - Three new gift collections in the ViiBR Vault: Tamagotchis (Hawaikotchi,
