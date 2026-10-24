@@ -3,9 +3,11 @@
 Pure functions. Nothing here calls an AI provider, Discord or the database.
 """
 
+import random
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum, auto
 from typing import Final
 
@@ -18,7 +20,16 @@ from wisp.rules import (
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
     EGG_WARMTH,
+    GIFT_BY_KEY,
     HATCHING_TIME,
+    POKE_CURIOUS_WEIGHT,
+    POKE_MOOD_WEIGHT,
+    POKE_SLEEP_AFTER,
+    POKE_SLEEP_HOURS,
+    POKE_SPAM_POKES,
+    POKE_STARTLED_WEIGHT,
+    POKE_TICKLED_WEIGHT,
+    SNACK_BY_KEY,
     Stage,
 )
 from wisp.text import strip_emoji
@@ -26,6 +37,8 @@ from wisp.text import strip_emoji
 NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 # The egg's one face. Hatched stages never use it.
 EGG_EXPRESSION: Final = "wisp_egg"
+# The Vault's points, not one of his faces.
+COIN_EMOJI: Final = "wisp_coin"
 
 # ---
 # Who talks how
@@ -221,7 +234,7 @@ def _output(length: str) -> str:
     )
 
 
-def _reactions(expressions: Sequence[str]) -> str:
+def _reactions(expressions: Sequence[str], *, gif: bool) -> str:
     lines = ["Reactions you can use:"]
     if expressions:
         codes = ", ".join(f":{name}:" for name in expressions)
@@ -230,10 +243,11 @@ def _reactions(expressions: Sequence[str]) -> str:
             "and all, and it shows up as your face. At most one per message, and "
             "not in every message, so they stay special."
         )
-    lines.append(
-        f'- Your "no u" GIF, {NO_U_GIF}, is your comeback when someone '
-        "compliments you. Send the link alone on its own line."
-    )
+    if gif:
+        lines.append(
+            f'- Your "no u" GIF, {NO_U_GIF}, is your comeback when someone '
+            "compliments you. Send the link alone on its own line."
+        )
     return "\n".join(lines)
 
 
@@ -270,6 +284,120 @@ def _chat(context: Sequence[ChatLine], whose: str) -> str:
 
 
 # ---
+# Pokes
+# ---
+
+
+class PokeFlavor(StrEnum):
+    """How Wisp takes a poke from the Poke Wisp button."""
+
+    WOKE_UP = auto()
+    ANNOYED = auto()
+    TICKLED = auto()
+    STARTLED = auto()
+    CURIOUS = auto()
+
+
+_POKE_FEELINGS: Final = {
+    PokeFlavor.WOKE_UP: "You were asleep, and this poke woke you up.",
+    PokeFlavor.ANNOYED: (
+        "You're annoyed at being poked again. Keep it playful, never mean to them."
+    ),
+    PokeFlavor.TICKLED: "It tickled, and you giggle.",
+    PokeFlavor.STARTLED: "It startled you.",
+    PokeFlavor.CURIOUS: "You turn to see who poked you.",
+}
+
+_EGG_POKE_FEELINGS: Final = {
+    PokeFlavor.WOKE_UP: "The egg was asleep, and the poke woke it: a sleepy egg.",
+    PokeFlavor.ANNOYED: (
+        "The egg has been poked a lot, so it's a grumpy egg. Playful, never mean."
+    ),
+    PokeFlavor.TICKLED: "The poke tickled: a ticklish egg.",
+    PokeFlavor.STARTLED: "The poke startled the egg.",
+    PokeFlavor.CURIOUS: "The egg turns as if to see who poked it.",
+}
+
+
+def poke_flavor(
+    mood: Mood,
+    recent_pokes: int,
+    quiet_for: timedelta | None,
+    now: datetime,
+    rng: random.Random,
+) -> PokeFlavor:
+    """Roll how Wisp takes a poke.
+
+    Tickled is the likeliest, startled and curious come now and then. A House
+    quiet for POKE_SLEEP_AFTER, or a poke in POKE_SLEEP_HOURS, makes waking up
+    likeliest; POKE_SPAM_POKES `recent_pokes` (this one included) or being
+    hangry make him likeliest to be annoyed. `quiet_for` is None when nobody
+    has been heard since Wisp started.
+    """
+    sleepy = (
+        quiet_for is not None and quiet_for >= POKE_SLEEP_AFTER
+    ) or now.astimezone(UTC).hour in POKE_SLEEP_HOURS
+    pestered = recent_pokes >= POKE_SPAM_POKES or mood is Mood.HANGRY
+    weights = {
+        PokeFlavor.WOKE_UP: POKE_MOOD_WEIGHT if sleepy else 0,
+        PokeFlavor.ANNOYED: POKE_MOOD_WEIGHT if pestered else 0,
+        PokeFlavor.TICKLED: POKE_TICKLED_WEIGHT,
+        PokeFlavor.STARTLED: POKE_STARTLED_WEIGHT,
+        PokeFlavor.CURIOUS: POKE_CURIOUS_WEIGHT,
+    }
+    (flavor,) = rng.choices(list(weights), weights=list(weights.values()))
+    return flavor
+
+
+# ---
+# His own emojis
+# ---
+
+
+def own_emojis(names: Iterable[str], app_emoji_names: Collection[str]) -> list[str]:
+    """The names among `names` that are Wisp's own emojis, each once, in order.
+
+    His own are his app emojis and any custom emoji with "wisp" in its name, in
+    any case.
+    """
+    return list(
+        dict.fromkeys(
+            name
+            for name in names
+            if name in app_emoji_names or "wisp" in name.casefold()
+        )
+    )
+
+
+def _emoji_meaning(name: str, whose: str) -> str:
+    """What one of Wisp's emojis shows, told as `whose` ("your", "Wisp's")."""
+    kind, _, key = name.partition("_")
+    words = key.replace("_", " ")
+    if name == COIN_EMOJI:
+        return "the coin members spend in the ViiBR Vault"
+    if kind == "wisp" and key:
+        return f"{whose} {words} face"
+    if kind == "gift" and key in GIFT_BY_KEY:
+        return f"{GIFT_BY_KEY[key].title}, one of {whose} gifts"
+    if kind == "keepsake" and key:
+        return f"{words.title()}, one of {whose} keepsakes"
+    if kind == "snack" and key in SNACK_BY_KEY:
+        return f"{SNACK_BY_KEY[key].name}, one of {whose} snacks"
+    return "a ViiBR emote of Wisp"
+
+
+def _emoji_note(names: Sequence[str], whose: str) -> str:
+    """A note, to follow a message, naming the emojis of Wisp it used; or ""."""
+    if not names:
+        return ""
+    uses = "; ".join(
+        f"{name}, which is {_emoji_meaning(name, whose)}" for name in names
+    )
+    noun = "emoji" if len(names) == 1 else "emojis"
+    return f" (they used {whose} own {noun}: {uses})"
+
+
+# ---
 # Prompts
 # ---
 
@@ -282,11 +410,15 @@ def build_prompt(
     message: str | None,
     *,
     expressions: Sequence[str],
+    poked: PokeFlavor | None = None,
+    own_emojis: Sequence[str] = (),
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
     `message` is what `speaker` said to him; None means he is chiming in on his
-    own. The note and pickle tags are only asked for when there is a speaker.
+    own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
+    tags are only asked for when there is a speaker with a message.
+    `own_emojis` are the emojis of his that the message used.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -295,26 +427,29 @@ def build_prompt(
     if voice is None:
         raise ValueError(f"Wisp has no chat voice at the {stage.label} stage")
     baby = stage is Stage.BABY
-    system = [*_personality(stage), _reactions(expressions), voice]
+    system = [*_personality(stage), _reactions(expressions, gif=not baby), voice]
     if mood is Mood.HANGRY:
         system.append(_BABY_HANGRY if baby else _HANGRY)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))
-        rules.append(_PICKLE_TAG)
-        if keeps_notes(stage):
-            rules.append(_NOTE_TAG)
+        if message is not None:
+            rules.append(_PICKLE_TAG)
+            if keeps_notes(stage):
+                rules.append(_NOTE_TAG)
     system.append("\n".join(rules))
 
     user = [_chat(context, "yours")] if context else []
-    if message is None:
+    name = "Someone" if speaker is None else speaker.name
+    if message is not None:
+        user.append(f"{name} says to you: {message}{_emoji_note(own_emojis, 'your')}")
+    elif poked is not None:
+        user.append(f"{name} just poked you. {_POKE_FEELINGS[poked]}")
+    else:
         user.append(
             "Nobody asked you anything. You're chiming in on your own with one "
             "short line about what's going on."
         )
-    else:
-        name = "Someone" if speaker is None else speaker.name
-        user.append(f"{name} says to you: {message}")
     return Prompt("\n\n".join(system), "\n\n".join(user))
 
 
@@ -441,11 +576,15 @@ def egg_prompt(
     message: str,
     *,
     emoji: bool,
+    poked: PokeFlavor | None = None,
+    own_emojis: Sequence[str] = (),
 ) -> Prompt:
     """The prompt for what the egg does when `poker` pokes it, saying `message`.
 
     The egg has no words, no tags and no face but its own `EGG_EXPRESSION`,
-    offered only when `emoji` says it is uploaded.
+    offered only when `emoji` says it is uploaded. `poked` says how the egg
+    takes a press of the Poke Wisp button, and `own_emojis` are the emojis of
+    Wisp's that `message` used.
 
     Raises:
         ValueError: `life` is not an egg, hatching or not.
@@ -462,11 +601,14 @@ def egg_prompt(
         "\n".join((*rules, _CHAT_IS_DATA)),
     )
     user = [_chat(context, "the egg's")] if context else []
-    user.append(
-        f"{poker.name} pokes the egg and says: {message}"
-        if message
-        else f"{poker.name} pokes the egg."
-    )
+    if message:
+        note = _emoji_note(own_emojis, "Wisp's")
+        user.append(f"{poker.name} pokes the egg and says: {message}{note}")
+    else:
+        user.append(f"{poker.name} pokes the egg.")
+    if poked is not None:
+        user[-1] += f" {_EGG_POKE_FEELINGS[poked]}"
+
     return Prompt("\n\n".join(system), "\n\n".join(user))
 
 

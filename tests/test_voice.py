@@ -1,6 +1,8 @@
 """Tests for Wisp's voice: who talks how, his prompts and reply cleaning."""
 
+import random
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,13 +16,17 @@ from wisp.rules import (
     EGG_LINE_CHARS,
     EGG_WARMTH,
     HATCHING_TIME,
+    POKE_SLEEP_AFTER,
+    POKE_SPAM_POKES,
     Stage,
 )
 from wisp.voice import (
+    COIN_EMOJI,
     EGG_EXPRESSION,
     NO_U_GIF,
     ChatLine,
     Fed,
+    PokeFlavor,
     Poker,
     Reply,
     Speaker,
@@ -30,7 +36,9 @@ from wisp.voice import (
     egg_prompt,
     goodbye_prompt,
     keeps_notes,
+    own_emojis,
     parse_reply,
+    poke_flavor,
     talk_level,
 )
 
@@ -429,6 +437,250 @@ def test_egg_prompt_user_part_has_the_chat_then_the_poke() -> None:
 def test_egg_prompt_needs_an_egg() -> None:
     with pytest.raises(ValueError, match="not an egg"):
         poke(life_in(Phase.ALIVE, Stage.BABY))
+
+
+def test_baby_is_not_offered_the_no_u_gif() -> None:
+    assert NO_U_GIF not in prompt_for(Stage.BABY).system
+    assert NO_U_GIF in prompt_for(Stage.CHILD).system
+
+
+# ---
+# Pokes
+# ---
+
+
+class HeaviestChoice(random.Random):
+    """Picks the most heavily weighted option, the one a poke most likely gets."""
+
+    def choices(  # type: ignore[override]
+        self,
+        population: Sequence[PokeFlavor],
+        weights: Sequence[float] | None = None,
+        *,
+        cum_weights: Sequence[float] | None = None,
+        k: int = 1,
+    ) -> list[PokeFlavor]:
+        assert weights is not None
+        heaviest = max(range(len(population)), key=lambda index: weights[index])
+        return [population[heaviest]]
+
+
+AWAKE = datetime(2026, 10, 23, 15, 0, tzinfo=UTC)
+NIGHT = datetime(2026, 10, 23, 4, 30, tzinfo=UTC)
+
+
+def flavor(
+    mood: Mood = Mood.HAPPY,
+    pokes: int = 1,
+    quiet_for: timedelta | None = timedelta(minutes=5),
+    now: datetime = AWAKE,
+) -> PokeFlavor:
+    return poke_flavor(mood, pokes, quiet_for, now, HeaviestChoice())
+
+
+def test_a_poke_most_likely_tickles() -> None:
+    assert flavor() is PokeFlavor.TICKLED
+    assert flavor(quiet_for=None) is PokeFlavor.TICKLED
+    assert flavor(pokes=POKE_SPAM_POKES - 1) is PokeFlavor.TICKLED
+
+
+@pytest.mark.parametrize(
+    ("quiet_for", "now"),
+    [
+        (POKE_SLEEP_AFTER, AWAKE),
+        (timedelta(minutes=1), NIGHT),
+        (None, datetime(2026, 10, 23, 3, 0, tzinfo=UTC)),
+    ],
+)
+def test_a_quiet_house_or_the_small_hours_wake_him(
+    quiet_for: timedelta | None, now: datetime
+) -> None:
+    assert flavor(quiet_for=quiet_for, now=now) is PokeFlavor.WOKE_UP
+
+
+def test_seven_am_is_awake() -> None:
+    morning = datetime(2026, 10, 23, 7, 0, tzinfo=UTC)
+    assert flavor(now=morning) is PokeFlavor.TICKLED
+
+
+@pytest.mark.parametrize(
+    ("mood", "pokes"), [(Mood.HAPPY, POKE_SPAM_POKES), (Mood.HANGRY, 1)]
+)
+def test_spam_or_hunger_annoy_him(mood: Mood, pokes: int) -> None:
+    assert flavor(mood, pokes) is PokeFlavor.ANNOYED
+
+
+def test_every_flavor_can_come_up() -> None:
+    rng = random.Random(4)
+    rolled = {
+        poke_flavor(mood, pokes, quiet, AWAKE, rng)
+        for mood, pokes, quiet in (
+            (Mood.HAPPY, 1, timedelta(minutes=1)),
+            (Mood.HANGRY, 1, POKE_SLEEP_AFTER),
+        )
+        for _ in range(200)
+    }
+    assert rolled == set(PokeFlavor)
+
+
+@pytest.mark.parametrize(
+    ("poked", "feeling"),
+    [
+        (PokeFlavor.WOKE_UP, "this poke woke you up"),
+        (PokeFlavor.ANNOYED, "annoyed at being poked again"),
+        (PokeFlavor.TICKLED, "It tickled, and you giggle"),
+        (PokeFlavor.STARTLED, "It startled you"),
+        (PokeFlavor.CURIOUS, "You turn to see who poked you"),
+    ],
+)
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+def test_the_flavor_of_a_poke_reaches_the_prompt(
+    poked: PokeFlavor, feeling: str, stage: Stage
+) -> None:
+    prompt = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        None,
+        expressions=EXPRESSIONS,
+        poked=poked,
+    )
+    assert "Myra just poked you." in prompt.user
+    assert feeling in prompt.user
+    assert "chiming in" not in prompt.user
+    assert "<pickles>" not in prompt.system and "<note>" not in prompt.system
+
+
+def test_annoyed_wisp_stays_playful() -> None:
+    prompt = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        None,
+        expressions=EXPRESSIONS,
+        poked=PokeFlavor.ANNOYED,
+    )
+    assert "never mean" in prompt.user
+
+
+@pytest.mark.parametrize(
+    ("poked", "feeling"),
+    [
+        (PokeFlavor.WOKE_UP, "a sleepy egg"),
+        (PokeFlavor.ANNOYED, "a grumpy egg"),
+        (PokeFlavor.TICKLED, "a ticklish egg"),
+        (PokeFlavor.STARTLED, "startled the egg"),
+        (PokeFlavor.CURIOUS, "see who poked it"),
+    ],
+)
+def test_an_egg_gets_the_egg_version_of_each_flavor(
+    poked: PokeFlavor, feeling: str
+) -> None:
+    prompt = egg_prompt(
+        egg(), Poker("Myra", Fed.SOME), CONTEXT, "", emoji=False, poked=poked
+    )
+    assert "Myra pokes the egg." in prompt.user
+    assert feeling in prompt.user
+    assert "you giggle" not in prompt.user
+
+
+# ---
+# His own emojis
+# ---
+
+
+APP_EMOJIS = {"wisp_happy", "gift_tama_nano", "keepsake_eggshell", "snack_cheese"}
+
+
+def test_own_emojis_are_his_app_emojis_and_any_wisp_emote() -> None:
+    names = [
+        "wisp_happy",
+        "WispLove",
+        "partyWISP",
+        "pepe",
+        "snack_cheese",
+        "wisp_happy",
+    ]
+    assert own_emojis(names, APP_EMOJIS) == [
+        "wisp_happy",
+        "WispLove",
+        "partyWISP",
+        "snack_cheese",
+    ]
+    assert own_emojis(["pepe", "kekw"], APP_EMOJIS) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "meaning"),
+    [
+        ("wisp_happy", "wisp_happy, which is your happy face"),
+        ("wisp_big_grin", "wisp_big_grin, which is your big grin face"),
+        (
+            "gift_tama_nano",
+            "gift_tama_nano, which is Tamagotchi Nano, one of your gifts",
+        ),
+        (
+            "keepsake_eggshell",
+            "keepsake_eggshell, which is Eggshell, one of your keepsakes",
+        ),
+        ("snack_cheese", "snack_cheese, which is Cheese, one of your snacks"),
+        (COIN_EMOJI, "wisp_coin, which is the coin members spend in the ViiBR Vault"),
+        ("WispLove", "WispLove, which is a ViiBR emote of Wisp"),
+    ],
+)
+def test_his_own_emoji_reaches_the_prompt_with_its_meaning(
+    name: str, meaning: str
+) -> None:
+    prompt = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        f"look :{name}:",
+        expressions=EXPRESSIONS,
+        own_emojis=[name],
+    )
+    assert prompt.user.endswith(
+        f"Myra says to you: look :{name}: (they used your own emoji: {meaning})"
+    )
+
+
+def test_several_own_emojis_are_listed_together() -> None:
+    prompt = build_prompt(
+        Stage.ADULT,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hi",
+        expressions=EXPRESSIONS,
+        own_emojis=["wisp_happy", "snack_cheese"],
+    )
+    assert prompt.user.endswith(
+        "(they used your own emojis: wisp_happy, which is your happy face; "
+        "snack_cheese, which is Cheese, one of your snacks)"
+    )
+
+
+def test_the_egg_sees_its_own_emoji() -> None:
+    prompt = egg_prompt(
+        egg(),
+        Poker("Myra", Fed.NOTHING),
+        CONTEXT,
+        "look :wisp_egg:",
+        emoji=True,
+        own_emojis=[EGG_EXPRESSION],
+    )
+    assert prompt.user.endswith(
+        "Myra pokes the egg and says: look :wisp_egg: "
+        "(they used Wisp's own emoji: wisp_egg, which is Wisp's egg face)"
+    )
+
+
+def test_no_note_without_his_emojis() -> None:
+    assert "own emoji" not in prompt_for().user
+    assert "own emoji" not in poke().user
 
 
 def test_goodbye_prompt_speaks_to_the_member_with_their_notes() -> None:

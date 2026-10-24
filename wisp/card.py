@@ -8,6 +8,7 @@ from wisp.text import SEPARATOR
 
 _BAR_CELLS = 10
 _LABEL_WIDTH = 11
+_HINT = "poke {who}, or mention @Wisp in his House"
 
 
 def bar(value: float) -> str:
@@ -26,12 +27,20 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
                 title + "EGG",
                 _row("warmth", warmth),
                 _row("hatching", _share(life.egg_food, EGG_FOOD_NEEDED)),
+                _HINT.format(who="the egg"),
                 SEPARATOR,
             ]
         )
     if life.phase is Phase.HATCHING:
         emerging = _share(life.phase_seconds, HATCHING_TIME.total_seconds())
-        return "\n".join([title + "HATCHING", _row("emerging", emerging), SEPARATOR])
+        return "\n".join(
+            [
+                title + "HATCHING",
+                _row("emerging", emerging),
+                _HINT.format(who="the egg"),
+                SEPARATOR,
+            ]
+        )
     if life.phase is Phase.ALIVE:
         people = "1 person" if fed_today == 1 else f"{fed_today} people"
         return "\n".join(
@@ -40,6 +49,7 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
                 _row("care", life.care / CARE_MAX * 100),
                 _row("happiness", happiness),
                 f"fed today by {people}",
+                _HINT.format(who="him"),
                 SEPARATOR,
             ]
         )

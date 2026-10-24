@@ -177,6 +177,15 @@ def test_keepsake_won_lines_speak_to_the_member_without_numbers() -> None:
         assert not re.search(r"\d", line), line
 
 
+@pytest.mark.parametrize("mood", list(Mood))
+def test_poked_lines_name_the_poker(mood: Mood) -> None:
+    assert FIELDS[Moment.POKED] == {"name"}
+    lines = LINES[(Moment.POKED, mood)]
+    assert len(lines) >= 8
+    for line in lines:
+        assert placeholders(line) == {"name"}, line
+
+
 def test_last_ember_lines_speak_to_the_member() -> None:
     for line in LINES[(Moment.LAST_EMBER, Mood.HAPPY)]:
         assert "name" in placeholders(line), line

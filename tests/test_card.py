@@ -53,6 +53,7 @@ def test_alive_card_matches_spec_exactly() -> None:
         "care       ███████░░░  72\n"
         "happiness  █████░░░░░  50\n"
         "fed today by 4 people\n"
+        "poke him, or mention @Wisp in his House\n"
         "・♪ ────────・──────── ♪・"
     )
     assert render_status(alive_life(), NOW, happiness=50, fed_today=4) == expected
@@ -78,7 +79,8 @@ def test_egg_card() -> None:
     expected = (
         "♪ WISP v4 ・ EGG\n"
         "warmth     ████████░░  75\n"
-        "hatching   █████░░░░░  50\n" + SEPARATOR
+        "hatching   █████░░░░░  50\n"
+        "poke the egg, or mention @Wisp in his House\n" + SEPARATOR
     )
     assert render_status(egg, NOW, happiness=0, fed_today=0) == expected
 
@@ -87,7 +89,10 @@ def test_hatching_card() -> None:
     egg = new_egg(4, NOW)
     egg.phase = Phase.HATCHING
     egg.phase_seconds = HATCHING_TIME.total_seconds() / 5
-    expected = "♪ WISP v4 ・ HATCHING\nemerging   ██░░░░░░░░  20\n" + SEPARATOR
+    expected = (
+        "♪ WISP v4 ・ HATCHING\nemerging   ██░░░░░░░░  20\n"
+        "poke the egg, or mention @Wisp in his House\n" + SEPARATOR
+    )
     assert render_status(egg, NOW, happiness=0, fed_today=0) == expected
 
 

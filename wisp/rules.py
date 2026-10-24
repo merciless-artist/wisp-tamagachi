@@ -378,3 +378,22 @@ CONTEXT_LINES = 12
 CONTEXT_LINE_CHARS = 300
 NOTES_KEPT = 8
 NOTE_MAX_CHARS = 200
+
+# ---
+# Poking
+# ---
+
+# A House quiet this long, or a poke in these UTC hours (3 AM up to 7 AM),
+# likely wakes him.
+POKE_SLEEP_AFTER = timedelta(hours=2)
+POKE_SLEEP_HOURS = range(3, 7)
+# This many pokes from anyone within the window, this one included, likely
+# annoy him. So does being hangry.
+POKE_SPAM_WINDOW = timedelta(minutes=2)
+POKE_SPAM_POKES = 3
+# How likely each kind of poke reaction is, as weights. Waking up and being
+# annoyed only get POKE_MOOD_WEIGHT while their reason holds, else none.
+POKE_TICKLED_WEIGHT = 6
+POKE_STARTLED_WEIGHT = 2
+POKE_CURIOUS_WEIGHT = 2
+POKE_MOOD_WEIGHT = 12

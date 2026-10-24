@@ -43,6 +43,7 @@ class Moment(StrEnum):
     EGG_POKE = auto()
     BABY_TALK = auto()
     CHAT_FALLBACK = auto()
+    POKED = auto()
     SNACK_FAVORITE = auto()
     FAVORITE_SONG = auto()
     GIFT_KEPT = auto()
@@ -88,6 +89,7 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.EGG_POKE: _NONE,
     Moment.BABY_TALK: _NONE,
     Moment.CHAT_FALLBACK: _NONE,
+    Moment.POKED: _NAME,
     Moment.SNACK_FAVORITE: _NAME,
     Moment.FAVORITE_SONG: _NAME,
     Moment.GIFT_KEPT: _GIFT,
@@ -692,6 +694,28 @@ _CHAT_FALLBACK_HANGRY = (
     "running on empty. the words got eaten before I could say them",
 )
 
+_POKED_HAPPY = (
+    "hey! {name}, that tickles",
+    "{name}, I felt that. right in the headphones",
+    "*flickers* oh hi {name}. you rang?",
+    "a poke? from {name}? I'm honored",
+    "{name} found my ticklish spot again ♪",
+    "boop received, {name}. booping back",
+    "you poked me, {name}. now we're poke buddies",
+    "*sparks a little* {name}! I was mid-beat",
+)
+
+_POKED_HANGRY = (
+    "{name}, poke me with a track instead",
+    "not now {name}, I'm too hungry to be poked",
+    "a poke isn't food, {name}",
+    "{name}, my stomach felt that one",
+    "*grumpy flicker* hi {name}. feed me?",
+    "pokes don't fill plates, {name}",
+    "{name}, I'm running on fumes here. share a song?",
+    "*low growl* that's a hungry flame you're poking, {name}",
+)
+
 # ---
 # Line table
 # ---
@@ -737,6 +761,8 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.BABY_TALK, Mood.HANGRY): _BABY_TALK_HANGRY,
     (Moment.CHAT_FALLBACK, Mood.HAPPY): _CHAT_FALLBACK_HAPPY,
     (Moment.CHAT_FALLBACK, Mood.HANGRY): _CHAT_FALLBACK_HANGRY,
+    (Moment.POKED, Mood.HAPPY): _POKED_HAPPY,
+    (Moment.POKED, Mood.HANGRY): _POKED_HANGRY,
     (Moment.SNACK_FAVORITE, Mood.HAPPY): _SNACK_FAVORITE_HAPPY,
     (Moment.SNACK_FAVORITE, Mood.HANGRY): _SNACK_FAVORITE_HANGRY,
     (Moment.FAVORITE_SONG, Mood.HAPPY): _FAVORITE_SONG_HAPPY,
