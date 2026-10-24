@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 import discord
@@ -149,7 +150,8 @@ class StudioThread:
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
     post's text, or a function that writes it from the guild's settings when
-    the thread is created.
+    the thread is created. `image` is the first post's picture, which the
+    forum shows as the post's thumbnail, relative to the ASSETS folder.
     """
 
     attr: str
@@ -174,6 +176,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "🧡 | Mealtime",
         "Mealtime",
         "Every track that feeds Wisp lands here.",
+        image="thumbs/mealtime.png",
     ),
     StudioThread(
         "vault_thread_id",
@@ -188,6 +191,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "⚡｜Jam Space",
         "Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
+        image="thumbs/jam_space.png",
     ),
     StudioThread(
         "rules_thread_id",
@@ -196,6 +200,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         rules_post,
         message_attr="rules_message_id",
         locked=True,
+        image="thumbs/faq.png",
     ),
 )
 
@@ -241,12 +246,19 @@ async def _open_thread(
     return channel
 
 
+def _thumbnail(spec: StudioThread) -> Path | None:
+    """The thread's thumbnail picture, or None when it has none or it is missing."""
+    if spec.image is None or not (path := ASSETS_DIR / spec.image).is_file():
+        return None
+    return path
+
+
 async def _create_thread(
     bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread, settings: Settings
 ) -> tuple[discord.Thread, int]:
     """Create one Studio thread and remember it; return it and its first message id."""
     art: dict[str, Any] = {}
-    if spec.image is not None and (path := ASSETS_DIR / spec.image).is_file():
+    if (path := _thumbnail(spec)) is not None:
         art["file"] = discord.File(path)
     content = spec.content if isinstance(spec.content, str) else spec.content(settings)
     created = await forum.create_thread(
@@ -269,11 +281,11 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Name the thread, lock the FAQ and pin the card, skipping what is done.
+    """Name the thread, lock the FAQ, add the thumbnail and pin the card.
 
-    A failed step is posted in the thread and retried the next time the Studio
-    is ensured. A card whose message is gone is left for the status loop to
-    repost.
+    Whatever is already done is skipped. A failed step is posted in the thread
+    and retried the next time the Studio is ensured. A card whose message is
+    gone is left for the status loop to repost.
     """
     if thread.name != spec.name:
         try:
@@ -285,6 +297,7 @@ async def _finish_thread(
             await thread.edit(locked=True)
         except discord.HTTPException as error:
             await bot.report_error(guild, f"locking {spec.title}", error, where=thread)
+    await _add_thumbnail(bot, guild, thread, spec)
     if spec.message_attr is None or message_id is None:
         return
     try:
@@ -299,12 +312,35 @@ async def _finish_thread(
         )
 
 
+async def _add_thumbnail(
+    bot: "WispBot", guild: discord.Guild, thread: discord.Thread, spec: StudioThread
+) -> None:
+    """Give the thread's first post its picture when it has no attachment yet.
+
+    A forum thread's first post has the thread's id. A post that is gone is
+    left alone.
+    """
+    if (path := _thumbnail(spec)) is None:
+        return
+    try:
+        starter = await thread.fetch_message(thread.id)
+        if not starter.attachments:
+            await starter.edit(attachments=[discord.File(path)])
+    except discord.NotFound:
+        return
+    except discord.HTTPException as error:
+        await bot.report_error(
+            guild, f"adding the thumbnail to {spec.title}", error, where=thread
+        )
+
+
 async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     """Create any Studio thread that is missing and return the guild's settings.
 
     Threads that already exist are left alone apart from reopening an archived
-    one, renaming one whose name has changed and finishing any lock or pin
-    that is still missing. Threads that were
+    one, renaming one whose name has changed, giving a first post with no
+    attachment its thumbnail and finishing any lock or pin that is still
+    missing. Threads that were
     stored but have been deleted are recreated, and Wisp's House is told about
     them.
 

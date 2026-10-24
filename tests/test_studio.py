@@ -35,6 +35,12 @@ FAQ = "\U0001f4d9｜Wisp FAQ"
 THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
 THREAD_TITLES = ("Status", "Mealtime", "The ViiBR Vault", "Jam Space", "Wisp FAQ")
 OLD_NAMES = ("Status", "Mealtime", "The ViiBR Vault", "The Jam Space", "How Wisp Works")
+THUMBNAILS = {
+    MEALTIME: "thumbs/mealtime.png",
+    VAULT: "vault.png",
+    JAM: "thumbs/jam_space.png",
+    FAQ: "thumbs/faq.png",
+}
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
 THREAD_ATTRS = (
     "status_thread_id",
@@ -106,12 +112,15 @@ class FakeServer:
         thread.fetch_message = AsyncMock(
             side_effect=lambda message_id: self._fetch_message(thread, message_id)
         )
-        self._next_id += 1
         message = MagicMock(spec=discord.Message)
-        message.id = self._next_id
+        message.id = thread.id
         message.content = content
         message.pinned = False
         message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
+        message.attachments = [kwargs["file"].filename] if "file" in kwargs else []
+        message.edit = AsyncMock(
+            side_effect=lambda **fields: self._edit_message(message, fields)
+        )
         self.threads[thread.id] = thread
         self.messages[thread.id] = message
         self.created_names.append(name)
@@ -122,6 +131,15 @@ class FakeServer:
         for name, value in fields.items():
             setattr(thread, name, value)
         return thread
+
+    def _edit_message(self, message: MagicMock, fields: dict[str, Any]) -> MagicMock:
+        if "attachments" in fields:
+            message.attachments = [file.filename for file in fields["attachments"]]
+            for file in fields["attachments"]:
+                file.close()
+        if "content" in fields:
+            message.content = fields["content"]
+        return message
 
     def _fetch_message(self, thread: MagicMock, message_id: int) -> MagicMock:
         message = self.messages.get(thread.id)
@@ -142,6 +160,13 @@ class FakeServer:
 @pytest.fixture
 def server() -> FakeServer:
     return FakeServer()
+
+
+def add_thumbnails(art_dir: Path) -> None:
+    for relative in THUMBNAILS.values():
+        path = art_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
 
 
 @pytest.fixture(autouse=True)
@@ -276,31 +301,84 @@ async def test_a_new_rules_post_shows_the_current_food_values(
     assert content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
 
 
-async def test_vault_post_attaches_the_vault_art_when_present(
+async def test_new_threads_carry_their_thumbnails(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
-    (art_dir / "vault.png").write_bytes(b"png")
+    add_thumbnails(art_dir)
 
     await run_setup(bot, server)
 
     attached = {
-        thread.name: thread.create_kwargs.get("file")
+        thread.name: thread.create_kwargs.pop("file")
         for thread in server.threads.values()
+        if "file" in thread.create_kwargs
     }
-    art = attached.pop(VAULT)
-    assert isinstance(art, discord.File)
-    assert art.filename == "vault.png"
-    art.close()
-    assert set(attached.values()) == {None}
+    assert {name: art.filename for name, art in attached.items()} == {
+        MEALTIME: "mealtime.png",
+        VAULT: "vault.png",
+        JAM: "jam_space.png",
+        FAQ: "faq.png",
+    }
+    for art in attached.values():
+        art.close()
+    for message in server.messages.values():
+        message.edit.assert_not_awaited()
 
 
-async def test_vault_post_without_art_is_text_only(
+async def test_threads_without_art_are_text_only(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
 
-    vault = server.thread_named(VAULT)
-    assert vault.create_kwargs == {"auto_archive_duration": 10080}
+    for thread in server.threads.values():
+        assert thread.create_kwargs == {"auto_archive_duration": 10080}
+
+
+async def test_a_starter_without_a_picture_gets_its_thumbnail(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    await run_setup(bot, server)
+    add_thumbnails(art_dir)
+
+    await ensure_studio(bot, GUILD_ID)
+
+    for name, relative in THUMBNAILS.items():
+        thread = server.thread_named(name)
+        thread.fetch_message.assert_any_await(thread.id)
+        assert server.messages[thread.id].attachments == [Path(relative).name]
+    server.messages[server.thread_named(STATUS).id].edit.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_starter_that_has_a_picture_is_left_alone(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_thumbnails(art_dir)
+    await run_setup(bot, server)
+
+    await ensure_studio(bot, GUILD_ID)
+
+    for message in server.messages.values():
+        message.edit.assert_not_awaited()
+
+
+async def test_thumbnail_failure_is_posted_in_its_thread(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    await run_setup(bot, server)
+    add_thumbnails(art_dir)
+    mealtime = server.thread_named(MEALTIME)
+    server.messages[mealtime.id].edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await ensure_studio(bot, GUILD_ID)
+
+    (line,) = mealtime.send.await_args.args
+    assert line.startswith("Error in adding the thumbnail to Mealtime: Forbidden")
+    jam_starter = server.messages[server.thread_named(JAM).id]
+    assert jam_starter.attachments == ["jam_space.png"]
+    server.house.send.assert_not_awaited()
 
 
 async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None:
