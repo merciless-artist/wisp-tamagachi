@@ -65,7 +65,7 @@ Decisions made during the build where the spec or plan left a choice open. Each 
 ## Plan 2 and the final review
 
 - R1 Prompt lives in a tiny dependency-free module ai/prompt.py (re-exported by ai/chain.py) so wisp/voice.py stays free of aiohttp — keeps the pure layer pure — cost if wrong: one import path.
-- schema changes edit _DEFINITIONS in place; live wisp_ tables verified empty (0 rows, 7 tables) 2026-10-22; controller re-checks and drops them before the first live run — cost: one ALTER per column.
+- schema changes edit _DEFINITIONS in place; live wisp_ tables verified empty (0 rows, 7 tables) 2026-10-22; controller re-checks and drops them before the first live run — cost: one ALTER per column. Superseded 2026-10-23: the live tables now hold real data (Myra's setup), so every new column is also listed in _ADDED_COLUMNS and startup adds it; it stays in _DEFINITIONS for fresh databases — cost: one line per column.
 - "half warm" coal egg = egg starts with COAL_EGG_FOOD = EGG_FOOD_NEEDED // 2 — a fresh egg already shows 100% warmth, so a hatching head start is the only "warmer" reading — cost: one constant.
 - Old Fogey only from Adult/Rockstar at day 45; farewell only for an Old Fogey at day 60; neglect checked first; peak_stage unchanged by growing old — late bloomers never age early — cost: tick-order tweak.
 - Last Ember goes to the top LAST_EMBER_GIFTS=3 "This life" sharers (top_this_life), skipping members banned at that moment — cost: one filter.

@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import logging
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
@@ -71,6 +72,25 @@ async def test_faq_message_ids_round_trip(db: Database) -> None:
 
     await repo.update(GUILD, faq_message_ids=None)
     assert (await SettingsRepo(db).get(GUILD)).faq_message_ids is None
+
+
+@pytest.mark.parametrize("stored", ["not json", "5", "null", '["a"]', "{}x"])
+async def test_unreadable_faq_message_ids_read_as_none_and_are_logged(
+    db: Database, caplog: pytest.LogCaptureFixture, stored: str
+) -> None:
+    repo = SettingsRepo(db)
+    await repo.update(GUILD, house_channel_id=5, faq_message_ids=(1, 2))
+    await db.execute(
+        f"UPDATE {db.t('settings')} SET faq_message_ids = %s WHERE guild_id = %s",
+        (stored, GUILD),
+    )
+
+    with caplog.at_level(logging.ERROR, logger="wisp"):
+        settings = await SettingsRepo(db).get(GUILD)
+
+    assert settings.faq_message_ids is None
+    assert settings.house_channel_id == 5
+    assert "faq_message_ids" in caplog.text
 
 
 async def test_update_rejects_unknown_field(db: Database) -> None:

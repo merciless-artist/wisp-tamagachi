@@ -905,13 +905,31 @@ async def test_a_build_that_fails_part_way_keeps_what_it_posted(
     assert server.messages[thread.id].content == "Loading the FAQ..."
 
     await ensure_studio(bot, GUILD_ID)
-    assert server.live_posts(thread) == [first, second, report]
 
-    await invoke(studio.rebuild_faq, make_interaction(server, bot))
     assert server.deleted == [first.id, second.id]
     report_left, *rebuilt = server.live_posts(thread)
     assert report_left is report
     assert_faq_built(rebuilt)
+
+
+async def test_a_faq_with_the_wrong_number_of_sections_is_rebuilt(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+    before = await bot.settings.get(GUILD_ID)
+    assert before.faq_message_ids is not None
+    await bot.settings.update(GUILD_ID, faq_message_ids=before.faq_message_ids[:-1])
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.deleted == [*before.faq_message_ids[:-1], before.rules_message_id]
+    after = await bot.settings.get(GUILD_ID)
+    assert after.faq_message_ids is not None
+    assert len(after.faq_message_ids) == len(FAQ_PICTURES)
+    live = server.live_posts(thread)
+    assert live[0].id == before.faq_message_ids[-1]
+    assert_faq_built(live[1:])
 
 
 async def test_faq_command_deletes_and_reposts_the_faq(

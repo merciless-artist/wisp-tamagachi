@@ -335,6 +335,96 @@ async def test_a_reposted_card_carries_its_picture(
     assert art.filename == "egg.png"
 
 
+def refuse_pictures(field: str) -> Any:
+    """A Discord call that refuses any picture and accepts plain text."""
+
+    def call(*_args: Any, **kwargs: Any) -> None:
+        if field in kwargs:
+            raise forbidden()
+
+    return call
+
+
+async def test_a_refused_picture_still_updates_the_card_text(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    server.status.edit.side_effect = refuse_pictures("attachments")
+
+    await show_status(bot, "the text", image=picture(tmp_path, "egg"))
+
+    with_picture, without = server.status.edit.await_args_list
+    assert attached(with_picture.kwargs) == ["egg.png"]
+    assert without.kwargs["content"] == "the text"
+    assert "attachments" not in without.kwargs
+    (report,) = server.status.thread.send.await_args.args
+    assert report.startswith("Error in attaching the status card picture: Forbidden")
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_refused_picture_is_reported_once_per_streak_and_tried_again(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    egg = picture(tmp_path, "egg")
+    server.status.edit.side_effect = refuse_pictures("attachments")
+    await show_status(bot, image=egg)
+    await show_status(bot, image=egg)
+    assert server.status.edit.await_count == 4
+    assert server.status.thread.send.await_count == 1
+
+    server.status.edit.side_effect = None
+    await show_status(bot, image=egg)
+    assert attached(server.status.edit.await_args.kwargs) == ["egg.png"]
+    await show_status(bot, image=egg)
+    assert "attachments" not in server.status.edit.await_args.kwargs
+
+    server.status.edit.side_effect = refuse_pictures("attachments")
+    await show_status(bot, image=picture(tmp_path, "baby"))
+    assert server.status.thread.send.await_count == 2
+
+
+async def test_a_picture_failure_does_not_hide_a_card_failure(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    server.status.edit.side_effect = refuse_pictures("attachments")
+    await show_status(bot, image=picture(tmp_path, "egg"))
+
+    server.status.edit.side_effect = forbidden()
+    await show_status(bot)
+
+    reports = [call.args[0] for call in server.status.thread.send.await_args_list]
+    assert [report.split(":")[0] for report in reports] == [
+        "Error in attaching the status card picture",
+        "Error in updating the status card",
+    ]
+
+
+async def test_a_reposted_card_whose_picture_is_refused_is_posted_as_text(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    server.status.edit.side_effect = not_found()
+    refuse = refuse_pictures("file")
+
+    def send(*args: Any, **kwargs: Any) -> MagicMock:
+        refuse(*args, **kwargs)
+        return server.status.reposted
+
+    server.status.thread.send.side_effect = send
+
+    await show_status(bot, "the text", image=picture(tmp_path, "egg"))
+
+    sends = server.status.thread.send.await_args_list
+    sends[0].kwargs["file"].close()
+    assert sends[1].args == ("the text",)
+    assert "file" not in sends[1].kwargs
+    assert (
+        sends[2]
+        .args[0]
+        .startswith("Error in attaching the status card picture: Forbidden")
+    )
+    assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_ID
+    server.status.reposted.pin.assert_awaited_once()
+
+
 async def test_without_a_picture_the_attachment_is_kept(
     bot: app.WispBot, server: FakeServer, tmp_path: Path
 ) -> None:

@@ -28,6 +28,33 @@ async def test_create_tables_adds_columns_missing_from_older_tables(
     assert row == {"best_rhyme_score": 0}
 
 
+async def test_create_tables_adds_the_faq_column_to_a_live_settings_table(
+    db: Database, caplog: pytest.LogCaptureFixture
+) -> None:
+    settings = db.t("settings")
+    await db.execute(
+        f"INSERT INTO {settings} (guild_id, house_channel_id) VALUES (1, 5)"
+    )
+    await db.execute(f"ALTER TABLE {settings} DROP COLUMN faq_message_ids")
+    try:
+        with caplog.at_level(logging.WARNING, logger="wisp"):
+            await create_tables(db)
+
+        columns = await db.fetchall(f"SHOW COLUMNS FROM {settings}")
+        assert "faq_message_ids" in {column["Field"] for column in columns}
+        row = await db.fetchone(
+            f"SELECT house_channel_id, faq_message_ids FROM {settings}"
+        )
+        assert row == {"house_channel_id": 5, "faq_message_ids": None}
+        assert caplog.records == []
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {settings}")
+        if "faq_message_ids" not in {column["Field"] for column in restored}:
+            await db.execute(
+                f"ALTER TABLE {settings} ADD COLUMN faq_message_ids TEXT NULL"
+            )
+
+
 async def test_track_key_is_unique_per_guild(db: Database) -> None:
     insert = (
         f"INSERT INTO {db.t('feeds')} "

@@ -62,7 +62,7 @@ async def fill_faq(
 
     Wisp's own earlier sections and rules post, as stored, are deleted first;
     the thread's first post never is. What was posted is stored even when
-    posting stops part way, so /wispadmin faq can clear it.
+    posting stops part way, so the next setup or /wispadmin faq clears it.
 
     Raises:
         FileNotFoundError: A section picture is missing; nothing has changed.

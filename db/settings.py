@@ -1,12 +1,15 @@
 """Per-guild settings: channels, threads, roles, food values and the freeze."""
 
 import json
+import logging
 from dataclasses import dataclass, fields
 from typing import Any
 
 from db.database import Database
 from wisp import rules
 from wisp.links import TrackKind
+
+log = logging.getLogger("wisp")
 
 
 @dataclass(frozen=True)
@@ -46,14 +49,27 @@ def _to_column(name: str, value: Any) -> Any:
     return value
 
 
-def _from_row(row: dict[str, Any]) -> Settings:
+def _id_list(guild_id: int, name: str, value: str | None) -> tuple[int, ...] | None:
+    """A stored id list, or None when there is none or it cannot be read.
+
+    An unreadable list is logged and read as None, so the next setup posts
+    what it belongs to again.
+    """
+    if value is None:
+        return None
+    try:
+        return tuple(int(item) for item in json.loads(value))
+    except (ValueError, TypeError):
+        log.error(
+            "Guild %d has an unreadable %s, read as none: %r", guild_id, name, value
+        )
+        return None
+
+
+def _from_row(guild_id: int, row: dict[str, Any]) -> Settings:
     """Settings from a database row."""
     values: dict[str, Any] = {
-        name: (
-            tuple(int(item) for item in json.loads(value))
-            if name in _ID_LISTS and value is not None
-            else value
-        )
+        name: _id_list(guild_id, name, value) if name in _ID_LISTS else value
         for name, value in row.items()
     }
     return Settings(**{**values, "frozen": bool(row["frozen"])})
@@ -105,7 +121,7 @@ class SettingsRepo:
         )
         if row is None:
             return Settings()
-        return _from_row(row)
+        return _from_row(guild_id, row)
 
     async def update(self, guild_id: int, **values: Any) -> None:
         """Set the named settings; None clears a channel or thread."""

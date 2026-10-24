@@ -1,5 +1,6 @@
 """Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -356,7 +357,9 @@ async def show_in_thread(
     The stored message is edited. If it is gone, a new one is posted, pinned and
     stored. The picture is uploaded only when it is not the one this process
     last attached to that message, so an unchanged picture is not sent every
-    tick; after a restart it is attached once more.
+    tick; after a restart it is attached once more. When Discord refuses the
+    picture, the message is updated without it and the refusal is posted on
+    its own, once per streak.
 
     A failure is posted in the thread, or in Wisp's House when the thread
     cannot be reached, once per streak of failures. It is never raised,
@@ -377,6 +380,63 @@ async def show_in_thread(
         bot.failing_displays.discard(key)
 
 
+def _art(field: str, art: discord.File | None) -> dict[str, Any]:
+    """The keyword that attaches `art`: "attachments" for an edit, "file" to send."""
+    if art is None:
+        return {}
+    return {field: [art] if field == "attachments" else art}
+
+
+class _Picture:
+    """Attaches a display's picture, falling back to no picture when refused."""
+
+    def __init__(
+        self,
+        bot: "WispBot",
+        guild_id: int,
+        thread: discord.Thread,
+        message_attr: str,
+        label: str,
+    ) -> None:
+        self._bot = bot
+        self._guild_id = guild_id
+        self._thread = thread
+        self._key = (guild_id, f"{message_attr} picture")
+        self._label = label
+
+    async def attach(
+        self,
+        image: Path | None,
+        send: Callable[[discord.File | None], Awaitable[discord.Message]],
+    ) -> tuple[discord.Message, str | None]:
+        """Send with `image` attached; return the message and the picture's name.
+
+        The name is None when no picture was attached.
+
+        A refused picture is sent again without it, then reported once per
+        streak. A missing message (NotFound) is raised for the caller.
+        """
+        if image is None:
+            return await send(None), None
+        try:
+            message = await send(discord.File(image))
+        except discord.NotFound:
+            raise
+        except discord.HTTPException as error:
+            message = await send(None)
+            if self._key not in self._bot.failing_displays:
+                self._bot.failing_displays.add(self._key)
+                await self._bot.report_error(
+                    self._bot.get_guild(self._guild_id),
+                    f"attaching the {self._label} picture",
+                    error,
+                    where=self._thread,
+                )
+            return message, None
+        self._bot.failing_displays.discard(self._key)
+        return message, image.name
+
+
 async def _show(
     bot: "WispBot",
     guild_id: int,
@@ -388,27 +448,42 @@ async def _show(
     image: Path | None,
 ) -> None:
     key = (guild_id, message_attr)
+    picture = _Picture(bot, guild_id, thread, message_attr, label)
     extras: dict[str, Any] = {} if view is None else {"view": view}
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
-        edits = dict(extras)
-        if image is not None and bot.shown_images.get(key) != (message_id, image.name):
-            edits["attachments"] = [discord.File(image)]
+        message = thread.get_partial_message(message_id)
+        shown = image is not None and bot.shown_images.get(key) == (
+            message_id,
+            image.name,
+        )
         try:
-            await thread.get_partial_message(message_id).edit(
-                content=content, allowed_mentions=_NO_PING, **edits
+            _, attached = await picture.attach(
+                None if shown else image,
+                lambda art: message.edit(
+                    content=content,
+                    allowed_mentions=_NO_PING,
+                    **extras,
+                    **_art("attachments", art),
+                ),
             )
         except discord.NotFound:
             pass
         else:
-            if image is not None:
-                bot.shown_images[key] = (message_id, image.name)
+            if attached is not None:
+                bot.shown_images[key] = (message_id, attached)
             return
-    if image is not None:
-        extras["file"] = discord.File(image)
-    posted = await thread.send(content, allowed_mentions=_NO_PING, **extras)
-    if image is not None:
-        bot.shown_images[key] = (posted.id, image.name)
+    posted, attached = await picture.attach(
+        image,
+        lambda art: thread.send(
+            content,
+            allowed_mentions=_NO_PING,
+            **extras,
+            **_art("file", art),
+        ),
+    )
+    if attached is not None:
+        bot.shown_images[key] = (posted.id, attached)
     await bot.settings.update(guild_id, **{message_attr: posted.id})
     try:
         await posted.pin()

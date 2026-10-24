@@ -11,7 +11,7 @@ import discord
 from discord import app_commands
 
 from cogs.assets import ASSETS_DIR
-from cogs.faq import fill_faq
+from cogs.faq import FAQ_SECTIONS, fill_faq
 from cogs.groups import require_guild, wispadmin
 from db.settings import Settings, meal_points
 from wisp import rules
@@ -353,8 +353,9 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     attachment its thumbnail and finishing any lock or pin that is still
     missing. Threads that were stored but have been deleted are recreated, and
     Wisp's House is told about them. The Wisp FAQ is filled when its thread is
-    new or has no stored sections, such as a How Wisp Works thread from before
-    the FAQ.
+    new or does not have one stored post per section: a How Wisp Works thread
+    from before the FAQ, a build that stopped part way or a release with a
+    different number of sections.
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -380,7 +381,8 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
                 )
             await _finish_thread(bot, forum.guild, thread, spec, message_id)
             threads[spec.attr] = thread
-        if _FAQ_ATTR in created or not settings.faq_message_ids:
+        stored_sections = len(settings.faq_message_ids or ())
+        if _FAQ_ATTR in created or stored_sections != len(FAQ_SECTIONS):
             await _build_faq(bot, forum.guild, threads[_FAQ_ATTR])
         settings = await bot.settings.get(guild_id)
     if recreated:
