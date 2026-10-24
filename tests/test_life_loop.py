@@ -8,6 +8,7 @@ import random
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -16,7 +17,7 @@ import pymysql
 import pytest
 
 import app
-from cogs import life_loop
+from cogs import announce, life_loop
 from cogs.life_loop import LifeLoop
 from cogs.snacks import FeedButton
 from db.activity import ActivityRepo, InteractionKind
@@ -531,6 +532,81 @@ async def test_card_failure_is_reported_once_per_streak(
     await cog.run_tick(NOW + 3 * FULL_GAP)
 
     assert server.status.send.await_count == 2
+
+
+# ---
+# Status card picture
+# ---
+
+
+@pytest.fixture
+def stage_art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Stage art with only the egg and the baby."""
+    stages = tmp_path / "stages"
+    stages.mkdir()
+    for name in ("egg", "baby"):
+        (stages / f"{name}.png").write_bytes(b"png")
+    monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    return stages
+
+
+def card_pictures(server: FakeServer) -> list[list[str]]:
+    """The pictures attached on each card edit, in order."""
+    pictures: list[list[str]] = []
+    for call in server.card_edit.await_args_list:
+        files: list[discord.File] = call.kwargs.get("attachments", [])
+        for file in files:
+            file.close()
+        pictures.append([file.filename for file in files])
+    return pictures
+
+
+async def test_the_card_shows_the_egg_picture(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+
+    await cog.run_tick(NOW)
+
+    assert card_pictures(server) == [["egg.png"]]
+
+
+async def test_the_card_switches_to_the_baby_on_hatch_and_skips_unchanged_ticks(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    almost = rules.HATCHING_TIME - FULL_GAP
+    await lay(
+        bot,
+        phase=Phase.HATCHING,
+        gap=timedelta(minutes=1),
+        phase_seconds=almost.total_seconds(),
+    )
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + timedelta(minutes=2))
+    await cog.run_tick(NOW + timedelta(minutes=2) + FULL_GAP)
+    await cog.run_tick(NOW + timedelta(minutes=4) + FULL_GAP)
+
+    assert (await current_life(bot)).phase is Phase.ALIVE
+    assert card_pictures(server) == [["egg.png"], [], ["baby.png"], []]
+
+
+async def test_missing_art_never_breaks_the_card(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    life.stage = life.peak_stage = Stage.TEEN
+    await bot.lives.save(GUILD_ID, life)
+
+    await cog.run_tick(NOW)
+
+    assert card_pictures(server) == [[]]
+    content = server.card_edit.await_args.kwargs["content"]
+    assert content.startswith("♪ WISP v1 ・ TEEN")
+    assert house_reports(server) == []
+    server.status.send.assert_not_awaited()
 
 
 # ---

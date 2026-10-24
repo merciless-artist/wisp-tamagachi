@@ -44,10 +44,23 @@ def _image_for(event: Event) -> Path | None:
     return next((path for path in candidates if path.is_file()), None)
 
 
-def _egg_image(egg: Life) -> Path | None:
-    """Return the coal egg's image for an egg from coal when it exists."""
-    coal = ASSETS_DIR / "stages" / "coal_egg.png"
-    return coal if egg.from_coal and coal.is_file() else None
+def life_image(life: Life) -> Path | None:
+    """Return the existing picture of Wisp as he is now, or None.
+
+    An egg, hatching or not, is the egg picture; an egg from coal is the coal
+    egg's own picture when it exists. A living Wisp is his stage's picture. A
+    life that is over has none.
+    """
+    stages = ASSETS_DIR / "stages"
+    candidates: list[Path] = []
+    match life.phase:
+        case Phase.EGG | Phase.HATCHING:
+            if life.from_coal:
+                candidates.append(stages / "coal_egg.png")
+            candidates.append(stages / "egg.png")
+        case Phase.ALIVE:
+            candidates.append(stages / f"{life.stage.value}.png")
+    return next((path for path in candidates if path.is_file()), None)
 
 
 # ---
@@ -262,7 +275,7 @@ async def _next_life(
             goodbye = await _goodbye(bot, guild, embers.life, name, notes)
             await house.say(f"{heading}\n{goodbye}")
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
-    await house.say(_line(bot, moment, egg), _egg_image(egg))
+    await house.say(_line(bot, moment, egg), life_image(egg))
 
 
 async def _give_last_embers(
@@ -324,6 +337,7 @@ async def show_in_thread(
     content: str,
     label: str,
     view: discord.ui.View | None = None,
+    image: Path | None = None,
 ) -> None:
     """Keep one pinned message in a Studio thread showing `content`.
 
@@ -336,17 +350,23 @@ async def show_in_thread(
         content: The message text.
         label: What the message is, for error reports ("status card").
         view: Buttons to show on the message, or None to leave it as it is.
+        image: The picture the message shows, or None to leave its picture as
+            it is.
 
     The stored message is edited. If it is gone, a new one is posted, pinned and
-    stored. A failure is posted in the thread, or in Wisp's House when the
-    thread cannot be reached, once per streak of failures. It is never raised,
+    stored. The picture is uploaded only when it is not the one this process
+    last attached to that message, so an unchanged picture is not sent every
+    tick; after a restart it is attached once more.
+
+    A failure is posted in the thread, or in Wisp's House when the thread
+    cannot be reached, once per streak of failures. It is never raised,
     so one broken display cannot stop the rest of a tick.
     """
     key = (guild_id, message_attr)
     thread: discord.Thread | None = None
     try:
         thread = await studio_thread(bot, guild_id, thread_attr)
-        await _show(bot, guild_id, thread, message_attr, content, label, view)
+        await _show(bot, guild_id, thread, message_attr, content, label, view, image)
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
@@ -365,18 +385,30 @@ async def _show(
     content: str,
     label: str,
     view: discord.ui.View | None,
+    image: Path | None,
 ) -> None:
+    key = (guild_id, message_attr)
     extras: dict[str, Any] = {} if view is None else {"view": view}
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
+        edits = dict(extras)
+        if image is not None and bot.shown_images.get(key) != (message_id, image.name):
+            edits["attachments"] = [discord.File(image)]
         try:
             await thread.get_partial_message(message_id).edit(
-                content=content, allowed_mentions=_NO_PING, **extras
+                content=content, allowed_mentions=_NO_PING, **edits
             )
-            return
         except discord.NotFound:
             pass
+        else:
+            if image is not None:
+                bot.shown_images[key] = (message_id, image.name)
+            return
+    if image is not None:
+        extras["file"] = discord.File(image)
     posted = await thread.send(content, allowed_mentions=_NO_PING, **extras)
+    if image is not None:
+        bot.shown_images[key] = (posted.id, image.name)
     await bot.settings.update(guild_id, **{message_attr: posted.id})
     try:
         await posted.pin()

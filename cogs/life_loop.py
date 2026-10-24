@@ -9,7 +9,13 @@ import discord
 import pymysql
 from discord.ext import commands, tasks
 
-from cogs.announce import next_life, post_events, say_in_house, show_in_thread
+from cogs.announce import (
+    life_image,
+    next_life,
+    post_events,
+    say_in_house,
+    show_in_thread,
+)
 from cogs.players import status_text
 from cogs.snacks import feed_view
 from cogs.vault import refresh_vault
@@ -156,7 +162,7 @@ class LifeLoop(commands.Cog):
     async def _update_card(
         self, guild_id: int, life: Life, now: datetime, happy: int
     ) -> None:
-        """Show the live status card in the Status thread."""
+        """Show the live status card, with his current picture, in the Status thread."""
         if is_over(life):
             return
         await show_in_thread(
@@ -167,6 +173,7 @@ class LifeLoop(commands.Cog):
             await status_text(self.bot, guild_id, life, now, happy),
             "status card",
             feed_view(),
+            life_image(life),
         )
 
 

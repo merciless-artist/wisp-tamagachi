@@ -17,7 +17,7 @@ import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs import announce
-from cogs.announce import next_life, post_events, show_in_thread
+from cogs.announce import life_image, next_life, post_events, show_in_thread
 from db.activity import ActivityRepo
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
@@ -131,7 +131,10 @@ async def configured(bot: app.WispBot) -> None:
 
 
 async def show_status(
-    bot: app.WispBot, content: str = "card", view: discord.ui.View | None = None
+    bot: app.WispBot,
+    content: str = "card",
+    view: discord.ui.View | None = None,
+    image: Path | None = None,
 ) -> None:
     await show_in_thread(
         bot,
@@ -141,6 +144,7 @@ async def show_status(
         content,
         "status card",
         view,
+        image,
     )
 
 
@@ -256,6 +260,90 @@ async def test_without_a_view_the_message_keeps_its_buttons(
 
     assert "view" not in server.status.edit.await_args.kwargs
     assert "view" not in server.status.thread.send.await_args.kwargs
+
+
+# ---
+# Pictures
+# ---
+
+
+def picture(tmp_path: Path, name: str) -> Path:
+    path = tmp_path / f"{name}.png"
+    path.write_bytes(b"png")
+    return path
+
+
+def attached(kwargs: dict[str, Any]) -> list[str]:
+    files: list[discord.File] = kwargs.get("attachments", [])
+    for file in files:
+        file.close()
+    return [file.filename for file in files]
+
+
+async def test_a_picture_is_attached_on_the_first_edit(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    await show_status(bot, image=picture(tmp_path, "egg"))
+
+    assert attached(server.status.edit.await_args.kwargs) == ["egg.png"]
+
+
+async def test_an_unchanged_picture_is_not_uploaded_again(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    egg = picture(tmp_path, "egg")
+    await show_status(bot, image=egg)
+    await show_status(bot, "next tick", image=egg)
+
+    first, second = server.status.edit.await_args_list
+    assert attached(first.kwargs) == ["egg.png"]
+    assert second.kwargs["content"] == "next tick"
+    assert "attachments" not in second.kwargs
+
+
+async def test_a_new_picture_replaces_the_old_one(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    await show_status(bot, image=picture(tmp_path, "egg"))
+    await show_status(bot, image=picture(tmp_path, "baby"))
+
+    assert attached(server.status.edit.await_args.kwargs) == ["baby.png"]
+
+
+async def test_a_new_card_message_gets_the_picture_again(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    egg = picture(tmp_path, "egg")
+    await show_status(bot, image=egg)
+    await bot.settings.update(GUILD_ID, status_message_id=STATUS_MESSAGE_ID + 1)
+
+    await show_status(bot, image=egg)
+
+    server.status.thread.get_partial_message.assert_called_with(STATUS_MESSAGE_ID + 1)
+    assert attached(server.status.edit.await_args.kwargs) == ["egg.png"]
+
+
+async def test_a_reposted_card_carries_its_picture(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    server.status.edit.side_effect = not_found()
+
+    await show_status(bot, image=picture(tmp_path, "egg"))
+
+    art = server.status.thread.send.await_args.kwargs["file"]
+    art.close()
+    assert art.filename == "egg.png"
+
+
+async def test_without_a_picture_the_attachment_is_kept(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    await show_status(bot, image=picture(tmp_path, "egg"))
+    await show_status(bot)
+    await show_board(bot)
+
+    assert "attachments" not in server.status.edit.await_args.kwargs
+    assert "attachments" not in server.board.edit.await_args.kwargs
 
 
 # ---
@@ -534,6 +622,70 @@ async def test_first_life_is_a_fresh_egg(
     assert (egg.version, egg.phase, egg.from_coal) == (1, Phase.EGG, False)
     (laid,) = server.house.send.await_args_list
     assert said(laid.args[0], Moment.NEW_EGG, version="1")
+    assert "file" not in laid.kwargs
+
+
+async def test_a_new_egg_is_announced_with_the_egg_picture(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "stages", "egg")
+    add_image(assets, "stages", "coal_egg")
+    await ended_life(bot, Phase.DEAD)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+
+    _died, laid = server.house.send.await_args_list
+    assert said(laid.args[0], Moment.NEW_EGG, version="4")
+    assert laid.kwargs["file"].filename == "egg.png"
+    assert sends_without_pinging(laid.kwargs)
+
+
+async def test_a_coal_egg_without_its_own_picture_shows_the_egg(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "stages", "egg")
+    await ended_life(bot, Phase.PASSED)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+
+    _farewell, coal = server.house.send.await_args_list
+    assert said(coal.args[0], Moment.COAL_EGG, version="4")
+    assert coal.kwargs["file"].filename == "egg.png"
+
+
+@pytest.mark.parametrize(
+    ("phase", "stage", "from_coal", "files", "expected"),
+    [
+        (Phase.EGG, Stage.EGG, False, ["egg", "coal_egg"], "egg.png"),
+        (Phase.HATCHING, Stage.EGG, False, ["egg"], "egg.png"),
+        (Phase.EGG, Stage.EGG, True, ["egg", "coal_egg"], "coal_egg.png"),
+        (Phase.HATCHING, Stage.EGG, True, ["egg"], "egg.png"),
+        (Phase.ALIVE, Stage.TEEN, False, ["egg", "teen"], "teen.png"),
+        (Phase.ALIVE, Stage.OLD_FOGEY, True, ["old_fogey"], "old_fogey.png"),
+        (Phase.ALIVE, Stage.ADULT, False, ["egg", "teen"], None),
+        (Phase.EGG, Stage.EGG, True, ["coal_egg"], "coal_egg.png"),
+        (Phase.EGG, Stage.EGG, False, [], None),
+        (Phase.DEAD, Stage.ADULT, False, ["egg", "adult"], None),
+    ],
+)
+def test_life_image_is_his_current_picture(
+    assets: Path,
+    phase: Phase,
+    stage: Stage,
+    from_coal: bool,
+    files: list[str],
+    expected: str | None,
+) -> None:
+    for name in files:
+        add_image(assets, "stages", name)
+    life = new_egg(1, discord.utils.utcnow())
+    life.phase = phase
+    life.stage = stage
+    life.from_coal = from_coal
+
+    image = life_image(life)
+
+    assert (None if image is None else image.name) == expected
 
 
 async def test_next_life_leaves_a_living_wisp_alone(
