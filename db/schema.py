@@ -22,6 +22,7 @@ _DEFINITIONS: dict[str, str] = {
         jam_thread_id BIGINT NULL,
         rules_thread_id BIGINT NULL,
         rules_message_id BIGINT NULL,
+        faq_message_ids TEXT NULL,
         viibr_meal_points INT NULL,
         suno_meal_points INT NULL,
         frozen BOOL NOT NULL DEFAULT 0,

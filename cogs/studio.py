@@ -1,7 +1,7 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -11,6 +11,7 @@ import discord
 from discord import app_commands
 
 from cogs.assets import ASSETS_DIR
+from cogs.faq import fill_faq
 from cogs.groups import require_guild, wispadmin
 from db.settings import Settings, meal_points
 from wisp import rules
@@ -41,7 +42,7 @@ TRACK_LABELS: dict[TrackKind, str] = {
 }
 
 # ---
-# How Wisp Works text
+# Rules post text
 # ---
 
 
@@ -54,7 +55,7 @@ def _ban_line() -> str:
 
 
 def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
-    """Return the How Wisp Works post.
+    """Return the Wisp FAQ's rules post, the live text after its pictures.
 
     The meal points are the guild's effective values; every other number is
     taken from the rules.
@@ -71,7 +72,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     egg_meals = count(rules.EGG_FOOD_NEEDED, "meal point")
     return "\n".join(
         [
-            "♪ How Wisp Works",
+            "♪ Quick rules (current numbers)",
             "Wisp is one little guy for the whole server. Share music and he "
             "grows from an egg into a Rockstar. If nobody feeds him, he fades "
             "and a new egg takes his place.",
@@ -139,7 +140,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
 
 
 def rules_post(settings: Settings) -> str:
-    """The How Wisp Works post with the guild's own food values."""
+    """The Wisp FAQ's rules post with the guild's own food values."""
     return rules_text(meal_points(settings))
 
 
@@ -149,15 +150,15 @@ class StudioThread:
 
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
-    post's text, or a function that writes it from the guild's settings when
-    the thread is created. `image` is the first post's picture, which the
-    forum shows as the post's thumbnail, relative to the ASSETS folder.
+    post's text when the thread is created. `image` is the first post's
+    picture, which the forum shows as the post's thumbnail, relative to the
+    ASSETS folder.
     """
 
     attr: str
     name: str
     title: str
-    content: str | Callable[[Settings], str]
+    content: str
     message_attr: str | None = None
     locked: bool = False
     image: str | None = None
@@ -197,14 +198,14 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "rules_thread_id",
         "📙｜Wisp FAQ",
         "Wisp FAQ",
-        rules_post,
-        message_attr="rules_message_id",
+        "Loading the FAQ...",
         locked=True,
         image="thumbs/faq.png",
     ),
 )
 
 _THREAD_ATTRS = frozenset(spec.attr for spec in STUDIO_THREADS)
+_FAQ_ATTR: Final = "rules_thread_id"
 _studio_locks: dict[int, asyncio.Lock] = {}
 
 
@@ -254,16 +255,15 @@ def _thumbnail(spec: StudioThread) -> Path | None:
 
 
 async def _create_thread(
-    bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread, settings: Settings
+    bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread
 ) -> tuple[discord.Thread, int]:
     """Create one Studio thread and remember it; return it and its first message id."""
     art: dict[str, Any] = {}
     if (path := _thumbnail(spec)) is not None:
         art["file"] = discord.File(path)
-    content = spec.content if isinstance(spec.content, str) else spec.content(settings)
     created = await forum.create_thread(
         name=spec.name,
-        content=content,
+        content=spec.content,
         auto_archive_duration=_ARCHIVE_AFTER_MINUTES,
         **art,
     )
@@ -334,15 +334,27 @@ async def _add_thumbnail(
         )
 
 
+async def _build_faq(
+    bot: "WispBot", guild: discord.Guild, thread: discord.Thread
+) -> None:
+    """Fill the Wisp FAQ thread; a failure is posted in it."""
+    rules = rules_post(await bot.settings.get(guild.id))
+    try:
+        await fill_faq(bot, guild.id, thread, rules)
+    except (discord.HTTPException, OSError) as error:
+        await bot.report_error(guild, "building the Wisp FAQ", error, where=thread)
+
+
 async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     """Create any Studio thread that is missing and return the guild's settings.
 
     Threads that already exist are left alone apart from reopening an archived
     one, renaming one whose name has changed, giving a first post with no
     attachment its thumbnail and finishing any lock or pin that is still
-    missing. Threads that were
-    stored but have been deleted are recreated, and Wisp's House is told about
-    them.
+    missing. Threads that were stored but have been deleted are recreated, and
+    Wisp's House is told about them. The Wisp FAQ is filled when its thread is
+    new or has no stored sections, such as a How Wisp Works thread from before
+    the FAQ.
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -351,12 +363,15 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
         settings = await bot.settings.get(guild_id)
         forum = _studio_forum(bot, guild_id, settings)
         recreated: list[str] = []
+        threads: dict[str, discord.Thread] = {}
+        created: set[str] = set()
         for spec in STUDIO_THREADS:
             stored: int | None = getattr(settings, spec.attr)
             thread = await _open_thread(bot, forum.id, stored)
             message_id: int | None
             if thread is None:
-                thread, message_id = await _create_thread(bot, forum, spec, settings)
+                thread, message_id = await _create_thread(bot, forum, spec)
+                created.add(spec.attr)
                 if stored is not None:
                     recreated.append(spec.title)
             else:
@@ -364,6 +379,9 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
                     getattr(settings, spec.message_attr) if spec.message_attr else None
                 )
             await _finish_thread(bot, forum.guild, thread, spec, message_id)
+            threads[spec.attr] = thread
+        if _FAQ_ATTR in created or not settings.faq_message_ids:
+            await _build_faq(bot, forum.guild, threads[_FAQ_ATTR])
         settings = await bot.settings.get(guild_id)
     if recreated:
         await _announce(bot, forum.guild, recreated)
@@ -511,6 +529,28 @@ async def roles_list(interaction: discord.Interaction["WispBot"]) -> None:
     else:
         text = "♪ No qualifying roles yet. Add one with /wispadmin roles add."
     await interaction.response.send_message(text, ephemeral=True)
+
+
+@wispadmin.command(name="faq", description="Rebuild the Wisp FAQ thread.")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def rebuild_faq(interaction: discord.Interaction["WispBot"]) -> None:
+    """Delete Wisp's own FAQ posts and post them fresh with a new contents list.
+
+    Staff use it after the FAQ pictures change. A Discord failure goes to the
+    command tree's error handler.
+    """
+    bot = interaction.client
+    guild_id = require_guild(interaction)
+    await interaction.response.defer(ephemeral=True)
+    try:
+        thread = await studio_thread(bot, guild_id, _FAQ_ATTR)
+    except StudioError as error:
+        await interaction.followup.send(str(error), ephemeral=True)
+        return
+    async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
+        rules = rules_post(await bot.settings.get(guild_id))
+        await fill_faq(bot, guild_id, thread, rules)
+    await interaction.followup.send("♪ The Wisp FAQ is rebuilt.", ephemeral=True)
 
 
 @wispadmin.command(name="freeze", description="Pause Wisp's care draining.")

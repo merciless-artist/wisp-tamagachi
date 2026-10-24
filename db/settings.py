@@ -1,5 +1,6 @@
 """Per-guild settings: channels, threads, roles, food values and the freeze."""
 
+import json
 from dataclasses import dataclass, fields
 from typing import Any
 
@@ -13,6 +14,8 @@ class Settings:
     """One guild's settings row. The guild id is the repository key, not a field.
 
     It is frozen, so the copy the repository caches can be shared safely.
+    `faq_message_ids` are the Wisp FAQ's section posts, in order; the column
+    holds them as a JSON list.
     """
 
     tracks_channel_id: int | None = None
@@ -26,12 +29,34 @@ class Settings:
     jam_thread_id: int | None = None
     rules_thread_id: int | None = None
     rules_message_id: int | None = None
+    faq_message_ids: tuple[int, ...] | None = None
     viibr_meal_points: int | None = None
     suno_meal_points: int | None = None
     frozen: bool = False
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
+_ID_LISTS = frozenset({"faq_message_ids"})
+
+
+def _to_column(name: str, value: Any) -> Any:
+    """A settings value as its column stores it."""
+    if name in _ID_LISTS and value is not None:
+        return json.dumps(list(value))
+    return value
+
+
+def _from_row(row: dict[str, Any]) -> Settings:
+    """Settings from a database row."""
+    values: dict[str, Any] = {
+        name: (
+            tuple(int(item) for item in json.loads(value))
+            if name in _ID_LISTS and value is not None
+            else value
+        )
+        for name, value in row.items()
+    }
+    return Settings(**{**values, "frozen": bool(row["frozen"])})
 
 
 def meal_points(settings: Settings) -> dict[TrackKind, int]:
@@ -80,7 +105,7 @@ class SettingsRepo:
         )
         if row is None:
             return Settings()
-        return Settings(**{**row, "frozen": bool(row["frozen"])})
+        return _from_row(row)
 
     async def update(self, guild_id: int, **values: Any) -> None:
         """Set the named settings; None clears a channel or thread."""
@@ -93,7 +118,7 @@ class SettingsRepo:
         assignments = ", ".join(f"{column} = %s" for column in values)
         await self._db.execute(
             f"UPDATE {self._db.t('settings')} SET {assignments} WHERE guild_id = %s",
-            (*values.values(), guild_id),
+            (*(_to_column(name, value) for name, value in values.items()), guild_id),
         )
         self._forget(guild_id)
 

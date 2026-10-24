@@ -13,7 +13,7 @@ import pytest
 from discord import app_commands
 
 import app
-from cogs import groups, studio
+from cogs import faq, feeding, groups, studio
 from cogs.studio import StudioError, ensure_studio, rules_text, studio_thread
 from db.database import Database
 from db.settings import SettingsRepo
@@ -28,10 +28,10 @@ HOUSE_ID = 20
 TRACKS_ID = 30
 
 STATUS = "☀️ | Status"
-MEALTIME = "\U0001f9e1 | Mealtime"
-VAULT = "\U0001f512| The ViiBR Vault"
+MEALTIME = "🧡 | Mealtime"
+VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
-FAQ = "\U0001f4d9｜Wisp FAQ"
+FAQ = "📙｜Wisp FAQ"
 THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
 THREAD_TITLES = ("Status", "Mealtime", "The ViiBR Vault", "Jam Space", "Wisp FAQ")
 OLD_NAMES = ("Status", "Mealtime", "The ViiBR Vault", "The Jam Space", "How Wisp Works")
@@ -41,6 +41,32 @@ THUMBNAILS = {
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
 }
+FAQ_PICTURES = (
+    "00_how_wisp_works.png",
+    "01_the_basics.png",
+    "02_feeding_him.png",
+    "03_vault_and_snack_pack.png",
+    "04_lunchbox_and_gifts.png",
+    "05_your_bond.png",
+    "06_growing_up.png",
+    "07_talking_to_him.png",
+    "08_games.png",
+    "09_end_of_a_life.png",
+    "10_fair_play.png",
+)
+FAQ_TITLES = (
+    "How Wisp Works",
+    "The Basics",
+    "Feeding Him",
+    "The ViiBR Vault and Your Snack Pack",
+    "Wisp's Lunchbox and Gifts",
+    "Your Bond",
+    "Growing Up",
+    "Talking to Him",
+    "Games",
+    "The End of a Life",
+    "Fair Play",
+)
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
 THREAD_ATTRS = (
     "status_thread_id",
@@ -62,6 +88,7 @@ class FakeServer:
     def __init__(self, forum_id: int = FORUM_ID) -> None:
         self.threads: dict[int, MagicMock] = {}
         self.messages: dict[int, MagicMock] = {}
+        self.deleted: list[int] = []
         self.created_names: list[str] = []
         self._next_id = 1000
         self.house = MagicMock(spec=discord.TextChannel)
@@ -107,25 +134,79 @@ class FakeServer:
         thread.parent_id = forum_id
         thread.archived = False
         thread.locked = False
-        thread.send = AsyncMock()
+        thread.posts = []
+        thread.send = AsyncMock(
+            side_effect=lambda *args, **fields: self._post(thread, *args, **fields)
+        )
         thread.edit = AsyncMock(side_effect=lambda **fields: self._edit(thread, fields))
         thread.fetch_message = AsyncMock(
-            side_effect=lambda message_id: self._fetch_message(thread, message_id)
+            side_effect=lambda message_id: self._find(thread, message_id)
         )
-        message = MagicMock(spec=discord.Message)
-        message.id = thread.id
-        message.content = content
-        message.pinned = False
-        message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
-        message.attachments = [kwargs["file"].filename] if "file" in kwargs else []
-        message.edit = AsyncMock(
-            side_effect=lambda **fields: self._edit_message(message, fields)
+        thread.get_partial_message.side_effect = lambda message_id: self._partial(
+            thread, message_id
         )
+        art = [kwargs["file"].filename] if "file" in kwargs else []
+        message = self._message(thread, thread.id, content, art)
         self.threads[thread.id] = thread
-        self.messages[thread.id] = message
         self.created_names.append(name)
         thread.create_kwargs = kwargs
         return discord.channel.ThreadWithMessage(thread, message)
+
+    def add_thread(self, name: str, content: str) -> MagicMock:
+        """A thread that already exists in the forum, as an older Wisp left it."""
+        created = self._create_thread(self.forum.id, name=name, content=content)
+        return self.threads[created.thread.id]
+
+    def _message(
+        self,
+        thread: MagicMock,
+        message_id: int,
+        content: str | None,
+        attachments: list[str],
+    ) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.id = message_id
+        message.thread_id = thread.id
+        message.content = content
+        message.attachments = attachments
+        message.sent_kwargs = {}
+        message.pinned = False
+        message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
+        message.edit = AsyncMock(
+            side_effect=lambda **fields: self._edit_message(message, fields)
+        )
+        self.messages[message_id] = message
+        return message
+
+    def _post(
+        self, thread: MagicMock, content: str | None = None, **fields: Any
+    ) -> MagicMock:
+        self._next_id += 1
+        art = fields.get("file")
+        if art is not None:
+            art.close()
+        message = self._message(
+            thread, self._next_id, content, [] if art is None else [art.filename]
+        )
+        message.sent_kwargs = fields
+        thread.posts.append(message)
+        return message
+
+    def _partial(self, thread: MagicMock, message_id: int) -> MagicMock:
+        async def edit(**fields: Any) -> MagicMock:
+            found: MagicMock = await self._find(thread, message_id).edit(**fields)
+            return found
+
+        async def delete() -> None:
+            self._find(thread, message_id)
+            del self.messages[message_id]
+            self.deleted.append(message_id)
+
+        partial = MagicMock(spec=discord.PartialMessage)
+        partial.id = message_id
+        partial.edit = AsyncMock(side_effect=edit)
+        partial.delete = AsyncMock(side_effect=delete)
+        return partial
 
     def _edit(self, thread: MagicMock, fields: dict[str, Any]) -> MagicMock:
         for name, value in fields.items():
@@ -141,11 +222,15 @@ class FakeServer:
             message.content = fields["content"]
         return message
 
-    def _fetch_message(self, thread: MagicMock, message_id: int) -> MagicMock:
-        message = self.messages.get(thread.id)
-        if message is None or message.id != message_id:
+    def _find(self, thread: MagicMock, message_id: int) -> MagicMock:
+        message = self.messages.get(message_id)
+        if message is None or message.thread_id != thread.id:
             raise discord.NotFound(MagicMock(status=404), "Unknown Message")
         return message
+
+    def live_posts(self, thread: MagicMock) -> list[MagicMock]:
+        """The thread's posts after its first, leaving out deleted ones."""
+        return [post for post in thread.posts if post.id in self.messages]
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
         if channel_id not in self.threads:
@@ -162,6 +247,10 @@ def server() -> FakeServer:
     return FakeServer()
 
 
+def thumbnail_added(message: MagicMock) -> bool:
+    return any("attachments" in call.kwargs for call in message.edit.await_args_list)
+
+
 def add_thumbnails(art_dir: Path) -> None:
     for relative in THUMBNAILS.values():
         path = art_dir / relative
@@ -171,8 +260,13 @@ def add_thumbnails(art_dir: Path) -> None:
 
 @pytest.fixture(autouse=True)
 def art_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """An empty ASSETS folder, so tests never attach the real art."""
+    """An ASSETS folder with only stand-in FAQ pictures, so no real art is sent."""
+    pictures = tmp_path / "faq"
+    pictures.mkdir()
+    for name in FAQ_PICTURES:
+        (pictures / name).write_bytes(b"png")
     monkeypatch.setattr(studio, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(faq, "ASSETS_DIR", tmp_path)
     return tmp_path
 
 
@@ -217,14 +311,16 @@ def make_role(role_id: int) -> MagicMock:
     return role
 
 
-async def run_setup(bot: app.WispBot, server: FakeServer) -> MagicMock:
+async def run_setup(
+    bot: app.WispBot, server: FakeServer, tracks: MagicMock | None = None
+) -> MagicMock:
     interaction = make_interaction(server, bot)
     await invoke(
         studio.setup_studio,
         interaction,
         server.house,
         server.forum,
-        make_channel(discord.TextChannel, TRACKS_ID),
+        tracks or make_channel(discord.TextChannel, TRACKS_ID),
     )
     return interaction
 
@@ -269,14 +365,12 @@ async def test_setup_creates_five_threads_with_the_vault(
     rules_thread = server.thread_named(FAQ)
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
-    assert settings.rules_message_id == server.messages[rules_thread.id].id
-    for thread in (status, vault, rules_thread):
+    for thread in (status, vault):
         server.messages[thread.id].pin.assert_awaited_once()
-    for name in (MEALTIME, JAM):
+    for name in (MEALTIME, JAM, FAQ):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
-    assert server.messages[rules_thread.id].content == rules_text(rules.MEAL_POINTS)
     rules_thread.edit.assert_awaited_once_with(locked=True)
     for thread in server.threads.values():
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
@@ -296,9 +390,8 @@ async def test_a_new_rules_post_shows_the_current_food_values(
 
     await run_setup(bot, server)
 
-    rules_thread = server.thread_named(FAQ)
-    content = server.messages[rules_thread.id].content
-    assert content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    *_sections, rules_post = server.live_posts(server.thread_named(FAQ))
+    assert rules_post.content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
 
 
 async def test_new_threads_carry_their_thumbnails(
@@ -321,8 +414,7 @@ async def test_new_threads_carry_their_thumbnails(
     }
     for art in attached.values():
         art.close()
-    for message in server.messages.values():
-        message.edit.assert_not_awaited()
+    assert not any(thumbnail_added(message) for message in server.messages.values())
 
 
 async def test_threads_without_art_are_text_only(
@@ -346,7 +438,7 @@ async def test_a_starter_without_a_picture_gets_its_thumbnail(
         thread = server.thread_named(name)
         thread.fetch_message.assert_any_await(thread.id)
         assert server.messages[thread.id].attachments == [Path(relative).name]
-    server.messages[server.thread_named(STATUS).id].edit.assert_not_awaited()
+    assert not thumbnail_added(server.messages[server.thread_named(STATUS).id])
     server.house.send.assert_not_awaited()
 
 
@@ -358,8 +450,7 @@ async def test_a_starter_that_has_a_picture_is_left_alone(
 
     await ensure_studio(bot, GUILD_ID)
 
-    for message in server.messages.values():
-        message.edit.assert_not_awaited()
+    assert not any(thumbnail_added(message) for message in server.messages.values())
 
 
 async def test_thumbnail_failure_is_posted_in_its_thread(
@@ -475,7 +566,7 @@ async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    (line,) = server.thread_named(FAQ).send.await_args.args
+    (line,) = server.thread_named(FAQ).send.await_args_list[0].args
     assert line.startswith("Error in locking Wisp FAQ: Forbidden")
     server.house.send.assert_not_awaited()
 
@@ -624,6 +715,276 @@ async def test_concurrent_ensure_creates_each_thread_once(
 
 
 # ---
+# Wisp FAQ
+# ---
+
+
+def toc_lines(thread_id: int, message_ids: tuple[int, ...] | None) -> list[str]:
+    assert message_ids is not None
+    return [
+        f"# [{title}](<https://discord.com/channels/{GUILD_ID}/{thread_id}/{id_}>)"
+        for title, id_ in zip(FAQ_TITLES, message_ids, strict=True)
+    ]
+
+
+def sends_without_pinging(kwargs: dict[str, Any]) -> bool:
+    return bool(
+        kwargs["allowed_mentions"].to_dict() == discord.AllowedMentions.none().to_dict()
+    )
+
+
+def assert_faq_built(posts: list[MagicMock]) -> list[MagicMock]:
+    """Check the posts are the eleven FAQ pictures then the rules post."""
+    *sections, rules_post = posts
+    assert [section.attachments for section in sections] == [
+        [name] for name in FAQ_PICTURES
+    ]
+    assert all(section.content is None for section in sections)
+    assert rules_post.attachments == []
+    assert all(
+        sends_without_pinging(post.sent_kwargs) for post in [*sections, rules_post]
+    )
+    return [*sections, rules_post]
+
+
+async def test_setup_builds_the_faq_in_order(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    tracks = make_channel(discord.TextChannel, TRACKS_ID)
+
+    await run_setup(bot, server, tracks)
+
+    thread = server.thread_named(FAQ)
+    (first_post,) = [
+        call.kwargs["content"]
+        for call in server.forum.create_thread.await_args_list
+        if call.kwargs["name"] == FAQ
+    ]
+    assert first_post == "Loading the FAQ..."
+    *sections, rules_post = assert_faq_built(server.live_posts(thread))
+    assert rules_post.content == rules_text(rules.MEAL_POINTS)
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.faq_message_ids == tuple(section.id for section in sections)
+    assert settings.rules_message_id == rules_post.id
+    starter = server.messages[thread.id]
+    assert starter.content.splitlines() == toc_lines(
+        thread.id, settings.faq_message_ids
+    )
+    assert sends_without_pinging(starter.edit.await_args.kwargs)
+    assert thread.locked is True
+    tracks.send.assert_not_called()
+    server.house.send.assert_not_awaited()
+
+
+async def test_the_faq_thread_has_its_thumbnail_and_table_of_contents(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_thumbnails(art_dir)
+
+    await run_setup(bot, server)
+
+    thread = server.thread_named(FAQ)
+    starter = server.messages[thread.id]
+    assert starter.attachments == ["faq.png"]
+    settings = await bot.settings.get(GUILD_ID)
+    assert starter.content.splitlines() == toc_lines(
+        thread.id, settings.faq_message_ids
+    )
+
+
+async def test_food_command_edits_the_faq_rules_post(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+    posts = server.live_posts(thread)
+
+    await invoke(feeding.set_food, make_interaction(server, bot), 12, 1)
+
+    assert server.live_posts(thread) == posts
+    assert posts[-1].content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    assert sends_without_pinging(posts[-1].edit.await_args.kwargs)
+
+
+async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_thumbnails(art_dir)
+    old = server.add_thread("How Wisp Works", rules_text(rules.MEAL_POINTS))
+    old.locked = True
+    await bot.settings.update(
+        GUILD_ID,
+        studio_forum_id=FORUM_ID,
+        rules_thread_id=old.id,
+        rules_message_id=old.id,
+    )
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.created_names == ["How Wisp Works", STATUS, MEALTIME, VAULT, JAM]
+    assert old.name == FAQ
+    *sections, rules_post = assert_faq_built(server.live_posts(old))
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.rules_message_id == rules_post.id
+    starter = server.messages[old.id]
+    assert starter.attachments == ["faq.png"]
+    assert starter.content.splitlines() == toc_lines(
+        old.id, tuple(section.id for section in sections)
+    )
+    assert server.deleted == []
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_built_faq_is_not_built_again(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+    posts = list(thread.posts)
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert thread.posts == posts
+    assert server.deleted == []
+
+
+async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_on(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    missing = art_dir / "faq" / "05_your_bond.png"
+    missing.unlink()
+
+    interaction = await run_setup(bot, server)
+
+    thread = server.thread_named(FAQ)
+    (report,) = [post.content for post in thread.posts]
+    assert report.startswith("Error in building the Wisp FAQ: FileNotFoundError")
+    assert "05_your_bond.png" in report
+    assert (await bot.settings.get(GUILD_ID)).faq_message_ids is None
+    assert sent_text(interaction).startswith("♪ Wisp is set up.")
+    server.house.send.assert_not_awaited()
+
+    missing.write_bytes(b"png")
+    await ensure_studio(bot, GUILD_ID)
+
+    assert len(server.live_posts(thread)) == 1 + len(FAQ_PICTURES) + 1
+
+
+async def test_a_build_that_fails_part_way_keeps_what_it_posted(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    original = server.forum.create_thread.side_effect
+
+    def flaky_faq(**kwargs: Any) -> discord.channel.ThreadWithMessage:
+        created: discord.channel.ThreadWithMessage = original(**kwargs)
+        if kwargs["name"] == FAQ:
+            fake = server.threads[created.thread.id]
+            post = fake.send.side_effect
+            sends = 0
+
+            def send(*args: Any, **fields: Any) -> MagicMock:
+                nonlocal sends
+                sends += 1
+                if sends == 3:
+                    raise discord.HTTPException(MagicMock(status=500), "Server Error")
+                posted: MagicMock = post(*args, **fields)
+                return posted
+
+            fake.send.side_effect = send
+        return created
+
+    server.forum.create_thread.side_effect = flaky_faq
+
+    await run_setup(bot, server)
+
+    thread = server.thread_named(FAQ)
+    first, second, report = server.live_posts(thread)
+    assert report.content.startswith("Error in building the Wisp FAQ: HTTPException")
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.faq_message_ids == (first.id, second.id)
+    assert server.messages[thread.id].content == "Loading the FAQ..."
+
+    await ensure_studio(bot, GUILD_ID)
+    assert server.live_posts(thread) == [first, second, report]
+
+    await invoke(studio.rebuild_faq, make_interaction(server, bot))
+    assert server.deleted == [first.id, second.id]
+    report_left, *rebuilt = server.live_posts(thread)
+    assert report_left is report
+    assert_faq_built(rebuilt)
+
+
+async def test_faq_command_deletes_and_reposts_the_faq(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+    before = await bot.settings.get(GUILD_ID)
+    assert before.faq_message_ids is not None
+    old_ids = [*before.faq_message_ids, before.rules_message_id]
+    interaction = make_interaction(server, bot)
+
+    await invoke(studio.rebuild_faq, interaction)
+
+    assert server.deleted == old_ids
+    *sections, rules_post = assert_faq_built(server.live_posts(thread))
+    after = await bot.settings.get(GUILD_ID)
+    assert after.faq_message_ids == tuple(section.id for section in sections)
+    assert after.rules_message_id == rules_post.id
+    assert rules_post.content == rules_text(rules.MEAL_POINTS)
+    starter = server.messages[thread.id]
+    assert starter.content.splitlines() == toc_lines(thread.id, after.faq_message_ids)
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    assert sent_text(interaction) == "♪ The Wisp FAQ is rebuilt."
+    assert server.created_names == list(THREAD_NAMES)
+    server.house.send.assert_not_awaited()
+
+
+async def test_faq_command_skips_posts_already_gone_and_never_the_first_post(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+    before = await bot.settings.get(GUILD_ID)
+    assert before.faq_message_ids is not None
+    gone, *kept = before.faq_message_ids
+    del server.messages[gone]
+    del server.messages[before.rules_message_id or 0]
+    await bot.settings.update(GUILD_ID, rules_message_id=thread.id)
+    interaction = make_interaction(server, bot)
+
+    await invoke(studio.rebuild_faq, interaction)
+
+    assert server.deleted == kept
+    assert thread.id in server.messages
+    assert_faq_built(server.live_posts(thread))
+    assert sent_text(interaction) == "♪ The Wisp FAQ is rebuilt."
+
+
+async def test_faq_command_without_a_studio_says_how_to_set_it_up(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(server, bot)
+
+    await invoke(studio.rebuild_faq, interaction)
+
+    assert "/wispadmin setup" in sent_text(interaction)
+    assert server.created_names == []
+
+
+def test_table_of_contents_fits_one_message() -> None:
+    biggest = tuple(10**20 - index for index in range(len(FAQ_TITLES)))
+
+    text = faq.table_of_contents(10**20, 10**20, biggest)
+
+    assert text.splitlines() == [
+        f"# [{title}](<https://discord.com/channels/{10**20}/{10**20}/{id_}>)"
+        for title, id_ in zip(FAQ_TITLES, biggest, strict=True)
+    ]
+    assert len(text) < MESSAGE_LIMIT
+
+
+# ---
 # studio_thread
 # ---
 
@@ -752,6 +1113,7 @@ async def test_staff_only(bot: app.WispBot, server: FakeServer) -> None:
         "wispadmin roles list",
         "wispadmin freeze",
         "wispadmin unfreeze",
+        "wispadmin faq",
     }
     for command in leaves:
         assert command.checks, command.qualified_name
@@ -787,6 +1149,7 @@ async def test_studio_commands_hang_off_the_shared_group(bot: app.WispBot) -> No
 
     assert groups.wispadmin.get_command("setup") is studio.setup_studio
     assert groups.wispadmin.get_command("freeze") is studio.freeze
+    assert groups.wispadmin.get_command("faq") is studio.rebuild_faq
     roles = groups.wispadmin.get_command("roles")
     assert isinstance(roles, app_commands.Group)
     assert roles.get_command("add") is studio.roles_add
@@ -797,8 +1160,12 @@ def test_studio_is_a_loaded_extension() -> None:
 
 
 # ---
-# How Wisp Works text
+# Rules post text
 # ---
+
+
+def test_rules_text_is_headed_as_the_quick_rules() -> None:
+    assert rules_text(rules.MEAL_POINTS).startswith("♪ Quick rules (current numbers)\n")
 
 
 def test_rules_text_fits_one_message() -> None:

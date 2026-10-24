@@ -60,6 +60,19 @@ async def test_settings_default_then_update(db: Database) -> None:
     assert await repo.get(OTHER_GUILD) == Settings()
 
 
+async def test_faq_message_ids_round_trip(db: Database) -> None:
+    repo = SettingsRepo(db)
+    assert (await repo.get(GUILD)).faq_message_ids is None
+    big = 1_234_567_890_123_456_789
+
+    await repo.update(GUILD, faq_message_ids=(big, big + 1, 7))
+    assert (await repo.get(GUILD)).faq_message_ids == (big, big + 1, 7)
+    assert (await SettingsRepo(db).get(GUILD)).faq_message_ids == (big, big + 1, 7)
+
+    await repo.update(GUILD, faq_message_ids=None)
+    assert (await SettingsRepo(db).get(GUILD)).faq_message_ids is None
+
+
 async def test_update_rejects_unknown_field(db: Database) -> None:
     with pytest.raises(ValueError, match="nonsense"):
         await SettingsRepo(db).update(GUILD, nonsense=1)

@@ -141,14 +141,14 @@ class Feeding(commands.Cog):
 
 
 async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
-    """Bring the How Wisp Works post up to date with the guild's food values."""
+    """Bring the Wisp FAQ's rules post up to date with the guild's food values."""
     await show_in_thread(
         bot,
         guild_id,
         "rules_thread_id",
         "rules_message_id",
         rules_post(await bot.settings.get(guild_id)),
-        "How Wisp Works post",
+        "Wisp FAQ rules post",
     )
 
 
@@ -163,7 +163,7 @@ async def set_food(
     viibr: app_commands.Range[int, 0, MEAL_POINTS_MAX],
     suno: app_commands.Range[int, 0, MEAL_POINTS_MAX],
 ) -> None:
-    """Save both food values and update the How Wisp Works post to match."""
+    """Save both food values and update the Wisp FAQ's rules post to match."""
     bot = interaction.client
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
