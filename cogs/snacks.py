@@ -9,8 +9,16 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
-from cogs.announce import say_in_house
+from cogs.announce import post_in_house, say_in_house
 from cogs.assets import ASSETS_DIR
+from cogs.badges import (
+    Offer,
+    badge_offers,
+    badge_options,
+    badge_pack_lines,
+    badge_role,
+    badge_section,
+)
 from cogs.channels import where_of
 from cogs.conversation import PokeButton
 from cogs.gifts import (
@@ -39,11 +47,12 @@ from cogs.players import (
 )
 from db.activity import InteractionKind
 from db.players import Player
-from wisp.bond import PickleStance, casual_bond_grant, meal_grant
-from wisp.gifts import GiftState
-from wisp.life import Life, Mood, Phase, add_growth, feed
+from wisp.bond import PickleStance, casual_bond_grant, meal_grant, tier_for
+from wisp.gifts import GiftState, with_article
+from wisp.life import Life, Mood, Phase, add_growth, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.rules import (
+    BADGE_BY_KEY,
     BOND_PER_SNACK,
     COLLECTION_BY_KEY,
     FANCY_SNACK_COST,
@@ -51,11 +60,12 @@ from wisp.rules import (
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
+    Badge,
     Gift,
     GiftCollection,
     Snack,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, fit, with_emoji
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, with_emoji
 from wisp.voice import COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -72,6 +82,12 @@ _NO_SNACKS: Final = (
 )
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
 _FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
+_NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
+_BADGE_NOT_READY: Final = (
+    "♪ That badge isn't ready yet. Staff can set it up with /wispadmin setup."
+)
+_NONE_YET: Final = "・None yet"
+_ROLE_REASON: Final = "Bought in the ViiBR Vault"
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
 _MENU: Final = PAID_SNACKS
@@ -89,6 +105,7 @@ _CONTRARY: Final = {
 _SnackChoice = Callable[[discord.Interaction, Snack], Awaitable[None]]
 _GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
 _CollectionChoice = Callable[[discord.Interaction, GiftCollection], Awaitable[None]]
+_BadgeChoice = Callable[[discord.Interaction, Badge], Awaitable[None]]
 _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
@@ -199,6 +216,20 @@ class GiftSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, GIFT_BY_KEY[self.values[0]])
 
 
+class BadgeSelect(discord.ui.Select["Menu"]):
+    """The Vault's select of badges the member can get now; hands one on."""
+
+    def __init__(
+        self, options: list[discord.SelectOption], on_choice: _BadgeChoice
+    ) -> None:
+        super().__init__(placeholder="Get a badge", options=options)
+        self._on_choice = on_choice
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Pass the chosen badge on."""
+        await self._on_choice(interaction, BADGE_BY_KEY[self.values[0]])
+
+
 class Menu(discord.ui.View):
     """An ephemeral menu of selects; a failure is reported as `context`."""
 
@@ -223,18 +254,17 @@ class Menu(discord.ui.View):
 # ---
 
 
-async def _vault_text(
+def _vault_text(
     bot: "WispBot",
-    guild_id: int,
-    user_id: int,
+    balance: int,
+    offers: list[Offer],
     gifts: GiftState | None,
     note: str | None,
 ) -> str:
-    """The balance, the Snack Box and the Gifts, after an optional note.
+    """The balance, the Snack Box, the Badges and the Gifts, after an optional note.
 
     The Gifts take whatever room the rest of one message leaves.
     """
-    balance = (await bot.players.get(guild_id, user_id)).balance
     prices = [
         f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
         for snack in _MENU
@@ -246,6 +276,8 @@ async def _vault_text(
         SEPARATOR,
         "Snack Box",
         *prices,
+        "",
+        *badge_section(bot, offers),
         "",
     ]
     room = MESSAGE_LIMIT - len("\n".join(head)) - 1
@@ -261,9 +293,10 @@ async def _vault(
 ) -> tuple[str, Menu]:
     """The Vault's text, after an optional note, and its menu.
 
-    The menu has the snack select, plus the collection select when a gift can
-    be given today. With a picked `collection` that can still be given from,
-    it also has that collection's gift select.
+    The menu has the snack select, the badge select when the member can get
+    a badge now, and the collection select when a gift can be given today.
+    With a picked `collection` that can still be given from, it also has that
+    collection's gift select.
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
@@ -275,13 +308,17 @@ async def _vault(
     selects: list[discord.ui.Select[Menu]] = [
         SnackSelect(snack_options, "Buy a snack", _buy)
     ]
+    player = await bot.players.get(guild_id, user_id)
+    offers = await badge_offers(bot, guild_id, user_id, player.bond)
+    if badge_choices := badge_options(bot, offers):
+        selects.append(BadgeSelect(badge_choices, _get_badge))
     if collection_choices := collection_options(bot, gifts):
         selects.append(CollectionSelect(collection_choices, _pick_collection))
     if collection is not None and (
         gift_choices := gift_options(bot, gifts, collection)
     ):
         selects.append(GiftSelect(gift_choices, _give))
-    text = await _vault_text(bot, guild_id, user_id, gifts, note)
+    text = _vault_text(bot, player.balance, offers, gifts, note)
     return text, Menu("the ViiBR Vault menu", *selects)
 
 
@@ -320,7 +357,12 @@ async def _confirm(
 async def _snack_pack_text(
     bot: "WispBot", guild_id: int, user_id: int, display_name: str
 ) -> str:
-    """The member's balance, snacks and keepsakes."""
+    """The member's balance, snacks, keepsakes and badges.
+
+    Keepsakes and badges are listed newest life first. When they do not all
+    fit in one message, each is cut short with how many more there are: the
+    badges get at most half the room, and any the keepsakes leave over.
+    """
     player = await bot.players.get(guild_id, user_id)
     owned = await bot.activity_log.inventory(guild_id, user_id)
     free_left = not await bot.activity_log.free_snack_used_today(
@@ -343,26 +385,31 @@ async def _snack_pack_text(
         "Keepsakes",
     ]
     held = await bot.keepsakes.of(guild_id, user_id)
-    if not held:
-        return "\n".join([*head, "・None yet"])
     newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
     keepsakes = [
         f"・{with_emoji(bot.emoji(f'keepsake_{keepsake.kind.value}'), keepsake.title)}"
         for keepsake in newest_life_first
+    ] or [_NONE_YET]
+    badges = badge_pack_lines(bot, await bot.badges.of(guild_id, user_id)) or [
+        _NONE_YET
     ]
-    return _fit_keepsakes(head, keepsakes)
+    between = [SEPARATOR, "Badges"]
+    room = MESSAGE_LIMIT - len("\n".join([*head, *between])) - 2
+    badge_room = min(len("\n".join(badges)), room // 2)
+    kept = _shown(keepsakes, room - badge_room)
+    worn = _shown(badges, room - len("\n".join(kept)))
+    return "\n".join([*head, *kept, *between, *worn])
 
 
-def _fit_keepsakes(head: list[str], keepsakes: list[str]) -> str:
-    """The Snack Pack with as many keepsakes as fit, then how many more there are."""
-    whole = "\n".join([*head, *keepsakes])
-    if len(whole) <= MESSAGE_LIMIT:
-        return whole
-    widest_tail = [f"・and {len(keepsakes)} more"]
-    shown = fit(head, keepsakes, widest_tail).count("\n") - len(head)
-    return "\n".join(
-        [*head, *keepsakes[:shown], f"・and {len(keepsakes) - shown} more"]
-    )
+def _shown(lines: list[str], room: int) -> list[str]:
+    """As many of `lines` as fit in `room` characters, then how many more."""
+    if len("\n".join(lines)) <= room:
+        return lines
+    for shown in range(len(lines) - 1, -1, -1):
+        cut = [*lines[:shown], f"・and {len(lines) - shown} more"]
+        if len("\n".join(cut)) <= room:
+            return cut
+    return [f"・and {len(lines)} more"]
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
@@ -393,6 +440,107 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
             f"♪ Bought {snack.name} for {count(snack.cost, 'point')}.",
             "confirming a snack purchase (the purchase went through)",
         )
+
+
+async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
+    """Spend the member's points on a badge and give them its role.
+
+    The purchase is made under the guild lock; the role is given after it. If
+    the role cannot be given, the purchase is undone in full and the failure
+    is reported where it happened. A badge that went through is announced in
+    Wisp's House.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    user = interaction.user
+    guild = interaction.guild
+    await interaction.response.defer()
+    if not isinstance(user, discord.Member) or guild is None:
+        await _confirm(interaction, CANNOT_FEED, "showing a refused badge")
+        return
+    role = await badge_role(bot, guild, badge)
+    if role is None:
+        await _confirm(interaction, _BADGE_NOT_READY, "showing a badge not ready")
+        return
+    try:
+        async with bot.guild_lock(guild_id):
+            life, player = await _take_badge(
+                bot, guild_id, user, badge, discord.utils.utcnow()
+            )
+    except Refusal as refusal:
+        await _confirm(interaction, str(refusal), "showing a refused badge")
+        return
+    try:
+        await user.add_roles(role, reason=_ROLE_REASON)
+    except discord.HTTPException as error:
+        async with bot.guild_lock(guild_id):
+            await _return_badge(bot, guild_id, user.id, badge, life)
+        await bot.report_error(
+            guild,
+            f"giving the {badge.name} badge role",
+            error,
+            where=where_of(interaction),
+        )
+        await _confirm(
+            interaction,
+            f"♪ Your {badge.name} badge didn't go through. Your points are back.",
+            "showing a badge that did not go through",
+        )
+        return
+    worn = with_article(badge.name)
+    await _confirm(
+        interaction,
+        f"♪ You're now {worn} ・ bond +{badge.bond}",
+        "confirming a badge (the badge went through)",
+    )
+    name = player.name or user.display_name
+    line = bot.lines.pick(Moment.BADGE_BOUGHT, mood(life), name=name)
+    await post_in_house(bot, guild_id, f"♪ {name} is now {worn}\n{line}")
+
+
+async def _take_badge(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.Member,
+    badge: Badge,
+    now: datetime,
+) -> tuple[Life, Player]:
+    """Sell the member a badge for the current life. Call this under the guild lock.
+
+    Its bond is outside the daily casual bond cap. Returns the life it was
+    bought for and the buyer.
+
+    Raises:
+        Refusal: The member is banned or cannot feed Wisp, is below the badge's
+            bond tier, already has it this life or is short of points, or there
+            is no Wisp to wear it for. Nothing is spent then.
+    """
+    player = await check_member(bot, guild_id, member, now)
+    if badge.needs_tier is not None and tier_for(player.bond) != badge.needs_tier:
+        raise Refusal(f"♪ The {badge.name} badge is only for {badge.needs_tier}s.")
+    life = await bot.lives.current(guild_id)
+    if life is None or life.id is None or is_over(life):
+        raise Refusal(_NO_WISP)
+    if badge.key in await bot.badges.owned(guild_id, member.id, life.id):
+        raise Refusal(
+            f"♪ You're already {with_article(badge.name)} for Wisp v{life.version}."
+        )
+    if not await bot.players.spend(guild_id, member.id, badge.cost):
+        name = player.name or member.display_name
+        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+    await bot.badges.record(guild_id, member.id, badge.key, life.id, life.version, now)
+    await bot.players.add_bond(guild_id, member.id, badge.bond)
+    return life, player
+
+
+async def _return_badge(
+    bot: "WispBot", guild_id: int, user_id: int, badge: Badge, life: Life
+) -> None:
+    """Undo a badge sale whose role could not be given: points, record and bond."""
+    assert life.id is not None
+    await bot.players.refund(guild_id, user_id, badge.cost)
+    await bot.badges.forget(guild_id, user_id, badge.key, life.id)
+    await bot.players.add_bond(guild_id, user_id, -badge.bond)
 
 
 async def _pick_collection(

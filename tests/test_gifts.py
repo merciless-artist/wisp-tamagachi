@@ -19,6 +19,7 @@ from cogs.assets import asset_image
 from cogs.gifts import Gifts
 from cogs.wisp_lunchbox import lunchbox_text
 from db.activity import ActivityRepo, InteractionKind
+from db.badges import BadgeRepo
 from db.database import Database
 from db.gifts import GiftAttempt, GiftRepo
 from db.lives import LifeRepo
@@ -99,6 +100,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.badges = BadgeRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
@@ -766,8 +768,9 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
     text, selects = await open_vault(bot)
 
     sections = text.split(SEPARATOR + "\n")
-    snack_box, gift_lines = sections[1].split("\n\n")
+    snack_box, badge_lines, gift_lines = sections[1].split("\n\n")
     assert snack_box.startswith("Snack Box")
+    assert badge_lines.startswith("Badges")
     assert gift_lines.splitlines() == [
         f"Gifts ・ {emoji_text('wisp_coin', 1)} 15 points each ・ he might not like it",
         "・Lunchbox Liners: Bird Butterfly Kitties Poppies",
@@ -919,7 +922,7 @@ async def test_the_vault_warns_when_he_already_kept_a_gift_today(
 
     text, _ = await open_vault(bot)
 
-    gift_lines = text.split("\n\n")[1].splitlines()
+    gift_lines = text.split("\n\n")[2].splitlines()
     assert gift_lines[1] == (
         "・Wisp already picked his treasure today. "
         "Anything you give him goes back to the Vault."

@@ -47,6 +47,8 @@ next egg. Members can also talk to him in Wisp's House.
   (event art, eating GIFs, shame images, Studio thumbnails, the status card's
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
+  Manage Roles, to make the badge roles and give and take them; Wisp's own
+  role must sit above the badge roles.
 - Upload the app emojis listed under Assets.
 - In the server, run `/wispadmin setup`, then `/wispadmin roles add` for each
   role allowed to feed Wisp.
@@ -79,11 +81,21 @@ Member commands:
 
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
-- `/wisp vault` is the shop: buy snacks with your points, or give Wisp a
-  gift from one of seven collections: pick a collection, then a gift. He
-  might not like it.
-- `/wisp snackpack` shows your Snack Pack: your saved snacks and keepsakes,
-  like a Last Ember, with a button to shop the Vault.
+- `/wisp vault` is the shop: buy snacks with your points, get a badge, or
+  give Wisp a gift from one of seven collections: pick a collection, then a
+  gift. He might not like it.
+- `/wisp snackpack` shows your Snack Pack: your saved snacks, keepsakes
+  like a Last Ember, and every badge you ever wore, with a button to shop
+  the Vault.
+
+Badges: the Vault sells six badge roles (Egg Warmer and Pickle Diplomat at
+25 points, Flame Keeper and ViiBR Roadie at 100, Team Wisp and Bandmate at
+250; Bandmate only for members at the Bandmate bond tier). Each raises your
+bond, outside the daily cap, and shows by your name for the current Wisp
+only: when his life ends the roles come off, and the next Wisp sells them
+again. `/wispadmin setup` makes the roles, with `ASSETS/badges/<key>.png` as
+the role icon when it exists and the server can show role icons. If Discord
+will not give the role, the purchase is undone and the points come back.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
@@ -180,6 +192,9 @@ posts text only.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
   `events/farewell.png`.
 - `shame/*` any images, picked at random when a member is punished.
+- `badges/<key>.png` for each badge key (`egg_warmer`, `pickle_diplomat`,
+  `flame_keeper`, `viibr_roadie`, `team_wisp`, `bandmate`), the badge role
+  icons, and the app emojis `badge_<key>` for the Vault and Snack Pack.
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
 - `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's

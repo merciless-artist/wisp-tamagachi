@@ -44,6 +44,7 @@ class Moment(StrEnum):
     BABY_TALK = auto()
     CHAT_FALLBACK = auto()
     POKED = auto()
+    BADGE_BOUGHT = auto()
     SNACK_FAVORITE = auto()
     FAVORITE_SONG = auto()
     GIFT_KEPT = auto()
@@ -90,6 +91,7 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.BABY_TALK: _NONE,
     Moment.CHAT_FALLBACK: _NONE,
     Moment.POKED: _NAME,
+    Moment.BADGE_BOUGHT: _NAME,
     Moment.SNACK_FAVORITE: _NAME,
     Moment.FAVORITE_SONG: _NAME,
     Moment.GIFT_KEPT: _GIFT,
@@ -716,6 +718,24 @@ _POKED_HANGRY = (
     "*low growl* that's a hungry flame you're poking, {name}",
 )
 
+_BADGE_BOUGHT_HAPPY = (
+    "look at {name} wearing my colors. I'm so proud",
+    "{name}, that looks so good on you",
+    "everybody look! {name} is repping me now",
+    "{name} made it official. best day ever",
+    "*glows extra bright* that's my {name}",
+    "wear it loud, {name}. you earned it",
+)
+
+_BADGE_BOUGHT_HANGRY = (
+    "{name}, that looks great on you. now about a snack",
+    "proud of you, {name}. hungry, but proud",
+    "{name} is repping me on an empty stomach. respect",
+    "nice one {name}. it'd look even better with a track",
+    "*tired little glow* that's my {name}",
+    "{name}, you've got my badge. I've got no lunch",
+)
+
 # ---
 # Line table
 # ---
@@ -763,6 +783,8 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.CHAT_FALLBACK, Mood.HANGRY): _CHAT_FALLBACK_HANGRY,
     (Moment.POKED, Mood.HAPPY): _POKED_HAPPY,
     (Moment.POKED, Mood.HANGRY): _POKED_HANGRY,
+    (Moment.BADGE_BOUGHT, Mood.HAPPY): _BADGE_BOUGHT_HAPPY,
+    (Moment.BADGE_BOUGHT, Mood.HANGRY): _BADGE_BOUGHT_HANGRY,
     (Moment.SNACK_FAVORITE, Mood.HAPPY): _SNACK_FAVORITE_HAPPY,
     (Moment.SNACK_FAVORITE, Mood.HANGRY): _SNACK_FAVORITE_HANGRY,
     (Moment.FAVORITE_SONG, Mood.HAPPY): _FAVORITE_SONG_HAPPY,

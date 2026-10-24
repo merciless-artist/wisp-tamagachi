@@ -17,6 +17,7 @@ from cogs.groups import wisp, wispadmin
 from cogs.share_links import ShareLinkResolver
 from cogs.speech import HouseTalk
 from db.activity import ActivityRepo
+from db.badges import BadgeRepo
 from db.database import Database
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
@@ -126,6 +127,7 @@ class WispBot(commands.Bot):
         self.notes = NoteRepo(self.db)
         self.wisp_lunchbox = WispLunchboxRepo(self.db)
         self.gifts = GiftRepo(self.db)
+        self.badges = BadgeRepo(self.db)
         self.ai = chain_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()

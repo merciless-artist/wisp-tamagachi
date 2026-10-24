@@ -22,6 +22,7 @@ from cogs.conversation import PokeButton
 from cogs.life_loop import LifeLoop
 from cogs.snacks import FeedButton
 from db.activity import ActivityRepo, InteractionKind
+from db.badges import BadgeRepo
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
@@ -126,6 +127,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.badges = BadgeRepo(db)
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)

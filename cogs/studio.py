@@ -11,6 +11,8 @@ import discord
 from discord import app_commands
 
 from cogs.assets import ASSETS_DIR
+from cogs.badges import ensure_badge_roles
+from cogs.channels import where_of
 from cogs.faq import FAQ_SECTIONS, fill_faq
 from cogs.groups import require_guild, wispadmin
 from db.settings import Settings, meal_points
@@ -442,7 +444,9 @@ roles = app_commands.Group(
 )
 
 
-@wispadmin.command(name="setup", description="Set Wisp's channels and Studio.")
+@wispadmin.command(
+    name="setup", description="Set Wisp's channels, Studio and badge roles."
+)
 @app_commands.describe(
     house="Where Wisp talks and announces his big moments",
     studio="The forum for Wisp's Studio threads",
@@ -455,7 +459,7 @@ async def setup_studio(
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
 ) -> None:
-    """Save the channels, then create whichever Studio threads are missing."""
+    """Save the channels, then create any missing Studio threads and badge roles."""
     bot = interaction.client
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
@@ -481,6 +485,12 @@ async def setup_studio(
         if created
         else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )
+    guild = interaction.guild
+    badge_lines = (
+        []
+        if guild is None
+        else await ensure_badge_roles(bot, guild, where_of(interaction))
+    )
     await interaction.followup.send(
         "\n".join(
             [
@@ -489,6 +499,7 @@ async def setup_studio(
                 f"・Wisp's Studio: {studio.mention}",
                 f"・Track drop: {tracks.mention}",
                 f"・{threads}",
+                *badge_lines,
             ]
         ),
         ephemeral=True,

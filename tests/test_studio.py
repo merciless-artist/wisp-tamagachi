@@ -15,6 +15,7 @@ from discord import app_commands
 import app
 from cogs import faq, feeding, groups, studio
 from cogs.studio import StudioError, ensure_studio, rules_text, studio_thread
+from db.badges import BadgeRepo
 from db.database import Database
 from db.settings import SettingsRepo
 from wisp import rules
@@ -97,10 +98,23 @@ class FakeServer:
         self.house.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
+        self.guild.features = []
+        self.roles: dict[int, MagicMock] = {}
+        self.guild.get_role.side_effect = self.roles.get
+        self.guild.create_role = AsyncMock(side_effect=self._create_role)
         self.guild.get_channel.side_effect = self._get_channel
         self.guild.get_channel_or_thread.side_effect = self._get_house
         self.forum = self.make_forum(forum_id)
         self.forums = {forum_id: self.forum}
+
+    def _create_role(self, *, name: str, **_fields: Any) -> MagicMock:
+        self._next_id += 1
+        role = MagicMock(spec=discord.Role)
+        role.id = self._next_id
+        role.name = name
+        role.display_icon = None
+        self.roles[role.id] = role
+        return role
 
     def make_forum(self, forum_id: int) -> MagicMock:
         forum = MagicMock(spec=discord.ForumChannel)
@@ -276,6 +290,7 @@ def bot(
 ) -> Iterator[app.WispBot]:
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
+    wisp_bot.badges = BadgeRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -378,6 +393,7 @@ async def test_setup_creates_five_threads_with_the_vault(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     text = sent_text(interaction)
     assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
+    assert "・Badge roles created: Egg Warmer, Pickle Diplomat" in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
     server.house.send.assert_not_awaited()

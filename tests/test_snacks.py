@@ -28,6 +28,7 @@ from cogs.snacks import (
     vault_view,
 )
 from db.activity import ActivityRepo, InteractionKind
+from db.badges import BadgeRepo
 from db.database import Database
 from db.gifts import GiftRepo
 from db.keepsakes import Keepsake, KeepsakeKind, KeepsakeRepo
@@ -93,6 +94,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.badges = BadgeRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
 
@@ -348,7 +350,8 @@ async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
         "♪ Member1's Snack Pack",
         f"{emoji_text('wisp_coin')} 12 points",
     ]
-    snacks, keepsakes = text.split(SEPARATOR + "\n")[1:]
+    snacks, keepsakes, badges = text.split(SEPARATOR + "\n")[1:]
+    assert badges.splitlines() == ["Badges", "・None yet"]
     assert snacks.splitlines() == [
         "Snacks",
         f"・{emoji_text('snack_cloudwave', 2)} Cloud Wave x2",
@@ -460,9 +463,10 @@ async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
 
     text = interaction.followup.send.await_args.args[0]
     assert text.splitlines()[:2] == ["♪ Member1's Snack Pack", "0 points"]
-    snacks, keepsakes = text.split(SEPARATOR + "\n")[1:]
+    snacks, keepsakes, badges = text.split(SEPARATOR + "\n")[1:]
     assert snacks.splitlines() == ["Snacks", "・Nothing saved yet"]
     assert keepsakes.splitlines() == ["Keepsakes", "・None yet"]
+    assert badges.splitlines() == ["Badges", "・None yet"]
     assert "free today" not in text
 
 

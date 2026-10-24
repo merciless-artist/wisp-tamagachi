@@ -1,0 +1,874 @@
+"""Tests for badges: their roles, buying them in the Vault, wearing and losing them.
+
+Discord objects are fakes; the repositories are the real ones.
+"""
+
+import re
+from collections.abc import Iterator
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock
+
+import discord
+import pytest
+
+import app
+from cogs import badges, snacks
+from cogs.announce import post_events
+from cogs.badges import ensure_badge_roles, strip_badges
+from db.activity import ActivityRepo
+from db.badges import BadgeRepo
+from db.database import Database
+from db.gifts import GiftRepo
+from db.keepsakes import KeepsakeKind, KeepsakeRepo
+from db.lives import LifeRepo
+from db.players import PlayerRepo
+from db.settings import SettingsRepo
+from wisp.life import Event, EventKind, Life, Mood, Phase, new_egg
+from wisp.lines import LINES, Moment
+from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, SNACKS, Stage
+from wisp.text import MESSAGE_LIMIT
+
+GUILD_ID = 100
+FORUM_ID = 10
+HOUSE_ID = 20
+SETUP_CHANNEL_ID = 30
+USER_ID = 1
+OTHER_USER_ID = 2
+LEFT_USER_ID = 3
+QUALIFYING_ROLE = 7
+SEPARATOR = "・♪ ────────・──────── ♪・"
+NO_PING = discord.AllowedMentions.none().to_dict()
+CANNOT_FEED = (
+    "♪ Only members at Active Lounger or higher who have opened /wisp board "
+    "can feed Wisp."
+)
+BANDMATE_BOND = BOND_TIERS[-1][1]
+EMOJI = "[🀀-🿿☀-♩♫-➿️]"
+
+# ---
+# Fakes
+# ---
+
+
+def http_error(status: int, text: str) -> discord.HTTPException:
+    return discord.HTTPException(MagicMock(status=status), text)
+
+
+def forbidden() -> discord.Forbidden:
+    return discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+
+
+class FakeServer:
+    """A guild with Wisp's House, roles Wisp can make and members he can fetch."""
+
+    def __init__(self) -> None:
+        self.house = MagicMock(spec=discord.TextChannel)
+        self.house.id = HOUSE_ID
+        self.house.send = AsyncMock()
+        self.setup_channel = MagicMock(spec=discord.TextChannel)
+        self.setup_channel.id = SETUP_CHANNEL_ID
+        self.setup_channel.send = AsyncMock()
+        self.roles: dict[int, MagicMock] = {}
+        self.created: list[dict[str, Any]] = []
+        self.members: dict[int, MagicMock] = {}
+        self._next_role_id = 500
+        self.guild = MagicMock(spec=discord.Guild)
+        self.guild.id = GUILD_ID
+        self.guild.features = ["ROLE_ICONS"]
+        self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
+        self.guild.get_role.side_effect = self.roles.get
+        self.guild.create_role = AsyncMock(side_effect=self._create_role)
+        self.guild.fetch_member = AsyncMock(side_effect=self._fetch_member)
+
+    def _create_role(self, **fields: Any) -> MagicMock:
+        self._next_role_id += 1
+        self.created.append(fields)
+        return self.add_role(
+            self._next_role_id, fields["name"], fields.get("display_icon")
+        )
+
+    def add_role(self, role_id: int, name: str, icon: bytes | None = None) -> MagicMock:
+        role = MagicMock(spec=discord.Role)
+        role.id = role_id
+        role.name = name
+        role.display_icon = icon
+        role.edit = AsyncMock()
+        self.roles[role_id] = role
+        return role
+
+    def member(
+        self, user_id: int, name: str, roles: tuple[int, ...] = (QUALIFYING_ROLE,)
+    ) -> MagicMock:
+        member = MagicMock(spec=discord.Member)
+        member.id = user_id
+        member.display_name = name
+        member.roles = [MagicMock(spec=discord.Role, id=role_id) for role_id in roles]
+        member.add_roles = AsyncMock()
+        member.remove_roles = AsyncMock()
+        self.members[user_id] = member
+        return member
+
+    def _fetch_member(self, user_id: int) -> MagicMock:
+        if user_id not in self.members:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Member")
+        return self.members[user_id]
+
+
+@pytest.fixture
+def server() -> FakeServer:
+    return FakeServer()
+
+
+@pytest.fixture
+def bot(
+    db: Database, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[app.WispBot]:
+    wisp_bot = app.WispBot()
+    wisp_bot.settings = SettingsRepo(db)
+    wisp_bot.lives = LifeRepo(db)
+    wisp_bot.players = PlayerRepo(db)
+    wisp_bot.activity_log = ActivityRepo(db)
+    wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.badges = BadgeRepo(db)
+    monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
+    yield wisp_bot
+
+
+@pytest.fixture(autouse=True)
+def art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An empty badge art folder, so no real art is read."""
+    folder = tmp_path / "badges"
+    folder.mkdir()
+    monkeypatch.setattr(badges, "BADGE_ART", folder)
+    return folder
+
+
+@pytest.fixture(autouse=True)
+async def configured(bot: app.WispBot, server: FakeServer) -> None:
+    await bot.settings.update(GUILD_ID, house_channel_id=HOUSE_ID)
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await bot.players.activate(GUILD_ID, user_id, discord.utils.utcnow())
+    server.member(USER_ID, "Member1")
+    server.member(OTHER_USER_ID, "Member2")
+
+
+@pytest.fixture(autouse=True)
+def no_meeting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(snacks, "maybe_meet", AsyncMock())
+
+
+def give_emojis(bot: app.WispBot, *names: str) -> None:
+    bot.emojis_by_name = {
+        name: cast(discord.Emoji, discord.PartialEmoji(name=name, id=index))
+        for index, name in enumerate(names, start=1)
+    }
+
+
+async def lay(bot: app.WispBot, version: int = 1, phase: Phase = Phase.ALIVE) -> Life:
+    life = new_egg(version, discord.utils.utcnow() - timedelta(days=1))
+    life.phase = phase
+    life.care = 60.0
+    if phase is Phase.ALIVE:
+        life.stage = life.peak_stage = Stage.TEEN
+        life.hatched_at = life.stage_started_at = discord.utils.utcnow()
+    return await bot.lives.insert(GUILD_ID, life)
+
+
+async def end(bot: app.WispBot, life: Life) -> None:
+    life.phase = Phase.DEAD
+    life.ended_at = discord.utils.utcnow()
+    await bot.lives.save(GUILD_ID, life)
+
+
+async def set_up_roles(bot: app.WispBot, server: FakeServer) -> list[str]:
+    return await ensure_badge_roles(bot, server.guild, server.setup_channel)
+
+
+def make_interaction(
+    bot: app.WispBot, server: FakeServer, user_id: int = USER_ID
+) -> MagicMock:
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.client = bot
+    interaction.guild = server.guild
+    interaction.guild_id = GUILD_ID
+    interaction.channel = MagicMock(spec=discord.Thread)
+    interaction.channel.send = AsyncMock()
+    interaction.user = server.members[user_id]
+    interaction.response = MagicMock()
+    interaction.response.is_done.return_value = False
+
+    async def answer(*_args: Any, **_kwargs: Any) -> None:
+        interaction.response.is_done.return_value = True
+
+    interaction.response.defer = AsyncMock(side_effect=answer)
+    interaction.response.send_message = AsyncMock(side_effect=answer)
+    interaction.edit_original_response = AsyncMock()
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    return interaction
+
+
+async def open_vault(
+    bot: app.WispBot, server: FakeServer, user_id: int = USER_ID
+) -> tuple[str, list[discord.ui.Select[Any]]]:
+    interaction = make_interaction(bot, server, user_id)
+    command: Any = snacks.wisp_vault
+    await command.callback(interaction)
+    call = interaction.followup.send.await_args
+    return call.args[0], list(call.kwargs["view"].children)
+
+
+def badge_select(
+    selects: list[discord.ui.Select[Any]],
+) -> discord.ui.Select[Any] | None:
+    found = [select for select in selects if select.placeholder == "Get a badge"]
+    return found[0] if found else None
+
+
+async def buy(
+    bot: app.WispBot, server: FakeServer, key: str, user_id: int = USER_ID
+) -> MagicMock:
+    """Open the Vault and get a badge from its select."""
+    _, selects = await open_vault(bot, server, user_id)
+    select = badge_select(selects)
+    assert select is not None
+    select._values = [key]
+    interaction = make_interaction(bot, server, user_id)
+    await select.callback(interaction)
+    return interaction
+
+
+def shown_note(interaction: MagicMock) -> str:
+    """The first line of the Vault as the interaction last showed it."""
+    call = interaction.edit_original_response.await_args
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    return str(call.kwargs["content"]).splitlines()[0]
+
+
+def house_posts(server: FakeServer) -> list[str]:
+    posts = server.house.send.await_args_list
+    assert all(post.kwargs["allowed_mentions"].to_dict() == NO_PING for post in posts)
+    return [str(post.args[0]) for post in posts]
+
+
+async def role_of(bot: app.WispBot, server: FakeServer, key: str) -> MagicMock:
+    return server.roles[(await bot.badges.role_ids(GUILD_ID))[key]]
+
+
+async def rich(bot: app.WispBot, user_id: int = USER_ID, points: int = 1000) -> None:
+    await bot.players.add_points(GUILD_ID, user_id, points)
+
+
+# ---
+# Roles in the server
+# ---
+
+
+async def test_setup_creates_every_badge_role_and_remembers_it(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    lines = await set_up_roles(bot, server)
+
+    assert [fields["name"] for fields in server.created] == [
+        badge.name for badge in BADGES
+    ]
+    assert all("display_icon" not in fields for fields in server.created)
+    assert all(fields["reason"] for fields in server.created)
+    stored = await bot.badges.role_ids(GUILD_ID)
+    assert set(stored) == {badge.key for badge in BADGES}
+    assert {server.roles[role_id].name for role_id in stored.values()} == {
+        badge.name for badge in BADGES
+    }
+    assert lines == [f"・Badge roles created: {', '.join(b.name for b in BADGES)}"]
+
+
+async def test_setup_gives_new_roles_their_icons_when_the_art_exists(
+    bot: app.WispBot, server: FakeServer, art: Path
+) -> None:
+    (art / "team_wisp.png").write_bytes(b"team-wisp-png")
+
+    await set_up_roles(bot, server)
+
+    icons = {fields["name"]: fields.get("display_icon") for fields in server.created}
+    assert icons["Team Wisp"] == b"team-wisp-png"
+    assert all(icon is None for name, icon in icons.items() if name != "Team Wisp")
+
+
+async def test_a_second_setup_leaves_the_roles_alone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await set_up_roles(bot, server)
+    server.created.clear()
+
+    lines = await set_up_roles(bot, server)
+
+    assert server.created == []
+    assert lines == ["・Badge roles: all 6 ready"]
+
+
+async def test_a_later_setup_adds_icons_that_now_exist(
+    bot: app.WispBot, server: FakeServer, art: Path
+) -> None:
+    await set_up_roles(bot, server)
+    (art / "egg_warmer.png").write_bytes(b"egg-png")
+
+    lines = await set_up_roles(bot, server)
+
+    egg = await role_of(bot, server, "egg_warmer")
+    egg.edit.assert_awaited_once()
+    assert egg.edit.await_args.kwargs["display_icon"] == b"egg-png"
+    (await role_of(bot, server, "team_wisp")).edit.assert_not_awaited()
+    assert "・Badge icons added: Egg Warmer" in lines
+
+
+async def test_a_deleted_badge_role_is_recreated(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await set_up_roles(bot, server)
+    old = await role_of(bot, server, "flame_keeper")
+    del server.roles[old.id]
+    server.created.clear()
+
+    lines = await set_up_roles(bot, server)
+
+    assert [fields["name"] for fields in server.created] == ["Flame Keeper"]
+    assert (await role_of(bot, server, "flame_keeper")).id != old.id
+    assert "・Badge roles recreated: Flame Keeper" in lines
+
+
+async def test_roles_are_found_by_id_not_by_name(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.add_role(9, "Team Wisp")
+
+    await set_up_roles(bot, server)
+
+    assert (await bot.badges.role_ids(GUILD_ID))["team_wisp"] != 9
+
+
+async def test_a_server_without_role_icons_gets_plain_roles_and_one_note(
+    bot: app.WispBot, server: FakeServer, art: Path
+) -> None:
+    server.guild.features = []
+    for badge in BADGES:
+        (art / f"{badge.key}.png").write_bytes(b"png")
+
+    lines = await set_up_roles(bot, server)
+
+    assert len(server.created) == len(BADGES)
+    assert all("display_icon" not in fields for fields in server.created)
+    notes = [line for line in lines if "icons" in line]
+    assert notes == [
+        "・Role icons are not available on this server (it needs more boosts), "
+        "so the badges have no icons."
+    ]
+
+
+async def test_an_icon_discord_refuses_means_a_plain_role_and_one_note(
+    bot: app.WispBot, server: FakeServer, art: Path
+) -> None:
+    for badge in BADGES:
+        (art / f"{badge.key}.png").write_bytes(b"png")
+    plain = server._create_role
+
+    def refuse_icons(**fields: Any) -> MagicMock:
+        if "display_icon" in fields:
+            raise http_error(400, "Invalid Form Body")
+        return plain(**fields)
+
+    server.guild.create_role.side_effect = refuse_icons
+
+    lines = await set_up_roles(bot, server)
+
+    assert set(await bot.badges.role_ids(GUILD_ID)) == set(BADGE_BY_KEY)
+    assert sum("not available" in line for line in lines) == 1
+    server.setup_channel.send.assert_not_awaited()
+
+
+async def test_missing_manage_roles_is_reported_where_setup_ran(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.guild.create_role.side_effect = forbidden()
+
+    await set_up_roles(bot, server)
+
+    reports = [call.args[0] for call in server.setup_channel.send.await_args_list]
+    assert len(reports) == len(BADGES)
+    assert reports[0].startswith(
+        "Error in creating the Egg Warmer badge role: Forbidden"
+    )
+    assert await bot.badges.role_ids(GUILD_ID) == {}
+
+
+# ---
+# The Vault
+# ---
+
+
+async def test_the_vault_lists_every_badge_with_its_price_and_bond(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    give_emojis(bot, "badge_team_wisp")
+
+    text, selects = await open_vault(bot, server)
+
+    section = text.split("\nBadges\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert section == [
+        "・Egg Warmer ・ 25 points ・ bond +5",
+        "・Pickle Diplomat ・ 25 points ・ bond +5",
+        "・Flame Keeper ・ 100 points ・ bond +15",
+        "・ViiBR Roadie ・ 100 points ・ bond +15",
+        "・<:badge_team_wisp:1> Team Wisp ・ 250 points ・ bond +25",
+        "・Bandmate ・ 250 points ・ bond +25 ・ Bandmates only",
+    ]
+    select = badge_select(selects)
+    assert select is not None
+    assert [option.value for option in select.options] == [
+        badge.key for badge in BADGES if badge.needs_tier is None
+    ]
+    assert not re.search(EMOJI, text)
+
+
+async def test_a_bandmate_can_get_the_bandmate_badge(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await bot.players.add_bond(GUILD_ID, USER_ID, BANDMATE_BOND)
+
+    text, selects = await open_vault(bot, server)
+
+    assert "Bandmates only" not in text
+    select = badge_select(selects)
+    assert select is not None
+    assert "bandmate" in [option.value for option in select.options]
+
+
+async def test_owned_badges_are_marked_and_left_out_of_the_select(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await buy(bot, server, "egg_warmer")
+
+    text, selects = await open_vault(bot, server)
+
+    assert "・Egg Warmer ・ 25 points ・ bond +5 ・ owned" in text
+    select = badge_select(selects)
+    assert select is not None
+    assert "egg_warmer" not in [option.value for option in select.options]
+    assert len(select.options) <= 25
+
+
+async def test_badges_without_a_role_cannot_be_bought_yet(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+
+    text, selects = await open_vault(bot, server)
+
+    assert "・Team Wisp ・ 250 points ・ bond +25 ・ coming soon" in text
+    assert badge_select(selects) is None
+
+
+async def test_the_vault_still_fits_one_message_with_badges(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    names = [badge.emoji_name for badge in BADGES]
+    snack_names = [snack.emoji_name for snack in SNACKS]
+    give_emojis(bot, "wisp_coin", *names, *snack_names)
+    await rich(bot, points=10**9)
+
+    text, selects = await open_vault(bot, server)
+
+    assert len(text) <= MESSAGE_LIMIT
+    assert all(len(select.options) <= 25 for select in selects)
+    assert len(selects) <= 5
+
+
+# ---
+# Buying
+# ---
+
+
+async def test_buying_spends_gives_bond_and_the_role(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=300)
+
+    interaction = await buy(bot, server, "team_wisp")
+
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.lifetime_points, player.bond) == (50, 300, 25)
+    role = await role_of(bot, server, "team_wisp")
+    server.members[USER_ID].add_roles.assert_awaited_once_with(
+        role, reason="Bought in the ViiBR Vault"
+    )
+    assert life.id is not None
+    assert await bot.badges.owned(GUILD_ID, USER_ID, life.id) == {"team_wisp"}
+    assert shown_note(interaction) == "♪ You're now a Team Wisp ・ bond +25"
+    (post,) = house_posts(server)
+    heading, line = post.split("\n")
+    assert heading == "♪ Member1 is now a Team Wisp"
+    options = {
+        text.format(name="Member1") for text in LINES[(Moment.BADGE_BOUGHT, Mood.HAPPY)]
+    }
+    assert line in options
+
+
+async def test_the_house_names_a_badge_with_its_article(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await bot.players.set_name(GUILD_ID, USER_ID, "Aria")
+
+    await buy(bot, server, "egg_warmer")
+
+    (post,) = house_posts(server)
+    assert post.startswith("♪ Aria is now an Egg Warmer\n")
+
+
+async def test_badge_bond_skips_the_daily_casual_cap(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+
+    for key in ("egg_warmer", "pickle_diplomat", "flame_keeper"):
+        await buy(bot, server, key)
+
+    assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 5 + 5 + 15
+
+
+async def test_a_second_purchase_in_the_same_life_is_refused(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=100)
+    _, selects = await open_vault(bot, server)
+    select = badge_select(selects)
+    assert select is not None
+
+    for _ in range(2):
+        select._values = ["egg_warmer"]
+        interaction = make_interaction(bot, server)
+        await select.callback(interaction)
+
+    assert shown_note(interaction) == "♪ You're already an Egg Warmer for Wisp v1."
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.bond) == (75, 5)
+    server.members[USER_ID].add_roles.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("bond", "refused"), [(BANDMATE_BOND - 1, True), (BANDMATE_BOND, False)]
+)
+async def test_the_bandmate_badge_needs_the_bandmate_tier(
+    bot: app.WispBot, server: FakeServer, bond: int, refused: bool
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await bot.players.add_bond(GUILD_ID, USER_ID, BANDMATE_BOND)
+    _, selects = await open_vault(bot, server)
+    select = badge_select(selects)
+    assert select is not None
+    await bot.players.add_bond(GUILD_ID, USER_ID, bond - BANDMATE_BOND)
+    select._values = ["bandmate"]
+    interaction = make_interaction(bot, server)
+
+    await select.callback(interaction)
+
+    note = shown_note(interaction)
+    if refused:
+        assert note == "♪ The Bandmate badge is only for Bandmates."
+        server.members[USER_ID].add_roles.assert_not_awaited()
+        assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 1000
+    else:
+        assert note == "♪ You're now a Bandmate ・ bond +25"
+
+
+async def test_a_member_short_on_points_is_refused(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=24)
+
+    interaction = await buy(bot, server, "egg_warmer")
+
+    note = shown_note(interaction)
+    assert note in {
+        text.format(name="Member1")
+        for text in LINES[(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY)]
+    }
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.bond) == (24, 0)
+    server.members[USER_ID].add_roles.assert_not_awaited()
+    assert house_posts(server) == []
+
+
+async def test_a_banned_member_is_refused(bot: app.WispBot, server: FakeServer) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    _, selects = await open_vault(bot, server)
+    select = badge_select(selects)
+    assert select is not None
+    await bot.players.set_offense(
+        GUILD_ID, USER_ID, 1, discord.utils.utcnow() + timedelta(days=1), False
+    )
+    select._values = ["egg_warmer"]
+    interaction = make_interaction(bot, server)
+
+    await select.callback(interaction)
+
+    assert shown_note(interaction) == (
+        "♪ Wisp is not taking snacks or gifts from you right now."
+    )
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 1000
+    server.members[USER_ID].add_roles.assert_not_awaited()
+
+
+async def test_a_member_who_cannot_feed_is_refused(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    server.member(USER_ID, "Member1", roles=())
+
+    interaction = await buy(bot, server, "egg_warmer")
+
+    assert shown_note(interaction) == CANNOT_FEED
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 1000
+    server.members[USER_ID].add_roles.assert_not_awaited()
+
+
+async def test_a_role_that_cannot_be_given_refunds_everything(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=300)
+    server.members[USER_ID].add_roles.side_effect = forbidden()
+
+    interaction = await buy(bot, server, "team_wisp")
+
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.lifetime_points, player.bond) == (300, 300, 0)
+    assert life.id is not None
+    assert await bot.badges.owned(GUILD_ID, USER_ID, life.id) == set()
+    assert shown_note(interaction) == (
+        "♪ Your Team Wisp badge didn't go through. Your points are back."
+    )
+    (report,) = [call.args[0] for call in interaction.channel.send.await_args_list]
+    assert report.startswith("Error in giving the Team Wisp badge role: Forbidden")
+    assert house_posts(server) == []
+
+
+async def test_badges_wait_for_a_wisp(bot: app.WispBot, server: FakeServer) -> None:
+    await set_up_roles(bot, server)
+    await rich(bot)
+    life = await lay(bot)
+    _, selects = await open_vault(bot, server)
+    select = badge_select(selects)
+    assert select is not None
+    await end(bot, life)
+    select._values = ["egg_warmer"]
+    interaction = make_interaction(bot, server)
+
+    await select.callback(interaction)
+
+    assert shown_note(interaction) == "♪ There's no Wisp to wear a badge for right now."
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 1000
+
+
+async def test_an_egg_can_have_badges_bought_for_it(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot, phase=Phase.EGG)
+    await set_up_roles(bot, server)
+    await rich(bot)
+
+    interaction = await buy(bot, server, "egg_warmer")
+
+    assert shown_note(interaction) == "♪ You're now an Egg Warmer ・ bond +5"
+
+
+# ---
+# When a life ends
+# ---
+
+
+async def test_a_life_ending_takes_its_badges_back(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await rich(bot, user_id)
+    await buy(bot, server, "egg_warmer")
+    await buy(bot, server, "team_wisp")
+    await buy(bot, server, "flame_keeper", OTHER_USER_ID)
+    server.member(LEFT_USER_ID, "Gone")
+    await bot.players.activate(GUILD_ID, LEFT_USER_ID, discord.utils.utcnow())
+    await rich(bot, LEFT_USER_ID)
+    await buy(bot, server, "viibr_roadie", LEFT_USER_ID)
+    del server.members[LEFT_USER_ID]
+    await end(bot, life)
+
+    await strip_badges(bot, GUILD_ID, life)
+    await strip_badges(bot, GUILD_ID, life)
+
+    first = server.members[USER_ID].remove_roles
+    assert first.await_count == 2
+    removed = set(first.await_args.args)
+    assert removed == {
+        await role_of(bot, server, "egg_warmer"),
+        await role_of(bot, server, "team_wisp"),
+    }
+    assert first.await_args.kwargs["reason"] == "Wisp v1's life ended"
+    second = server.members[OTHER_USER_ID].remove_roles
+    assert set(second.await_args.args) == {await role_of(bot, server, "flame_keeper")}
+    assert server.house.send.await_count == 4
+
+
+async def test_a_failed_removal_is_reported_and_the_rest_go_on(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await rich(bot, user_id)
+        await buy(bot, server, "egg_warmer", user_id)
+    server.members[USER_ID].remove_roles.side_effect = forbidden()
+    server.house.send.reset_mock()
+
+    await strip_badges(bot, GUILD_ID, life)
+
+    (report,) = house_posts(server)
+    assert report.startswith("Error in taking back badge roles: Forbidden")
+    server.members[OTHER_USER_ID].remove_roles.assert_awaited_once()
+
+
+async def test_the_next_life_sells_the_badges_again(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await buy(bot, server, "egg_warmer")
+    await end(bot, life)
+    await lay(bot, version=2)
+
+    text, selects = await open_vault(bot, server)
+
+    assert "owned" not in text
+    select = badge_select(selects)
+    assert select is not None
+    assert "egg_warmer" in [option.value for option in select.options]
+    interaction = await buy(bot, server, "egg_warmer")
+    assert shown_note(interaction) == "♪ You're now an Egg Warmer ・ bond +5"
+
+
+# ---
+# The Snack Pack
+# ---
+
+
+async def snack_pack(bot: app.WispBot, server: FakeServer) -> str:
+    interaction = make_interaction(bot, server)
+    command: Any = snacks.wisp_snackpack
+    await command.callback(interaction)
+    return str(interaction.followup.send.await_args.args[0])
+
+
+async def test_the_snack_pack_lists_every_badge_ever_bought(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    give_emojis(bot, "badge_team_wisp")
+    at = discord.utils.utcnow()
+    await bot.badges.record(GUILD_ID, USER_ID, "egg_warmer", 1, 1, at)
+    await bot.badges.record(GUILD_ID, USER_ID, "team_wisp", 2, 2, at)
+
+    text = await snack_pack(bot, server)
+
+    badge_part = text.split(SEPARATOR + "\n")[3].splitlines()
+    assert badge_part == [
+        "Badges",
+        "・<:badge_team_wisp:1> Wisp v2's Team Wisp",
+        "・Wisp v1's Egg Warmer",
+    ]
+
+
+async def test_a_snack_pack_without_badges_says_so(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    text = await snack_pack(bot, server)
+
+    assert text.split(SEPARATOR + "\n")[3].splitlines() == ["Badges", "・None yet"]
+
+
+async def test_the_fullest_snack_pack_still_fits_one_message(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    give_emojis(
+        bot,
+        "wisp_coin",
+        *(badge.emoji_name for badge in BADGES),
+        *(f"keepsake_{kind.value}" for kind in KeepsakeKind),
+    )
+    await bot.players.set_name(GUILD_ID, USER_ID, "W" * 24)
+    at = discord.utils.utcnow()
+    for version in range(1, 30):
+        for kind in KeepsakeKind:
+            await bot.keepsakes.give(GUILD_ID, USER_ID, kind, 1000 + version, at)
+        for badge in BADGES:
+            await bot.badges.record(
+                GUILD_ID, USER_ID, badge.key, version, 1000 + version, at
+            )
+
+    text = await snack_pack(bot, server)
+
+    assert len(text) <= MESSAGE_LIMIT
+    sections = text.split(SEPARATOR + "\n")
+    keepsakes = sections[2].splitlines()
+    badge_lines = sections[3].splitlines()
+    assert keepsakes[-1].startswith("・and ") and keepsakes[-1].endswith(" more")
+    assert badge_lines[-1].startswith("・and ") and badge_lines[-1].endswith(" more")
+    assert len(keepsakes) > 3 and len(badge_lines) > 3
+    assert badge_lines[1] == "・<:badge_bandmate:7> Wisp v1029's Bandmate"
+
+
+async def test_a_death_takes_back_the_badges_as_the_next_egg_is_laid(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await buy(bot, server, "egg_warmer")
+    await end(bot, life)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+
+    server.members[USER_ID].remove_roles.assert_awaited_once_with(
+        await role_of(bot, server, "egg_warmer"), reason="Wisp v1's life ended"
+    )
+    egg = await bot.lives.current(GUILD_ID)
+    assert egg is not None and egg.version == 2

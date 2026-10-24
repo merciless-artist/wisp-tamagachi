@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-24 (badges)
+
+- The ViiBR Vault sells six badges, vanity roles worn for the current Wisp:
+  Egg Warmer and Pickle Diplomat (25 points, bond +5), Flame Keeper and ViiBR
+  Roadie (100, +15), Team Wisp and Bandmate (250, +25; Bandmate only at the
+  Bandmate bond tier). Badge bond is outside the daily casual cap. The Vault
+  lists them with "owned" or "Bandmates only", and a "Get a badge" select
+  offers the ones the member can get now.
+- A purchase is made under the guild lock; the role is given after it. If
+  Discord will not give the role, the points, the purchase and the bond are
+  all undone, the failure is posted where it happened and the member is told.
+- The House announces "{name} is now a {badge}" with a new Badge Bought line.
+- When a life ends, its buyers lose those roles (members are fetched by id; a
+  member who left is skipped). The next Wisp sells every badge again.
+- The Snack Pack has a Badges section: every badge ever bought, as "Wisp vN's
+  {badge}", with its `badge_<key>` emoji when uploaded.
+- `/wispadmin setup` creates the missing badge roles (by stored id, so a
+  deleted one is recreated), with `ASSETS/badges/<key>.png` as the icon when
+  it exists and the server has role icons, and adds icons later. Wisp needs
+  Manage Roles.
+- New tables: `badge_roles` and `badges`, created at startup.
+
 ## 2026-10-24 (Poke Wisp)
 
 - A Poke Wisp button on the status card (next to Feed Wisp) and on the
