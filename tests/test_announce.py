@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 
 import app
@@ -1033,3 +1034,58 @@ async def test_the_last_ember_carries_its_art_when_it_exists(
     ember, _coal = server.house.send.await_args_list
     assert ember.kwargs["file"].filename == "last_ember.png"
     assert sends_without_pinging(ember.kwargs)
+
+
+def lost_connection() -> pymysql.err.OperationalError:
+    return pymysql.err.OperationalError(2013, "Lost connection")
+
+
+async def test_a_failed_keepsake_is_reported_and_later_events_still_post(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    life = await growing_life(bot)
+    await interacted(bot, life, NAMED, 1)
+    monkeypatch.setattr(bot.keepsakes, "give", AsyncMock(side_effect=lost_connection()))
+
+    await post_events(
+        bot,
+        GUILD_ID,
+        [
+            Event(EventKind.STAGE_UP, Stage.CHILD),
+            Event(EventKind.GREW_OLD, Stage.OLD_FOGEY),
+        ],
+    )
+
+    child, report, old, second_report = [
+        call.args[0] for call in server.house.send.await_args_list
+    ]
+    assert said(child, Moment.STAGE_UP, stage="child")
+    assert said(old, Moment.GREW_OLD)
+    for line in (report, second_report):
+        assert line.startswith("Error in giving a keepsake: OperationalError")
+    assert all(" gets " not in line for line in (child, old))
+
+
+async def test_a_failed_keepsake_never_stops_the_next_life(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    life = await ended_life(bot, Phase.PASSED)
+    await shared(bot, life, {NAMED: 10})
+    await bot.players.set_name(GUILD_ID, NAMED, "Aria")
+    monkeypatch.setattr(bot.notes, "recent", AsyncMock(side_effect=lost_connection()))
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+
+    farewell, report, coal = [
+        call.args[0] for call in server.house.send.await_args_list
+    ]
+    assert said(farewell, Moment.FAREWELL, version="3")
+    assert report.startswith("Error in giving a keepsake: OperationalError")
+    assert said(coal, Moment.COAL_EGG, version="4")
+    assert await embers(bot, NAMED) == ["Wisp v3's Last Ember"]

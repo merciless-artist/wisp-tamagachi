@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 import discord
+import pymysql
 
 from cogs.assets import ASSETS_DIR
 from cogs.speech import ai_reply
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
 _BABY_STAGE: Final = "baby"
+_GIVING: Final = "giving a keepsake"
 _STAGE_KEEPSAKES: Final = {
     Stage.CHILD: KeepsakeKind.FIRST_SPARK,
     Stage.TEEN: KeepsakeKind.TEEN_SPARK,
@@ -268,24 +270,30 @@ async def _give_milestone(
     The Eggshell goes to the member whose feed filled the egg; every other one
     to the member who last interacted with this life. Nobody gets it when
     there is no such member, when they are banned or when they already have it.
+    A database or network failure is reported in Wisp's House and never stops
+    the events after it.
     """
     if life.id is None:
         return
-    user_id = (
-        life.hatched_by
-        if kind is KeepsakeKind.EGGSHELL
-        else await bot.activity_log.latest_interactor(guild_id, life.id)
-    )
-    if user_id is None:
+    try:
+        user_id = (
+            life.hatched_by
+            if kind is KeepsakeKind.EGGSHELL
+            else await bot.activity_log.latest_interactor(guild_id, life.id)
+        )
+        if user_id is None:
+            return
+        now = discord.utils.utcnow()
+        player = await bot.players.get(guild_id, user_id)
+        if player.is_banned(now):
+            return
+        keepsake = Keepsake(kind, life.version, now)
+        if not await bot.keepsakes.give(guild_id, user_id, kind, life.version, now):
+            return
+        name = display_name(bot.get_guild(guild_id), player)
+    except (pymysql.err.Error, OSError) as error:
+        await bot.report_error(bot.get_guild(guild_id), _GIVING, error)
         return
-    now = discord.utils.utcnow()
-    player = await bot.players.get(guild_id, user_id)
-    if player.is_banned(now):
-        return
-    keepsake = Keepsake(kind, life.version, now)
-    if not await bot.keepsakes.give(guild_id, user_id, kind, life.version, now):
-        return
-    name = display_name(bot.get_guild(guild_id), player)
     won = _line(bot, Moment.KEEPSAKE_WON, life, name=name)
     await house.say(f"♪ {name} gets {keepsake.title}\n{won}", keepsake_image(kind))
 
@@ -309,6 +317,8 @@ async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
 
     After a full life its top sharers who are not banned get its Last Ember and
     the egg is a coal egg; after any other ending, or none, it is a fresh egg.
+    A failure while announcing one member's ember is reported in Wisp's House
+    and the rest still come.
     Nothing happens while the current life goes on, so calling this twice is
     safe. Wisp's House hears who got an ember, each with a goodbye from his AI
     voice, then the new egg.
@@ -333,7 +343,11 @@ async def _next_life(
         guild = bot.get_guild(guild_id)
         for player in embers.receivers:
             name = display_name(guild, player)
-            notes = await bot.notes.recent(guild_id, player.user_id)
+            try:
+                notes = await bot.notes.recent(guild_id, player.user_id)
+            except (pymysql.err.Error, OSError) as error:
+                await bot.report_error(guild, _GIVING, error)
+                continue
             heading = f"♪ {name} gets {embers.ember.title}"
             goodbye = await _goodbye(bot, guild, embers.life, name, notes)
             await house.say(

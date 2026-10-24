@@ -100,9 +100,17 @@ def test_finds_a_share_link(text: str, url: str) -> None:
     assert find_track(text) == ShareLink(SHARE_CODE, url)
 
 
-def test_a_share_code_stops_at_the_first_non_ascii_character() -> None:
-    found = find_track("https://viibrmusic.com/s/ab\u017fc")
-    assert found == ShareLink("ab", "https://viibrmusic.com/s/ab")
+@pytest.mark.parametrize(
+    "text",
+    [
+        "https://viibrmusic.com/s/abc123\u00e9",
+        "https://viibrmusic.com/s/ab\u017fc",
+        f"https://viibrmusic.com/songs/{VIIBR_ID}\u00e9",
+        "https://suno.com/s/abc\u00e9",
+    ],
+)
+def test_a_link_run_into_a_non_ascii_letter_is_not_a_link(text: str) -> None:
+    assert find_track(text) is None
 
 
 def test_share_codes_are_case_sensitive_and_kept_exactly() -> None:

@@ -50,7 +50,7 @@ from wisp.rules import (
     Gift,
     Snack,
 )
-from wisp.text import SEPARATOR, count, with_emoji
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, fit, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -287,11 +287,7 @@ async def _snack_pack_text(
     ]
     if free_left:
         snacks.append(f"・{_named(bot, _FREE)} ・ free today")
-    keepsakes = [
-        f"・{with_emoji(bot.emoji(f'keepsake_{keepsake.kind.value}'), keepsake.title)}"
-        for keepsake in await bot.keepsakes.of(guild_id, user_id)
-    ]
-    lines = [
+    head = [
         f"♪ {player.name or display_name}'s Snack Pack",
         with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
         SEPARATOR,
@@ -299,9 +295,28 @@ async def _snack_pack_text(
         *(snacks or ["・Nothing saved yet"]),
         SEPARATOR,
         "Keepsakes",
-        *(keepsakes or ["・None yet"]),
     ]
-    return "\n".join(lines)
+    held = await bot.keepsakes.of(guild_id, user_id)
+    if not held:
+        return "\n".join([*head, "・None yet"])
+    newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
+    keepsakes = [
+        f"・{with_emoji(bot.emoji(f'keepsake_{keepsake.kind.value}'), keepsake.title)}"
+        for keepsake in newest_life_first
+    ]
+    return _fit_keepsakes(head, keepsakes)
+
+
+def _fit_keepsakes(head: list[str], keepsakes: list[str]) -> str:
+    """The Snack Pack with as many keepsakes as fit, then how many more there are."""
+    whole = "\n".join([*head, *keepsakes])
+    if len(whole) <= MESSAGE_LIMIT:
+        return whole
+    widest_tail = [f"・and {len(keepsakes)} more"]
+    shown = fit(head, keepsakes, widest_tail).count("\n") - len(head)
+    return "\n".join(
+        [*head, *keepsakes[:shown], f"・and {len(keepsakes) - shown} more"]
+    )
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:

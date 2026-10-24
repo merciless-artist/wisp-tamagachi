@@ -717,6 +717,28 @@ async def test_keepsake_given_once_per_version(db: Database) -> None:
     ]
 
 
+async def test_keepsakes_read_by_version_then_in_the_order_given(
+    db: Database,
+) -> None:
+    repo = KeepsakeRepo(db)
+    for kind, version, minutes in (
+        (KeepsakeKind.TEEN_SPARK, 2, 30),
+        (KeepsakeKind.LAST_EMBER, 1, 90),
+        (KeepsakeKind.EGGSHELL, 2, 0),
+        (KeepsakeKind.READING_GLASSES, 1, 60),
+        (KeepsakeKind.FIRST_SPARK, 2, 10),
+    ):
+        await repo.give(GUILD, USER, kind, version, NOW + timedelta(minutes=minutes))
+
+    assert [(item.version, item.kind) for item in await repo.of(GUILD, USER)] == [
+        (1, KeepsakeKind.READING_GLASSES),
+        (1, KeepsakeKind.LAST_EMBER),
+        (2, KeepsakeKind.EGGSHELL),
+        (2, KeepsakeKind.FIRST_SPARK),
+        (2, KeepsakeKind.TEEN_SPARK),
+    ]
+
+
 async def test_keepsakes_are_per_member_and_guild(db: Database) -> None:
     repo = KeepsakeRepo(db)
     ember = KeepsakeKind.LAST_EMBER

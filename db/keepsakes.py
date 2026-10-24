@@ -77,10 +77,13 @@ class KeepsakeRepo:
         return True
 
     async def of(self, guild_id: int, user_id: int) -> list[Keepsake]:
-        """Return the member's keepsakes, oldest Wisp version first."""
+        """Return the member's keepsakes, oldest Wisp version first.
+
+        Within a version they come in the order they were given.
+        """
         rows = await self._db.fetchall(
             f"SELECT kind, version, given_at FROM {self._db.t('keepsakes')} "
-            "WHERE guild_id = %s AND user_id = %s ORDER BY version, kind",
+            "WHERE guild_id = %s AND user_id = %s ORDER BY version, given_at, kind",
             (guild_id, user_id),
         )
         return [

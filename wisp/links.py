@@ -41,10 +41,11 @@ class ShareLink:
 
 
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-_END = r"(?![\w-])"
+# Any letter, Unicode ones too, so a link run into one is not a link.
+_END = r"(?!(?u:\w)|-)"
 _TAIL = re.compile(r"/?(?:[?#].*)?")
-# ASCII only, so Unicode case folding (such as "ſ" for "s") never lets a
-# non-ASCII URL pass for a link.
+# Hosts and paths are ASCII only, so Unicode case folding (such as "ſ" for
+# "s") never lets a non-ASCII URL pass for a link.
 _FLAGS = re.IGNORECASE | re.ASCII
 
 

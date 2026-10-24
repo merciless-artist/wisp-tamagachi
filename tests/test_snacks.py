@@ -29,7 +29,7 @@ from cogs.snacks import (
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.gifts import GiftRepo
-from db.keepsakes import KeepsakeKind, KeepsakeRepo
+from db.keepsakes import Keepsake, KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
@@ -38,7 +38,7 @@ from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import SNACKS, Stage
-from wisp.text import USER_ERROR
+from wisp.text import MESSAGE_LIMIT, USER_ERROR
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -397,11 +397,18 @@ async def test_snack_pack_puts_each_keepsakes_emoji_in_front_when_uploaded(
     ]
 
 
-async def test_snack_pack_lists_keepsakes_oldest_first(bot: app.WispBot) -> None:
+async def test_snack_pack_lists_the_newest_life_first_in_the_order_given(
+    bot: app.WispBot,
+) -> None:
     at = discord.utils.utcnow()
-    for version in (4, 2):
+    for kind, version, minutes in (
+        (KeepsakeKind.LAST_EMBER, 2, 50),
+        (KeepsakeKind.TEEN_SPARK, 4, 20),
+        (KeepsakeKind.EGGSHELL, 4, 0),
+        (KeepsakeKind.FIRST_SPARK, 4, 10),
+    ):
         await bot.keepsakes.give(
-            GUILD_ID, USER_ID, KeepsakeKind.LAST_EMBER, version, at
+            GUILD_ID, USER_ID, kind, version, at + timedelta(minutes=minutes)
         )
 
     interaction = await open_my_snack_pack(bot)
@@ -409,9 +416,38 @@ async def test_snack_pack_lists_keepsakes_oldest_first(bot: app.WispBot) -> None
     keepsakes = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[2]
     assert keepsakes.splitlines() == [
         "Keepsakes",
+        "・Wisp v4's Eggshell",
+        "・Wisp v4's First Spark",
+        "・Wisp v4's Teen Spark",
         "・Wisp v2's Last Ember",
-        "・Wisp v4's Last Ember",
     ]
+
+
+async def test_a_long_keepsake_list_is_cut_to_one_message(bot: app.WispBot) -> None:
+    give_emojis(bot, *(f"keepsake_{kind.value}" for kind in KeepsakeKind))
+    at = discord.utils.utcnow()
+    for version in range(1, 7):
+        for index, kind in enumerate(KeepsakeKind):
+            await bot.keepsakes.give(
+                GUILD_ID, USER_ID, kind, version, at + timedelta(minutes=index)
+            )
+
+    interaction = await open_my_snack_pack(bot)
+
+    text = interaction.followup.send.await_args.args[0]
+    assert len(text) <= MESSAGE_LIMIT
+    keepsakes = text.split(SEPARATOR + "\n")[2].splitlines()
+    shown = keepsakes[1:-1]
+    assert keepsakes[0] == "Keepsakes"
+    assert keepsakes[-1] == f"・and {6 * len(KeepsakeKind) - len(shown)} more"
+    newest_first = [
+        Keepsake(kind, version, at).title
+        for version in range(6, 0, -1)
+        for kind in KeepsakeKind
+    ]
+    assert len(shown) < len(newest_first)
+    for line, title in zip(shown, newest_first, strict=False):
+        assert line.endswith(f"> {title}"), line
 
 
 async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
