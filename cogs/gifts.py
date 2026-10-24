@@ -33,7 +33,7 @@ from wisp.rules import (
     Gift,
     GiftCollection,
 )
-from wisp.text import MESSAGE_LIMIT, count, richest, with_emoji
+from wisp.text import count, richest, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -130,9 +130,7 @@ def _stock(
     return " ".join(_label(bot, gift) for gift in in_stock)
 
 
-def gift_section(
-    bot: "WispBot", state: GiftState | None, room: int = MESSAGE_LIMIT
-) -> list[str]:
+def gift_section(bot: "WispBot", state: GiftState | None, room: int) -> list[str]:
     """The Vault's Gifts lines: each collection's stock, or why it is shut.
 
     Once he has kept a gift today, a line says so before anyone pays. The
@@ -332,7 +330,7 @@ async def announce_gift(
 
 
 def collection_lines(
-    bot: "WispBot", kept: Sequence[GiftAttempt], room: int = MESSAGE_LIMIT
+    bot: "WispBot", kept: Sequence[GiftAttempt], room: int
 ) -> list[str]:
     """One line per collection this life has kept gifts from, in catalog order.
 

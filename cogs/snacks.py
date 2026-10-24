@@ -288,12 +288,15 @@ async def _confirm(
     note: str | None,
     context: str,
     collection: GiftCollection | None = None,
+    *,
+    tell_member: bool = False,
 ) -> None:
     """Show the Vault again under `note`; a failure is reported as `context`.
 
     With a picked `collection`, its gift select is shown too. A failure never
     reaches the caller, so whatever follows the confirmation, such as
-    announcing a gift, still happens.
+    announcing a gift, still happens. With `tell_member`, the member is also
+    told it failed, for when nothing else would answer them.
     """
     bot = bot_of(interaction)
     try:
@@ -304,6 +307,9 @@ async def _confirm(
             content=text, view=menu, allowed_mentions=_NO_PING
         )
     except EXPECTED_FAILURES as error:
+        if tell_member:
+            await report_failure(interaction, context, error)
+            return
         await bot.report_error(
             interaction.guild, context, error, where=where_of(interaction)
         )
@@ -400,9 +406,20 @@ async def _pick_collection(
     state = await todays_gifts(bot, require_guild(interaction), discord.utils.utcnow())
     reason = closed_reason(state, collection)
     if reason is not None:
-        await _confirm(interaction, reason, "showing a closed gift collection")
+        await _confirm(
+            interaction,
+            reason,
+            "showing a closed gift collection",
+            tell_member=True,
+        )
         return
-    await _confirm(interaction, None, "showing a gift collection", collection)
+    await _confirm(
+        interaction,
+        None,
+        "showing a gift collection",
+        collection,
+        tell_member=True,
+    )
 
 
 async def _give(interaction: discord.Interaction, gift: Gift) -> None:

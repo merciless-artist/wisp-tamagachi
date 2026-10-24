@@ -30,6 +30,7 @@ from wisp.gifts import GiftState, Outcome, decide, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
+from wisp.text import USER_ERROR
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -382,6 +383,16 @@ def test_every_gift_has_its_emoji_name_and_art() -> None:
             assert gift.collection == group.key
             assert gift.emoji_name == f"gift_{gift.key}"
             assert asset_image(ASSETS / "gifts", gift.key) is not None, gift.key
+
+
+def test_the_catalog_fits_discord_and_the_database() -> None:
+    for group in GIFT_COLLECTIONS:
+        assert len(group.gifts) <= 25, group.key
+        assert len(group.name) <= 100, group.key
+        for gift in group.gifts:
+            assert len(gift.key) <= 30, gift.key
+            assert len(gift.name) <= 100, gift.key
+            assert len(gift.title) <= 100, gift.key
 
 
 def test_gift_numbers_are_the_starting_values() -> None:
@@ -1142,6 +1153,7 @@ async def test_the_vault_fits_with_long_emojis_and_everything_in_stock(
     text, _ = await open_vault(bot)
 
     assert len(text) <= 2000
+    assert "Gifts ・" in text
     for group in GIFT_COLLECTIONS:
         assert f"・{group.name}: " in text
     assert "treasure today" in text
@@ -1220,3 +1232,38 @@ async def test_the_lunchbox_fits_with_every_collection_complete(
         f"・ finished by <@{10**18}>"
         for group in GIFT_COLLECTIONS
     ]
+
+
+@pytest.mark.parametrize(
+    ("kept_in_full", "context"),
+    [
+        (False, "showing a gift collection"),
+        (True, "showing a closed gift collection"),
+    ],
+)
+async def test_a_collection_pick_that_cannot_be_shown_tells_the_member(
+    bot: app.WispBot, kept_in_full: bool, context: str
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    _, selects = await open_vault(bot)
+    if kept_in_full:
+        yesterday = discord.utils.utcnow() - timedelta(days=1)
+        for gift in collection("jewels").gifts:
+            await bot.gifts.record(
+                GUILD_ID, life.id, USER_ID, gift.key, True, yesterday
+            )
+    select = collection_select(selects)
+    select._values = ["jewels"]
+    interaction = make_interaction(bot)
+    interaction.guild.id = GUILD_ID
+    interaction.channel.send = AsyncMock()
+    interaction.edit_original_response.side_effect = discord.HTTPException(
+        MagicMock(status=500), "Server Error"
+    )
+
+    await select.callback(interaction)
+
+    (report,) = interaction.channel.send.await_args.args
+    assert report.startswith(f"Error in {context}: HTTPException")
+    interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
