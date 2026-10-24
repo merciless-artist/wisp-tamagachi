@@ -44,8 +44,9 @@ next egg. Members can also talk to him in Wisp's House.
 - Developer Portal, Installation: User Install off. Public Bot off.
 - Bot permissions: Send Messages, Send Messages in Threads, Create Public
   Threads, Manage Threads, Pin Messages, Read Message History, Attach Files
-  (event art, eating GIFs, shame images, Vault art) and Embed Links (the "no u"
-  GIF, track previews).
+  (event art, eating GIFs, shame images, Studio thumbnails, the status card's
+  picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
+  Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
 - Upload the app emojis listed under Assets.
 - In the server, run `/wispadmin setup`, then `/wispadmin roles add` for each
   role allowed to feed Wisp.
@@ -55,13 +56,17 @@ next egg. Members can also talk to him in Wisp's House.
 Staff commands need the Manage Server permission.
 
 - `/wispadmin setup house studio tracks` sets Wisp's House, the Studio forum
-  and the track drop channel, and creates the Studio threads that are missing.
+  and the track drop channel, and creates the Studio threads that are missing
+  (see Wisp's Studio).
 - `/wispadmin roles add`, `roles remove`, `roles list` choose which roles can
   feed Wisp.
 - `/wispadmin food viibr suno` sets how many meal points a viibrmusic.com track
   and a Suno track feed Wisp (0 to 50 each; leaderboard points match), and
-  updates the How Wisp Works post. Until staff set them, the starting values
-  in `wisp/rules.py` apply.
+  updates the quick rules post at the end of the Wisp FAQ. Until staff set
+  them, the starting values in `wisp/rules.py` apply.
+- `/wispadmin faq` rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
+  pictures and rules post, posts them fresh and updates the table of
+  contents. Run it after the FAQ pictures change in a new release.
 - `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
 - `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
   The log line with the reason is posted publicly in the channel the command
@@ -90,6 +95,24 @@ its threads). The egg wobbles, the baby babbles and from Child on he answers wit
 AI. From Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns nothing: no bond and no points.
 
+## Wisp's Studio
+
+The Studio forum holds five threads, named exactly:
+
+- `☀️ | Status`: the live status card, which shows Wisp's current picture
+  (the egg, the coal egg, then his stage).
+- `🧡 | Mealtime`: every track that feeds him.
+- `🔒| The ViiBR Vault`: the pinned leaderboard and the shop.
+- `⚡｜Jam Space`: his favorite songs and lyrics.
+- `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
+  linking to one picture per section, and its last post is the quick rules
+  with the current numbers.
+
+Each thread's first post carries its picture, which the forum shows as the
+thumbnail. Setup renames a thread whose name differs, adds a missing
+thumbnail and fills a Wisp FAQ that has no sections yet, such as an older How
+Wisp Works thread.
+
 ## Errors
 
 There is no errors channel. Every error is posted as plain text,
@@ -109,12 +132,18 @@ posts text only.
   `pickles`), plus `eating/eat_pickles_love.gif` and
   `eating/eat_pickles_hate.gif` for pickles with a member whose pickle stance he
   knows.
-- `stages/<stage>.png` for `baby`, `child`, `teen`, `adult`, `rockstar`,
-  `old_fogey`, plus `stages/coal_egg.png` for the egg after a full life.
+- `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
+  `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full
+  life (the egg's picture stands in when it is missing). The status card and
+  the House's announcements use them.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
   `events/farewell.png`.
 - `shame/*` any images, picked at random when a member is punished.
-- `vault.png` for the first post of The ViiBR Vault thread.
+- `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
+  `thumbs/faq.png`, the thumbnails of the Studio threads.
+- `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's
+  section pictures. These are required: without all eleven the FAQ is not
+  built and the error is posted in its thread.
 - `gifts/<key>.png` (512px) for each gift, attached when Wisp keeps it.
 
 App emojis (uploaded to the application in the Developer Portal):

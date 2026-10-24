@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-23 (the Studio's look)
+
+- The Studio threads have Myra's names: `☀️ | Status`, `🧡 | Mealtime`,
+  `⚡｜Jam Space`, `🔒| The ViiBR Vault` and `📙｜Wisp FAQ` (was How Wisp
+  Works). Setup renames a thread whose name differs. Wisp's messages use the
+  plain titles, without emoji.
+- Each Studio thread's first post carries its thumbnail picture
+  (`ASSETS/thumbs/`, `ASSETS/vault.png`); setup adds one to a first post that
+  has no attachment.
+- The status card shows Wisp's current picture: the egg (or the coal egg),
+  then his stage. It is uploaded only when it changes, once more after a
+  restart, and missing art leaves the picture as it is. The House's new egg
+  post carries the egg picture too.
+- The Wisp FAQ thread is built from pictures: a table of contents with jump
+  links, one picture per section (`ASSETS/faq/`), then the quick rules post
+  with the current numbers, which `/wispadmin food` keeps editing. An existing
+  How Wisp Works thread is renamed and filled.
+- `/wispadmin faq` ("Rebuild the Wisp FAQ thread.") deletes Wisp's own FAQ
+  posts and posts them fresh.
+- The rules post is headed "Quick rules (current numbers)".
+- New column `settings.faq_message_ids` (TEXT, a JSON list of message ids).
+
 ## 2026-10-23 (gifts)
 
 - Gifts: the ViiBR Vault sells four collections of four gifts (Lunchbox
