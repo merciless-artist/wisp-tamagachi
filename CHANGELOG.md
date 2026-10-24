@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-24 (poke and badge review fixes)
+
+- A badge bought again in a new life keeps its role: the purchase marks the
+  member's older purchases of it as done, and a sweep that takes a role off
+  while the same badge is bought for the current life gives it straight back.
+- A purchase found already recorded is refunded and refused, and a role that
+  fails to be given for a network reason (not only a Discord error) is
+  refunded too.
+- Setup stops at the first missing permission and reports it once; a new
+  badge role that cannot be stored is deleted again and reported.
+- The badge sweep stops for the tick at a missing permission.
+- Wisp's own emojis: only names Discord allows (2 to 32 ASCII letters,
+  digits and underscores) are read, a server emote's name is never read out
+  as words ("a ViiBR emote of Wisp"), and `badge_<key>` emojis read as "your
+  <Badge> badge".
+
 ## 2026-10-24 (badges, take two)
 
 - Badge roles come off through a sweep on every life loop tick: each

@@ -906,3 +906,22 @@ async def test_pending_badges_are_the_unmarked_ones_of_ended_lives(
         "egg_warmer",
         "team_wisp",
     ]
+
+
+async def test_a_badge_bought_again_retires_its_older_purchases(db: Database) -> None:
+    repo = BadgeRepo(db)
+    first = await ended_life(db, 1, ended=True)
+    second = await ended_life(db, 2, ended=True)
+    current = await ended_life(db, 3, ended=False)
+    await repo.record(GUILD, USER, "egg_warmer", first, 1, NOW)
+    await repo.record(GUILD, USER, "egg_warmer", second, 2, NOW)
+    await repo.record(GUILD, USER, "team_wisp", second, 2, NOW)
+    await repo.record(GUILD, OTHER_USER, "egg_warmer", second, 2, NOW)
+    await repo.record(GUILD, USER, "egg_warmer", current, 3, NOW)
+
+    await repo.retire_older(GUILD, USER, "egg_warmer", current, NOW)
+
+    assert await repo.pending(GUILD) == [
+        PendingBadge(USER, "team_wisp", second, 2),
+        PendingBadge(OTHER_USER, "egg_warmer", second, 2),
+    ]

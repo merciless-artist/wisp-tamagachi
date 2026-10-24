@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import discord
+import pymysql
 import pytest
 
 import app
@@ -94,6 +96,7 @@ class FakeServer:
         role.name = name
         role.display_icon = icon
         role.edit = AsyncMock()
+        role.delete = AsyncMock()
         self.roles[role_id] = role
         return role
 
@@ -395,12 +398,27 @@ async def test_missing_manage_roles_is_reported_where_setup_ran(
 
     await set_up_roles(bot, server)
 
-    reports = [call.args[0] for call in server.setup_channel.send.await_args_list]
-    assert len(reports) == len(BADGES)
-    assert reports[0].startswith(
-        "Error in creating the Egg Warmer badge role: Forbidden"
-    )
+    (report,) = [call.args[0] for call in server.setup_channel.send.await_args_list]
+    assert report.startswith("Error in creating the Egg Warmer badge role: Forbidden")
+    server.guild.create_role.assert_awaited_once()
     assert await bot.badges.role_ids(GUILD_ID) == {}
+
+
+async def test_a_role_that_cannot_be_remembered_is_deleted_and_reported(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(bot.badges, "set_role", broken)
+
+    lines = await set_up_roles(bot, server)
+
+    (made,) = server.roles.values()
+    made.delete.assert_awaited_once()
+    (report,) = [call.args[0] for call in server.setup_channel.send.await_args_list]
+    assert report.startswith(
+        "Error in remembering the Egg Warmer badge role: OperationalError"
+    )
+    assert not any("created" in line for line in lines)
 
 
 # ---
@@ -695,6 +713,52 @@ async def test_a_role_that_cannot_be_given_refunds_everything(
     assert house_posts(server) == []
 
 
+@pytest.mark.parametrize(
+    "error",
+    [aiohttp.ClientConnectionError("reset"), OSError("network down"), TimeoutError()],
+)
+async def test_a_network_failure_giving_the_role_refunds_everything(
+    bot: app.WispBot, server: FakeServer, error: BaseException
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=300)
+    server.members[USER_ID].add_roles.side_effect = error
+
+    interaction = await buy(bot, server, "team_wisp")
+
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.bond) == (300, 0)
+    assert life.id is not None
+    assert await bot.badges.owned(GUILD_ID, USER_ID, life.id) == set()
+    assert shown_note(interaction) == (
+        "♪ Your Team Wisp badge didn't go through. Your points are back."
+    )
+    (report,) = [call.args[0] for call in interaction.channel.send.await_args_list]
+    assert report.startswith(
+        f"Error in giving the Team Wisp badge role: {type(error).__name__}"
+    )
+
+
+async def test_a_purchase_already_recorded_is_refunded(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot, points=100)
+    await buy(bot, server, "egg_warmer")
+    monkeypatch.setattr(bot.badges, "owned", AsyncMock(return_value=set()))
+
+    interaction = await buy(bot, server, "egg_warmer")
+
+    assert shown_note(interaction) == (
+        "♪ You already have the Egg Warmer badge for Wisp v1."
+    )
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.bond) == (75, 5)
+    server.members[USER_ID].add_roles.assert_awaited_once()
+
+
 async def test_badges_wait_for_a_wisp(bot: app.WispBot, server: FakeServer) -> None:
     await set_up_roles(bot, server)
     await rich(bot)
@@ -809,14 +873,14 @@ async def test_a_failed_removal_is_retried_and_reported_once_per_streak(
         await buy(bot, server, "egg_warmer", user_id)
     await end(bot, life)
     failing = server.members[USER_ID].remove_roles
-    failing.side_effect = forbidden()
+    failing.side_effect = http_error(500, "Internal Server Error")
     server.house.send.reset_mock()
 
     await sweep(bot)
     await sweep(bot)
 
     (report,) = house_posts(server)
-    assert report.startswith("Error in taking back badge roles: Forbidden")
+    assert report.startswith("Error in taking back badge roles: HTTPException")
     assert failing.await_count == 2
     server.members[OTHER_USER_ID].remove_roles.assert_awaited_once()
     assert [item.user_id for item in await bot.badges.pending(GUILD_ID)] == [USER_ID]
@@ -834,6 +898,77 @@ async def test_a_failed_removal_is_retried_and_reported_once_per_streak(
     server.house.send.reset_mock()
     await sweep(bot)
     assert len(house_posts(server)) == 1
+
+
+async def test_a_forbidden_removal_stops_the_sweep_for_that_tick(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    for user_id in (USER_ID, OTHER_USER_ID):
+        await rich(bot, user_id)
+        await buy(bot, server, "egg_warmer", user_id)
+    await end(bot, life)
+    first = server.members[USER_ID].remove_roles
+    first.side_effect = forbidden()
+    server.house.send.reset_mock()
+
+    await sweep(bot)
+    await sweep(bot)
+
+    (report,) = house_posts(server)
+    assert report.startswith("Error in taking back badge roles: Forbidden")
+    assert first.await_count == 2
+    server.members[OTHER_USER_ID].remove_roles.assert_not_awaited()
+    assert len(await bot.badges.pending(GUILD_ID)) == 2
+
+
+async def test_a_badge_bought_again_in_the_next_life_is_never_taken_off(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await buy(bot, server, "egg_warmer")
+    await end(bot, life)
+    await lay(bot, version=2)
+
+    await buy(bot, server, "egg_warmer")
+    await sweep(bot)
+
+    server.members[USER_ID].remove_roles.assert_not_awaited()
+    assert await bot.badges.pending(GUILD_ID) == []
+
+
+async def test_a_purchase_landing_mid_sweep_gets_its_role_back(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    await set_up_roles(bot, server)
+    await rich(bot)
+    await buy(bot, server, "egg_warmer")
+    await buy(bot, server, "team_wisp")
+    await end(bot, life)
+    new_life = await lay(bot, version=2)
+    new_id = new_life.id
+    assert new_id is not None
+    member = server.members[USER_ID]
+    member.add_roles.reset_mock()
+
+    async def bought_meanwhile(*_roles: Any, **_fields: Any) -> None:
+        await bot.badges.record(
+            GUILD_ID, USER_ID, "egg_warmer", new_id, 2, discord.utils.utcnow()
+        )
+
+    member.remove_roles.side_effect = bought_meanwhile
+
+    await sweep(bot)
+
+    member.remove_roles.assert_awaited_once()
+    member.add_roles.assert_awaited_once_with(
+        await role_of(bot, server, "egg_warmer"), reason="Bought again for Wisp v2"
+    )
+    assert await bot.badges.pending(GUILD_ID) == []
 
 
 async def test_the_next_life_sells_the_badges_again(

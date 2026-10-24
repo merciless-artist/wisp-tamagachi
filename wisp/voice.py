@@ -16,6 +16,7 @@ from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, is_over
 from wisp.rules import (
     AI_MAX_CHARS,
+    BADGE_BY_KEY,
     BOND_TIERS,
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
@@ -39,6 +40,10 @@ NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 EGG_EXPRESSION: Final = "wisp_egg"
 # The Vault's points, not one of his faces.
 COIN_EMOJI: Final = "wisp_coin"
+# A custom emoji name as Discord allows it.
+EMOJI_NAME_PATTERN: Final = r"[A-Za-z0-9_]{2,32}"
+_EMOJI_NAME: Final = re.compile(EMOJI_NAME_PATTERN)
+_SERVER_EMOTE: Final = "a ViiBR emote of Wisp"
 
 # ---
 # Who talks how
@@ -354,26 +359,42 @@ def poke_flavor(
 # ---
 
 
-def own_emojis(names: Iterable[str], app_emoji_names: Collection[str]) -> list[str]:
-    """The names among `names` that are Wisp's own emojis, each once, in order.
+@dataclass(frozen=True)
+class OwnEmoji:
+    """One of Wisp's emojis in a message: its name, and whether it is his app emoji.
+
+    Only an app emoji's name is read for its meaning. Any other emoji with
+    "wisp" in its name is a server emote, and its name is never read as words.
+    """
+
+    name: str
+    app: bool
+
+
+def own_emojis(
+    names: Iterable[str], app_emoji_names: Collection[str]
+) -> list[OwnEmoji]:
+    """The emojis among `names` that are Wisp's own, each once, in order.
 
     His own are his app emojis and any custom emoji with "wisp" in its name, in
-    any case.
+    any case. Only names Discord allows count: 2 to 32 ASCII letters, digits
+    and underscores.
     """
-    return list(
-        dict.fromkeys(
-            name
-            for name in names
-            if name in app_emoji_names or "wisp" in name.casefold()
-        )
-    )
+    return [
+        OwnEmoji(name, name in app_emoji_names)
+        for name in dict.fromkeys(names)
+        if _EMOJI_NAME.fullmatch(name)
+        and (name in app_emoji_names or "wisp" in name.lower())
+    ]
 
 
-def _emoji_meaning(name: str, whose: str) -> str:
+def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
     """What one of Wisp's emojis shows, told as `whose` ("your", "Wisp's")."""
-    kind, _, key = name.partition("_")
+    if not emoji.app:
+        return _SERVER_EMOTE
+    kind, _, key = emoji.name.partition("_")
     words = key.replace("_", " ")
-    if name == COIN_EMOJI:
+    if emoji.name == COIN_EMOJI:
         return "the coin members spend in the ViiBR Vault"
     if kind == "wisp" and key:
         return f"{whose} {words} face"
@@ -383,17 +404,19 @@ def _emoji_meaning(name: str, whose: str) -> str:
         return f"{words.title()}, one of {whose} keepsakes"
     if kind == "snack" and key in SNACK_BY_KEY:
         return f"{SNACK_BY_KEY[key].name}, one of {whose} snacks"
-    return "a ViiBR emote of Wisp"
+    if kind == "badge" and key in BADGE_BY_KEY:
+        return f"{whose} {BADGE_BY_KEY[key].name} badge"
+    return _SERVER_EMOTE
 
 
-def _emoji_note(names: Sequence[str], whose: str) -> str:
+def _emoji_note(emojis: Sequence[OwnEmoji], whose: str) -> str:
     """A note, to follow a message, naming the emojis of Wisp it used; or ""."""
-    if not names:
+    if not emojis:
         return ""
     uses = "; ".join(
-        f"{name}, which is {_emoji_meaning(name, whose)}" for name in names
+        f"{emoji.name}, which is {_emoji_meaning(emoji, whose)}" for emoji in emojis
     )
-    noun = "emoji" if len(names) == 1 else "emojis"
+    noun = "emoji" if len(emojis) == 1 else "emojis"
     return f" (they used {whose} own {noun}: {uses})"
 
 
@@ -411,7 +434,7 @@ def build_prompt(
     *,
     expressions: Sequence[str],
     poked: PokeFlavor | None = None,
-    own_emojis: Sequence[str] = (),
+    own_emojis: Sequence[OwnEmoji] = (),
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -577,7 +600,7 @@ def egg_prompt(
     *,
     emoji: bool,
     poked: PokeFlavor | None = None,
-    own_emojis: Sequence[str] = (),
+    own_emojis: Sequence[OwnEmoji] = (),
 ) -> Prompt:
     """The prompt for what the egg does when `poker` pokes it, saying `message`.
 

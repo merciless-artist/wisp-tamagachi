@@ -21,8 +21,10 @@ from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.voice import (
     EGG_EXPRESSION,
+    EMOJI_NAME_PATTERN,
     ChatLine,
     Fed,
+    OwnEmoji,
     PokeFlavor,
     Poker,
     Speaker,
@@ -48,7 +50,7 @@ _FALLBACK: Final = {
 }
 _MEMBER_MENTION: Final = re.compile(r"<@!?(\d+)>")
 _ROLE_OR_CHANNEL_MENTION: Final = re.compile(r"<(?:@&|#)\d+>")
-_CUSTOM_EMOJI: Final = re.compile(r"<a?:(\w+):\d+>")
+_CUSTOM_EMOJI: Final = re.compile(rf"<a?:({EMOJI_NAME_PATTERN}):\d+>")
 
 _POKE_CONTEXT: Final = "the Poke Wisp button"
 _POKE_BANNED: Final = "♪ Wisp isn't answering you right now."
@@ -125,7 +127,7 @@ async def _prompt(
     text: str | None,
     *,
     poked: PokeFlavor | None = None,
-    emojis: Sequence[str] = (),
+    emojis: Sequence[OwnEmoji] = (),
 ) -> Prompt:
     """The prompt for Wisp's answer, in the voice for `level`.
 

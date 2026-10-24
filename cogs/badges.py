@@ -5,12 +5,14 @@ Wisp's life; once that life has ended the life loop's sweep takes the roles
 back, and the buyers keep the badge in their Snack Pack.
 """
 
+import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
+import pymysql
 
 from cogs.assets import ASSETS_DIR
 from db.badges import OwnedBadge
@@ -26,6 +28,7 @@ BADGE_ART: Final = ASSETS_DIR / "badges"
 _ROLE_ICONS: Final = "ROLE_ICONS"
 _SET_UP: Final = "Wisp's badge for the ViiBR Vault"
 _TAKING_BACK: Final = "taking back badge roles"
+_FORGOTTEN: Final = "Wisp could not remember this badge role"
 _NO_ICONS: Final = (
     "・Role icons are not available on this server (it needs more boosts), "
     "so the badges have no icons."
@@ -79,15 +82,22 @@ async def ensure_badge_roles(
     Roles are found by their stored id, so a stored role that was deleted is
     created again. A role gets its icon when its art exists and the server can
     show role icons; one Discord turns the icon down is made without it, and
-    the server is treated as having no role icons. Any other failure, such as a
-    missing Manage Roles permission, is reported in `where`. Returns the lines
-    for the setup reply.
+    the server is treated as having no role icons. Failures are reported in
+    `where`. A missing permission, or a new role that cannot be remembered,
+    stops the setup there, since every later badge would fail the same way;
+    the role that was not remembered is deleted again. Returns the lines for
+    the setup reply.
     """
     setup = _RoleSetup(icons_allowed=_ROLE_ICONS in guild.features)
     stored = await bot.badges.role_ids(guild.id)
     for badge in BADGES:
         role_id = stored.get(badge.key)
         role = None if role_id is None else guild.get_role(role_id)
+        context = (
+            f"creating the {badge.name} badge role"
+            if role is None
+            else f"adding the {badge.name} badge icon"
+        )
         try:
             if role is None:
                 await _create_role(bot, guild, badge, setup)
@@ -96,20 +106,27 @@ async def ensure_badge_roles(
                 )
             elif await _add_icon(role, badge, setup):
                 setup.iconed.append(badge.name)
-        except discord.HTTPException as error:
-            context = (
-                f"creating the {badge.name} badge role"
-                if role is None
-                else f"adding the {badge.name} badge icon"
-            )
+        except discord.Forbidden as error:
             await bot.report_error(guild, context, error, where=where)
+            break
+        except discord.HTTPException as error:
+            await bot.report_error(guild, context, error, where=where)
+        except pymysql.err.Error as error:
+            context = f"remembering the {badge.name} badge role"
+            await bot.report_error(guild, context, error, where=where)
+            break
     return setup.lines()
 
 
 async def _create_role(
     bot: "WispBot", guild: discord.Guild, badge: Badge, setup: _RoleSetup
 ) -> None:
-    """Create a badge's role, with its icon when allowed, and remember it."""
+    """Create a badge's role, with its icon when allowed, and remember it.
+
+    Raises:
+        pymysql.err.Error: The role could not be remembered. It is deleted
+            again, as far as Discord allows.
+    """
     icon = _icon(badge) if setup.icons_allowed else None
     role: discord.Role | None = None
     if icon is not None:
@@ -123,7 +140,12 @@ async def _create_role(
             setup.icons_allowed = False
     if role is None:
         role = await guild.create_role(name=badge.name, reason=_SET_UP)
-    await bot.badges.set_role(guild.id, badge.key, role.id)
+    try:
+        await bot.badges.set_role(guild.id, badge.key, role.id)
+    except pymysql.err.Error:
+        with contextlib.suppress(discord.HTTPException):
+            await role.delete(reason=_FORGOTTEN)
+        raise
 
 
 async def _add_icon(role: discord.Role, badge: Badge, setup: _RoleSetup) -> bool:
@@ -256,8 +278,11 @@ async def sweep_badges(bot: "WispBot", guild_id: int, now: datetime) -> None:
 
     Each purchase is marked once its role is off, or once its member left or
     its role is gone, so it is never handled again; with nothing pending this
-    is one query. A failure leaves the purchase for the next sweep and is
-    reported in Wisp's House once per streak of failing sweeps.
+    is one query. A member who bought the badge again for the current life
+    while the role came off gets it straight back. A failure leaves the
+    purchase for the next sweep and is reported in Wisp's House once per
+    streak of failing sweeps; a missing permission ends this sweep, since the
+    rest would fail the same way.
     """
     streak = (guild_id, _TAKING_BACK)
     pending = await bot.badges.pending(guild_id)
@@ -275,17 +300,18 @@ async def sweep_badges(bot: "WispBot", guild_id: int, now: datetime) -> None:
         )
     failed = False
     for (user_id, life_id, version), keys in grouped.items():
-        roles = [
-            role
+        roles = {
+            key: role
             for key in sorted(keys)
             if key in role_ids and (role := guild.get_role(role_ids[key])) is not None
-        ]
+        }
         try:
             if roles:
                 member = await guild.fetch_member(user_id)
                 await member.remove_roles(
-                    *roles, reason=f"Wisp v{version}'s life ended"
+                    *roles.values(), reason=f"Wisp v{version}'s life ended"
                 )
+                await _give_back_rebought(bot, guild_id, member, roles)
         except discord.NotFound:
             pass
         except discord.HTTPException as error:
@@ -293,7 +319,31 @@ async def sweep_badges(bot: "WispBot", guild_id: int, now: datetime) -> None:
             if streak not in bot.failing_displays:
                 bot.failing_displays.add(streak)
                 await bot.report_error(guild, _TAKING_BACK, error)
+            if isinstance(error, discord.Forbidden):
+                return
             continue
         await bot.badges.mark_removed(guild_id, user_id, life_id, keys, now)
     if not failed:
         bot.failing_displays.discard(streak)
+
+
+async def _give_back_rebought(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.Member,
+    removed: dict[str, discord.Role],
+) -> None:
+    """Give back any just-removed role the member bought again for the current life.
+
+    A purchase can land between the sweep reading what is pending and taking
+    the roles off.
+    """
+    life = await bot.lives.current(guild_id)
+    if life is None or life.id is None or is_over(life):
+        return
+    owned = await bot.badges.owned(guild_id, member.id, life.id)
+    rebought = [role for key, role in removed.items() if key in owned]
+    if rebought:
+        await member.add_roles(
+            *rebought, reason=f"Bought again for Wisp v{life.version}"
+        )

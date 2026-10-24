@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
+import aiohttp
 import discord
 
 from cogs.announce import post_in_house, say_in_house
@@ -88,6 +89,12 @@ _BADGE_NOT_READY: Final = (
 )
 _NONE_YET: Final = "・None yet"
 _ROLE_REASON: Final = "Bought in the ViiBR Vault"
+_ROLE_FAILURES: Final = (
+    discord.HTTPException,
+    aiohttp.ClientError,
+    OSError,
+    TimeoutError,
+)
 
 _FREE: Final = next(snack for snack in SNACKS if snack.cost == 0)
 _MENU: Final = PAID_SNACKS
@@ -472,7 +479,7 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
         return
     try:
         await user.add_roles(role, reason=_ROLE_REASON)
-    except discord.HTTPException as error:
+    except _ROLE_FAILURES as error:
         async with bot.guild_lock(guild_id):
             await _return_badge(bot, guild_id, user.id, badge, life)
         await bot.report_error(
@@ -506,8 +513,9 @@ async def _take_badge(
 ) -> tuple[Life, Player]:
     """Sell the member a badge for the current life. Call this under the guild lock.
 
-    Its bond is outside the daily casual bond cap. Returns the life it was
-    bought for and the buyer.
+    Its bond is outside the daily casual bond cap. The member's purchases of
+    the badge for earlier lives are marked done, since they keep the role.
+    Returns the life it was bought for and the buyer.
 
     Raises:
         Refusal: The member is banned or cannot feed Wisp, is below the badge's
@@ -521,15 +529,22 @@ async def _take_badge(
     if life is None or life.id is None or is_over(life):
         raise Refusal(_NO_WISP)
     if badge.key in await bot.badges.owned(guild_id, member.id, life.id):
-        raise Refusal(
-            f"♪ You already have the {badge.name} badge for Wisp v{life.version}."
-        )
+        raise Refusal(_already_have(badge, life))
     if not await bot.players.spend(guild_id, member.id, badge.cost):
         name = player.name or member.display_name
         raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
-    await bot.badges.record(guild_id, member.id, badge.key, life.id, life.version, now)
+    if not await bot.badges.record(
+        guild_id, member.id, badge.key, life.id, life.version, now
+    ):
+        await bot.players.refund(guild_id, member.id, badge.cost)
+        raise Refusal(_already_have(badge, life))
+    await bot.badges.retire_older(guild_id, member.id, badge.key, life.id, now)
     await bot.players.add_bond(guild_id, member.id, badge.bond)
     return life, player
+
+
+def _already_have(badge: Badge, life: Life) -> str:
+    return f"♪ You already have the {badge.name} badge for Wisp v{life.version}."
 
 
 async def _return_badge(

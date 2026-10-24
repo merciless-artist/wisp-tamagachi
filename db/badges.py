@@ -128,6 +128,21 @@ class BadgeRepo:
             for row in rows
         ]
 
+    async def retire_older(
+        self, guild_id: int, user_id: int, badge: str, life_id: int, at: datetime
+    ) -> None:
+        """Mark the member's unmarked purchases of a badge for other lives as done.
+
+        A member who buys a badge again keeps its role, so the sweep must not
+        take it back for an earlier life.
+        """
+        await self._db.execute(
+            f"UPDATE {self._db.t('badges')} SET removed_at = %s "
+            "WHERE guild_id = %s AND user_id = %s AND badge = %s "
+            "AND life_id <> %s AND removed_at IS NULL",
+            (to_db_time(at), guild_id, user_id, badge, life_id),
+        )
+
     async def mark_removed(
         self,
         guild_id: int,

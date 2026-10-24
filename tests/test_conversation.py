@@ -989,6 +989,22 @@ async def test_wisps_own_emojis_are_pointed_out_in_the_prompt(
     )
 
 
+async def test_only_emoji_names_discord_allows_are_read(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    overlong = "wisp" + "x" * 30
+    said = message.to_wisp(f"hi <:wïsp:1> <:{overlong}:2> <:wisp_say_everyone:3>")
+
+    await cog.on_message(said)
+
+    (prompt,) = prompts(ai)
+    assert prompt.user.endswith(
+        f"Member1 says to you: hi <:wïsp:1> <:{overlong}:2> :wisp_say_everyone: "
+        "(they used your own emoji: wisp_say_everyone, which is a ViiBR emote of Wisp)"
+    )
+
+
 async def test_the_egg_sees_its_own_emoji_in_a_message(
     cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
 ) -> None:
