@@ -1,6 +1,6 @@
 import pytest
 
-from wisp.text import USER_ERROR, count, strip_emoji
+from wisp.text import USER_ERROR, count, richest, strip_emoji
 
 
 @pytest.mark.parametrize(
@@ -9,6 +9,15 @@ from wisp.text import USER_ERROR, count, strip_emoji
 )
 def test_count_pluralises_unless_one(amount: int, expected: str) -> None:
     assert count(amount, "point") == expected
+
+
+def test_richest_swaps_in_rich_lines_while_they_fit() -> None:
+    plain = ["a", "b", "c"]
+    rich = ["a" * 5, "b" * 50, "c" * 5]
+
+    assert richest(plain, rich, 15) == ["aaaaa", "b", "ccccc"]
+    assert richest(plain, rich, 100) == rich
+    assert richest(plain, rich, 1) == plain
 
 
 def test_strip_emoji_keeps_dots_and_notes() -> None:

@@ -10,6 +10,8 @@ from enum import StrEnum, auto
 from wisp.rules import GIFT_COLLECTIONS, GIFT_LIKE_CHANCE, Gift, GiftCollection
 
 _VOWELS = frozenset("AEIOUaeiou")
+# Letters whose names start with a vowel sound: "an L Block", "an S Block".
+_VOWEL_LETTERS = frozenset("AEFHILMNORSX")
 
 
 class Outcome(StrEnum):
@@ -45,14 +47,9 @@ class GiftState:
         """Whether a member can give this gift now."""
         return self.in_stock(gift) and self.is_open(collection_of(gift))
 
-    def offered(self) -> list[Gift]:
-        """Every gift that can be given now, in catalog order."""
-        return [
-            gift
-            for collection in GIFT_COLLECTIONS
-            for gift in collection.gifts
-            if self.can_give(gift)
-        ]
+    def offered_from(self, collection: GiftCollection) -> list[Gift]:
+        """The collection's gifts that can be given now, in catalog order."""
+        return [gift for gift in collection.gifts if self.can_give(gift)]
 
     def completes(self, gift: Gift) -> bool:
         """Whether keeping this gift would finish its collection."""
@@ -76,5 +73,11 @@ def decide(state: GiftState, rng: random.Random) -> Outcome:
 
 
 def with_article(title: str) -> str:
-    """`title` after "a", or "an" before a vowel."""
-    return f"an {title}" if title[:1] in _VOWELS else f"a {title}"
+    """`title` after "a", or "an" before a vowel sound.
+
+    A first word that is a single letter is read as the letter's name, so it
+    is "an L Block" but "a T Block".
+    """
+    first = title.split(" ", 1)[0]
+    vowels = _VOWEL_LETTERS if len(first) == 1 else _VOWELS
+    return f"an {title}" if first[:1] in vowels else f"a {title}"

@@ -213,7 +213,7 @@ class Gift:
     """A gift members can give Wisp from the Vault.
 
     `collection` is the key of its collection and `title` is how messages name
-    it, such as "Blue Alien Doll".
+    it, such as "Blue Alien Doll" or "I Block".
     """
 
     key: str
@@ -225,11 +225,6 @@ class Gift:
     def emoji_name(self) -> str:
         """Name of the app emoji that shows this gift."""
         return f"gift_{self.key}"
-
-    @property
-    def image_name(self) -> str:
-        """File name of this gift's picture in ASSETS/gifts."""
-        return f"{self.key}.png"
 
 
 @dataclass(frozen=True)
@@ -243,14 +238,29 @@ class GiftCollection:
 
 
 def _collection(
-    key: str, name: str, item: str, gifts: tuple[tuple[str, str], ...]
+    key: str,
+    name: str,
+    item: str,
+    gifts: tuple[tuple[str, str], ...],
+    *,
+    named_by_item: bool = True,
 ) -> GiftCollection:
+    """A collection whose gifts are titled "<name> <item>", such as "Red Book".
+
+    With `named_by_item` off, each gift's name is already its whole title,
+    such as "Mimitchi".
+    """
     return GiftCollection(
         key,
         name,
         item,
         tuple(
-            Gift(gift_key, gift_name, key, f"{gift_name} {item}")
+            Gift(
+                gift_key,
+                gift_name,
+                key,
+                f"{gift_name} {item}" if named_by_item else gift_name,
+            )
             for gift_key, gift_name in gifts
         ),
     )
@@ -301,9 +311,50 @@ GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
             ("card_seeyou", "See You"),
         ),
     ),
+    _collection(
+        "tamagotchis",
+        "Tamagotchis",
+        "Tamagotchi",
+        (
+            ("tama_hawaikotchi", "Hawaikotchi"),
+            ("tama_mimitchi", "Mimitchi"),
+            ("tama_nano", "Tamagotchi Nano"),
+            ("tama_welcotchi", "Welcotchi"),
+        ),
+        named_by_item=False,
+    ),
+    _collection(
+        "tetris",
+        "Tetris",
+        "Tetris Toy",
+        (
+            ("tetris_handheld", "Tetris Handheld"),
+            ("tetris_i", "I Block"),
+            ("tetris_l", "L Block"),
+            ("tetris_t", "T Block"),
+            ("tetris_s", "S Block"),
+            ("tetris_z", "Z Block"),
+        ),
+        named_by_item=False,
+    ),
+    _collection(
+        "jewels",
+        "Jewels",
+        "Jewel",
+        (
+            ("jewel_amethyst", "Amethyst"),
+            ("jewel_crystal", "Crystal"),
+            ("jewel_rainbow", "Rainbow Jewel"),
+            ("jewel_ruby", "Ruby"),
+        ),
+        named_by_item=False,
+    ),
 )
 GIFT_BY_KEY: dict[str, Gift] = {
     gift.key: gift for collection in GIFT_COLLECTIONS for gift in collection.gifts
+}
+COLLECTION_BY_KEY: dict[str, GiftCollection] = {
+    collection.key: collection for collection in GIFT_COLLECTIONS
 }
 
 # ---

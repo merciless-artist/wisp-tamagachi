@@ -35,6 +35,21 @@ def fit(head: list[str], optional: list[str], tail: Sequence[str] = ()) -> str:
     return "\n".join([*lines, *tail])
 
 
+def richest(plain: Sequence[str], rich: Sequence[str], room: int) -> list[str]:
+    """`plain`, with each line swapped for its `rich` form while all still fit.
+
+    Lines are tried in order, and a swap is kept only when the joined lines
+    stay within `room` characters. The plain lines are kept even when they do
+    not fit.
+    """
+    lines = list(plain)
+    for index, line in enumerate(rich):
+        tried = [*lines[:index], line, *lines[index + 1 :]]
+        if len("\n".join(tried)) <= room:
+            lines = tried
+    return lines
+
+
 def count(amount: int, noun: str) -> str:
     """`amount` with `noun`, pluralised with an "s" unless the amount is one."""
     return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"

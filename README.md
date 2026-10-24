@@ -80,7 +80,8 @@ Member commands:
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
 - `/wisp vault` is the shop: buy snacks with your points, or give Wisp a
-  gift from one of four collections. He might not like it.
+  gift from one of seven collections: pick a collection, then a gift. He
+  might not like it.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks and keepsakes,
   like a Last Ember, with a button to shop the Vault.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
@@ -115,7 +116,7 @@ Snack Pack and announced in Wisp's House:
 - the First Spark, Teen Spark and Adult Spark when he grows into a Child, Teen
   and Adult, and the Guitar Pick when he becomes a Rockstar, to the member who
   last interacted with him;
-- the Reading Glasses when he grows old, to the member who last interacted
+- the Time Piece when he grows old, to the member who last interacted
   with him;
 - the Last Ember after a full life, to that life's top sharers.
 
@@ -170,9 +171,10 @@ posts text only.
 - `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's
   section pictures. These are required: without all eleven the FAQ is not
   built and the error is posted in its thread.
-- `gifts/<key>.png` (512px) for each gift, attached when Wisp keeps it.
-- `keepsakes/<kind>.png` for `eggshell`, `first_spark`, `teen_spark`,
-  `adult_spark`, `guitar_pick`, `reading_glasses` and `last_ember`,
+- `gifts/<key>.gif` or `gifts/<key>.png` (512px) for each gift, attached
+  when Wisp keeps it. An animated GIF is used before a PNG.
+- `keepsakes/<kind>.gif` or `.png` for `eggshell`, `first_spark`,
+  `teen_spark`, `adult_spark`, `guitar_pick`, `time_piece` and `last_ember`,
   attached when the keepsake is given.
 
 App emojis (uploaded to the application in the Developer Portal):

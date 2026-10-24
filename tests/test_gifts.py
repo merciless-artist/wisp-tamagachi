@@ -15,6 +15,7 @@ import pytest
 
 import app
 from cogs import gifts, snacks
+from cogs.assets import asset_image
 from cogs.gifts import Gifts
 from cogs.wisp_lunchbox import lunchbox_text
 from db.activity import ActivityRepo, InteractionKind
@@ -43,6 +44,8 @@ ASSETS = Path(__file__).resolve().parent.parent / "ASSETS"
 KEEP = 0.0
 PASS = 0.99
 GIVE = "Give Wisp a gift"
+PICK = "Pick a collection"
+LONG_EMOJI = "<a:" + "e" * 23 + ":" + "1" * 19 + ">"
 
 # ---
 # Fakes
@@ -186,9 +189,64 @@ async def open_vault(
     return call.args[0], list(call.kwargs["view"].children)
 
 
-def gift_select(selects: list[discord.ui.Select[Any]]) -> discord.ui.Select[Any]:
-    (select,) = [select for select in selects if select.placeholder == GIVE]
+def placeholder_select(
+    selects: list[discord.ui.Select[Any]], placeholder: str
+) -> discord.ui.Select[Any]:
+    (select,) = [select for select in selects if select.placeholder == placeholder]
     return select
+
+
+def gift_select(selects: list[discord.ui.Select[Any]]) -> discord.ui.Select[Any]:
+    return placeholder_select(selects, GIVE)
+
+
+def collection_select(
+    selects: list[discord.ui.Select[Any]],
+) -> discord.ui.Select[Any]:
+    return placeholder_select(selects, PICK)
+
+
+def shown(interaction: MagicMock) -> tuple[str, list[discord.ui.Select[Any]]]:
+    """The Vault as an interaction last showed it: its text and its selects."""
+    call = interaction.edit_original_response.await_args
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    return call.kwargs["content"], list(call.kwargs["view"].children)
+
+
+async def pick(
+    bot: app.WispBot,
+    collection_key: str,
+    user_id: int = USER_ID,
+    select: discord.ui.Select[Any] | None = None,
+) -> MagicMock:
+    """Pick a collection in the Vault, opened now unless a select is given."""
+    if select is None:
+        _, selects = await open_vault(bot, user_id)
+        select = collection_select(selects)
+    select._values = [collection_key]
+    interaction = make_interaction(bot, user_id)
+    await select.callback(interaction)
+    return interaction
+
+
+async def item_select(
+    bot: app.WispBot, collection_key: str, user_id: int = USER_ID
+) -> discord.ui.Select[Any]:
+    """The gift select the Vault shows after picking a collection."""
+    _, selects = shown(await pick(bot, collection_key, user_id))
+    return gift_select(selects)
+
+
+async def offered(bot: app.WispBot, user_id: int = USER_ID) -> list[str]:
+    """Every gift the Vault offers now, collection by collection."""
+    _, selects = await open_vault(bot, user_id)
+    pickers = [select for select in selects if select.placeholder == PICK]
+    keys: list[str] = []
+    for picker in pickers:
+        for option in picker.options:
+            items = await item_select(bot, option.value, user_id)
+            keys.extend(item.value for item in items.options)
+    return keys
 
 
 async def give(
@@ -198,10 +256,9 @@ async def give(
     roles: tuple[int, ...] = (QUALIFYING_ROLE,),
     select: discord.ui.Select[Any] | None = None,
 ) -> MagicMock:
-    """Give a gift through the Vault's gift select, opened now unless one is given."""
+    """Give a gift through the Vault's two selects, picked now unless one is given."""
     if select is None:
-        _, selects = await open_vault(bot, user_id)
-        select = gift_select(selects)
+        select = await item_select(bot, GIFT_BY_KEY[key].collection, user_id)
     select._values = [key]
     interaction = make_interaction(bot, user_id, roles)
     await select.callback(interaction)
@@ -250,7 +307,7 @@ def collection(key: str) -> rules.GiftCollection:
 # ---
 
 
-def test_there_are_four_collections_of_four() -> None:
+def test_there_are_seven_collections_in_order() -> None:
     assert [
         (group.name, [gift.key for gift in group.gifts]) for group in GIFT_COLLECTIONS
     ] == [
@@ -269,7 +326,26 @@ def test_there_are_four_collections_of_four() -> None:
                 "card_seeyou",
             ],
         ),
+        (
+            "Tamagotchis",
+            ["tama_hawaikotchi", "tama_mimitchi", "tama_nano", "tama_welcotchi"],
+        ),
+        (
+            "Tetris",
+            [
+                "tetris_handheld",
+                "tetris_i",
+                "tetris_l",
+                "tetris_t",
+                "tetris_s",
+                "tetris_z",
+            ],
+        ),
+        ("Jewels", ["jewel_amethyst", "jewel_crystal", "jewel_rainbow", "jewel_ruby"]),
     ]
+    assert [len(group.gifts) for group in GIFT_COLLECTIONS] == [4, 4, 4, 4, 4, 6, 4]
+    assert all(len(key) <= 30 for key in GIFT_BY_KEY)
+    assert len(GIFT_BY_KEY) == 30
 
 
 @pytest.mark.parametrize(
@@ -280,6 +356,20 @@ def test_there_are_four_collections_of_four() -> None:
         ("book_red", "Red Book"),
         ("card_keepcalm", "Keep Calm Affirmation Card"),
         ("card_futureisbright", "Future Is Bright Affirmation Card"),
+        ("tama_hawaikotchi", "Hawaikotchi"),
+        ("tama_mimitchi", "Mimitchi"),
+        ("tama_nano", "Tamagotchi Nano"),
+        ("tama_welcotchi", "Welcotchi"),
+        ("tetris_handheld", "Tetris Handheld"),
+        ("tetris_i", "I Block"),
+        ("tetris_l", "L Block"),
+        ("tetris_t", "T Block"),
+        ("tetris_s", "S Block"),
+        ("tetris_z", "Z Block"),
+        ("jewel_amethyst", "Amethyst"),
+        ("jewel_crystal", "Crystal"),
+        ("jewel_rainbow", "Rainbow Jewel"),
+        ("jewel_ruby", "Ruby"),
     ],
 )
 def test_a_gift_reads_with_its_collection(key: str, title: str) -> None:
@@ -291,7 +381,7 @@ def test_every_gift_has_its_emoji_name_and_art() -> None:
         for gift in group.gifts:
             assert gift.collection == group.key
             assert gift.emoji_name == f"gift_{gift.key}"
-            assert (ASSETS / "gifts" / f"{gift.key}.png").is_file(), gift.key
+            assert asset_image(ASSETS / "gifts", gift.key) is not None, gift.key
 
 
 def test_gift_numbers_are_the_starting_values() -> None:
@@ -303,7 +393,19 @@ def test_gift_numbers_are_the_starting_values() -> None:
 
 @pytest.mark.parametrize(
     ("title", "expected"),
-    [("Orange Book", "an Orange Book"), ("Blue Alien Doll", "a Blue Alien Doll")],
+    [
+        ("Orange Book", "an Orange Book"),
+        ("Blue Alien Doll", "a Blue Alien Doll"),
+        ("Amethyst", "an Amethyst"),
+        ("Ruby", "a Ruby"),
+        ("Hawaikotchi", "a Hawaikotchi"),
+        ("I Block", "an I Block"),
+        ("L Block", "an L Block"),
+        ("S Block", "an S Block"),
+        ("T Block", "a T Block"),
+        ("Z Block", "a Z Block"),
+        ("Tetris Toy", "a Tetris Toy"),
+    ],
 )
 def test_a_gift_gets_the_right_article(title: str, expected: str) -> None:
     assert with_article(title) == expected
@@ -339,11 +441,9 @@ def test_the_state_knows_stock_open_collections_and_completion() -> None:
     assert state.can_give(aliens.gifts[3])
     assert state.completes(aliens.gifts[3])
     assert not state.can_give(collection("books").gifts[0])
-    assert state.offered() == [
-        *collection("liners").gifts,
-        aliens.gifts[3],
-        *collection("cards").gifts,
-    ]
+    assert state.offered_from(aliens) == [aliens.gifts[3]]
+    assert state.offered_from(collection("books")) == []
+    assert state.offered_from(collection("tetris")) == list(collection("tetris").gifts)
 
 
 # ---
@@ -411,9 +511,7 @@ async def test_a_kept_gift_leaves_the_vault_and_gives_bond_and_growth(
     reply = edited(interaction)
     assert reply.startswith("♪ Wisp kept your Blue Alien Doll")
     assert f"{100 - rules.GIFT_COST} points" in reply
-    _, selects = await open_vault(bot)
-    options = [option.value for option in gift_select(selects).options]
-    assert "alien_blue" not in options
+    assert "alien_blue" not in await offered(bot)
 
 
 async def test_a_kept_gift_brings_its_art_when_it_exists(
@@ -468,15 +566,14 @@ async def test_a_collection_is_given_from_once_a_day(
 ) -> None:
     await lay(bot)
     cog.rng = FixedRandom(PASS)
-    _, before = await open_vault(bot, OTHER_USER_ID)
+    before = await item_select(bot, "aliens", OTHER_USER_ID)
     await give(bot, "alien_blue")
 
-    text, selects = await open_vault(bot, OTHER_USER_ID)
-    options = [option.value for option in gift_select(selects).options]
-    assert not any(option.startswith("alien_") for option in options)
+    text, _ = await open_vault(bot, OTHER_USER_ID)
+    assert not any(key.startswith("alien_") for key in await offered(bot))
     assert "・Alien Dolls: back tomorrow" in text
 
-    stale = await give(bot, "alien_green", OTHER_USER_ID, select=gift_select(before))
+    stale = await give(bot, "alien_green", OTHER_USER_ID, select=before)
 
     assert await balance(bot, OTHER_USER_ID) == 100
     assert "Alien Doll" in edited(stale) and "tomorrow" in edited(stale)
@@ -548,9 +645,9 @@ async def test_a_new_life_restocks_the_vault(bot: app.WispBot) -> None:
     )
     await lay(bot, version=2)
 
-    text, selects = await open_vault(bot)
+    text, _ = await open_vault(bot)
 
-    options = [option.value for option in gift_select(selects).options]
+    options = await offered(bot)
     assert options == [gift.key for group in GIFT_COLLECTIONS for gift in group.gifts]
     assert "back tomorrow" not in text
     assert "all kept" not in text
@@ -576,10 +673,10 @@ async def test_a_ban_after_opening_the_vault_refuses_the_gift(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
-    _, selects = await open_vault(bot)
+    select = await item_select(bot, "aliens")
     await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
 
-    interaction = await give(bot, "alien_blue", select=gift_select(selects))
+    interaction = await give(bot, "alien_blue", select=select)
 
     assert "not taking snacks or gifts" in edited(interaction)
     assert await balance(bot) == 100
@@ -603,10 +700,10 @@ async def test_wisp_must_be_alive_for_gifts(
     bot: app.WispBot, server: FakeServer, phase: Phase
 ) -> None:
     await lay(bot)
-    _, selects = await open_vault(bot)
+    select = await item_select(bot, "aliens")
     await lay(bot, phase=phase, care=0.0, version=2)
 
-    interaction = await give(bot, "alien_blue", select=gift_select(selects))
+    interaction = await give(bot, "alien_blue", select=select)
 
     assert "isn't hatched" in edited(interaction)
     assert await balance(bot) == 100
@@ -667,17 +764,120 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
         f"{emoji_text('gift_alien_green', 3)} Purple Yellow",
         "・Books: Blue Green Orange Red",
         "・Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You",
+        "・Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi",
+        "・Tetris: Tetris Handheld I Block L Block T Block S Block Z Block",
+        "・Jewels: Amethyst Crystal Rainbow Jewel Ruby",
     ]
     assert len(text) < 2000
-    snack_select, gift_choices = selects
+    snack_select, collections = selects
     assert snack_select.placeholder == "Buy a snack"
-    assert gift_choices.placeholder == GIVE
-    assert [option.value for option in gift_choices.options] == [
-        gift.key for group in GIFT_COLLECTIONS for gift in group.gifts
+    assert collections.placeholder == PICK
+    assert [
+        (option.label, option.value, option.description)
+        for option in collections.options
+    ] == [
+        (group.name, group.key, f"{len(group.gifts)} left")
+        for group in GIFT_COLLECTIONS
     ]
-    blue = gift_choices.options[4]
-    assert blue.label == "Blue Alien Doll"
-    assert str(blue.emoji) == emoji_text("gift_alien_blue", 2)
+    aliens = collections.options[1]
+    assert str(aliens.emoji) == emoji_text("gift_alien_blue", 2)
+
+
+async def test_picking_a_collection_shows_its_gifts_with_the_price(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    yesterday = discord.utils.utcnow() - timedelta(days=1)
+    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "tetris_i", True, yesterday)
+    give_emojis(bot, "gift_tetris_l")
+
+    interaction = await pick(bot, "tetris")
+
+    text, selects = shown(interaction)
+    assert text.startswith("♪ The ViiBR Vault")
+    assert [select.placeholder for select in selects] == ["Buy a snack", PICK, GIVE]
+    items = gift_select(selects)
+    assert [(option.label, option.value) for option in items.options] == [
+        ("Tetris Handheld", "tetris_handheld"),
+        ("L Block", "tetris_l"),
+        ("T Block", "tetris_t"),
+        ("S Block", "tetris_s"),
+        ("Z Block", "tetris_z"),
+    ]
+    assert {option.description for option in items.options} == {"15 points"}
+    assert str(items.options[1].emoji) == emoji_text("gift_tetris_l", 1)
+    tetris = collection_select(selects).options[5]
+    assert tetris.description == "5 left"
+    assert await balance(bot) == 100
+
+
+async def test_no_vault_select_ever_has_more_than_25_options(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+
+    _, selects = await open_vault(bot)
+
+    picker = collection_select(selects)
+    assert len(picker.options) == len(GIFT_COLLECTIONS) <= 25
+    for option in picker.options:
+        items = await item_select(bot, option.value)
+        assert len(items.options) <= 25
+    assert all(len(select.options) <= 25 for select in selects)
+
+
+async def test_a_collection_closed_after_opening_the_vault_is_refused(
+    bot: app.WispBot, server: FakeServer, cog: Gifts
+) -> None:
+    await lay(bot)
+    cog.rng = FixedRandom(PASS)
+    _, before = await open_vault(bot, OTHER_USER_ID)
+    await give(bot, "jewel_ruby")
+
+    interaction = await pick(
+        bot, "jewels", OTHER_USER_ID, select=collection_select(before)
+    )
+
+    text, selects = shown(interaction)
+    assert text.startswith(
+        "♪ Someone already gave Wisp a Jewel today. Back tomorrow.\n"
+    )
+    assert GIVE not in [select.placeholder for select in selects]
+    assert "jewels" not in [
+        option.value for option in collection_select(selects).options
+    ]
+    assert await balance(bot, OTHER_USER_ID) == 100
+    assert server.house.send.await_count == 1
+
+
+async def test_a_collection_kept_in_full_is_refused(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    _, before = await open_vault(bot)
+    yesterday = discord.utils.utcnow() - timedelta(days=1)
+    for gift in collection("jewels").gifts:
+        await bot.gifts.record(GUILD_ID, life.id, USER_ID, gift.key, True, yesterday)
+
+    interaction = await pick(bot, "jewels", select=collection_select(before))
+
+    text, selects = shown(interaction)
+    assert text.startswith("♪ Wisp already kept every gift in Jewels this life.\n")
+    assert GIVE not in [select.placeholder for select in selects]
+
+
+async def test_picking_a_collection_once_he_is_gone_says_gifts_wait(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    _, before = await open_vault(bot)
+    await lay(bot, phase=Phase.DEAD, care=0.0, version=2)
+
+    interaction = await pick(bot, "aliens", select=collection_select(before))
+
+    text, selects = shown(interaction)
+    assert text.startswith("♪ Wisp isn't hatched yet.")
+    assert [select.placeholder for select in selects] == ["Buy a snack"]
 
 
 async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None:
@@ -688,11 +888,11 @@ async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None
     await bot.gifts.record(GUILD_ID, life.id, USER_ID, "alien_blue", True, yesterday)
     await bot.gifts.record(GUILD_ID, life.id, USER_ID, "book_red", False, now)
 
-    text, selects = await open_vault(bot)
+    text, _ = await open_vault(bot)
 
     assert "・Alien Dolls: Green Purple Yellow" in text
     assert "・Books: back tomorrow" in text
-    options = [option.value for option in gift_select(selects).options]
+    options = await offered(bot)
     assert "alien_blue" not in options
     assert not any(option.startswith("book_") for option in options)
     assert "alien_green" in options
@@ -706,14 +906,14 @@ async def test_the_vault_warns_when_he_already_kept_a_gift_today(
     now = discord.utils.utcnow()
     await bot.gifts.record(GUILD_ID, life.id, USER_ID, "alien_blue", True, now)
 
-    text, selects = await open_vault(bot)
+    text, _ = await open_vault(bot)
 
     gift_lines = text.split("\n\n")[1].splitlines()
     assert gift_lines[1] == (
         "・Wisp already picked his treasure today. "
         "Anything you give him goes back to the Vault."
     )
-    assert "book_red" in [option.value for option in gift_select(selects).options]
+    assert "book_red" in await offered(bot)
 
 
 async def test_no_warning_before_he_keeps_a_gift_today(bot: app.WispBot) -> None:
@@ -837,7 +1037,7 @@ async def test_the_lunchbox_still_fits_with_long_songs_and_collections(
     text = await lunchbox_text(bot, GUILD_ID)
 
     assert len(text) <= 2000
-    assert text.splitlines()[-1].startswith("・Affirmation Cards 3/4")
+    assert text.splitlines()[-1].startswith("・Jewels 3/4")
 
 
 # ---
@@ -868,3 +1068,155 @@ def test_the_bot_has_the_gift_repo() -> None:
 
 def test_a_gift_is_its_own_kind_of_interaction() -> None:
     assert InteractionKind.GIFT.value == "gift"
+
+
+# ---
+# Bigger collections and the worst case
+# ---
+
+
+async def test_the_sixth_tetris_piece_completes_its_collection(
+    bot: app.WispBot,
+    server: FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "gifts").mkdir()
+    (tmp_path / "gifts" / "tetris_z.gif").write_bytes(b"GIF")
+    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    life = await lay(bot)
+    assert life.id is not None
+    yesterday = discord.utils.utcnow() - timedelta(days=1)
+    for gift in collection("tetris").gifts[:5]:
+        await bot.gifts.record(
+            GUILD_ID, life.id, OTHER_USER_ID, gift.key, True, yesterday
+        )
+    say(bot)
+
+    interaction = await give(bot, "tetris_z")
+
+    bonus = rules.BOND_PER_KEPT_GIFT + rules.COLLECTION_BOND_BONUS
+    assert await bond(bot) == bonus
+    assert edited(interaction).startswith(
+        f"♪ Wisp kept your Z Block ・ bond +{bonus} ・ Tetris complete"
+    )
+    text, kwargs = house_post(server)
+    assert text == "♪ Member1 gave Wisp a Z Block\n[gift_kept]\n[collection_done]"
+    assert kwargs["file"].filename == "tetris_z.gif"
+    vault_text, _ = await open_vault(bot)
+    assert "・Tetris: all kept this life" in vault_text
+    lunchbox = await lunchbox_text(bot, GUILD_ID)
+    assert f"・Tetris 6/6 complete ・ finished by <@{USER_ID}>" in lunchbox
+
+
+async def test_five_of_six_tetris_pieces_is_not_complete(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    yesterday = discord.utils.utcnow() - timedelta(days=1)
+    for gift in collection("tetris").gifts[:5]:
+        await bot.gifts.record(GUILD_ID, life.id, USER_ID, gift.key, True, yesterday)
+
+    lunchbox = await lunchbox_text(bot, GUILD_ID)
+
+    (line,) = [line for line in lunchbox.splitlines() if "Tetris" in line]
+    assert line.startswith("・Tetris 5/6 ・ ")
+    assert "complete" not in line
+
+
+def long_emojis(bot: app.WispBot, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every emoji shows as 47 characters of text."""
+    assert len(LONG_EMOJI) == 47
+    monkeypatch.setattr(bot, "emoji", lambda _name: LONG_EMOJI)
+
+
+async def test_the_vault_fits_with_long_emojis_and_everything_in_stock(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    await bot.gifts.record(
+        GUILD_ID, life.id, USER_ID, "book_red", True, discord.utils.utcnow()
+    )
+    long_emojis(bot, monkeypatch)
+
+    text, _ = await open_vault(bot)
+
+    assert len(text) <= 2000
+    for group in GIFT_COLLECTIONS:
+        assert f"・{group.name}: " in text
+    assert "treasure today" in text
+    liners = next(line for line in text.splitlines() if line.startswith("・Lunchbox"))
+    assert LONG_EMOJI in liners
+
+
+async def test_the_vault_fits_under_a_note_after_a_gift(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    long_emojis(bot, monkeypatch)
+    say(bot)
+
+    interaction = await give(bot, "card_futureisbright")
+
+    text = edited(interaction)
+    assert text.startswith("♪ Wisp kept your Future Is Bright Affirmation Card")
+    assert len(text) <= 2000
+    for group in GIFT_COLLECTIONS:
+        assert f"・{group.name}: " in text
+
+
+async def test_the_lunchbox_fits_with_every_collection_nearly_full(
+    bot: app.WispBot, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    at = discord.utils.utcnow() - timedelta(days=1)
+    for group in GIFT_COLLECTIONS:
+        for gift in group.gifts[:-1]:
+            await bot.gifts.record(GUILD_ID, life.id, 10**18, gift.key, True, at)
+    for offset in range(rules.FAVORITE_SONGS_SHOWN):
+        await db.execute(
+            f"INSERT INTO {db.t('favorites')} "
+            "(guild_id, day, user_id, track_key, url, picked_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                GUILD_ID,
+                at.date() - timedelta(days=offset),
+                10**18,
+                f"viibr:{offset}",
+                "https://viibrmusic.com/songs/" + "x" * 36,
+                datetime(2026, 10, 1),
+            ),
+        )
+    long_emojis(bot, monkeypatch)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert len(text) <= 2000
+    section = text.split(SEPARATOR + "\n")[-1].splitlines()
+    assert [line.split(" ・ ")[0] for line in section[1:]] == [
+        f"・{group.name} {len(group.gifts) - 1}/{len(group.gifts)}"
+        for group in GIFT_COLLECTIONS
+    ]
+
+
+async def test_the_lunchbox_fits_with_every_collection_complete(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    at = discord.utils.utcnow() - timedelta(days=1)
+    for group in GIFT_COLLECTIONS:
+        for gift in group.gifts:
+            await bot.gifts.record(GUILD_ID, life.id, 10**18, gift.key, True, at)
+    long_emojis(bot, monkeypatch)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert len(text) <= 2000
+    section = text.split(SEPARATOR + "\n")[-1].splitlines()
+    assert section[1:] == [
+        f"・{group.name} {len(group.gifts)}/{len(group.gifts)} complete "
+        f"・ finished by <@{10**18}>"
+        for group in GIFT_COLLECTIONS
+    ]

@@ -20,7 +20,7 @@ class KeepsakeKind(StrEnum):
     TEEN_SPARK = "teen_spark"
     ADULT_SPARK = "adult_spark"
     GUITAR_PICK = "guitar_pick"
-    READING_GLASSES = "reading_glasses"
+    TIME_PIECE = "time_piece"
 
 
 _TITLES: Final = {
@@ -30,7 +30,7 @@ _TITLES: Final = {
     KeepsakeKind.TEEN_SPARK: "Wisp v{version}'s Teen Spark",
     KeepsakeKind.ADULT_SPARK: "Wisp v{version}'s Adult Spark",
     KeepsakeKind.GUITAR_PICK: "Wisp v{version}'s Guitar Pick",
-    KeepsakeKind.READING_GLASSES: "Wisp v{version}'s Reading Glasses",
+    KeepsakeKind.TIME_PIECE: "Wisp v{version}'s Time Piece",
 }
 
 

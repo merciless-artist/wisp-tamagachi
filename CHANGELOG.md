@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-24 (new toys)
+
+- Three new gift collections in the ViiBR Vault: Tamagotchis (Hawaikotchi,
+  Mimitchi, Tamagotchi Nano, Welcotchi), Tetris (Tetris Handheld and the I,
+  L, T, S and Z Blocks; six gifts) and Jewels (Amethyst, Crystal, Rainbow
+  Jewel, Ruby). Their gifts are named as they are, without a collection
+  noun, and "an L Block" and "an S Block" read right.
+- Giving a gift is two steps: pick a collection (its first gift's emoji and
+  how many are left), then one of its gifts. Neither select can pass
+  Discord's 25 options. A collection someone gave from a moment ago is
+  refused with the reason.
+- Gift and keepsake art is looked up as an animated GIF first, then a PNG.
+- The Old Fogey keepsake is the Time Piece (it was the Reading Glasses,
+  which nobody had earned yet).
+- The Vault's Gifts and the lunchbox's Collections fit one message in the
+  worst case: a collection shows each gift while there is room, else only
+  how many are left or its progress.
+
 ## 2026-10-24 (milestone keepsakes)
 
 - Wisp's big moments give a keepsake to the member who was there: the

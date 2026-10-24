@@ -14,6 +14,8 @@ from cogs.assets import ASSETS_DIR, COIN_EMOJI
 from cogs.channels import where_of
 from cogs.gifts import (
     announce_gift,
+    closed_reason,
+    collection_options,
     gift_note,
     gift_options,
     gift_rng,
@@ -42,12 +44,14 @@ from wisp.life import Life, Mood, Phase, add_growth, feed
 from wisp.lines import Moment
 from wisp.rules import (
     BOND_PER_SNACK,
+    COLLECTION_BY_KEY,
     FANCY_SNACK_COST,
     GIFT_BY_KEY,
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
     Gift,
+    GiftCollection,
     Snack,
 )
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, fit, with_emoji
@@ -82,6 +86,7 @@ _CONTRARY: Final = {
 
 _SnackChoice = Callable[[discord.Interaction, Snack], Awaitable[None]]
 _GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
+_CollectionChoice = Callable[[discord.Interaction, GiftCollection], Awaitable[None]]
 _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
@@ -164,8 +169,22 @@ class SnackSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, SNACK_BY_KEY[self.values[0]])
 
 
+class CollectionSelect(discord.ui.Select["Menu"]):
+    """The Vault's select of gift collections; hands the chosen one on."""
+
+    def __init__(
+        self, options: list[discord.SelectOption], on_choice: _CollectionChoice
+    ) -> None:
+        super().__init__(placeholder="Pick a collection", options=options)
+        self._on_choice = on_choice
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Pass the chosen collection on."""
+        await self._on_choice(interaction, COLLECTION_BY_KEY[self.values[0]])
+
+
 class GiftSelect(discord.ui.Select["Menu"]):
-    """The Vault's select of gifts, which hands the chosen one to its handler."""
+    """The Vault's select of one collection's gifts; hands the chosen one on."""
 
     def __init__(
         self, options: list[discord.SelectOption], on_choice: _GiftChoice
@@ -209,31 +228,40 @@ async def _vault_text(
     gifts: GiftState | None,
     note: str | None,
 ) -> str:
-    """The balance, the Snack Box and the Gifts, after an optional note."""
+    """The balance, the Snack Box and the Gifts, after an optional note.
+
+    The Gifts take whatever room the rest of one message leaves.
+    """
     balance = (await bot.players.get(guild_id, user_id)).balance
     prices = [
         f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
         for snack in _MENU
     ]
-    lines = [
+    head = [
+        *([note] if note else []),
         "♪ The ViiBR Vault",
         with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
         SEPARATOR,
         "Snack Box",
         *prices,
         "",
-        *gift_section(bot, gifts),
     ]
-    return "\n".join([note, *lines] if note else lines)
+    room = MESSAGE_LIMIT - len("\n".join(head)) - 1
+    return "\n".join([*head, *gift_section(bot, gifts, room)])
 
 
 async def _vault(
-    bot: "WispBot", guild_id: int, user_id: int, note: str | None = None
+    bot: "WispBot",
+    guild_id: int,
+    user_id: int,
+    note: str | None = None,
+    collection: GiftCollection | None = None,
 ) -> tuple[str, Menu]:
     """The Vault's text, after an optional note, and its menu.
 
-    The menu has the snack select, plus the gift select when a gift can be
-    given today.
+    The menu has the snack select, plus the collection select when a gift can
+    be given today. With a picked `collection` that can still be given from,
+    it also has that collection's gift select.
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
@@ -245,22 +273,32 @@ async def _vault(
     selects: list[discord.ui.Select[Menu]] = [
         SnackSelect(snack_options, "Buy a snack", _buy)
     ]
-    if gift_choices := gift_options(bot, gifts):
+    if collection_choices := collection_options(bot, gifts):
+        selects.append(CollectionSelect(collection_choices, _pick_collection))
+    if collection is not None and (
+        gift_choices := gift_options(bot, gifts, collection)
+    ):
         selects.append(GiftSelect(gift_choices, _give))
     text = await _vault_text(bot, guild_id, user_id, gifts, note)
     return text, Menu("the ViiBR Vault menu", *selects)
 
 
-async def _confirm(interaction: discord.Interaction, note: str, context: str) -> None:
+async def _confirm(
+    interaction: discord.Interaction,
+    note: str | None,
+    context: str,
+    collection: GiftCollection | None = None,
+) -> None:
     """Show the Vault again under `note`; a failure is reported as `context`.
 
-    A failure never reaches the caller, so whatever follows the confirmation,
-    such as announcing a gift, still happens.
+    With a picked `collection`, its gift select is shown too. A failure never
+    reaches the caller, so whatever follows the confirmation, such as
+    announcing a gift, still happens.
     """
     bot = bot_of(interaction)
     try:
         text, menu = await _vault(
-            bot, require_guild(interaction), interaction.user.id, note
+            bot, require_guild(interaction), interaction.user.id, note, collection
         )
         await interaction.edit_original_response(
             content=text, view=menu, allowed_mentions=_NO_PING
@@ -347,6 +385,24 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
             f"♪ Bought {snack.name} for {count(snack.cost, 'point')}.",
             "confirming a snack purchase (the purchase went through)",
         )
+
+
+async def _pick_collection(
+    interaction: discord.Interaction, collection: GiftCollection
+) -> None:
+    """Show the Vault again with the picked collection's gifts to choose from.
+
+    A collection nobody can give from any more, such as one someone gave
+    from a moment ago, is refused with the reason and the Vault as it is now.
+    """
+    bot = bot_of(interaction)
+    await interaction.response.defer()
+    state = await todays_gifts(bot, require_guild(interaction), discord.utils.utcnow())
+    reason = closed_reason(state, collection)
+    if reason is not None:
+        await _confirm(interaction, reason, "showing a closed gift collection")
+        return
+    await _confirm(interaction, None, "showing a gift collection", collection)
 
 
 async def _give(interaction: discord.Interaction, gift: Gift) -> None:

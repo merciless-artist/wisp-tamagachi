@@ -15,7 +15,7 @@ import discord
 from discord.ext import commands
 
 from cogs.announce import post_in_house
-from cogs.assets import ASSETS_DIR, COIN_EMOJI
+from cogs.assets import ASSETS_DIR, COIN_EMOJI, asset_image
 from cogs.players import Refusal, check_member
 from db.activity import InteractionKind
 from db.gifts import GiftAttempt
@@ -33,7 +33,7 @@ from wisp.rules import (
     Gift,
     GiftCollection,
 )
-from wisp.text import count, with_emoji
+from wisp.text import MESSAGE_LIMIT, count, richest, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -116,36 +116,70 @@ def _label(bot: "WispBot", gift: Gift) -> str:
     return bot.emoji(gift.emoji_name) or gift.name
 
 
-def _stock(bot: "WispBot", state: GiftState, collection: GiftCollection) -> str:
+def _stock(
+    bot: "WispBot", state: GiftState, collection: GiftCollection, *, rich: bool
+) -> str:
+    """What is left of a collection: its gifts when `rich`, else how many."""
     in_stock = [gift for gift in collection.gifts if state.in_stock(gift)]
     if not in_stock:
         return "all kept this life"
     if not state.is_open(collection):
         return "back tomorrow"
+    if not rich:
+        return f"{len(in_stock)} left"
     return " ".join(_label(bot, gift) for gift in in_stock)
 
 
-def gift_section(bot: "WispBot", state: GiftState | None) -> list[str]:
+def gift_section(
+    bot: "WispBot", state: GiftState | None, room: int = MESSAGE_LIMIT
+) -> list[str]:
     """The Vault's Gifts lines: each collection's stock, or why it is shut.
 
-    Once he has kept a gift today, a line says so before anyone pays.
+    Once he has kept a gift today, a line says so before anyone pays. The
+    lines take at most `room` characters: a collection shows each gift while
+    there is room, else how many are left.
     """
     price = with_emoji(bot.emoji(COIN_EMOJI), f"{count(GIFT_COST, 'point')} each")
     heading = f"Gifts ・ {price} ・ he might not like it"
     if state is None:
         return [heading, "・He takes gifts once he has hatched"]
-    return [
-        heading,
-        *([_KEPT_TODAY] if state.kept_today else []),
-        *(
-            f"・{collection.name}: {_stock(bot, state, collection)}"
+    head = [heading, *([_KEPT_TODAY] if state.kept_today else [])]
+
+    def lines(rich: bool) -> list[str]:
+        return [
+            f"・{collection.name}: {_stock(bot, state, collection, rich=rich)}"
             for collection in GIFT_COLLECTIONS
-        ),
+        ]
+
+    left = room - len("\n".join(head)) - 1
+    return [*head, *richest(lines(False), lines(True), left)]
+
+
+def collection_options(
+    bot: "WispBot", state: GiftState | None
+) -> list[discord.SelectOption]:
+    """A select option for every collection that can be given from now.
+
+    Each shows its first gift's emoji and how many of its gifts are left.
+    """
+    if state is None:
+        return []
+    return [
+        discord.SelectOption(
+            label=collection.name,
+            value=collection.key,
+            description=f"{len(gifts)} left",
+            emoji=bot.emojis_by_name.get(gifts[0].emoji_name),
+        )
+        for collection in GIFT_COLLECTIONS
+        if (gifts := state.offered_from(collection))
     ]
 
 
-def gift_options(bot: "WispBot", state: GiftState | None) -> list[discord.SelectOption]:
-    """A select option for every gift that can be given now."""
+def gift_options(
+    bot: "WispBot", state: GiftState | None, collection: GiftCollection
+) -> list[discord.SelectOption]:
+    """A select option for every gift of `collection` that can be given now."""
     if state is None:
         return []
     return [
@@ -155,8 +189,26 @@ def gift_options(bot: "WispBot", state: GiftState | None) -> list[discord.Select
             description=count(GIFT_COST, "point"),
             emoji=bot.emojis_by_name.get(gift.emoji_name),
         )
-        for gift in state.offered()
+        for gift in state.offered_from(collection)
     ]
+
+
+def _given_from_today(collection: GiftCollection) -> str:
+    return (
+        f"♪ Someone already gave Wisp {with_article(collection.item)} today. "
+        "Back tomorrow."
+    )
+
+
+def closed_reason(state: GiftState | None, collection: GiftCollection) -> str | None:
+    """Why nothing can be given from `collection` now, or None when it is open."""
+    if state is None:
+        return _NOT_HATCHED
+    if not state.is_open(collection):
+        return _given_from_today(collection)
+    if not state.offered_from(collection):
+        return f"♪ Wisp already kept every gift in {collection.name} this life."
+    return None
 
 
 # ---
@@ -206,10 +258,7 @@ async def give_gift(
     if not state.in_stock(gift):
         raise Refusal(f"♪ Wisp already has the {gift.title}.")
     if not state.is_open(collection):
-        raise Refusal(
-            f"♪ Someone already gave Wisp {with_article(collection.item)} today. "
-            "Back tomorrow."
-        )
+        raise Refusal(_given_from_today(collection))
     if not await bot.players.spend(guild_id, member.id, GIFT_COST):
         name = player.name or member.display_name
         raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
@@ -249,8 +298,7 @@ def gift_note(given: GiftGiven) -> str:
 
 def _gift_art(gift: Gift) -> Path | None:
     """The gift's picture, when the art is on disk."""
-    path = ASSETS_DIR / "gifts" / gift.image_name
-    return path if path.is_file() else None
+    return asset_image(ASSETS_DIR / "gifts", gift.key)
 
 
 async def announce_gift(
@@ -283,9 +331,16 @@ async def announce_gift(
 # ---
 
 
-def collection_lines(bot: "WispBot", kept: Sequence[GiftAttempt]) -> list[str]:
-    """One line per collection this life has kept gifts from, in catalog order."""
-    lines: list[str] = []
+def collection_lines(
+    bot: "WispBot", kept: Sequence[GiftAttempt], room: int = MESSAGE_LIMIT
+) -> list[str]:
+    """One line per collection this life has kept gifts from, in catalog order.
+
+    The lines take at most `room` characters: an unfinished collection lists
+    its gifts and givers while there is room, else only its progress.
+    """
+    plain: list[str] = []
+    rich: list[str] = []
     for collection in GIFT_COLLECTIONS:
         got = [
             (GIFT_BY_KEY[attempt.gift], attempt.user_id)
@@ -295,16 +350,19 @@ def collection_lines(bot: "WispBot", kept: Sequence[GiftAttempt]) -> list[str]:
         ]
         if not got:
             continue
-        progress = f"{collection.name} {len(got)}/{len(collection.gifts)}"
+        progress = f"・{collection.name} {len(got)}/{len(collection.gifts)}"
         if len(got) == len(collection.gifts):
-            lines.append(f"・{progress} complete ・ finished by <@{got[-1][1]}>")
+            done = f"{progress} complete ・ finished by <@{got[-1][1]}>"
+            plain.append(done)
+            rich.append(done)
             continue
         items = (
             f"{with_emoji(bot.emoji(gift.emoji_name), gift.name)} (from <@{user_id}>)"
             for gift, user_id in got
         )
-        lines.append(f"・{progress} ・ {' ・ '.join(items)}")
-    return lines
+        plain.append(progress)
+        rich.append(f"{progress} ・ {' ・ '.join(items)}")
+    return richest(plain, rich, room)
 
 
 async def setup(bot: "WispBot") -> None:

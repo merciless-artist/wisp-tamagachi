@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Final
 import discord
 import pymysql
 
-from cogs.assets import ASSETS_DIR
+from cogs.assets import ASSETS_DIR, asset_image
 from cogs.speech import ai_reply
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
@@ -55,8 +55,7 @@ def _image_for(event: Event) -> Path | None:
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:
     """Return a keepsake's picture when it exists, or None for text only."""
-    path = ASSETS_DIR / "keepsakes" / f"{kind.value}.png"
-    return path if path.is_file() else None
+    return asset_image(ASSETS_DIR / "keepsakes", kind.value)
 
 
 def life_image(life: Life) -> Path | None:
@@ -256,7 +255,7 @@ def _milestone(event: Event) -> KeepsakeKind | None:
         case EventKind.HATCH_STARTED:
             return KeepsakeKind.EGGSHELL
         case EventKind.GREW_OLD:
-            return KeepsakeKind.READING_GLASSES
+            return KeepsakeKind.TIME_PIECE
         case EventKind.STAGE_UP if event.stage is not None:
             return _STAGE_KEEPSAKES.get(event.stage)
     return None

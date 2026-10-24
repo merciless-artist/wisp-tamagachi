@@ -928,6 +928,21 @@ async def test_hatching_gives_the_eggshell_to_whoever_filled_the_egg(
     assert await embers(bot, MEMBER) == []
 
 
+async def test_keepsake_art_prefers_the_animated_gif(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "keepsakes", "eggshell")
+    (assets / "keepsakes" / "eggshell.gif").write_bytes(b"GIF")
+    life = await growing_life(bot, hatched_by=NAMED)
+    life.phase = Phase.HATCHING
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HATCH_STARTED)])
+
+    _cracking, won = server.house.send.await_args_list
+    assert won.kwargs["file"].filename == "eggshell.gif"
+
+
 @pytest.mark.parametrize(
     "stage,title",
     [
@@ -958,19 +973,19 @@ async def test_a_stage_up_gives_its_keepsake_to_the_latest_interactor(
     assert await embers(bot, NAMED) == []
 
 
-async def test_growing_old_gives_the_reading_glasses(
+async def test_growing_old_gives_the_time_piece(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
-    add_image(assets, "keepsakes", "reading_glasses")
+    add_image(assets, "keepsakes", "time_piece")
     life = await growing_life(bot)
     await interacted(bot, life, NAMELESS, 1)
 
     await post_events(bot, GUILD_ID, [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)])
 
     _old, won = server.house.send.await_args_list
-    title = "Wisp v1's Reading Glasses"
+    title = "Wisp v1's Time Piece"
     assert keepsake_said(won.args[0], f"<@{NAMELESS}>", title)
-    assert won.kwargs["file"].filename == "reading_glasses.png"
+    assert won.kwargs["file"].filename == "time_piece.png"
     assert await embers(bot, NAMELESS) == [title]
 
 

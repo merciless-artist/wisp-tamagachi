@@ -243,7 +243,7 @@ async def test_latest_interactor_breaks_a_tie_by_the_later_record(
         (KeepsakeKind.TEEN_SPARK, "Wisp v3's Teen Spark"),
         (KeepsakeKind.ADULT_SPARK, "Wisp v3's Adult Spark"),
         (KeepsakeKind.GUITAR_PICK, "Wisp v3's Guitar Pick"),
-        (KeepsakeKind.READING_GLASSES, "Wisp v3's Reading Glasses"),
+        (KeepsakeKind.TIME_PIECE, "Wisp v3's Time Piece"),
     ],
 )
 async def test_every_keepsake_kind_is_stored_and_titled(
@@ -725,13 +725,13 @@ async def test_keepsakes_read_by_version_then_in_the_order_given(
         (KeepsakeKind.TEEN_SPARK, 2, 30),
         (KeepsakeKind.LAST_EMBER, 1, 90),
         (KeepsakeKind.EGGSHELL, 2, 0),
-        (KeepsakeKind.READING_GLASSES, 1, 60),
+        (KeepsakeKind.TIME_PIECE, 1, 60),
         (KeepsakeKind.FIRST_SPARK, 2, 10),
     ):
         await repo.give(GUILD, USER, kind, version, NOW + timedelta(minutes=minutes))
 
     assert [(item.version, item.kind) for item in await repo.of(GUILD, USER)] == [
-        (1, KeepsakeKind.READING_GLASSES),
+        (1, KeepsakeKind.TIME_PIECE),
         (1, KeepsakeKind.LAST_EMBER),
         (2, KeepsakeKind.EGGSHELL),
         (2, KeepsakeKind.FIRST_SPARK),

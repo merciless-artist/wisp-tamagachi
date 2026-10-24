@@ -12,7 +12,7 @@ from cogs.groups import require_guild, wisp
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
-from wisp.text import SEPARATOR, fit, with_emoji
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, fit, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -80,16 +80,22 @@ async def _favorite_emoji(bot: "WispBot", guild_id: int) -> str:
     return _NOTHING_YET
 
 
-async def _collections(bot: "WispBot", guild_id: int, life: Life | None) -> list[str]:
-    """The gift collections of the current life, `life`."""
+async def _collections(
+    bot: "WispBot", guild_id: int, life: Life | None, room: int
+) -> list[str]:
+    """The gift collections of the current life, `life`, in `room` characters."""
     if life is None or life.id is None:
         return [_NOTHING_YET]
     kept = await bot.gifts.kept(guild_id, life.id)
-    return collection_lines(bot, kept) or [_NOTHING_YET]
+    return collection_lines(bot, kept, room) or [_NOTHING_YET]
 
 
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
-    """Wisp's lunchbox, trimmed from the oldest song so it fits one message."""
+    """Wisp's lunchbox, trimmed so it fits one message.
+
+    The collections list their gifts in whatever room the songs leave, and
+    the oldest songs go when even their short lines do not fit.
+    """
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
     life = await bot.lives.current(guild_id)
     songs = [
@@ -97,7 +103,7 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         for favorite in favorites
     ]
     head = ["♪ Wisp's lunchbox", SEPARATOR, "Favorite songs"]
-    tail = [
+    middle = [
         *([] if songs else [_NOTHING_YET]),
         SEPARATOR,
         "Favorite snack",
@@ -106,9 +112,10 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         await _favorite_emoji(bot, guild_id),
         SEPARATOR,
         "Collections",
-        *await _collections(bot, guild_id, life),
     ]
-    return fit(head, songs, tail)
+    room = MESSAGE_LIMIT - len("\n".join([*head, *songs, *middle])) - 1
+    collections = await _collections(bot, guild_id, life, room)
+    return fit(head, songs, [*middle, *collections])
 
 
 @wisp.command(name="lunchbox", description="See the things Wisp keeps in his lunchbox.")
