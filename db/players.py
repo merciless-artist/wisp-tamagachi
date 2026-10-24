@@ -93,6 +93,10 @@ class PlayerRepo:
         )
         return changed == 1
 
+    async def refund(self, guild_id: int, user_id: int, amount: int) -> None:
+        """Give back points that were spent; the lifetime total is unchanged."""
+        await self._update(guild_id, user_id, "balance = balance + %s", (amount,))
+
     async def add_bond(self, guild_id: int, user_id: int, amount: int) -> None:
         """Add to the player's bond with Wisp."""
         await self._update(guild_id, user_id, "bond = bond + %s", (amount,))

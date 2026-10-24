@@ -358,6 +358,41 @@ COLLECTION_BY_KEY: dict[str, GiftCollection] = {
 }
 
 # ---
+# Badges
+# ---
+
+
+@dataclass(frozen=True)
+class Badge:
+    """A vanity role sold in the ViiBR Vault, worn for one Wisp's life.
+
+    Its bond is outside the daily casual bond cap. `needs_tier` names the bond
+    tier a member must be at to buy it, or None when anyone who can feed may.
+    """
+
+    key: str
+    name: str
+    cost: int
+    bond: int
+    needs_tier: str | None = None
+
+    @property
+    def emoji_name(self) -> str:
+        """Name of the app emoji that shows this badge."""
+        return f"badge_{self.key}"
+
+
+BADGES: tuple[Badge, ...] = (
+    Badge("egg_warmer", "Egg Warmer", 25, 5),
+    Badge("pickle_diplomat", "Pickle Diplomat", 25, 5),
+    Badge("flame_keeper", "Flame Keeper", 100, 15),
+    Badge("viibr_roadie", "ViiBR Roadie", 100, 15),
+    Badge("team_wisp", "Team Wisp", 250, 25),
+    Badge("bandmate", "Bandmate", 250, 25, needs_tier=BOND_TIERS[-1][0]),
+)
+BADGE_BY_KEY: dict[str, Badge] = {badge.key: badge for badge in BADGES}
+
+# ---
 # AI voice
 # ---
 

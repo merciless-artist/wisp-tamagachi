@@ -10,6 +10,7 @@ import pymysql
 import pytest
 
 from db.activity import ActivityRepo, InteractionKind
+from db.badges import BadgeRepo, OwnedBadge
 from db.database import Database, to_db_time
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -806,3 +807,79 @@ async def test_notes_are_truncated(db: Database) -> None:
     repo = NoteRepo(db)
     await repo.add(GUILD, USER, "x" * (NOTE_MAX_CHARS + 50), NOW)
     assert await repo.recent(GUILD, USER) == ["x" * NOTE_MAX_CHARS]
+
+
+async def test_refund_restores_the_balance_only(db: Database) -> None:
+    repo = PlayerRepo(db)
+    await repo.add_points(GUILD, USER, 30)
+    assert await repo.spend(GUILD, USER, 25)
+
+    await repo.refund(GUILD, USER, 25)
+
+    player = await repo.get(GUILD, USER)
+    assert (player.balance, player.lifetime_points) == (30, 30)
+
+
+async def test_badge_roles_are_stored_per_guild_and_replaced(db: Database) -> None:
+    repo = BadgeRepo(db)
+    await repo.set_role(GUILD, "team_wisp", 11)
+    await repo.set_role(GUILD, "egg_warmer", 12)
+    await repo.set_role(OTHER_GUILD, "team_wisp", 21)
+    await repo.set_role(GUILD, "team_wisp", 13)
+
+    assert await repo.role_ids(GUILD) == {"team_wisp": 13, "egg_warmer": 12}
+    assert await repo.role_ids(OTHER_GUILD) == {"team_wisp": 21}
+    assert await repo.role_ids(99) == {}
+
+
+async def test_a_badge_is_bought_once_per_life(db: Database) -> None:
+    repo = BadgeRepo(db)
+    assert await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
+    assert not await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
+    assert await repo.record(GUILD, USER, "team_wisp", 2, 4, NOW)
+    assert await repo.record(GUILD, USER, "egg_warmer", 1, 3, NOW)
+
+    assert await repo.owned(GUILD, USER, 1) == {"team_wisp", "egg_warmer"}
+    assert await repo.owned(GUILD, USER, 2) == {"team_wisp"}
+    assert await repo.owned(GUILD, OTHER_USER, 1) == set()
+
+
+async def test_a_forgotten_purchase_is_gone(db: Database) -> None:
+    repo = BadgeRepo(db)
+    await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
+    await repo.record(GUILD, USER, "egg_warmer", 1, 3, NOW)
+
+    await repo.forget(GUILD, USER, "team_wisp", 1)
+
+    assert await repo.owned(GUILD, USER, 1) == {"egg_warmer"}
+    assert await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
+
+
+async def test_badges_of_a_member_come_newest_life_first(db: Database) -> None:
+    repo = BadgeRepo(db)
+    await repo.record(GUILD, USER, "egg_warmer", 1, 3, NOW)
+    await repo.record(GUILD, USER, "team_wisp", 2, 4, NOW)
+    await repo.record(GUILD, USER, "flame_keeper", 2, 4, NOW + timedelta(hours=1))
+    await repo.record(GUILD, OTHER_USER, "bandmate", 2, 4, NOW)
+
+    assert await repo.of(GUILD, USER) == [
+        OwnedBadge("flame_keeper", 4, NOW + timedelta(hours=1)),
+        OwnedBadge("team_wisp", 4, NOW),
+        OwnedBadge("egg_warmer", 3, NOW),
+    ]
+    assert await repo.of(OTHER_GUILD, USER) == []
+
+
+async def test_buyers_of_one_life(db: Database) -> None:
+    repo = BadgeRepo(db)
+    await repo.record(GUILD, USER, "egg_warmer", 1, 3, NOW)
+    await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
+    await repo.record(GUILD, OTHER_USER, "team_wisp", 1, 3, NOW)
+    await repo.record(GUILD, OTHER_USER, "bandmate", 2, 4, NOW)
+    await repo.record(OTHER_GUILD, USER, "bandmate", 1, 3, NOW)
+
+    assert await repo.buyers(GUILD, 1) == {
+        USER: {"egg_warmer", "team_wisp"},
+        OTHER_USER: {"team_wisp"},
+    }
+    assert await repo.buyers(GUILD, 3) == {}

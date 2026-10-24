@@ -148,6 +148,22 @@ _DEFINITIONS: dict[str, str] = {
         PRIMARY KEY (id),
         INDEX idx_guild_life_at (guild_id, life_id, at)
     """,
+    "badge_roles": """
+        guild_id BIGINT NOT NULL,
+        badge VARCHAR(20) NOT NULL,
+        role_id BIGINT NOT NULL,
+        PRIMARY KEY (guild_id, badge)
+    """,
+    "badges": """
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        badge VARCHAR(20) NOT NULL,
+        life_id BIGINT NOT NULL,
+        version INT NOT NULL,
+        bought_at DATETIME NOT NULL,
+        PRIMARY KEY (guild_id, user_id, badge, life_id),
+        INDEX idx_guild_life (guild_id, life_id)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.
