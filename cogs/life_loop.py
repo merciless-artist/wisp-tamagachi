@@ -17,7 +17,7 @@ from cogs.announce import (
     show_in_thread,
 )
 from cogs.players import status_text
-from cogs.snacks import feed_view
+from cogs.snacks import status_view
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.bond import happiness
@@ -172,7 +172,7 @@ class LifeLoop(commands.Cog):
             "status_message_id",
             await status_text(self.bot, guild_id, life, now, happy),
             "status card",
-            feed_view(),
+            status_view(),
             life_image(life),
         )
 

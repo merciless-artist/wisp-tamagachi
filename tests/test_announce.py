@@ -731,6 +731,26 @@ async def test_a_new_egg_is_announced_with_the_egg_picture(
     assert sends_without_pinging(laid.kwargs)
 
 
+@pytest.mark.parametrize(
+    ("phase", "event"),
+    [(Phase.DEAD, EventKind.DIED), (Phase.PASSED, EventKind.FAREWELL)],
+)
+async def test_the_new_egg_post_has_the_poke_button(
+    bot: app.WispBot, server: FakeServer, assets: Path, phase: Phase, event: EventKind
+) -> None:
+    await ended_life(bot, phase)
+
+    await post_events(bot, GUILD_ID, [Event(event)])
+
+    *earlier, laid = server.house.send.await_args_list
+    view = laid.kwargs["view"]
+    (button,) = view.children
+    assert isinstance(button, discord.ui.Button)
+    assert (button.label, button.custom_id) == ("Poke Wisp", "wisp:poke")
+    assert view.timeout is None
+    assert all("view" not in post.kwargs for post in earlier)
+
+
 async def test_a_coal_egg_without_its_own_picture_shows_the_egg(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:

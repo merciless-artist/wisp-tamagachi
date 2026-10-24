@@ -15,7 +15,7 @@ import discord
 from discord.ext import commands
 
 from cogs.announce import post_in_house
-from cogs.assets import ASSETS_DIR, COIN_EMOJI, asset_image
+from cogs.assets import ASSETS_DIR, asset_image
 from cogs.players import Refusal, check_member
 from db.activity import InteractionKind
 from db.gifts import GiftAttempt
@@ -34,6 +34,7 @@ from wisp.rules import (
     GiftCollection,
 )
 from wisp.text import count, richest, with_emoji
+from wisp.voice import COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot

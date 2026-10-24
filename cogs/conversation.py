@@ -1,8 +1,7 @@
-"""Talking in Wisp's House: he answers members and sometimes chimes in, by stage."""
+"""Talking in Wisp's House: answers, chiming in and the Poke Wisp button."""
 
 import random
 import re
-from collections import deque
 from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
@@ -10,22 +9,21 @@ from typing import TYPE_CHECKING, Final
 import discord
 from discord.ext import commands
 
-from cogs.speech import ai_reply, expressions
+from ai.prompt import Prompt
+from cogs.announce import post_in_house
+from cogs.groups import require_guild
+from cogs.players import EXPECTED_FAILURES, bot_of, report_failure, say_privately
+from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
 from db.players import Player
 from wisp.bond import tier_for
 from wisp.life import Life, mood
 from wisp.lines import Moment
-from wisp.rules import (
-    CHIME_IN_CHANCE,
-    CHIME_IN_GAP,
-    CONTEXT_LINE_CHARS,
-    CONTEXT_LINES,
-    TALK_COOLDOWN,
-)
+from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.voice import (
     EGG_EXPRESSION,
     ChatLine,
     Fed,
+    PokeFlavor,
     Poker,
     Speaker,
     Talk,
@@ -33,6 +31,8 @@ from wisp.voice import (
     chimes_in,
     egg_prompt,
     keeps_notes,
+    own_emojis,
+    poke_flavor,
     talk_level,
 )
 
@@ -49,6 +49,12 @@ _FALLBACK: Final = {
 _MEMBER_MENTION: Final = re.compile(r"<@!?(\d+)>")
 _ROLE_OR_CHANNEL_MENTION: Final = re.compile(r"<(?:@&|#)\d+>")
 _CUSTOM_EMOJI: Final = re.compile(r"<a?:(\w+):\d+>")
+
+_POKE_CONTEXT: Final = "the Poke Wisp button"
+_POKE_BANNED: Final = "♪ Wisp isn't answering you right now."
+_POKE_NOBODY: Final = "♪ There's nobody to poke right now."
+_POKE_COOLING: Final = "♪ Give him a second."
+_POKE_DONE: Final = "♪ You poked Wisp."
 
 # ---
 # Reading the chat
@@ -89,6 +95,70 @@ async def _reply(message: discord.Message, text: str) -> None:
 
 
 # ---
+# Prompts
+# ---
+
+
+async def _fed(bot: "WispBot", guild_id: int, life: Life, user_id: int) -> Fed:
+    """How much the member has fed this life, next to its biggest feeder.
+
+    Everyone tied for the most counts as having fed it most.
+    """
+    if life.id is None:
+        return Fed.NOTHING
+    log = bot.activity_log
+    points = await log.fed_this_life(guild_id, life.id, user_id)
+    if points == 0:
+        return Fed.NOTHING
+    ((_, most),) = await log.top_this_life(guild_id, life.id, 1)
+    return Fed.MOST if points >= most else Fed.SOME
+
+
+async def _prompt(
+    bot: "WispBot",
+    guild_id: int,
+    life: Life,
+    level: Talk,
+    player: Player,
+    name: str,
+    chat: Sequence[ChatLine],
+    text: str | None,
+    *,
+    poked: PokeFlavor | None = None,
+    emojis: Sequence[str] = (),
+) -> Prompt:
+    """The prompt for Wisp's answer, in the voice for `level`.
+
+    `text` is what the member said to him, or None for a poke, which `poked`
+    flavors. `emojis` are the emojis of his that `text` used.
+    """
+    if level is Talk.EGG:
+        poker = Poker(name, await _fed(bot, guild_id, life, player.user_id))
+        return egg_prompt(
+            life,
+            poker,
+            chat,
+            text or "",
+            emoji=EGG_EXPRESSION in bot.emojis_by_name,
+            poked=poked,
+            own_emojis=emojis,
+        )
+    remembers = keeps_notes(life.stage)
+    notes = await bot.notes.recent(guild_id, player.user_id) if remembers else []
+    speaker = Speaker(name, tier_for(player.bond), tuple(notes), player.pickle_stance)
+    return build_prompt(
+        life.stage,
+        mood(life),
+        speaker,
+        chat,
+        text,
+        expressions=expressions(bot),
+        poked=poked,
+        own_emojis=emojis,
+    )
+
+
+# ---
 # Listener
 # ---
 
@@ -97,13 +167,12 @@ class Conversation(commands.Cog):
     """Wisp in his House: he answers when spoken to and sometimes chimes in.
 
     Talking to him earns no bond and no happiness, and leaves no interaction.
+    The recent chat and the talk cooldown live in `bot.talk`, shared with pokes.
     """
 
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
         self.rng = random.Random()
-        self._chat: dict[int, deque[ChatLine]] = {}
-        self._answered_at: dict[tuple[int, int], datetime] = {}
         self._chimed_at: dict[int, datetime] = {}
 
     @commands.Cog.listener()
@@ -111,7 +180,8 @@ class Conversation(commands.Cog):
         """Remember a line said in Wisp's House, then answer it or maybe chime in.
 
         Only the House channel itself counts, not its threads. Every line,
-        Wisp's own included, joins the recent chat; bots are never answered.
+        Wisp's own included, joins the recent chat; bots are never answered and
+        never count as the House stirring.
         """
         guild = message.guild
         if guild is None:
@@ -121,16 +191,17 @@ class Conversation(commands.Cog):
         if message.channel.id != settings.house_channel_id or wisp is None:
             return
         text = _clean(message, wisp)
-        chat = self._chat.setdefault(guild.id, deque(maxlen=CONTEXT_LINES))
-        earlier = tuple(chat)
-        chat.append(ChatLine(message.author.display_name, text[:CONTEXT_LINE_CHARS]))
+        talk = self.bot.talk
+        line = ChatLine(message.author.display_name, text[:CONTEXT_LINE_CHARS])
+        earlier = talk.hear(guild.id, line)
         if message.author.bot:
             return
         now = discord.utils.utcnow()
+        talk.stir(guild.id, now)
         if _aimed_at(message, wisp):
             await self._answer(message, guild, text, earlier, now)
         else:
-            await self._maybe_chime_in(message, guild, tuple(chat), now)
+            await self._maybe_chime_in(message, guild, talk.chat(guild.id), now)
 
     async def _answer(
         self,
@@ -142,8 +213,8 @@ class Conversation(commands.Cog):
     ) -> None:
         """Answer someone talking to Wisp, as his stage allows.
 
-        A member who was answered within TALK_COOLDOWN gets nothing. A failure
-        to post is reported in the House.
+        A member answered or poked through within TALK_COOLDOWN gets nothing. A
+        failure to post is reported in the House.
         """
         life = await self.bot.lives.current(guild.id)
         level = talk_level(life)
@@ -152,11 +223,8 @@ class Conversation(commands.Cog):
         player = await self.bot.players.get(guild.id, message.author.id)
         if player.is_banned(now):
             return
-        key = (guild.id, player.user_id)
-        last = self._answered_at.get(key)
-        if last is not None and now - last < TALK_COOLDOWN:
+        if not self.bot.talk.take_turn(guild.id, player.user_id, now):
             return
-        self._answered_at[key] = now
         try:
             await self._talk(message, guild, life, level, player, text, earlier, now)
         except discord.HTTPException as error:
@@ -180,27 +248,18 @@ class Conversation(commands.Cog):
         emoji; a note is saved only from Adult on.
         """
         bot = self.bot
-        name = player.name or message.author.display_name
-        remembers = keeps_notes(life.stage)
-        if level is Talk.EGG:
-            poker = Poker(name, await self._fed(guild.id, life, player.user_id))
-            has_face = EGG_EXPRESSION in bot.emojis_by_name
-            prompt = egg_prompt(life, poker, earlier, text, emoji=has_face)
-        else:
-            notes = (
-                await bot.notes.recent(guild.id, player.user_id) if remembers else []
-            )
-            speaker = Speaker(
-                name, tier_for(player.bond), tuple(notes), player.pickle_stance
-            )
-            prompt = build_prompt(
-                life.stage,
-                mood(life),
-                speaker,
-                earlier,
-                text,
-                expressions=expressions(bot),
-            )
+        emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
+        prompt = await _prompt(
+            bot,
+            guild.id,
+            life,
+            level,
+            player,
+            player.name or message.author.display_name,
+            earlier,
+            text,
+            emojis=emojis,
+        )
         async with message.channel.typing():
             reply = await ai_reply(bot, guild, prompt)
         if reply is None:
@@ -214,22 +273,8 @@ class Conversation(commands.Cog):
             await bot.players.set_pickle_stance(
                 guild.id, player.user_id, reply.pickle_stance
             )
-        if remembers and reply.note is not None:
+        if keeps_notes(life.stage) and reply.note is not None:
             await bot.notes.add(guild.id, player.user_id, reply.note, now)
-
-    async def _fed(self, guild_id: int, life: Life, user_id: int) -> Fed:
-        """How much the member has fed this life, next to its biggest feeder.
-
-        Everyone tied for the most counts as having fed it most.
-        """
-        if life.id is None:
-            return Fed.NOTHING
-        log = self.bot.activity_log
-        points = await log.fed_this_life(guild_id, life.id, user_id)
-        if points == 0:
-            return Fed.NOTHING
-        ((_, most),) = await log.top_this_life(guild_id, life.id, 1)
-        return Fed.MOST if points >= most else Fed.SOME
 
     def _chime_in_due(self, guild_id: int, now: datetime) -> bool:
         """Whether CHIME_IN_GAP has passed since this guild's last chime-in."""
@@ -274,6 +319,104 @@ class Conversation(commands.Cog):
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
             return
         await self.bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
+
+
+# ---
+# The Poke Wisp button
+# ---
+
+
+async def _poke(interaction: discord.Interaction) -> None:
+    """Poke Wisp: post who poked him and his reaction in the House.
+
+    Banned members, a poke with nobody alive to take it and a member still
+    within TALK_COOLDOWN of their last answer are told privately instead.
+    """
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    user = interaction.user
+    now = discord.utils.utcnow()
+    talk = bot.talk
+    player = await bot.players.get(guild_id, user.id)
+    if player.is_banned(now):
+        await say_privately(interaction, _POKE_BANNED)
+        return
+    life = await bot.lives.current(guild_id)
+    level = talk_level(life)
+    if life is None or level is Talk.SILENT:
+        await say_privately(interaction, _POKE_NOBODY)
+        return
+    if not talk.take_turn(guild_id, user.id, now):
+        await say_privately(interaction, _POKE_COOLING)
+        return
+    quiet_for = talk.quiet_for(guild_id, now)
+    flavor = poke_flavor(mood(life), talk.poke(guild_id, now), quiet_for, now, talk.rng)
+    talk.stir(guild_id, now)
+    name = player.name or user.display_name
+    reaction = await _reaction(interaction, life, level, player, name, flavor)
+    poked = "the egg" if level is Talk.EGG else "Wisp"
+    await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}")
+    await say_privately(interaction, _POKE_DONE)
+
+
+async def _reaction(
+    interaction: discord.Interaction,
+    life: Life,
+    level: Talk,
+    player: Player,
+    name: str,
+    flavor: PokeFlavor,
+) -> str:
+    """Wisp's reaction to a poke from his AI voice, or a canned one when it fails.
+
+    A poke earns nothing; it keeps only the expressions a hatched Wisp used.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    chat = bot.talk.chat(guild_id)
+    prompt = await _prompt(
+        bot, guild_id, life, level, player, name, chat, None, poked=flavor
+    )
+    reply = await ai_reply(bot, interaction.guild, prompt)
+    if reply is not None:
+        if level is not Talk.EGG:
+            await bot.wisp_lunchbox.record_expressions(guild_id, reply.expressions)
+        return reply.text
+    if level is Talk.EGG:
+        return bot.lines.pick(Moment.EGG_POKE, mood(life))
+    return bot.lines.pick(Moment.POKED, mood(life), name=name)
+
+
+class PokeButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(POKE_ID),
+):
+    """The Poke Wisp button, on the status card and the House's new-egg posts.
+
+    Its custom id is fixed, so the button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(poke_button())
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "PokeButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Poke Wisp, reporting a failure where the button was pressed."""
+        try:
+            await _poke(interaction)
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, _POKE_CONTEXT, error)
 
 
 async def setup(bot: "WispBot") -> None:

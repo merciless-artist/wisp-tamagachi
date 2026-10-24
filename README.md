@@ -99,6 +99,17 @@ the AI is down, the egg and baby fall back to their pre-written lines. From
 Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns nothing: no bond and no points.
 
+Poking: the Poke Wisp button on the status card and on the House's new-egg
+posts pokes him at every stage. The House sees who poked him and his AI
+reaction (a pre-written line if the AI is down), which is usually a giggle,
+now and then a startle or a curious look; a quiet House or the small hours
+(UTC) wake him up, and a flurry of pokes or hunger annoy him. Pokes and
+mentions share one cooldown per member, and a poke earns nothing.
+
+Wisp knows his own emojis: when a message to him uses one of his app emojis
+or any emote with "wisp" in its name, his AI is told which of his faces,
+gifts, keepsakes or snacks it shows.
+
 ## Feeding
 
 Wisp eats the first track link in a qualifying member's post in the track

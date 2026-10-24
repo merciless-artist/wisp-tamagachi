@@ -18,6 +18,7 @@ import pytest
 
 import app
 from cogs import announce, life_loop
+from cogs.conversation import PokeButton
 from cogs.life_loop import LifeLoop
 from cogs.snacks import FeedButton
 from db.activity import ActivityRepo, InteractionKind
@@ -410,7 +411,7 @@ async def test_missing_status_message_is_reposted(
     assert house_reports(server) == []
 
 
-async def test_edited_status_keeps_feed_button(
+async def test_edited_status_keeps_feed_and_poke_buttons(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -419,12 +420,13 @@ async def test_edited_status_keeps_feed_button(
     await cog.run_tick(NOW)
 
     view = server.card_edit.await_args.kwargs["view"]
-    (button,) = view.children
-    assert isinstance(button, FeedButton)
+    feed, poke = view.children
+    assert isinstance(feed, FeedButton)
+    assert isinstance(poke, PokeButton)
     assert view.timeout is None
 
 
-async def test_reposted_status_keeps_feed_button(
+async def test_reposted_status_keeps_feed_and_poke_buttons(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -436,9 +438,11 @@ async def test_reposted_status_keeps_feed_button(
     await cog.run_tick(NOW)
 
     view = server.status.send.await_args.kwargs["view"]
-    (button,) = view.children
-    assert isinstance(button, FeedButton)
-    assert button.item.custom_id == "wisp:feed"
+    feed, poke = view.children
+    assert isinstance(feed, FeedButton)
+    assert feed.item.custom_id == "wisp:feed"
+    assert isinstance(poke, PokeButton)
+    assert poke.item.custom_id == "wisp:poke"
     assert view.timeout is None
 
 

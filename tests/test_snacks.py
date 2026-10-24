@@ -19,11 +19,12 @@ from discord import app_commands
 
 import app
 from cogs import groups, snacks
+from cogs.conversation import PokeButton
 from cogs.snacks import (
     FeedButton,
     ShopButton,
     SnackPackButton,
-    feed_view,
+    status_view,
     vault_view,
 )
 from db.activity import ActivityRepo, InteractionKind
@@ -703,13 +704,16 @@ async def test_ban_issued_after_opening_blocks_buying(bot: app.WispBot) -> None:
 # ---
 
 
-async def test_feed_view_is_a_persistent_feed_button() -> None:
-    view = feed_view()
+async def test_status_view_has_persistent_feed_and_poke_buttons() -> None:
+    view = status_view()
 
-    (button,) = view.children
-    assert isinstance(button, FeedButton)
-    assert button.item.label == "Feed Wisp"
-    assert button.item.custom_id == "wisp:feed"
+    feed, poke = view.children
+    assert isinstance(feed, FeedButton)
+    assert feed.item.label == "Feed Wisp"
+    assert feed.item.custom_id == "wisp:feed"
+    assert isinstance(poke, PokeButton)
+    assert poke.item.label == "Poke Wisp"
+    assert poke.item.custom_id == "wisp:poke"
     assert view.timeout is None
 
 
@@ -725,7 +729,7 @@ async def test_feed_button_survives_restart(bot: app.WispBot) -> None:
     await snacks.setup(bot)
 
     bot.add_dynamic_items.assert_called_once_with(
-        FeedButton, ShopButton, SnackPackButton
+        FeedButton, PokeButton, ShopButton, SnackPackButton
     )
 
 

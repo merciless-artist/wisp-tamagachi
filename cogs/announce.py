@@ -10,7 +10,7 @@ import discord
 import pymysql
 
 from cogs.assets import ASSETS_DIR, asset_image
-from cogs.speech import ai_reply
+from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
@@ -353,7 +353,7 @@ async def _next_life(
                 f"{heading}\n{goodbye}", keepsake_image(KeepsakeKind.LAST_EMBER)
             )
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
-    await house.say(_line(bot, moment, egg), life_image(egg))
+    await house.say(_line(bot, moment, egg), life_image(egg), poke_view())
 
 
 async def _give_last_embers(

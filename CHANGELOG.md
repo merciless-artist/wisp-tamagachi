@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-24 (Poke Wisp)
+
+- A Poke Wisp button on the status card (next to Feed Wisp) and on the
+  House's new-egg and coal-egg posts. A poke posts "{name} poked Wisp" (or
+  "poked the egg") and his AI reaction in the House, in his stage's voice,
+  and answers the member privately. Each poke rolls a flavor: tickled most
+  often, sometimes startled or curious, woken up after 2 quiet hours or
+  between 3 and 7 AM UTC, annoyed by 3 pokes in 2 minutes or when hangry.
+  The egg has its own sleepy, grumpy and ticklish versions. A failed AI
+  falls back to an egg poke line or a new Poked line. Banned members, no
+  life and the cooldown are refused privately. A poke earns nothing.
+- Mentions and pokes share one talk cooldown per member, kept on the bot
+  with the House's recent chat.
+- The status card says "poke him, or mention @Wisp in his House" ("poke the
+  egg" for the egg).
+- Wisp recognises his own emojis: a message to him that uses one of his app
+  emojis or an emote with "wisp" in its name tells the AI what it shows (his
+  happy face, a gift, a keepsake, a snack).
+- The Baby is no longer offered the "no u" GIF.
+
 ## 2026-10-24 (the egg and baby talk, and dropped connections)
 
 - The egg and the baby answer through the AI, so pokes stop repeating. The

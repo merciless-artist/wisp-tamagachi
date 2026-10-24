@@ -15,6 +15,7 @@ from ai.chain import chain_from_config
 from cogs.channels import may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from cogs.share_links import ShareLinkResolver
+from cogs.speech import HouseTalk
 from db.activity import ActivityRepo
 from db.database import Database
 from db.gifts import GiftRepo
@@ -128,6 +129,7 @@ class WispBot(commands.Bot):
         self.ai = chain_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
+        self.talk = HouseTalk()
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()
         self.failing_displays: set[tuple[int, str]] = set()

@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING, Any, Final
 import discord
 
 from cogs.announce import say_in_house
-from cogs.assets import ASSETS_DIR, COIN_EMOJI
+from cogs.assets import ASSETS_DIR
 from cogs.channels import where_of
+from cogs.conversation import PokeButton
 from cogs.gifts import (
     announce_gift,
     closed_reason,
@@ -55,6 +56,7 @@ from wisp.rules import (
     Snack,
 )
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, fit, with_emoji
+from wisp.voice import COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -764,13 +766,14 @@ class FeedButton(
         await _press(interaction, "the Feed Wisp button", _offer_snacks)
 
 
-def feed_view() -> discord.ui.View:
-    """The view that puts the Feed Wisp button on the status card."""
+def status_view() -> discord.ui.View:
+    """The view that puts the Feed Wisp and Poke Wisp buttons on the status card."""
     view = discord.ui.View(timeout=None)
     view.add_item(FeedButton())
+    view.add_item(PokeButton())
     return view
 
 
 async def setup(bot: "WispBot") -> None:
     """Register the persistent buttons so they still work after a restart."""
-    bot.add_dynamic_items(FeedButton, ShopButton, SnackPackButton)
+    bot.add_dynamic_items(FeedButton, PokeButton, ShopButton, SnackPackButton)

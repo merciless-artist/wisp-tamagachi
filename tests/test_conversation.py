@@ -4,18 +4,19 @@ Discord objects and the AI voice are fakes; the repositories are the real ones.
 """
 
 import random
-from collections.abc import Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 
 import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
-from cogs.conversation import Conversation
+from cogs.conversation import Conversation, PokeButton
 from cogs.speech import expressions
 from db.activity import ActivityRepo
 from db.database import Database
@@ -33,9 +34,11 @@ from wisp.rules import (
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
+    POKE_SLEEP_AFTER,
     TALK_COOLDOWN,
     Stage,
 )
+from wisp.voice import PokeFlavor
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -962,3 +965,362 @@ def test_expressions_are_wisp_faces_without_the_coin_or_the_egg(
     give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_egg", "wisp_happy")
 
     assert expressions(bot) == ["wisp_happy", "wisp_sad"]
+
+
+# ---
+# His own emojis
+# ---
+
+
+async def test_wisps_own_emojis_are_pointed_out_in_the_prompt(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    give_emojis(bot, "wisp_happy", "snack_cheese")
+    said = message.to_wisp("look <:wisp_happy:1> <a:WispDance:77> <:pepe:5>")
+
+    await cog.on_message(said)
+
+    (prompt,) = prompts(ai)
+    assert prompt.user.endswith(
+        "Member1 says to you: look :wisp_happy: :WispDance: :pepe: "
+        "(they used your own emojis: wisp_happy, which is your happy face; "
+        "WispDance, which is a ViiBR emote of Wisp)"
+    )
+
+
+async def test_the_egg_sees_its_own_emoji_in_a_message(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    give_emojis(bot, "wisp_egg")
+
+    await cog.on_message(message.to_wisp("is this you <:wisp_egg:1>"))
+
+    (prompt,) = prompts(ai)
+    assert prompt.user.endswith(
+        "(they used Wisp's own emoji: wisp_egg, which is Wisp's egg face)"
+    )
+
+
+async def test_messages_without_his_emojis_get_no_note(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    give_emojis(bot, "wisp_happy")
+
+    await cog.on_message(message.to_wisp("hi <:pepe:5>"))
+
+    (prompt,) = prompts(ai)
+    assert prompt.user.endswith("Member1 says to you: hi :pepe:")
+
+
+# ---
+# The Poke Wisp button
+# ---
+
+
+def make_interaction(
+    server: FakeServer, bot: app.WispBot, user_id: int = FIRST
+) -> MagicMock:
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.client = bot
+    interaction.guild = server.guild
+    interaction.guild_id = GUILD_ID
+    interaction.channel = server.house
+    interaction.user = MEMBERS[user_id]
+    interaction.response = MagicMock()
+    interaction.response.is_done.return_value = False
+
+    async def answer(*_args: Any, **_kwargs: Any) -> None:
+        interaction.response.is_done.return_value = True
+
+    interaction.response.defer = AsyncMock(side_effect=answer)
+    interaction.response.send_message = AsyncMock(side_effect=answer)
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    return interaction
+
+
+def private_reply(interaction: MagicMock) -> str:
+    """The one private answer to a pressed button, checked to ping nobody."""
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    interaction.followup.send.assert_awaited_once()
+    kwargs = interaction.followup.send.await_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert kwargs["allowed_mentions"].to_dict() == NO_PING
+    (text,) = interaction.followup.send.await_args.args
+    return str(text)
+
+
+def house_posts(server: FakeServer) -> list[str]:
+    """What Wisp posted in his House, each checked to ping nobody."""
+    posts = server.house.send.await_args_list
+    assert all(post.kwargs["allowed_mentions"].to_dict() == NO_PING for post in posts)
+    return [str(post.args[0]) for post in posts]
+
+
+class HeaviestChoice(random.Random):
+    """Picks the most heavily weighted poke flavor."""
+
+    def choices(  # type: ignore[override]
+        self,
+        population: Sequence[PokeFlavor],
+        weights: Sequence[float] | None = None,
+        *,
+        cum_weights: Sequence[float] | None = None,
+        k: int = 1,
+    ) -> list[PokeFlavor]:
+        assert weights is not None
+        heaviest = max(range(len(population)), key=lambda index: weights[index])
+        return [population[heaviest]]
+
+
+@pytest.fixture
+def poke(
+    bot: app.WispBot, ai: AsyncMock, clock: Clock, server: FakeServer
+) -> Callable[..., Awaitable[MagicMock]]:
+    """Press Poke Wisp as a member, with pokes that roll their likeliest flavor."""
+    bot.talk.rng = HeaviestChoice()
+    button = PokeButton()
+
+    async def press(user_id: int = FIRST) -> MagicMock:
+        interaction = make_interaction(server, bot, user_id)
+        await button.callback(interaction)
+        return interaction
+
+    return press
+
+
+Press = Callable[..., Awaitable[MagicMock]]
+
+
+async def test_poke_posts_who_poked_and_his_reaction_in_the_house(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot, Stage.TEEN)
+    await bot.players.set_name(GUILD_ID, FIRST, "Aria")
+    ai.return_value = "hehe stop that tickles"
+
+    pressed = await poke()
+
+    assert house_posts(server) == ["♪ Aria poked Wisp\nhehe stop that tickles"]
+    assert private_reply(pressed) == "♪ You poked Wisp."
+    (prompt,) = prompts(ai)
+    assert "You're a Teen" in prompt.system
+    assert "Aria just poked you." in prompt.user
+    assert "It tickled, and you giggle." in prompt.user
+
+
+async def test_poking_the_egg_uses_the_egg_voice(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    ai.return_value = "*the shell giggles and rolls*"
+
+    pressed = await poke()
+
+    assert house_posts(server) == [
+        "♪ Member1 poked the egg\n*the shell giggles and rolls*"
+    ]
+    assert private_reply(pressed) == "♪ You poked Wisp."
+    (prompt,) = prompts(ai)
+    assert "Member1 pokes the egg. The poke tickled: a ticklish egg." in prompt.user
+
+
+async def test_a_quiet_house_means_the_poke_wakes_him(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    cog: Conversation,
+    clock: Clock,
+    poke: Press,
+) -> None:
+    await lay(bot)
+    await cog.on_message(message("anyone here", author=MEMBERS[SECOND]))
+    clock.advance(POKE_SLEEP_AFTER)
+
+    await poke()
+
+    (prompt,) = prompts(ai)
+    assert "this poke woke you up" in prompt.user
+
+
+async def test_a_flurry_of_pokes_annoys_him(
+    bot: app.WispBot, ai: AsyncMock, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    await poke(FIRST)
+    await poke(SECOND)
+    clock.advance(timedelta(seconds=1))
+    await poke(THIRD)
+
+    first, second, third = prompts(ai)
+    assert "It tickled" in first.user and "It tickled" in second.user
+    assert "annoyed at being poked again" in third.user
+
+
+@pytest.mark.parametrize(
+    ("phase", "stage", "moment"),
+    [
+        (Phase.EGG, Stage.EGG, Moment.EGG_POKE),
+        (Phase.ALIVE, Stage.BABY, Moment.POKED),
+        (Phase.ALIVE, Stage.ADULT, Moment.POKED),
+    ],
+)
+async def test_poke_falls_back_to_a_canned_line_when_the_ai_fails(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    server: FakeServer,
+    poke: Press,
+    phase: Phase,
+    stage: Stage,
+    moment: Moment,
+) -> None:
+    await lay(bot, stage, phase)
+    ai.side_effect = OUTAGE
+
+    pressed = await poke()
+
+    report, post = house_posts(server)
+    assert report.startswith("Error in Wisp's AI voice: AllProvidersFailed")
+    heading, line = post.split("\n")
+    assert heading.startswith("♪ Member1 poked")
+    assert any(
+        line in {text.format(name="Member1") for text in LINES[(moment, feeling)]}
+        for feeling in Mood
+    )
+    assert private_reply(pressed) == "♪ You poked Wisp."
+
+
+async def test_banned_members_cannot_poke(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot)
+    await bot.players.set_offense(GUILD_ID, FIRST, 1, START + timedelta(days=1), False)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == "♪ Wisp isn't answering you right now."
+    server.house.send.assert_not_awaited()
+    ai.assert_not_awaited()
+
+
+@pytest.mark.parametrize("phase", [None, Phase.DEAD])
+async def test_nobody_to_poke_without_a_life(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    server: FakeServer,
+    poke: Press,
+    phase: Phase | None,
+) -> None:
+    if phase is not None:
+        await lay(bot, Stage.ADULT, phase)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == "♪ There's nobody to poke right now."
+    server.house.send.assert_not_awaited()
+    ai.assert_not_awaited()
+
+
+async def test_a_poke_waits_out_the_cooldown(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    await poke()
+    clock.advance(TALK_COOLDOWN - timedelta(seconds=1))
+
+    again = await poke()
+
+    assert private_reply(again) == "♪ Give him a second."
+    assert len(house_posts(server)) == 1
+    assert ai.await_count == 1
+
+    clock.advance(timedelta(seconds=1))
+    await poke()
+    assert ai.await_count == 2
+
+
+async def test_pokes_and_mentions_share_one_cooldown(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    clock: Clock,
+    poke: Press,
+) -> None:
+    await lay(bot)
+    await poke()
+    said = message.to_wisp("hi again")
+    await cog.on_message(said)
+
+    said.reply.assert_not_awaited()
+
+    clock.advance(TALK_COOLDOWN)
+    await cog.on_message(message.to_wisp("hello"))
+    pressed = await poke()
+
+    assert private_reply(pressed) == "♪ Give him a second."
+    assert ai.await_count == 2
+
+
+async def test_a_poke_earns_nothing(
+    bot: app.WispBot, ai: AsyncMock, poke: Press
+) -> None:
+    life = await lay(bot)
+    ai.return_value = "hey! <pickles>love</pickles><note>pokes a lot</note>"
+
+    await poke()
+
+    player = await bot.players.get(GUILD_ID, FIRST)
+    assert (player.bond, player.pickle_stance) == (0, None)
+    assert await bot.notes.recent(GUILD_ID, FIRST) == []
+    assert (
+        await bot.activity_log.people_since(GUILD_ID, START - timedelta(days=30)) == 0
+    )
+    after = await bot.lives.current(GUILD_ID)
+    assert after is not None
+    assert (after.care, after.growth) == (life.care, life.growth)
+
+
+async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(
+    bot: app.WispBot, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot)
+    server.house.send.side_effect = [
+        discord.Forbidden(MagicMock(status=403), "Missing Permissions"),
+        None,
+    ]
+
+    pressed = await poke()
+
+    report = server.house.send.await_args_list[1].args[0]
+    assert report.startswith("Error in posting to Wisp's House: Forbidden")
+    assert private_reply(pressed) == "♪ You poked Wisp."
+
+
+async def test_a_database_failure_is_reported_where_the_button_was_pressed(
+    bot: app.WispBot, server: FakeServer, poke: Press, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(bot.lives, "current", broken)
+
+    pressed = await poke()
+
+    (report,) = reports(server)
+    assert report.startswith("Error in the Poke Wisp button: OperationalError")
+    pressed.followup.send.assert_awaited_once()
+
+
+async def test_poke_button_survives_restart(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    button = PokeButton()
+    assert (button.item.label, button.item.custom_id) == ("Poke Wisp", "wisp:poke")
+    match = PokeButton.__discord_ui_compiled_template__.fullmatch("wisp:poke")
+    assert match is not None
+    restored = await PokeButton.from_custom_id(
+        make_interaction(server, bot), MagicMock(spec=discord.ui.Button), match
+    )
+    assert isinstance(restored, PokeButton)
