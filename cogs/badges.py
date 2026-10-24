@@ -1,21 +1,21 @@
 """Badges: Wisp's vanity roles, how the Vault offers them and taking them back.
 
 Buying one happens in the Vault (see `cogs.snacks`). A badge is worn for one
-Wisp's life; when that life ends its buyers lose the roles but keep the badge
-in their Snack Pack.
+Wisp's life; once that life has ended the life loop's sweep takes the roles
+back, and the buyers keep the badge in their Snack Pack.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
-import pymysql
 
 from cogs.assets import ASSETS_DIR
 from db.badges import OwnedBadge
 from wisp.bond import tier_for
-from wisp.life import Life, is_over
+from wisp.life import is_over
 from wisp.rules import BADGE_BY_KEY, BADGES, Badge
 from wisp.text import count, with_emoji
 
@@ -251,37 +251,49 @@ def badge_pack_lines(bot: "WispBot", owned: list[OwnedBadge]) -> list[str]:
 # ---
 
 
-async def strip_badges(bot: "WispBot", guild_id: int, life: Life) -> None:
-    """Take the badge roles bought for an ended life off the members who bought them.
+async def sweep_badges(bot: "WispBot", guild_id: int, now: datetime) -> None:
+    """Take back the badge roles of every ended life that are still worn.
 
-    Members are fetched by id, and one who left is skipped. A failure is
-    reported in Wisp's House and never stops the rest. Doing it again is
-    harmless: a member without the role is left as they are.
+    Each purchase is marked once its role is off, or once its member left or
+    its role is gone, so it is never handled again; with nothing pending this
+    is one query. A failure leaves the purchase for the next sweep and is
+    reported in Wisp's House once per streak of failing sweeps.
     """
+    streak = (guild_id, _TAKING_BACK)
+    pending = await bot.badges.pending(guild_id)
+    if not pending:
+        bot.failing_displays.discard(streak)
+        return
     guild = bot.get_guild(guild_id)
-    if guild is None or life.id is None:
+    if guild is None:
         return
-    try:
-        buyers = await bot.badges.buyers(guild_id, life.id)
-        if not buyers:
-            return
-        role_ids = await bot.badges.role_ids(guild_id)
-    except pymysql.err.Error as error:
-        await bot.report_error(guild, _TAKING_BACK, error)
-        return
-    reason = f"Wisp v{life.version}'s life ended"
-    for user_id, keys in buyers.items():
+    role_ids = await bot.badges.role_ids(guild_id)
+    grouped: dict[tuple[int, int, int], set[str]] = {}
+    for item in pending:
+        grouped.setdefault((item.user_id, item.life_id, item.version), set()).add(
+            item.badge
+        )
+    failed = False
+    for (user_id, life_id, version), keys in grouped.items():
         roles = [
             role
             for key in sorted(keys)
             if key in role_ids and (role := guild.get_role(role_ids[key])) is not None
         ]
-        if not roles:
-            continue
         try:
-            member = await guild.fetch_member(user_id)
-            await member.remove_roles(*roles, reason=reason)
+            if roles:
+                member = await guild.fetch_member(user_id)
+                await member.remove_roles(
+                    *roles, reason=f"Wisp v{version}'s life ended"
+                )
         except discord.NotFound:
-            continue
+            pass
         except discord.HTTPException as error:
-            await bot.report_error(guild, _TAKING_BACK, error)
+            failed = True
+            if streak not in bot.failing_displays:
+                bot.failing_displays.add(streak)
+                await bot.report_error(guild, _TAKING_BACK, error)
+            continue
+        await bot.badges.mark_removed(guild_id, user_id, life_id, keys, now)
+    if not failed:
+        bot.failing_displays.discard(streak)

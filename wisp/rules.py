@@ -366,7 +366,8 @@ COLLECTION_BY_KEY: dict[str, GiftCollection] = {
 class Badge:
     """A vanity role sold in the ViiBR Vault, worn for one Wisp's life.
 
-    Its bond is outside the daily casual bond cap. `needs_tier` names the bond
+    Its bond is outside the daily casual bond cap. `phrase` follows the
+    buyer's name when Wisp's House announces it. `needs_tier` names the bond
     tier a member must be at to buy it, or None when anyone who can feed may.
     """
 
@@ -374,6 +375,7 @@ class Badge:
     name: str
     cost: int
     bond: int
+    phrase: str
     needs_tier: str | None = None
 
     @property
@@ -383,12 +385,19 @@ class Badge:
 
 
 BADGES: tuple[Badge, ...] = (
-    Badge("egg_warmer", "Egg Warmer", 25, 5),
-    Badge("pickle_diplomat", "Pickle Diplomat", 25, 5),
-    Badge("flame_keeper", "Flame Keeper", 100, 15),
-    Badge("viibr_roadie", "ViiBR Roadie", 100, 15),
-    Badge("team_wisp", "Team Wisp", 250, 25),
-    Badge("bandmate", "Bandmate", 250, 25, needs_tier=BOND_TIERS[-1][0]),
+    Badge("egg_warmer", "Egg Warmer", 25, 5, "is now an Egg Warmer"),
+    Badge("pickle_diplomat", "Pickle Diplomat", 25, 5, "is now a Pickle Diplomat"),
+    Badge("flame_keeper", "Flame Keeper", 100, 15, "is now a Flame Keeper"),
+    Badge("viibr_roadie", "ViiBR Roadie", 100, 15, "is now a ViiBR Roadie"),
+    Badge("team_wisp", "Team Wisp", 250, 25, "joined Team Wisp"),
+    Badge(
+        "bandmate",
+        "Bandmate",
+        250,
+        25,
+        "is now one of Wisp's Bandmates",
+        needs_tier=BOND_TIERS[-1][0],
+    ),
 )
 BADGE_BY_KEY: dict[str, Badge] = {badge.key: badge for badge in BADGES}
 

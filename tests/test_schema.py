@@ -55,6 +55,36 @@ async def test_create_tables_adds_the_faq_column_to_a_live_settings_table(
             )
 
 
+async def test_create_tables_adds_removed_at_to_a_live_badges_table(
+    db: Database,
+) -> None:
+    badges = db.t("badges")
+    await db.execute(f"ALTER TABLE {badges} DROP COLUMN removed_at")
+    try:
+        await create_tables(db)
+
+        columns = await db.fetchall(f"SHOW COLUMNS FROM {badges}")
+        assert "removed_at" in {column["Field"] for column in columns}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {badges}")
+        if "removed_at" not in {column["Field"] for column in restored}:
+            await db.execute(
+                f"ALTER TABLE {badges} ADD COLUMN removed_at DATETIME NULL"
+            )
+
+
+async def test_create_tables_adds_the_removal_index_to_a_live_badges_table(
+    db: Database,
+) -> None:
+    badges = db.t("badges")
+    await db.execute(f"DROP INDEX idx_guild_removed ON {badges}")
+
+    await create_tables(db)
+
+    rows = await db.fetchall(f"SHOW INDEX FROM {badges}")
+    assert "idx_guild_removed" in {row["Key_name"] for row in rows}
+
+
 async def test_track_key_is_unique_per_guild(db: Database) -> None:
     insert = (
         f"INSERT INTO {db.t('feeds')} "

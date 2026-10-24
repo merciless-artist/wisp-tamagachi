@@ -66,6 +66,14 @@ def test_the_badge_catalog() -> None:
         ("team_wisp", "Team Wisp", 250, 25, None),
         ("bandmate", "Bandmate", 250, 25, "Bandmate"),
     ]
+    assert {badge.key: badge.phrase for badge in BADGES} == {
+        "egg_warmer": "is now an Egg Warmer",
+        "pickle_diplomat": "is now a Pickle Diplomat",
+        "flame_keeper": "is now a Flame Keeper",
+        "viibr_roadie": "is now a ViiBR Roadie",
+        "team_wisp": "joined Team Wisp",
+        "bandmate": "is now one of Wisp's Bandmates",
+    }
     assert BOND_TIERS[-1][0] == "Bandmate"
     assert BADGE_BY_KEY["team_wisp"].emoji_name == "badge_team_wisp"
     assert all(len(badge.key) <= 20 for badge in BADGES)

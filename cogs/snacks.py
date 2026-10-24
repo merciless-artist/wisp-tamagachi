@@ -48,7 +48,7 @@ from cogs.players import (
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import PickleStance, casual_bond_grant, meal_grant, tier_for
-from wisp.gifts import GiftState, with_article
+from wisp.gifts import GiftState
 from wisp.life import Life, Mood, Phase, add_growth, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.rules import (
@@ -487,15 +487,14 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
             "showing a badge that did not go through",
         )
         return
-    worn = with_article(badge.name)
     await _confirm(
         interaction,
-        f"♪ You're now {worn} ・ bond +{badge.bond}",
+        f"♪ You got the {badge.name} badge ・ bond +{badge.bond}",
         "confirming a badge (the badge went through)",
     )
     name = player.name or user.display_name
     line = bot.lines.pick(Moment.BADGE_BOUGHT, mood(life), name=name)
-    await post_in_house(bot, guild_id, f"♪ {name} is now {worn}\n{line}")
+    await post_in_house(bot, guild_id, f"♪ {name} {badge.phrase}\n{line}")
 
 
 async def _take_badge(
@@ -523,7 +522,7 @@ async def _take_badge(
         raise Refusal(_NO_WISP)
     if badge.key in await bot.badges.owned(guild_id, member.id, life.id):
         raise Refusal(
-            f"♪ You're already {with_article(badge.name)} for Wisp v{life.version}."
+            f"♪ You already have the {badge.name} badge for Wisp v{life.version}."
         )
     if not await bot.players.spend(guild_id, member.id, badge.cost):
         name = player.name or member.display_name

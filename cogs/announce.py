@@ -10,7 +10,6 @@ import discord
 import pymysql
 
 from cogs.assets import ASSETS_DIR, asset_image
-from cogs.badges import strip_badges
 from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
@@ -321,7 +320,7 @@ async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
     and the rest still come.
     Nothing happens while the current life goes on, so calling this twice is
     safe. Wisp's House hears who got an ember, each with a goodbye from his AI
-    voice, then the new egg. Then the ended life's badge roles are taken back.
+    voice, then the new egg.
     Takes `bot.guild_lock`, so it must be called outside it. The goodbyes are
     written after the lock is released, since AI calls take seconds.
     """
@@ -355,8 +354,6 @@ async def _next_life(
             )
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
     await house.say(_line(bot, moment, egg), life_image(egg), poke_view())
-    if ended is not None:
-        await strip_badges(bot, guild_id, ended)
 
 
 async def _give_last_embers(

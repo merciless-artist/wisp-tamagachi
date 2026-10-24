@@ -1,5 +1,6 @@
 """Storage for badges: the badge roles in each guild and who bought which."""
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,6 +17,16 @@ class OwnedBadge:
     badge: str
     version: int
     bought_at: datetime
+
+
+@dataclass(frozen=True)
+class PendingBadge:
+    """A badge bought for a life that has ended, whose role is not taken back yet."""
+
+    user_id: int
+    badge: str
+    life_id: int
+    version: int
 
 
 class BadgeRepo:
@@ -99,14 +110,37 @@ class BadgeRepo:
             for row in rows
         ]
 
-    async def buyers(self, guild_id: int, life_id: int) -> dict[int, set[str]]:
-        """Return the badges bought for one life, keyed by the member who bought."""
+    async def pending(self, guild_id: int) -> list[PendingBadge]:
+        """Return the unmarked purchases whose life has ended, oldest life first."""
         rows = await self._db.fetchall(
-            f"SELECT user_id, badge FROM {self._db.t('badges')} "
-            "WHERE guild_id = %s AND life_id = %s",
-            (guild_id, life_id),
+            f"SELECT b.user_id, b.badge, b.life_id, b.version "
+            f"FROM {self._db.t('badges')} AS b "
+            f"JOIN {self._db.t('lives')} AS l ON l.id = b.life_id "
+            "WHERE b.guild_id = %s AND b.removed_at IS NULL "
+            "AND l.ended_at IS NOT NULL "
+            "ORDER BY b.life_id, b.user_id, b.badge",
+            (guild_id,),
         )
-        bought: dict[int, set[str]] = {}
-        for row in rows:
-            bought.setdefault(int(row["user_id"]), set()).add(row["badge"])
-        return bought
+        return [
+            PendingBadge(
+                int(row["user_id"]), row["badge"], int(row["life_id"]), row["version"]
+            )
+            for row in rows
+        ]
+
+    async def mark_removed(
+        self,
+        guild_id: int,
+        user_id: int,
+        life_id: int,
+        badges: Collection[str],
+        at: datetime,
+    ) -> None:
+        """Mark a member's badges of one life as taken back, so they are done."""
+        marks = ", ".join(["%s"] * len(badges))
+        await self._db.execute(
+            f"UPDATE {self._db.t('badges')} SET removed_at = %s "
+            "WHERE guild_id = %s AND user_id = %s AND life_id = %s "
+            f"AND badge IN ({marks}) AND removed_at IS NULL",
+            (to_db_time(at), guild_id, user_id, life_id, *sorted(badges)),
+        )

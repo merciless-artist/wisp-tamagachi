@@ -161,8 +161,9 @@ _DEFINITIONS: dict[str, str] = {
         life_id BIGINT NOT NULL,
         version INT NOT NULL,
         bought_at DATETIME NOT NULL,
+        removed_at DATETIME NULL,
         PRIMARY KEY (guild_id, user_id, badge, life_id),
-        INDEX idx_guild_life (guild_id, life_id)
+        INDEX idx_guild_removed (guild_id, removed_at)
     """,
 }
 
@@ -172,6 +173,13 @@ _DEFINITIONS: dict[str, str] = {
 _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
     "settings": {"faq_message_ids": "TEXT NULL"},
+    "badges": {"removed_at": "DATETIME NULL"},
+}
+
+# Indexes added after their table first went live, by table and index name,
+# listed here as well as in the definition for the same reason.
+_ADDED_INDEXES: dict[str, dict[str, str]] = {
+    "badges": {"idx_guild_removed": "guild_id, removed_at"},
 }
 
 TABLES: tuple[str, ...] = tuple(_DEFINITIONS)
@@ -201,11 +209,21 @@ async def _columns(db: Database, name: str) -> set[str]:
     return {row["name"] for row in rows}
 
 
-async def create_tables(db: Database) -> None:
-    """Create every table that does not exist yet, then add any missing columns.
+async def _indexes(db: Database, name: str) -> set[str]:
+    rows = await db.fetchall(
+        "SELECT DISTINCT index_name AS name FROM information_schema.statistics "
+        "WHERE table_schema = DATABASE() AND table_name = %s",
+        (db.t(name),),
+    )
+    return {row["name"] for row in rows}
 
-    Columns that are already there are skipped, so a normal startup does not
-    draw a duplicate column note from the server. Afterwards every table is
+
+async def create_tables(db: Database) -> None:
+    """Create every table that does not exist yet, then add missing columns and
+    indexes.
+
+    Columns and indexes that are already there are skipped, so a normal startup
+    does not draw a duplicate note from the server. Afterwards every table is
     checked against its definition: extra columns are logged as a warning.
 
     Raises:
@@ -230,6 +248,13 @@ async def create_tables(db: Database) -> None:
                 await db.execute(
                     f"ALTER TABLE {db.t(name)} "
                     f"ADD COLUMN IF NOT EXISTS {column} {definition}"
+                )
+    for name, indexes in _ADDED_INDEXES.items():
+        present = await _indexes(db, name)
+        for index, columns in indexes.items():
+            if index not in present:
+                await db.execute(
+                    f"CREATE INDEX IF NOT EXISTS {index} ON {db.t(name)} ({columns})"
                 )
     await _check_columns(db)
 

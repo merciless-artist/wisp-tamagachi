@@ -16,6 +16,7 @@ from cogs.announce import (
     say_in_house,
     show_in_thread,
 )
+from cogs.badges import sweep_badges
 from cogs.players import status_text
 from cogs.snacks import status_view
 from cogs.vault import refresh_vault
@@ -107,6 +108,7 @@ class LifeLoop(commands.Cog):
             await next_life(bot, guild_id, now)
         else:
             await post_events(bot, guild_id, events)
+        await sweep_badges(bot, guild_id, now)
         current = await bot.lives.current(guild_id)
         if current is None:
             return

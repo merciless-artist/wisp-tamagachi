@@ -39,6 +39,7 @@ from wisp.links import Track, TrackKind
 from wisp.rules import PAID_SNACKS, SNACKS, Stage
 
 GUILD_ID = 100
+BADGE_ROLE_ID = 4242
 FORUM_ID = 10
 HOUSE_ID = 20
 STATUS_ID = 60
@@ -1014,3 +1015,29 @@ async def test_cog_is_registered_and_set_up(
     assert "cogs.life_loop" in app.EXTENSIONS
     (added,) = add_cog.await_args.args
     assert isinstance(added, LifeLoop)
+
+
+async def test_a_restart_between_the_egg_and_the_badges_is_healed_on_the_next_tick(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    ended = new_egg(1, NOW - timedelta(days=3))
+    ended.phase = Phase.DEAD
+    ended.ended_at = NOW - timedelta(hours=1)
+    ended = await bot.lives.insert(GUILD_ID, ended)
+    assert ended.id is not None
+    await lay(bot, phase=Phase.EGG, version=2)
+    await bot.badges.set_role(GUILD_ID, "egg_warmer", BADGE_ROLE_ID)
+    await bot.badges.record(GUILD_ID, 1, "egg_warmer", ended.id, 1, NOW)
+    role = MagicMock(spec=discord.Role)
+    server.guild.get_role.side_effect = {BADGE_ROLE_ID: role}.get
+    member = MagicMock(spec=discord.Member)
+    member.remove_roles = AsyncMock()
+    server.guild.fetch_member = AsyncMock(return_value=member)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+
+    member.remove_roles.assert_awaited_once_with(role, reason="Wisp v1's life ended")
+    assert await bot.badges.pending(GUILD_ID) == []
+    assert house_reports(server) == []

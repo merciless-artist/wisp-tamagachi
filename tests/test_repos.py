@@ -10,7 +10,7 @@ import pymysql
 import pytest
 
 from db.activity import ActivityRepo, InteractionKind
-from db.badges import BadgeRepo, OwnedBadge
+from db.badges import BadgeRepo, OwnedBadge, PendingBadge
 from db.database import Database, to_db_time
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -870,16 +870,39 @@ async def test_badges_of_a_member_come_newest_life_first(db: Database) -> None:
     assert await repo.of(OTHER_GUILD, USER) == []
 
 
-async def test_buyers_of_one_life(db: Database) -> None:
-    repo = BadgeRepo(db)
-    await repo.record(GUILD, USER, "egg_warmer", 1, 3, NOW)
-    await repo.record(GUILD, USER, "team_wisp", 1, 3, NOW)
-    await repo.record(GUILD, OTHER_USER, "team_wisp", 1, 3, NOW)
-    await repo.record(GUILD, OTHER_USER, "bandmate", 2, 4, NOW)
-    await repo.record(OTHER_GUILD, USER, "bandmate", 1, 3, NOW)
+async def ended_life(db: Database, version: int, ended: bool) -> int:
+    life = new_egg(version, NOW)
+    if ended:
+        life.phase = Phase.DEAD
+        life.ended_at = NOW
+    inserted = await LifeRepo(db).insert(GUILD, life)
+    assert inserted.id is not None
+    return inserted.id
 
-    assert await repo.buyers(GUILD, 1) == {
-        USER: {"egg_warmer", "team_wisp"},
-        OTHER_USER: {"team_wisp"},
-    }
-    assert await repo.buyers(GUILD, 3) == {}
+
+async def test_pending_badges_are_the_unmarked_ones_of_ended_lives(
+    db: Database,
+) -> None:
+    repo = BadgeRepo(db)
+    gone = await ended_life(db, 1, ended=True)
+    living = await ended_life(db, 2, ended=False)
+    await repo.record(GUILD, USER, "egg_warmer", gone, 1, NOW)
+    await repo.record(GUILD, USER, "team_wisp", gone, 1, NOW)
+    await repo.record(GUILD, OTHER_USER, "team_wisp", gone, 1, NOW)
+    await repo.record(GUILD, USER, "bandmate", living, 2, NOW)
+
+    assert await repo.pending(GUILD) == [
+        PendingBadge(USER, "egg_warmer", gone, 1),
+        PendingBadge(USER, "team_wisp", gone, 1),
+        PendingBadge(OTHER_USER, "team_wisp", gone, 1),
+    ]
+
+    await repo.mark_removed(GUILD, USER, gone, {"egg_warmer", "team_wisp"}, NOW)
+
+    assert await repo.pending(GUILD) == [PendingBadge(OTHER_USER, "team_wisp", gone, 1)]
+    assert await repo.pending(OTHER_GUILD) == []
+    assert [badge.badge for badge in await repo.of(GUILD, USER)] == [
+        "bandmate",
+        "egg_warmer",
+        "team_wisp",
+    ]

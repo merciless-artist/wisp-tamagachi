@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-24 (badges, take two)
+
+- Badge roles come off through a sweep on every life loop tick: each
+  purchase of an ended life whose role is still on is taken back and marked
+  (new `badges.removed_at` column and an index on it, added to a live table
+  at startup). A restart between the new egg and the removal heals on the
+  next tick, a marked purchase is never handled again, and a failure is
+  retried each tick and reported once per streak.
+- Each badge has its own House phrase: "joined Team Wisp", "is now an Egg
+  Warmer", "is now one of Wisp's Bandmates" and so on. The member's note
+  reads "You got the Team Wisp badge".
+
 ## 2026-10-24 (badges)
 
 - The ViiBR Vault sells six badges, vanity roles worn for the current Wisp:
