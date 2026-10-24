@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-24 (viibrmusic.com share links)
+
+- Fix: viibrmusic.com share links (`https://viibrmusic.com/s/<code>`, the
+  links members actually post) feed Wisp. Before, only
+  `viibrmusic.com/songs/<id>` links counted, so ViiBR tracks were ignored.
+- `wisp/links.py` recognises a share link as a `ShareLink`; the feeding cog
+  asks viibrmusic.com which song it names (one request, redirects read, not
+  followed, one www hop allowed, `User-Agent: WispBot/1.0`), outside the
+  guild lock. The song's key is `viibr:<id>`, so a share link and the song's
+  own link feed him only once. Mealtime shows the link as posted.
+- A share link for no song (404, or a redirect that is not a song page) is
+  ignored. A timeout or network error skips the feed and is posted in Wisp's
+  House.
+- New rule `VIIBR_RESOLVE_TIMEOUT` (5 seconds).
+
 ## 2026-10-23 (the Studio's look)
 
 - The Studio threads have Myra's names: `☀️ | Status`, `🧡 | Mealtime`,

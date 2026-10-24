@@ -95,6 +95,16 @@ its threads). The egg wobbles, the baby babbles and from Child on he answers wit
 AI. From Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns nothing: no bond and no points.
 
+## Feeding
+
+Wisp eats the first track link in a qualifying member's post in the track
+drop: a viibrmusic.com song (`https://viibrmusic.com/songs/<id>` or the site's
+share link `https://viibrmusic.com/s/<code>`) or a Suno song. For a share
+link Wisp asks viibrmusic.com which song it names (one request, 5 second
+timeout) before feeding, so a share link and the song's own link are the same
+track. A share link for no song is ignored. If the site cannot be reached the
+post is not fed and the error goes to Wisp's House.
+
 ## Wisp's Studio
 
 The Studio forum holds five threads, named exactly:

@@ -6,6 +6,7 @@ Staff set how many meal points each kind of track is worth with /wispadmin food.
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
+import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -20,7 +21,7 @@ from db.settings import meal_points
 from wisp.bond import meal_grant
 from wisp.life import Event, Mood, feed, is_over, mood
 from wisp.lines import Moment
-from wisp.links import Track, TrackKind, find_track
+from wisp.links import ShareLink, Track, TrackKind, find_track
 from wisp.rules import BOND_PER_VIIBR_TRACK, MEAL_POINTS_MAX
 from wisp.text import count
 
@@ -47,14 +48,16 @@ class Feeding(commands.Cog):
 
         Only the first valid track link in a message counts, each track counts
         once ever, and the post itself is never reacted to, edited or replied to.
+        A viibrmusic.com share link counts as the song it names, which the site
+        is asked for once the member qualifies, outside the guild lock.
         Anything that does not qualify is ignored without a word.
         """
         guild = message.guild
         author = message.author
         if guild is None or author.bot or not isinstance(author, discord.Member):
             return
-        track = find_track(message.content)
-        if track is None:
+        found = find_track(message.content)
+        if found is None:
             return
         settings = await self.bot.settings.get(guild.id)
         if not in_channel(message.channel, settings.tracks_channel_id):
@@ -64,6 +67,11 @@ class Feeding(commands.Cog):
         now = discord.utils.utcnow()
         player = await self.bot.players.get(guild.id, author.id)
         if player.is_banned(now):
+            return
+        track = (
+            await self._resolve(guild, found) if isinstance(found, ShareLink) else found
+        )
+        if track is None:
             return
         points = meal_points(settings)[track.kind]
         fed = await self._feed(guild.id, author.id, track, points, message.id, now)
@@ -76,6 +84,20 @@ class Feeding(commands.Cog):
         await maybe_meet(
             self.bot, guild.id, author.id, display_name=author.display_name
         )
+
+    async def _resolve(self, guild: discord.Guild, link: ShareLink) -> Track | None:
+        """The song a share link names, or None when it names none.
+
+        When viibrmusic.com cannot be reached the link is not fed, and the error
+        goes to Wisp's House, since he never posts in the track drop.
+        """
+        try:
+            return await self.bot.share_links.resolve(link)
+        except (aiohttp.ClientError, TimeoutError) as error:
+            await self.bot.report_error(
+                guild, "checking a viibrmusic.com share link", error
+            )
+            return None
 
     async def _feed(
         self,

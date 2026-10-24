@@ -14,6 +14,7 @@ import config
 from ai.chain import chain_from_config
 from cogs.channels import may_post_in, where_of
 from cogs.groups import wisp, wispadmin
+from cogs.share_links import ShareLinkResolver
 from db.activity import ActivityRepo
 from db.database import Database
 from db.gifts import GiftRepo
@@ -125,6 +126,7 @@ class WispBot(commands.Bot):
         self.wisp_lunchbox = WispLunchboxRepo(self.db)
         self.gifts = GiftRepo(self.db)
         self.ai = chain_from_config()
+        self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
         self.emojis_by_name: dict[str, discord.Emoji] = {}
         self._missing_emojis: set[str] = set()
@@ -189,7 +191,7 @@ class WispBot(commands.Bot):
         )
 
     async def close(self) -> None:
-        """Shut the client down, then close the AI session and the database pool.
+        """Shut the client down, then close the HTTP sessions and the database pool.
 
         A failure in one step never skips the later ones.
         """
@@ -199,7 +201,10 @@ class WispBot(commands.Bot):
             try:
                 await self.ai.close()
             finally:
-                await self.db.close()
+                try:
+                    await self.share_links.close()
+                finally:
+                    await self.db.close()
 
     def emoji(self, name: str) -> str:
         """Return an application emoji's text, or "" if it has not been uploaded."""

@@ -33,6 +33,8 @@ class Stage(StrEnum):
 MEAL_POINTS: dict[TrackKind, int] = {TrackKind.VIIBR: 5, TrackKind.SUNO: 1}
 MEAL_POINTS_MAX = 50
 DAILY_MEAL_CAP = 15
+# How long viibrmusic.com has to say which song a share link names.
+VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 
 # ---
 # Care

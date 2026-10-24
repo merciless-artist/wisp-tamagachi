@@ -212,6 +212,19 @@ async def test_a_favorite_comes_only_from_the_days_viibr_feeds(
     assert await repo.favorites(GUILD_ID, 10) == [favorite]
 
 
+async def test_a_share_link_feed_counts_as_a_viibr_feed(
+    bot: app.WispBot, repo: WispLunchboxRepo
+) -> None:
+    shared = Track(TrackKind.VIIBR, viibr(2).key, "https://viibrmusic.com/s/bDBmywB5")
+    await fed(bot, suno(1), on(YESTERDAY, 9))
+    await fed(bot, shared, on(YESTERDAY, 10))
+
+    favorite = await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(3), NOW)
+
+    assert favorite is not None
+    assert (favorite.url, favorite.track_key) == (shared.url, shared.key)
+
+
 async def test_the_pick_is_random_among_the_days_viibr_feeds(
     bot: app.WispBot, repo: WispLunchboxRepo
 ) -> None:

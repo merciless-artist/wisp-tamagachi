@@ -724,13 +724,16 @@ async def test_close_closes_the_database_even_if_the_client_fails(
     close_db.assert_awaited_once()
 
 
-async def test_close_closes_the_ai_session_between_the_client_and_the_database(
+async def test_close_closes_the_ai_and_share_link_sessions_before_the_database(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
 
     async def close_ai() -> None:
         calls.append("ai")
+
+    async def close_share_links() -> None:
+        calls.append("share links")
 
     async def close_db() -> None:
         calls.append("db")
@@ -739,12 +742,31 @@ async def test_close_closes_the_ai_session_between_the_client_and_the_database(
         calls.append("client")
 
     monkeypatch.setattr(bot.ai, "close", close_ai)
+    monkeypatch.setattr(bot.share_links, "close", close_share_links)
     monkeypatch.setattr(bot.db, "close", close_db)
     monkeypatch.setattr(commands.Bot, "close", close_client)
 
     await bot.close()
 
-    assert calls == ["client", "ai", "db"]
+    assert calls == ["client", "ai", "share links", "db"]
+
+
+async def test_close_closes_the_rest_even_if_the_share_link_session_fails(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    close_db = AsyncMock()
+
+    async def failing_close() -> None:
+        raise RuntimeError("share link close failed")
+
+    monkeypatch.setattr(bot.share_links, "close", failing_close)
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", AsyncMock())
+
+    with pytest.raises(RuntimeError, match="share link close failed"):
+        await bot.close()
+
+    close_db.assert_awaited_once()
 
 
 async def test_close_closes_the_ai_session_even_if_the_client_fails(

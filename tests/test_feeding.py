@@ -6,7 +6,7 @@ Discord objects are fakes; the repositories are the real ones.
 import asyncio
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -14,12 +14,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from discord import app_commands
 
 import app
 from cogs import announce, feeding, groups
 from cogs.announce import post_events
 from cogs.feeding import Feeding
+from cogs.share_links import ShareLinkResolver
 from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -28,7 +31,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import Event, EventKind, Life, Phase, new_egg
-from wisp.links import Track, TrackKind
+from wisp.links import ShareLink, Track, TrackKind
 from wisp.rules import Stage
 
 GUILD_ID = 100
@@ -532,6 +535,146 @@ async def test_duplicate_track_is_silent(
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (5, 10)
     server.mealtime.send.assert_awaited_once()
+
+
+# ---
+# viibrmusic.com share links
+# ---
+
+SHARE_CODE = "bDBmywB5"
+SHARE_URL = f"https://viibrmusic.com/s/{SHARE_CODE}"
+
+
+@pytest.fixture
+async def viibr_site(bot: app.WispBot) -> AsyncIterator[list[str]]:
+    """A local viibrmusic.com whose share link names VIIBR_URL's song.
+
+    It yields the paths it was asked for.
+    """
+    asked: list[str] = []
+
+    async def share(request: web.Request) -> web.Response:
+        asked.append(request.path)
+        if request.match_info["code"] != SHARE_CODE:
+            return web.Response(status=404)
+        return web.Response(status=307, headers={"Location": VIIBR_URL})
+
+    site = web.Application()
+    site.router.add_get("/s/{code}", share)
+    server = TestServer(site)
+    await server.start_server()
+    bot.share_links = ShareLinkResolver(
+        origins={"viibrmusic.com": str(server.make_url("/"))}
+    )
+    try:
+        yield asked
+    finally:
+        await bot.share_links.close()
+        await server.close()
+
+
+async def test_a_share_link_feeds_wisp_once_as_its_song(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+    viibr_site: list[str],
+) -> None:
+    await cog.on_message(message(f"new one {SHARE_URL}"))
+    await cog.on_message(message(f"same song {VIIBR_URL}"))
+
+    assert viibr_site == [f"/s/{SHARE_CODE}"]
+    assert (await current_life(bot)).care == 55.0
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert (player.lifetime_points, player.bond) == (5, 10)
+    server.mealtime.send.assert_awaited_once()
+    (forwarded,) = server.mealtime.send.await_args.args
+    assert SHARE_URL in forwarded
+    assert VIIBR_URL not in forwarded
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_share_link_for_no_song_is_silent(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+    viibr_site: list[str],
+) -> None:
+    await cog.on_message(message("https://viibrmusic.com/s/zzzzzzzz"))
+
+    assert viibr_site == ["/s/zzzzzzzz"]
+    await assert_untouched(bot, server)
+
+
+async def test_a_share_link_is_not_checked_for_a_member_who_cannot_feed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+    viibr_site: list[str],
+) -> None:
+    await cog.on_message(message(SHARE_URL, author=make_member(role_id=OTHER_ROLE)))
+    await cog.on_message(message(SHARE_URL, channel=make_channel(TRACKS_ID + 1)))
+
+    assert viibr_site == []
+    await assert_untouched(bot, server)
+
+
+async def test_a_share_link_is_resolved_outside_the_guild_lock(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+    viibr_site: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    held: list[bool] = []
+    resolve = bot.share_links.resolve
+
+    async def resolve_and_check(link: ShareLink) -> Track | None:
+        held.append(bot.guild_lock(GUILD_ID).locked())
+        return await resolve(link)
+
+    monkeypatch.setattr(bot.share_links, "resolve", resolve_and_check)
+
+    await cog.on_message(message(SHARE_URL))
+
+    assert held == [False]
+    assert (await current_life(bot)).care == 55.0
+
+
+async def test_an_unreachable_viibr_site_is_reported_in_the_house_and_not_fed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    gone = TestServer(web.Application())
+    await gone.start_server()
+    origin = str(gone.make_url("/"))
+    await gone.close()
+    bot.share_links = ShareLinkResolver(origins={"viibrmusic.com": origin})
+    post = message(SHARE_URL)
+
+    try:
+        await cog.on_message(post)
+    finally:
+        await bot.share_links.close()
+
+    (report,) = [call.args[0] for call in server.house.send.await_args_list]
+    assert report.startswith(
+        "Error in checking a viibrmusic.com share link: ClientConnectorError"
+    )
+    post.channel.send.assert_not_called()
+    server.mealtime.send.assert_not_awaited()
+    assert (await current_life(bot)).care == 50.0
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert (player.lifetime_points, player.bond) == (0, 0)
 
 
 async def test_daily_cap_clamps_then_silences(
