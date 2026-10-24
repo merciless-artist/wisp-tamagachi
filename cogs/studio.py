@@ -119,6 +119,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} each get "
             "his Last Ember in their Snack Pack",
             "・Dying of neglect leaves no Last Ember",
+            "・Be there as he grows to win a keepsake",
             "",
             "Talking to Wisp",
             "・Mention him or reply to him in Wisp's House",

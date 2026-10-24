@@ -62,14 +62,21 @@ class ShareLinkResolver:
             await self._session.close()
 
     async def _redirect(self, url: str) -> Track | ShareLink | None:
-        """Where a share link redirects to, when that is a track or share link."""
+        """Where a share link redirects to, when that is a track or share link.
+
+        A redirect whose address cannot be parsed names no song.
+        """
         async with self._open().get(
             self._address(url), allow_redirects=False
         ) as response:
             location = response.headers.get("Location")
             if location is None or not 300 <= response.status < 400:
                 return None
-        return whole_link(str(URL(url).join(URL(location))))
+        try:
+            target = URL(url).join(URL(location))
+        except ValueError:
+            return None
+        return whole_link(str(target))
 
     def _address(self, url: str) -> str:
         """The address to request `url` at."""

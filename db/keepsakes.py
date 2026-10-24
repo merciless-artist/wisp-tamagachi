@@ -15,9 +15,23 @@ class KeepsakeKind(StrEnum):
     """The kinds of keepsake Wisp gives."""
 
     LAST_EMBER = "last_ember"
+    EGGSHELL = "eggshell"
+    FIRST_SPARK = "first_spark"
+    TEEN_SPARK = "teen_spark"
+    ADULT_SPARK = "adult_spark"
+    GUITAR_PICK = "guitar_pick"
+    READING_GLASSES = "reading_glasses"
 
 
-_TITLES: Final = {KeepsakeKind.LAST_EMBER: "Wisp v{version}'s Last Ember"}
+_TITLES: Final = {
+    KeepsakeKind.LAST_EMBER: "Wisp v{version}'s Last Ember",
+    KeepsakeKind.EGGSHELL: "Wisp v{version}'s Eggshell",
+    KeepsakeKind.FIRST_SPARK: "Wisp v{version}'s First Spark",
+    KeepsakeKind.TEEN_SPARK: "Wisp v{version}'s Teen Spark",
+    KeepsakeKind.ADULT_SPARK: "Wisp v{version}'s Adult Spark",
+    KeepsakeKind.GUITAR_PICK: "Wisp v{version}'s Guitar Pick",
+    KeepsakeKind.READING_GLASSES: "Wisp v{version}'s Reading Glasses",
+}
 
 
 @dataclass(frozen=True)

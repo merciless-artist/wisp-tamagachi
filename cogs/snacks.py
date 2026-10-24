@@ -288,7 +288,8 @@ async def _snack_pack_text(
     if free_left:
         snacks.append(f"・{_named(bot, _FREE)} ・ free today")
     keepsakes = [
-        f"・{keepsake.title}" for keepsake in await bot.keepsakes.of(guild_id, user_id)
+        f"・{with_emoji(bot.emoji(f'keepsake_{keepsake.kind.value}'), keepsake.title)}"
+        for keepsake in await bot.keepsakes.of(guild_id, user_id)
     ]
     lines = [
         f"♪ {player.name or display_name}'s Snack Pack",

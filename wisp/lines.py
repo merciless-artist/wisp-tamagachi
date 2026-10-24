@@ -51,6 +51,7 @@ class Moment(StrEnum):
     GIFT_PASSED = auto()
     GIFT_FULL = auto()
     COLLECTION_DONE = auto()
+    KEEPSAKE_WON = auto()
 
 
 _NAME = frozenset({"name"})
@@ -95,6 +96,7 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.GIFT_PASSED: _GIFT,
     Moment.GIFT_FULL: _GIFT,
     Moment.COLLECTION_DONE: frozenset({"name", "collection"}),
+    Moment.KEEPSAKE_WON: _NAME,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -536,6 +538,15 @@ _LAST_EMBER = (
     "for {name}, who never let the studio go quiet. thank you, with my whole flame",
 )
 
+_KEEPSAKE_WON = (
+    "{name}, you were right there when it happened. that one's yours forever",
+    "of everyone in the server, {name} was there. I'll remember that",
+    "you saw it happen, {name}. here's something to prove it",
+    "{name} was there for the big moment. keep this one safe for me",
+    "look who caught it! {name}, you were the one. I'm so proud",
+    "I wanted whoever was there to have this. that's you, {name}",
+)
+
 # ---
 # Members
 # ---
@@ -754,6 +765,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.BANNED, _BANNED),
     **_either_mood(Moment.NOT_ENOUGH_POINTS, _NOT_ENOUGH_POINTS),
     **_either_mood(Moment.EGG_POKE, _EGG_POKE),
+    **_either_mood(Moment.KEEPSAKE_WON, _KEEPSAKE_WON),
 }
 
 # ---

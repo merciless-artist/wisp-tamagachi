@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-24 (milestone keepsakes)
+
+- Wisp's big moments give a keepsake to the member who was there: the
+  Eggshell when the egg starts hatching (to the member whose feed filled it),
+  the First Spark, Teen Spark, Adult Spark and Guitar Pick when he grows into
+  a Child, Teen, Adult and Rockstar, and the Reading Glasses when he grows
+  old (to the member of the latest interaction with that life). Nobody gets
+  one when nobody was there or the member is banned; each is given once.
+- Wisp's House announces it with a new line, and attaches
+  `ASSETS/keepsakes/<kind>.png` when it exists. The Last Ember post attaches
+  `ASSETS/keepsakes/last_ember.png` the same way.
+- The Snack Pack shows each keepsake's app emoji `keepsake_<kind>` when it is
+  uploaded.
+- The rules post says "Be there as he grows to win a keepsake".
+- Share links: a redirect with an unparseable address names no song instead
+  of raising, and link patterns match ASCII only, so Unicode case folding
+  cannot pass a non-ASCII URL for a link.
+- New keepsake kinds; no new columns.
+
 ## 2026-10-24 (viibrmusic.com share links)
 
 - Fix: viibrmusic.com share links (`https://viibrmusic.com/s/<code>`, the

@@ -197,6 +197,67 @@ async def test_guilds_lists_configured_guilds(db: Database) -> None:
 
 
 # ---
+# Latest interactor and keepsake kinds
+# ---
+
+
+async def test_latest_interactor_is_the_last_member_to_interact_with_the_life(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    assert await repo.latest_interactor(GUILD, 1) is None
+
+    await repo.record_interaction(GUILD, 1, 10, InteractionKind.FEED, 0, 5, NOW)
+    await repo.record_interaction(
+        GUILD, 1, 11, InteractionKind.PLAY, 0, 0, NOW + timedelta(minutes=5)
+    )
+    await repo.record_interaction(
+        GUILD, 1, 12, InteractionKind.SNACK, 0, 1, NOW - timedelta(minutes=5)
+    )
+    await repo.record_interaction(
+        GUILD, 2, 13, InteractionKind.FEED, 0, 5, NOW + timedelta(hours=1)
+    )
+    await repo.record_interaction(
+        OTHER_GUILD, 1, 14, InteractionKind.FEED, 0, 5, NOW + timedelta(hours=1)
+    )
+
+    assert await repo.latest_interactor(GUILD, 1) == 11
+
+
+async def test_latest_interactor_breaks_a_tie_by_the_later_record(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    await repo.record_interaction(GUILD, 1, 10, InteractionKind.FEED, 0, 5, NOW)
+    await repo.record_interaction(GUILD, 1, 11, InteractionKind.GIFT, 0, 0, NOW)
+
+    assert await repo.latest_interactor(GUILD, 1) == 11
+
+
+@pytest.mark.parametrize(
+    "kind,title",
+    [
+        (KeepsakeKind.LAST_EMBER, "Wisp v3's Last Ember"),
+        (KeepsakeKind.EGGSHELL, "Wisp v3's Eggshell"),
+        (KeepsakeKind.FIRST_SPARK, "Wisp v3's First Spark"),
+        (KeepsakeKind.TEEN_SPARK, "Wisp v3's Teen Spark"),
+        (KeepsakeKind.ADULT_SPARK, "Wisp v3's Adult Spark"),
+        (KeepsakeKind.GUITAR_PICK, "Wisp v3's Guitar Pick"),
+        (KeepsakeKind.READING_GLASSES, "Wisp v3's Reading Glasses"),
+    ],
+)
+async def test_every_keepsake_kind_is_stored_and_titled(
+    db: Database, kind: KeepsakeKind, title: str
+) -> None:
+    repo = KeepsakeRepo(db)
+
+    assert await repo.give(GUILD, 1, kind, 3, NOW)
+
+    (kept,) = await repo.of(GUILD, 1)
+    assert (kept.kind, kept.title) == (kind, title)
+
+
+# ---
 # Lives
 # ---
 

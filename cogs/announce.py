@@ -15,7 +15,7 @@ from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
 from wisp.life import Event, EventKind, Life, Phase, egg_after, is_over, mood
 from wisp.lines import FIELDS, Moment
-from wisp.rules import LAST_EMBER_GIFTS
+from wisp.rules import LAST_EMBER_GIFTS, Stage
 from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
@@ -24,6 +24,12 @@ if TYPE_CHECKING:
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
 _BABY_STAGE: Final = "baby"
+_STAGE_KEEPSAKES: Final = {
+    Stage.CHILD: KeepsakeKind.FIRST_SPARK,
+    Stage.TEEN: KeepsakeKind.TEEN_SPARK,
+    Stage.ADULT: KeepsakeKind.ADULT_SPARK,
+    Stage.ROCKSTAR: KeepsakeKind.GUITAR_PICK,
+}
 
 # ---
 # Images
@@ -43,6 +49,12 @@ def _image_for(event: Event) -> Path | None:
         case EventKind.DIED | EventKind.EGG_COLD | EventKind.FAREWELL:
             candidates = [events / f"{event.kind.value}.png"]
     return next((path for path in candidates if path.is_file()), None)
+
+
+def keepsake_image(kind: KeepsakeKind) -> Path | None:
+    """Return a keepsake's picture when it exists, or None for text only."""
+    path = ASSETS_DIR / "keepsakes" / f"{kind.value}.png"
+    return path if path.is_file() else None
 
 
 def life_image(life: Life) -> Path | None:
@@ -209,7 +221,8 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
     A death, a cold egg or a farewell is followed by the next life, unless the
-    current life is not over, which means the ending is stale.
+    current life is not over, which means the ending is stale. Hatching, each
+    stage up and growing old give a keepsake to the member who was there.
     A missing House channel is reported once; the next life still comes.
     """
     if not events:
@@ -224,8 +237,57 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
             continue
         moment = Moment(event.kind.value)
         await house.say(_line(bot, moment, life, event), _image_for(event))
+        if (kind := _milestone(event)) is not None:
+            await _give_milestone(bot, guild_id, house, life, kind)
         if event.kind in _ENDINGS:
             await _next_life(bot, guild_id, house, discord.utils.utcnow())
+
+
+# ---
+# Milestone keepsakes
+# ---
+
+
+def _milestone(event: Event) -> KeepsakeKind | None:
+    """The keepsake a big moment gives, or None for any other event."""
+    match event.kind:
+        case EventKind.HATCH_STARTED:
+            return KeepsakeKind.EGGSHELL
+        case EventKind.GREW_OLD:
+            return KeepsakeKind.READING_GLASSES
+        case EventKind.STAGE_UP if event.stage is not None:
+            return _STAGE_KEEPSAKES.get(event.stage)
+    return None
+
+
+async def _give_milestone(
+    bot: "WispBot", guild_id: int, house: _House, life: Life, kind: KeepsakeKind
+) -> None:
+    """Give a big moment's keepsake to the member who was there, and say so.
+
+    The Eggshell goes to the member whose feed filled the egg; every other one
+    to the member who last interacted with this life. Nobody gets it when
+    there is no such member, when they are banned or when they already have it.
+    """
+    if life.id is None:
+        return
+    user_id = (
+        life.hatched_by
+        if kind is KeepsakeKind.EGGSHELL
+        else await bot.activity_log.latest_interactor(guild_id, life.id)
+    )
+    if user_id is None:
+        return
+    now = discord.utils.utcnow()
+    player = await bot.players.get(guild_id, user_id)
+    if player.is_banned(now):
+        return
+    keepsake = Keepsake(kind, life.version, now)
+    if not await bot.keepsakes.give(guild_id, user_id, kind, life.version, now):
+        return
+    name = display_name(bot.get_guild(guild_id), player)
+    won = _line(bot, Moment.KEEPSAKE_WON, life, name=name)
+    await house.say(f"♪ {name} gets {keepsake.title}\n{won}", keepsake_image(kind))
 
 
 # ---
@@ -274,7 +336,9 @@ async def _next_life(
             notes = await bot.notes.recent(guild_id, player.user_id)
             heading = f"♪ {name} gets {embers.ember.title}"
             goodbye = await _goodbye(bot, guild, embers.life, name, notes)
-            await house.say(f"{heading}\n{goodbye}")
+            await house.say(
+                f"{heading}\n{goodbye}", keepsake_image(KeepsakeKind.LAST_EMBER)
+            )
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
     await house.say(_line(bot, moment, egg), life_image(egg))
 

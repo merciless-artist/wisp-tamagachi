@@ -374,6 +374,29 @@ async def test_snack_pack_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> N
     ]
 
 
+async def test_snack_pack_puts_each_keepsakes_emoji_in_front_when_uploaded(
+    bot: app.WispBot,
+) -> None:
+    give_emojis(bot, "keepsake_eggshell", "keepsake_last_ember")
+    at = discord.utils.utcnow()
+    for kind in (
+        KeepsakeKind.EGGSHELL,
+        KeepsakeKind.LAST_EMBER,
+        KeepsakeKind.TEEN_SPARK,
+    ):
+        await bot.keepsakes.give(GUILD_ID, USER_ID, kind, 3, at)
+
+    interaction = await open_my_snack_pack(bot)
+
+    keepsakes = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[2]
+    assert keepsakes.splitlines() == [
+        "Keepsakes",
+        f"・{emoji_text('keepsake_eggshell', 1)} Wisp v3's Eggshell",
+        f"・{emoji_text('keepsake_last_ember', 2)} Wisp v3's Last Ember",
+        "・Wisp v3's Teen Spark",
+    ]
+
+
 async def test_snack_pack_lists_keepsakes_oldest_first(bot: app.WispBot) -> None:
     at = discord.utils.utcnow()
     for version in (4, 2):

@@ -42,6 +42,7 @@ ONE_MOOD_MOMENTS = {
     Moment.COAL_EGG,
     Moment.LAST_EMBER,
     Moment.EGG_POKE,
+    Moment.KEEPSAKE_WON,
 }
 FAREWELL_MOMENTS = [
     Moment.GREW_OLD,
@@ -163,6 +164,15 @@ def test_talk_moments_take_no_fields(moment: Moment) -> None:
 def test_farewell_and_coal_egg_lines_name_the_version(moment: Moment) -> None:
     for line in LINES[(moment, Mood.HAPPY)]:
         assert placeholders(line) == {"version"}, line
+
+
+def test_keepsake_won_lines_speak_to_the_member_without_numbers() -> None:
+    assert FIELDS[Moment.KEEPSAKE_WON] == {"name"}
+    lines = LINES[(Moment.KEEPSAKE_WON, Mood.HAPPY)]
+    assert len(lines) >= 6
+    for line in lines:
+        assert placeholders(line) == {"name"}, line
+        assert not re.search(r"\d", line), line
 
 
 def test_last_ember_lines_speak_to_the_member() -> None:

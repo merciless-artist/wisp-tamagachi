@@ -26,6 +26,7 @@ from cogs.share_links import ShareLinkResolver
 from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
+from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -150,6 +151,7 @@ def bot(
     wisp_bot.lives = LifeRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
+    wisp_bot.keepsakes = KeepsakeRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -777,16 +779,20 @@ async def test_egg_feed_that_completes_starts_hatching_event(
     await configure(bot)
     await activate(bot)
     await start_life(bot, phase=Phase.EGG, care=0.0, egg_food=rules.EGG_FOOD_NEEDED - 5)
+    feeder = make_member()
+    server.guild.get_member.side_effect = {FIRST_USER: feeder}.get
 
-    await cog.on_message(message(VIIBR_URL))
+    await cog.on_message(message(VIIBR_URL, author=feeder))
 
     life = await current_life(bot)
     assert life.phase is Phase.HATCHING
     assert life.hatched_by == FIRST_USER
-    server.house.send.assert_awaited_once()
-    (text,) = server.house.send.await_args.args
-    assert mentions_version(text, 1)
-    assert sends_without_pinging(server.house.send.await_args.kwargs)
+    cracking, won = server.house.send.await_args_list
+    assert mentions_version(cracking.args[0], 1)
+    assert won.args[0].startswith("♪ Member1 gets Wisp v1's Eggshell")
+    assert all(sends_without_pinging(post.kwargs) for post in (cracking, won))
+    kept = await bot.keepsakes.of(GUILD_ID, FIRST_USER)
+    assert [keepsake.title for keepsake in kept] == ["Wisp v1's Eggshell"]
     server.mealtime.send.assert_awaited_once()
 
 

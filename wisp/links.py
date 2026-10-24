@@ -43,6 +43,9 @@ class ShareLink:
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _END = r"(?![\w-])"
 _TAIL = re.compile(r"/?(?:[?#].*)?")
+# ASCII only, so Unicode case folding (such as "ſ" for "s") never lets a
+# non-ASCII URL pass for a link.
+_FLAGS = re.IGNORECASE | re.ASCII
 
 
 def _track(kind: TrackKind) -> Callable[[re.Match[str]], Track]:
@@ -67,28 +70,28 @@ _PATTERNS: tuple[
         _track(TrackKind.VIIBR),
         re.compile(
             rf"https://(?:www\.)?viibrmusic\.com/songs/(?P<uuid>{_UUID}){_END}",
-            re.IGNORECASE,
+            _FLAGS,
         ),
     ),
     (
         _share_link,
         re.compile(
             rf"https://(?:www\.)?viibrmusic\.com/s/(?P<code>[0-9a-z]+){_END}",
-            re.IGNORECASE,
+            _FLAGS,
         ),
     ),
     (
         _track(TrackKind.SUNO),
         re.compile(
             rf"https://(?:suno\.com|app\.suno\.ai)/song/(?P<uuid>{_UUID}){_END}",
-            re.IGNORECASE,
+            _FLAGS,
         ),
     ),
     (
         _track(TrackKind.SUNO),
         re.compile(
             rf"https://suno\.com/s/(?P<code>[0-9a-z]+){_END}",
-            re.IGNORECASE,
+            _FLAGS,
         ),
     ),
 )

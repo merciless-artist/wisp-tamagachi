@@ -18,7 +18,7 @@ from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs import announce
 from cogs.announce import life_image, next_life, post_events, show_in_thread
-from db.activity import ActivityRepo
+from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
@@ -868,3 +868,168 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
     assert "Bea" in to_bea.user and "plays bass" not in to_bea.user
     assert lock_held == [False, False, False]
     assert report == "Error in Wisp's AI voice: AllProvidersFailed: gemini: timed out"
+
+
+# ---
+# Milestone keepsakes
+# ---
+
+
+async def growing_life(bot: app.WispBot, *, hatched_by: int | None = None) -> Life:
+    """A living Wisp v1 whose egg was filled by `hatched_by`."""
+    life = new_egg(1, discord.utils.utcnow() - timedelta(days=3))
+    life.phase = Phase.ALIVE
+    life.care = 80.0
+    life.stage = life.peak_stage = Stage.BABY
+    life.hatched_by = hatched_by
+    return await bot.lives.insert(GUILD_ID, life)
+
+
+async def interacted(bot: app.WispBot, life: Life, user_id: int, ago: int) -> None:
+    """Record an interaction `ago` minutes back."""
+    assert life.id is not None
+    await bot.activity_log.record_interaction(
+        GUILD_ID,
+        life.id,
+        user_id,
+        InteractionKind.PLAY,
+        0,
+        0,
+        discord.utils.utcnow() - timedelta(minutes=ago),
+    )
+
+
+def keepsake_said(text: str, name: str, title: str) -> bool:
+    heading, line = text.split("\n")
+    return heading == f"♪ {name} gets {title}" and said(
+        line, Moment.KEEPSAKE_WON, name=name
+    )
+
+
+async def test_hatching_gives_the_eggshell_to_whoever_filled_the_egg(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "keepsakes", "eggshell")
+    life = await growing_life(bot, hatched_by=NAMED)
+    life.phase = Phase.HATCHING
+    await bot.lives.save(GUILD_ID, life)
+    await bot.players.set_name(GUILD_ID, NAMED, "Aria")
+    await interacted(bot, life, MEMBER, 1)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HATCH_STARTED)])
+
+    cracking, won = server.house.send.await_args_list
+    assert said(cracking.args[0], Moment.HATCH_STARTED, version="1")
+    assert keepsake_said(won.args[0], "Aria", "Wisp v1's Eggshell")
+    assert won.kwargs["file"].filename == "eggshell.png"
+    assert sends_without_pinging(won.kwargs)
+    assert await embers(bot, NAMED) == ["Wisp v1's Eggshell"]
+    assert await embers(bot, MEMBER) == []
+
+
+@pytest.mark.parametrize(
+    "stage,title",
+    [
+        (Stage.CHILD, "Wisp v1's First Spark"),
+        (Stage.TEEN, "Wisp v1's Teen Spark"),
+        (Stage.ADULT, "Wisp v1's Adult Spark"),
+        (Stage.ROCKSTAR, "Wisp v1's Guitar Pick"),
+    ],
+)
+async def test_a_stage_up_gives_its_keepsake_to_the_latest_interactor(
+    bot: app.WispBot, server: FakeServer, assets: Path, stage: Stage, title: str
+) -> None:
+    life = await growing_life(bot)
+    await interacted(bot, life, NAMED, 30)
+    await interacted(bot, life, MEMBER, 2)
+    member = MagicMock(spec=discord.Member)
+    member.display_name = "Bea"
+    server.members[MEMBER] = member
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, stage)])
+
+    grew, won = server.house.send.await_args_list
+    assert said(grew.args[0], Moment.STAGE_UP, stage=stage.value)
+    assert keepsake_said(won.args[0], "Bea", title)
+    assert "file" not in won.kwargs
+    assert sends_without_pinging(won.kwargs)
+    assert await embers(bot, MEMBER) == [title]
+    assert await embers(bot, NAMED) == []
+
+
+async def test_growing_old_gives_the_reading_glasses(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "keepsakes", "reading_glasses")
+    life = await growing_life(bot)
+    await interacted(bot, life, NAMELESS, 1)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)])
+
+    _old, won = server.house.send.await_args_list
+    title = "Wisp v1's Reading Glasses"
+    assert keepsake_said(won.args[0], f"<@{NAMELESS}>", title)
+    assert won.kwargs["file"].filename == "reading_glasses.png"
+    assert await embers(bot, NAMELESS) == [title]
+
+
+async def test_a_milestone_with_nobody_there_gives_nothing(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    await growing_life(bot)
+
+    await post_events(
+        bot,
+        GUILD_ID,
+        [Event(EventKind.HATCH_STARTED), Event(EventKind.STAGE_UP, Stage.CHILD)],
+    )
+
+    assert server.house.send.await_count == 2
+    for user_id in (NAMED, MEMBER, NAMELESS):
+        assert await embers(bot, user_id) == []
+
+
+async def test_a_banned_member_gets_no_milestone_keepsake(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    life = await growing_life(bot, hatched_by=NAMED)
+    await interacted(bot, life, NAMED, 1)
+    now = discord.utils.utcnow()
+    await bot.players.set_offense(GUILD_ID, NAMED, 1, now + timedelta(days=1), False)
+
+    await post_events(
+        bot,
+        GUILD_ID,
+        [Event(EventKind.HATCH_STARTED), Event(EventKind.STAGE_UP, Stage.CHILD)],
+    )
+
+    assert server.house.send.await_count == 2
+    assert await embers(bot, NAMED) == []
+
+
+async def test_a_milestone_keepsake_is_given_once(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    life = await growing_life(bot)
+    await interacted(bot, life, NAMED, 1)
+    grew = [Event(EventKind.STAGE_UP, Stage.TEEN)]
+
+    await post_events(bot, GUILD_ID, grew)
+    await post_events(bot, GUILD_ID, grew)
+
+    assert server.house.send.await_count == 3
+    assert await embers(bot, NAMED) == ["Wisp v1's Teen Spark"]
+
+
+async def test_the_last_ember_carries_its_art_when_it_exists(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "keepsakes", "last_ember")
+    life = await ended_life(bot, Phase.PASSED)
+    await shared(bot, life, {NAMED: 10})
+
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+
+    ember, _coal = server.house.send.await_args_list
+    assert ember.kwargs["file"].filename == "last_ember.png"
+    assert sends_without_pinging(ember.kwargs)

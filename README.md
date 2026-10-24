@@ -105,6 +105,22 @@ timeout) before feeding, so a share link and the song's own link are the same
 track. A share link for no song is ignored. If the site cannot be reached the
 post is not fed and the error goes to Wisp's House.
 
+## Keepsakes
+
+Wisp's big moments give a keepsake to the member who was there, kept in their
+Snack Pack and announced in Wisp's House:
+
+- the Eggshell, when the egg starts hatching, to the member whose feed filled
+  it;
+- the First Spark, Teen Spark and Adult Spark when he grows into a Child, Teen
+  and Adult, and the Guitar Pick when he becomes a Rockstar, to the member who
+  last interacted with him;
+- the Reading Glasses when he grows old, to the member who last interacted
+  with him;
+- the Last Ember after a full life, to that life's top sharers.
+
+Nobody gets one when nobody was there or the member is banned.
+
 ## Wisp's Studio
 
 The Studio forum holds five threads, named exactly:
@@ -155,9 +171,13 @@ posts text only.
   section pictures. These are required: without all eleven the FAQ is not
   built and the error is posted in its thread.
 - `gifts/<key>.png` (512px) for each gift, attached when Wisp keeps it.
+- `keepsakes/<kind>.png` for `eggshell`, `first_spark`, `teen_spark`,
+  `adult_spark`, `guitar_pick`, `reading_glasses` and `last_ember`,
+  attached when the keepsake is given.
 
 App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `gift_<key>` for each gift key,
+`keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
 `wisp_coin`, `wisp_happy`, `wisp_hangry`.
 
 ## Testing

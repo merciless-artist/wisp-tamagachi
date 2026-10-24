@@ -130,6 +130,15 @@ class ActivityRepo:
         assert row is not None
         return int(row["people"])
 
+    async def latest_interactor(self, guild_id: int, life_id: int) -> int | None:
+        """The member who last interacted with one life in any way, or None."""
+        row = await self._db.fetchone(
+            f"SELECT user_id FROM {self._db.t('interactions')} "
+            "WHERE guild_id = %s AND life_id = %s ORDER BY at DESC, id DESC LIMIT 1",
+            (guild_id, life_id),
+        )
+        return None if row is None else int(row["user_id"])
+
     async def top_this_life(
         self, guild_id: int, life_id: int, limit: int
     ) -> list[tuple[int, int]]:

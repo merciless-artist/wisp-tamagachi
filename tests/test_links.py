@@ -100,6 +100,11 @@ def test_finds_a_share_link(text: str, url: str) -> None:
     assert find_track(text) == ShareLink(SHARE_CODE, url)
 
 
+def test_a_share_code_stops_at_the_first_non_ascii_character() -> None:
+    found = find_track("https://viibrmusic.com/s/ab\u017fc")
+    assert found == ShareLink("ab", "https://viibrmusic.com/s/ab")
+
+
 def test_share_codes_are_case_sensitive_and_kept_exactly() -> None:
     upper = find_track("https://viibrmusic.com/s/ABCdef12")
     lower = find_track("https://viibrmusic.com/s/abcdef12")
@@ -132,6 +137,8 @@ def test_a_share_link_becomes_the_song_it_names_shown_as_posted() -> None:
         "https://viibrmusic.com.evil.example/s/abc123",
         "https://evilviibrmusic.com/s/abc123",
         "http://viibrmusic.com/s/abc123",
+        "http\u017f://viibrmusic.com/s/abc",
+        "https://viibrmu\u017fic.com/s/abc",
     ],
 )
 def test_rejects_what_is_not_a_share_link(text: str) -> None:
