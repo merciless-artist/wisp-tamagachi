@@ -92,8 +92,11 @@ Member commands:
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
-its threads). The egg wobbles, the baby babbles and from Child on he answers with
-AI. From Adult on he sometimes chimes in on his own and remembers things people
+its threads). He answers with AI at every stage: the egg wobbles or crackles in
+reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
+the baby answers with noises and single words, and from Child on he talks. If
+the AI is down, the egg and baby fall back to their pre-written lines. From
+Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns nothing: no bond and no points.
 
 ## Feeding

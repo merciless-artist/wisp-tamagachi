@@ -23,11 +23,15 @@ from wisp.rules import (
     TALK_COOLDOWN,
 )
 from wisp.voice import (
+    EGG_EXPRESSION,
     ChatLine,
+    Fed,
+    Poker,
     Speaker,
     Talk,
     build_prompt,
     chimes_in,
+    egg_prompt,
     keeps_notes,
     talk_level,
 )
@@ -37,7 +41,11 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _CONTEXT: Final = "talking in Wisp's House"
-_CANNED: Final = {Talk.POKE: Moment.EGG_POKE, Talk.BABY: Moment.BABY_TALK}
+_FALLBACK: Final = {
+    Talk.EGG: Moment.EGG_POKE,
+    Talk.BABY: Moment.BABY_TALK,
+    Talk.AI: Moment.CHAT_FALLBACK,
+}
 _MEMBER_MENTION: Final = re.compile(r"<@!?(\d+)>")
 _ROLE_OR_CHANNEL_MENTION: Final = re.compile(r"<(?:@&|#)\d+>")
 _CUSTOM_EMOJI: Final = re.compile(r"<a?:(\w+):\d+>")
@@ -150,10 +158,7 @@ class Conversation(commands.Cog):
             return
         self._answered_at[key] = now
         try:
-            if level is Talk.AI:
-                await self._talk(message, guild, life, player, text, earlier, now)
-            else:
-                await _reply(message, self.bot.lines.pick(_CANNED[level], mood(life)))
+            await self._talk(message, guild, life, level, player, text, earlier, now)
         except discord.HTTPException as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
 
@@ -162,39 +167,48 @@ class Conversation(commands.Cog):
         message: discord.Message,
         guild: discord.Guild,
         life: Life,
+        level: Talk,
         player: Player,
         text: str,
         earlier: Sequence[ChatLine],
         now: datetime,
     ) -> None:
-        """Answer in Wisp's AI voice, or with a canned line when it fails.
+        """Answer in Wisp's AI voice for `level`, or with its canned line on failure.
 
-        A pickle stance in the answer is saved; a note only from Adult on. The
-        expressions it used count toward his favorite emoji.
+        The egg's answers keep nothing. From Baby on, a pickle stance in the
+        answer is saved and the expressions it used count toward his favorite
+        emoji; a note is saved only from Adult on.
         """
         bot = self.bot
+        name = player.name or message.author.display_name
         remembers = keeps_notes(life.stage)
-        notes = await bot.notes.recent(guild.id, player.user_id) if remembers else []
-        speaker = Speaker(
-            player.name or message.author.display_name,
-            tier_for(player.bond),
-            tuple(notes),
-            player.pickle_stance,
-        )
-        prompt = build_prompt(
-            life.stage,
-            mood(life),
-            speaker,
-            earlier,
-            text,
-            expressions=expressions(bot),
-        )
+        if level is Talk.EGG:
+            poker = Poker(name, await self._fed(guild.id, life, player.user_id))
+            has_face = EGG_EXPRESSION in bot.emojis_by_name
+            prompt = egg_prompt(life, poker, earlier, text, emoji=has_face)
+        else:
+            notes = (
+                await bot.notes.recent(guild.id, player.user_id) if remembers else []
+            )
+            speaker = Speaker(
+                name, tier_for(player.bond), tuple(notes), player.pickle_stance
+            )
+            prompt = build_prompt(
+                life.stage,
+                mood(life),
+                speaker,
+                earlier,
+                text,
+                expressions=expressions(bot),
+            )
         async with message.channel.typing():
             reply = await ai_reply(bot, guild, prompt)
         if reply is None:
-            await _reply(message, bot.lines.pick(Moment.CHAT_FALLBACK, mood(life)))
+            await _reply(message, bot.lines.pick(_FALLBACK[level], mood(life)))
             return
         await _reply(message, reply.text)
+        if level is Talk.EGG:
+            return
         await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
         if reply.pickle_stance is not None:
             await bot.players.set_pickle_stance(
@@ -202,6 +216,20 @@ class Conversation(commands.Cog):
             )
         if remembers and reply.note is not None:
             await bot.notes.add(guild.id, player.user_id, reply.note, now)
+
+    async def _fed(self, guild_id: int, life: Life, user_id: int) -> Fed:
+        """How much the member has fed this life, next to its biggest feeder.
+
+        Everyone tied for the most counts as having fed it most.
+        """
+        if life.id is None:
+            return Fed.NOTHING
+        log = self.bot.activity_log
+        points = await log.fed_this_life(guild_id, life.id, user_id)
+        if points == 0:
+            return Fed.NOTHING
+        ((_, most),) = await log.top_this_life(guild_id, life.id, 1)
+        return Fed.MOST if points >= most else Fed.SOME
 
     def _chime_in_due(self, guild_id: int, now: datetime) -> bool:
         """Whether CHIME_IN_GAP has passed since this guild's last chime-in."""

@@ -151,6 +151,17 @@ class ActivityRepo:
         )
         return [(row["user_id"], int(row["points"])) for row in rows]
 
+    async def fed_this_life(self, guild_id: int, life_id: int, user_id: int) -> int:
+        """Meal points one member has fed one life, zero when they fed none."""
+        row = await self._db.fetchone(
+            f"SELECT COALESCE(SUM(meal_points), 0) AS points FROM "
+            f"{self._db.t('feeds')} "
+            "WHERE guild_id = %s AND life_id = %s AND user_id = %s",
+            (guild_id, life_id, user_id),
+        )
+        assert row is not None
+        return int(row["points"])
+
     async def inventory(self, guild_id: int, user_id: int) -> dict[str, int]:
         """Return the snacks the member owns, keyed by snack, never zero."""
         rows = await self._db.fetchall(

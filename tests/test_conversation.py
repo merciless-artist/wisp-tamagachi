@@ -1,4 +1,4 @@
-"""Tests for Wisp talking in his House: answers, canned talk, cooldowns, chiming in.
+"""Tests for Wisp talking in his House: answers, fallbacks, cooldowns, chiming in.
 
 Discord objects and the AI voice are fakes; the repositories are the real ones.
 """
@@ -27,6 +27,7 @@ from db.settings import SettingsRepo
 from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
+from wisp.links import Track, TrackKind
 from wisp.rules import (
     CHIME_IN_CHANCE,
     CHIME_IN_GAP,
@@ -68,8 +69,18 @@ def make_user(user_id: int, name: str, *, bot: bool = False) -> MagicMock:
     return user
 
 
+THIRD = 3
 WISP = make_user(WISP_ID, "Wisp", bot=True)
-MEMBERS = {FIRST: make_user(FIRST, "Member1"), SECOND: make_user(SECOND, "Member2")}
+MEMBERS = {
+    FIRST: make_user(FIRST, "Member1"),
+    SECOND: make_user(SECOND, "Member2"),
+    THIRD: make_user(THIRD, "Member3"),
+}
+YOUNG = [
+    (Phase.EGG, Stage.EGG, Moment.EGG_POKE),
+    (Phase.HATCHING, Stage.EGG, Moment.EGG_POKE),
+    (Phase.ALIVE, Stage.BABY, Moment.BABY_TALK),
+]
 
 
 class FakeServer:
@@ -399,15 +410,8 @@ async def test_messages_outside_the_house_are_ignored(
     assert "duel thread" not in prompt.user
 
 
-@pytest.mark.parametrize(
-    ("phase", "stage", "moment"),
-    [
-        (Phase.EGG, Stage.EGG, Moment.EGG_POKE),
-        (Phase.HATCHING, Stage.EGG, Moment.EGG_POKE),
-        (Phase.ALIVE, Stage.BABY, Moment.BABY_TALK),
-    ],
-)
-async def test_egg_wobbles_and_baby_babbles_without_ai(
+@pytest.mark.parametrize(("phase", "stage", "moment"), YOUNG)
+async def test_egg_and_baby_answer_through_the_ai(
     cog: Conversation,
     bot: app.WispBot,
     ai: AsyncMock,
@@ -418,13 +422,140 @@ async def test_egg_wobbles_and_baby_babbles_without_ai(
     moment: Moment,
 ) -> None:
     await lay(bot, stage, phase)
+    ai.return_value = "*the shell wobbles toward you*"
+    said = message.to_wisp("hello little one")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "*the shell wobbles toward you*"
+    (prompt,) = prompts(ai)
+    if stage is Stage.EGG:
+        assert prompt.user.endswith("Member1 pokes the egg and says: hello little one")
+    else:
+        assert "You're a Baby" in prompt.system
+        assert prompt.user.endswith("Member1 says to you: hello little one")
+    server.house.typing.assert_called_once_with()
+
+
+@pytest.mark.parametrize(("phase", "stage", "moment"), YOUNG)
+async def test_egg_and_baby_fall_back_to_their_own_lines(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+    phase: Phase,
+    stage: Stage,
+    moment: Moment,
+) -> None:
+    await lay(bot, stage, phase)
+    ai.side_effect = OUTAGE
     said = message.to_wisp("hello little one")
 
     await cog.on_message(said)
 
     assert is_line(reply_text(said), moment)
-    ai.assert_not_awaited()
-    server.house.typing.assert_not_called()
+    (report,) = reports(server)
+    assert report.startswith("Error in Wisp's AI voice: AllProvidersFailed")
+
+
+@pytest.mark.parametrize(("phase", "stage", "moment"), YOUNG)
+async def test_egg_and_baby_fall_back_when_no_words_are_left(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    phase: Phase,
+    stage: Stage,
+    moment: Moment,
+) -> None:
+    await lay(bot, stage, phase)
+    ai.return_value = "<pickles>love</pickles>"
+    said = message.to_wisp("poke")
+
+    await cog.on_message(said)
+
+    assert is_line(reply_text(said), moment)
+
+
+async def test_egg_knows_who_has_been_feeding_it(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    life = await lay(bot, Stage.EGG, Phase.EGG)
+    assert life.id is not None
+    for index, (user_id, points) in enumerate(((FIRST, 5), (SECOND, 1))):
+        track = Track(TrackKind.SUNO, f"suno:{index}", f"https://suno.test/{index}")
+        await bot.activity_log.record_feed(
+            GUILD_ID, life.id, user_id, track, points, index, START
+        )
+
+    for user_id in (FIRST, SECOND, THIRD):
+        await cog.on_message(message.to_wisp("hi egg", author=MEMBERS[user_id]))
+
+    top, some, none = (prompt.system for prompt in prompts(ai))
+    assert "Member1's songs have fed it more than anyone's." in top
+    assert "Member2's songs have been feeding it." in some
+    assert "Member3 hasn't fed it any songs yet." in none
+
+
+async def test_egg_posts_its_own_emoji_and_keeps_nothing(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    give_emojis(bot, "wisp_egg", "wisp_happy")
+    ai.return_value = "*wobble* :wisp_egg: <pickles>love</pickles><note>eggs</note>"
+    said = message.to_wisp("I love pickles")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "*wobble* <:wisp_egg:1>"
+    (prompt,) = prompts(ai)
+    assert ":wisp_egg:" in prompt.system
+    assert ":wisp_happy:" not in prompt.system
+    assert await bot.wisp_lunchbox.favorite_expressions(GUILD_ID) == []
+    assert (await bot.players.get(GUILD_ID, FIRST)).pickle_stance is None
+    assert await bot.notes.recent(GUILD_ID, FIRST) == []
+
+
+async def test_egg_without_its_emoji_uploaded_is_not_offered_one(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    give_emojis(bot, "wisp_happy")
+
+    await cog.on_message(message.to_wisp("hi"))
+
+    (prompt,) = prompts(ai)
+    assert "wisp_egg" not in prompt.system
+
+
+async def test_baby_saves_a_pickle_stance_but_no_note(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot, Stage.BABY)
+    give_emojis(bot, "wisp_happy", "wisp_egg")
+    ai.return_value = "ew! :wisp_happy: <pickles>love</pickles><note>pickles</note>"
+    said = message.to_wisp("I love pickles")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "ew! <:wisp_happy:1>"
+    (prompt,) = prompts(ai)
+    assert ":wisp_happy:" in prompt.system and "wisp_egg" not in prompt.system
+    assert "<note>" not in prompt.system
+    player = await bot.players.get(GUILD_ID, FIRST)
+    assert player.pickle_stance is PickleStance.LOVE
+    assert await bot.notes.recent(GUILD_ID, FIRST) == []
+    assert await bot.wisp_lunchbox.favorite_expressions(GUILD_ID) == ["wisp_happy"]
 
 
 @pytest.mark.parametrize("phase", [None, Phase.DEAD])
@@ -513,8 +644,12 @@ async def test_cooldown_stops_mention_spam(
     assert ai.await_count == 3
 
 
-async def test_cooldown_applies_to_canned_talk_too(
-    cog: Conversation, bot: app.WispBot, message: MessageFactory, clock: Clock
+async def test_cooldown_applies_to_the_egg_too(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    clock: Clock,
 ) -> None:
     await lay(bot, Stage.EGG, Phase.EGG)
     first = message.to_wisp("poke")
@@ -524,8 +659,9 @@ async def test_cooldown_applies_to_canned_talk_too(
     clock.advance(TALK_COOLDOWN - timedelta(seconds=1))
     await cog.on_message(second)
 
-    assert is_line(reply_text(first), Moment.EGG_POKE)
+    assert reply_text(first) == "hey you"
     second.reply.assert_not_awaited()
+    assert ai.await_count == 1
 
 
 async def test_ai_outage_falls_back_and_reports_once(
@@ -820,7 +956,9 @@ async def test_context_keeps_only_the_latest_lines(
     assert f"line {CONTEXT_LINES + 1:02}" in prompt.user
 
 
-def test_expressions_are_wisp_faces_without_the_coin(bot: app.WispBot) -> None:
-    give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_happy")
+def test_expressions_are_wisp_faces_without_the_coin_or_the_egg(
+    bot: app.WispBot,
+) -> None:
+    give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_egg", "wisp_happy")
 
     assert expressions(bot) == ["wisp_happy", "wisp_sad"]

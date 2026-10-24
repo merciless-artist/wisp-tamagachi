@@ -7,22 +7,26 @@ import discord
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs.assets import COIN_EMOJI
-from wisp.voice import Reply, parse_reply
+from wisp.voice import EGG_EXPRESSION, Reply, parse_reply
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _EXPRESSION_PREFIX: Final = "wisp_"
+_NOT_HIS_FACES: Final = frozenset({COIN_EMOJI, EGG_EXPRESSION})
 _OUTAGE_STREAK: Final = "ai"
 _CONTEXT: Final = "Wisp's AI voice"
 
 
 def expressions(bot: "WispBot") -> list[str]:
-    """Names of Wisp's uploaded face emojis, sorted. The coin is not a face."""
+    """Names of hatched Wisp's uploaded face emojis, sorted.
+
+    The coin is not a face, and the egg's face is only the egg's.
+    """
     return sorted(
         name
         for name in bot.emojis_by_name
-        if name.startswith(_EXPRESSION_PREFIX) and name != COIN_EMOJI
+        if name.startswith(_EXPRESSION_PREFIX) and name not in _NOT_HIS_FACES
     )
 
 

@@ -649,6 +649,22 @@ async def test_top_this_life_orders_by_points(db: Database) -> None:
     assert await repo.top_this_life(GUILD, 3, 10) == []
 
 
+async def test_fed_this_life_sums_one_members_feeds_of_one_life(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    await repo.record_feed(GUILD, 1, 10, track("a"), 1, 1, NOW)
+    await repo.record_feed(GUILD, 1, 10, track("b", TrackKind.VIIBR), 5, 2, NOW)
+    await repo.record_feed(GUILD, 1, 20, track("c"), 1, 3, NOW)
+    await repo.record_feed(GUILD, 2, 10, track("d"), 1, 4, NOW)
+    await repo.record_feed(OTHER_GUILD, 1, 10, track("e"), 1, 5, NOW)
+
+    assert await repo.fed_this_life(GUILD, 1, 10) == 6
+    assert await repo.fed_this_life(GUILD, 1, 20) == 1
+    assert await repo.fed_this_life(GUILD, 1, 30) == 0
+    assert await repo.fed_this_life(GUILD, 3, 10) == 0
+
+
 async def test_inventory_add_and_take(db: Database) -> None:
     repo = ActivityRepo(db)
     assert await repo.inventory(GUILD, USER) == {}

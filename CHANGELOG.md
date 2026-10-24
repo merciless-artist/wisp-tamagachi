@@ -2,6 +2,15 @@
 
 ## 2026-10-24 (the egg and baby talk, and dropped connections)
 
+- The egg and the baby answer through the AI, so pokes stop repeating. The
+  egg (hatching too) replies with one short line of wordless third-person
+  action, reacting to how fed and warm it is, whether it is a coal egg, how
+  far its hatching is, and whether the poker fed it or fed it most. Now and
+  then it posts its own `wisp_egg` emoji, which no hatched stage is offered.
+  The baby answers with baby noises and single words, fussy when hangry,
+  never swearing; he keeps the pickle tag and may use one expression. When
+  the AI fails, the old egg and baby lines are the fallback. The egg's
+  replies save nothing; the baby's save a pickle stance.
 - Database reads retry once on another connection when the connection was
   lost (MySQL errors 2006 and 2013); the lost connection is closed so the pool
   never hands it out again. Writes are never retried, since a lost write may
