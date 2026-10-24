@@ -146,12 +146,15 @@ def rules_post(settings: Settings) -> str:
 class StudioThread:
     """One thread of the Studio forum and the settings that remember it.
 
-    `content` is the first post's text, or a function that writes it from the
-    guild's settings when the thread is created.
+    `name` is the thread's exact name in the forum, emoji included; `title` is
+    the plain name Wisp uses for it in his messages. `content` is the first
+    post's text, or a function that writes it from the guild's settings when
+    the thread is created.
     """
 
     attr: str
     name: str
+    title: str
     content: str | Callable[[Settings], str]
     message_attr: str | None = None
     locked: bool = False
@@ -161,17 +164,20 @@ class StudioThread:
 STUDIO_THREADS: tuple[StudioThread, ...] = (
     StudioThread(
         "status_thread_id",
+        "☀️ | Status",
         "Status",
         "Wisp's status card will appear here.",
         message_attr="status_message_id",
     ),
     StudioThread(
         "mealtime_thread_id",
+        "🧡 | Mealtime",
         "Mealtime",
         "Every track that feeds Wisp lands here.",
     ),
     StudioThread(
         "vault_thread_id",
+        "🔒| The ViiBR Vault",
         "The ViiBR Vault",
         "The ViiBR Vault is opening.",
         message_attr="vault_message_id",
@@ -179,12 +185,14 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
     ),
     StudioThread(
         "jam_thread_id",
-        "The Jam Space",
+        "⚡｜Jam Space",
+        "Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
     ),
     StudioThread(
         "rules_thread_id",
-        "How Wisp Works",
+        "📙｜Wisp FAQ",
+        "Wisp FAQ",
         rules_post,
         message_attr="rules_message_id",
         locked=True,
@@ -261,17 +269,22 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Lock the rules thread and pin the card, skipping whatever is already done.
+    """Name the thread, lock the FAQ and pin the card, skipping what is done.
 
     A failed step is posted in the thread and retried the next time the Studio
     is ensured. A card whose message is gone is left for the status loop to
     repost.
     """
+    if thread.name != spec.name:
+        try:
+            await thread.edit(name=spec.name)
+        except discord.HTTPException as error:
+            await bot.report_error(guild, f"renaming {spec.title}", error, where=thread)
     if spec.locked and not thread.locked:
         try:
             await thread.edit(locked=True)
         except discord.HTTPException as error:
-            await bot.report_error(guild, f"locking {spec.name}", error, where=thread)
+            await bot.report_error(guild, f"locking {spec.title}", error, where=thread)
     if spec.message_attr is None or message_id is None:
         return
     try:
@@ -282,7 +295,7 @@ async def _finish_thread(
         return
     except discord.HTTPException as error:
         await bot.report_error(
-            guild, f"pinning the card in {spec.name}", error, where=thread
+            guild, f"pinning the card in {spec.title}", error, where=thread
         )
 
 
@@ -290,7 +303,8 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     """Create any Studio thread that is missing and return the guild's settings.
 
     Threads that already exist are left alone apart from reopening an archived
-    one and finishing any lock or pin that is still missing. Threads that were
+    one, renaming one whose name has changed and finishing any lock or pin
+    that is still missing. Threads that were
     stored but have been deleted are recreated, and Wisp's House is told about
     them.
 
@@ -308,7 +322,7 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
             if thread is None:
                 thread, message_id = await _create_thread(bot, forum, spec, settings)
                 if stored is not None:
-                    recreated.append(spec.name)
+                    recreated.append(spec.title)
             else:
                 message_id = (
                     getattr(settings, spec.message_attr) if spec.message_attr else None
@@ -401,7 +415,7 @@ async def setup_studio(
         await interaction.followup.send(str(error), ephemeral=True)
         return
     created = [
-        spec.name
+        spec.title
         for spec in STUDIO_THREADS
         if getattr(before, spec.attr) != getattr(after, spec.attr)
     ]

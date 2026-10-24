@@ -27,13 +27,15 @@ OTHER_FORUM_ID = 11
 HOUSE_ID = 20
 TRACKS_ID = 30
 
-THREAD_NAMES = (
-    "Status",
-    "Mealtime",
-    "The ViiBR Vault",
-    "The Jam Space",
-    "How Wisp Works",
-)
+STATUS = "☀️ | Status"
+MEALTIME = "\U0001f9e1 | Mealtime"
+VAULT = "\U0001f512| The ViiBR Vault"
+JAM = "⚡｜Jam Space"
+FAQ = "\U0001f4d9｜Wisp FAQ"
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
+THREAD_TITLES = ("Status", "Mealtime", "The ViiBR Vault", "Jam Space", "Wisp FAQ")
+OLD_NAMES = ("Status", "Mealtime", "The ViiBR Vault", "The Jam Space", "How Wisp Works")
+EMOJI = "[🀀-🿿☀-♩♫-➿️]"
 THREAD_ATTRS = (
     "status_thread_id",
     "mealtime_thread_id",
@@ -237,15 +239,15 @@ async def test_setup_creates_five_threads_with_the_vault(
     for name, attr in zip(THREAD_NAMES, THREAD_ATTRS, strict=True):
         assert getattr(settings, attr) == server.thread_named(name).id
 
-    status = server.thread_named("Status")
-    vault = server.thread_named("The ViiBR Vault")
-    rules_thread = server.thread_named("How Wisp Works")
+    status = server.thread_named(STATUS)
+    vault = server.thread_named(VAULT)
+    rules_thread = server.thread_named(FAQ)
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
     assert settings.rules_message_id == server.messages[rules_thread.id].id
     for thread in (status, vault, rules_thread):
         server.messages[thread.id].pin.assert_awaited_once()
-    for name in ("Mealtime", "The Jam Space"):
+    for name in (MEALTIME, JAM):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -256,7 +258,8 @@ async def test_setup_creates_five_threads_with_the_vault(
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     text = sent_text(interaction)
-    assert all(name in text for name in THREAD_NAMES)
+    assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
+    assert not re.search(EMOJI, text)
     assert "Errors" not in text
     server.house.send.assert_not_awaited()
 
@@ -268,7 +271,7 @@ async def test_a_new_rules_post_shows_the_current_food_values(
 
     await run_setup(bot, server)
 
-    rules_thread = server.thread_named("How Wisp Works")
+    rules_thread = server.thread_named(FAQ)
     content = server.messages[rules_thread.id].content
     assert content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
 
@@ -284,7 +287,7 @@ async def test_vault_post_attaches_the_vault_art_when_present(
         thread.name: thread.create_kwargs.get("file")
         for thread in server.threads.values()
     }
-    art = attached.pop("The ViiBR Vault")
+    art = attached.pop(VAULT)
     assert isinstance(art, discord.File)
     assert art.filename == "vault.png"
     art.close()
@@ -296,7 +299,7 @@ async def test_vault_post_without_art_is_text_only(
 ) -> None:
     await run_setup(bot, server)
 
-    vault = server.thread_named("The ViiBR Vault")
+    vault = server.thread_named(VAULT)
     assert vault.create_kwargs == {"auto_archive_duration": 10080}
 
 
@@ -309,8 +312,8 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
     assert "Studio threads: all five already exist" in sent_text(interaction)
-    assert server.thread_named("How Wisp Works").edit.await_count == 1
-    assert server.messages[server.thread_named("Status").id].pin.await_count == 1
+    assert server.thread_named(FAQ).edit.await_count == 1
+    assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     server.house.send.assert_not_awaited()
 
 
@@ -319,14 +322,14 @@ async def test_setup_recreates_deleted_thread(
 ) -> None:
     await run_setup(bot, server)
     before = await bot.settings.get(GUILD_ID)
-    old = server.thread_named("Mealtime")
+    old = server.thread_named(MEALTIME)
     del server.threads[old.id]
 
     settings = await ensure_studio(bot, GUILD_ID)
 
-    assert server.created_names == [*THREAD_NAMES, "Mealtime"]
+    assert server.created_names == [*THREAD_NAMES, MEALTIME]
     assert settings.mealtime_thread_id not in (None, old.id)
-    assert settings.mealtime_thread_id == server.thread_named("Mealtime").id
+    assert settings.mealtime_thread_id == server.thread_named(MEALTIME).id
     assert settings.status_thread_id == before.status_thread_id
     assert settings.status_message_id == before.status_message_id
     server.house.send.assert_awaited_once()
@@ -348,7 +351,7 @@ async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
 
     assert settings.vault_thread_id != before.vault_thread_id
     assert settings.vault_message_id != before.vault_message_id
-    new_thread = server.thread_named("The ViiBR Vault")
+    new_thread = server.thread_named(VAULT)
     server.messages[new_thread.id].pin.assert_awaited_once()
 
 
@@ -369,10 +372,10 @@ async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    for name in ("Status", "The ViiBR Vault"):
+    for name, title in ((STATUS, "Status"), (VAULT, "The ViiBR Vault")):
         (line,) = server.thread_named(name).send.await_args.args
-        assert line.startswith(f"Error in pinning the card in {name}: Forbidden")
-    server.thread_named("Mealtime").send.assert_not_awaited()
+        assert line.startswith(f"Error in pinning the card in {title}: Forbidden")
+    server.thread_named(MEALTIME).send.assert_not_awaited()
     server.house.send.assert_not_awaited()
 
 
@@ -383,7 +386,7 @@ async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
 
     def failing_lock(**kwargs: Any) -> discord.channel.ThreadWithMessage:
         created: discord.channel.ThreadWithMessage = original(**kwargs)
-        if kwargs["name"] == "How Wisp Works":
+        if kwargs["name"] == FAQ:
             server.threads[created.thread.id].edit.side_effect = discord.Forbidden(
                 MagicMock(status=403), "Missing Permissions"
             )
@@ -394,8 +397,8 @@ async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    (line,) = server.thread_named("How Wisp Works").send.await_args.args
-    assert line.startswith("Error in locking How Wisp Works: Forbidden")
+    (line,) = server.thread_named(FAQ).send.await_args.args
+    assert line.startswith("Error in locking Wisp FAQ: Forbidden")
     server.house.send.assert_not_awaited()
 
 
@@ -403,7 +406,7 @@ async def test_rerun_locks_an_existing_unlocked_rules_thread(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    rules_thread = server.thread_named("How Wisp Works")
+    rules_thread = server.thread_named(FAQ)
     rules_thread.locked = False
 
     await ensure_studio(bot, GUILD_ID)
@@ -413,11 +416,47 @@ async def test_rerun_locks_an_existing_unlocked_rules_thread(
     assert rules_thread.edit.await_count == 2
 
 
+async def test_rerun_renames_threads_that_have_their_old_names(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    for thread, old in zip(server.threads.values(), OLD_NAMES, strict=True):
+        thread.name = old
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.created_names == list(THREAD_NAMES)
+    assert [thread.name for thread in server.threads.values()] == list(THREAD_NAMES)
+    for thread in server.threads.values():
+        thread.edit.assert_any_await(name=thread.name)
+    server.house.send.assert_not_awaited()
+
+
+async def test_rename_failure_is_posted_in_its_thread_and_the_rest_carry_on(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    mealtime = server.thread_named(MEALTIME)
+    jam = server.thread_named(JAM)
+    mealtime.name = "Mealtime"
+    mealtime.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+    jam.name = "The Jam Space"
+
+    await ensure_studio(bot, GUILD_ID)
+
+    (line,) = mealtime.send.await_args.args
+    assert line.startswith("Error in renaming Mealtime: Forbidden")
+    assert jam.name == JAM
+    server.house.send.assert_not_awaited()
+
+
 async def test_rerun_pins_an_existing_unpinned_card(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    status_message = server.messages[server.thread_named("Status").id]
+    status_message = server.messages[server.thread_named(STATUS).id]
     status_message.pinned = False
 
     await ensure_studio(bot, GUILD_ID)
@@ -425,7 +464,7 @@ async def test_rerun_pins_an_existing_unpinned_card(
     assert server.created_names == list(THREAD_NAMES)
     assert status_message.pinned is True
     assert status_message.pin.await_count == 2
-    vault_message = server.messages[server.thread_named("The ViiBR Vault").id]
+    vault_message = server.messages[server.thread_named(VAULT).id]
     vault_message.pin.assert_awaited_once()
 
 
@@ -433,7 +472,7 @@ async def test_rerun_skips_a_card_whose_message_is_gone(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    status = server.thread_named("Status")
+    status = server.thread_named(STATUS)
     del server.messages[status.id]
 
     await ensure_studio(bot, GUILD_ID)
@@ -461,7 +500,7 @@ async def test_archived_thread_is_unarchived_not_recreated(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    mealtime = server.thread_named("Mealtime")
+    mealtime = server.thread_named(MEALTIME)
     mealtime.archived = True
 
     await ensure_studio(bot, GUILD_ID)
@@ -518,13 +557,13 @@ async def test_studio_thread_returns_the_stored_thread(
 
     thread = await studio_thread(bot, GUILD_ID, "mealtime_thread_id")
 
-    assert thread is server.thread_named("Mealtime")
+    assert thread is server.thread_named(MEALTIME)
     thread.edit.assert_not_awaited()
 
 
 async def test_studio_thread_unarchives(bot: app.WispBot, server: FakeServer) -> None:
     await run_setup(bot, server)
-    mealtime = server.thread_named("Mealtime")
+    mealtime = server.thread_named(MEALTIME)
     mealtime.archived = True
 
     thread = await studio_thread(bot, GUILD_ID, "mealtime_thread_id")
@@ -537,13 +576,13 @@ async def test_studio_thread_recreates_a_deleted_thread(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    old = server.thread_named("Mealtime")
+    old = server.thread_named(MEALTIME)
     del server.threads[old.id]
 
     thread = await studio_thread(bot, GUILD_ID, "mealtime_thread_id")
 
     assert thread is not old
-    assert thread is server.thread_named("Mealtime")
+    assert thread is server.thread_named(MEALTIME)
     assert (await bot.settings.get(GUILD_ID)).mealtime_thread_id == thread.id
     server.house.send.assert_awaited_once()
 
@@ -801,8 +840,7 @@ def test_rules_text_uses_bot_style() -> None:
     assert "・" in text
     assert "♪" in text
     assert "・♪ ────────・──────── ♪・" in text
-    emoji = "[🀀-🿿☀-♩♫-➿️]"
-    assert not re.search(emoji, text)
+    assert not re.search(EMOJI, text)
 
 
 def test_rules_text_numbers_come_from_the_rules(
