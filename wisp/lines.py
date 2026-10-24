@@ -1,11 +1,9 @@
-"""Wisp's lines for every moment and mood, and a picker that avoids repeats."""
+"""Wisp's lines for every moment and mood, and a shuffle-bag picker."""
 
 import random
-from collections import deque
 from enum import StrEnum, auto
 
 from wisp.life import Mood
-from wisp.rules import LINES_REMEMBERED
 
 # ---
 # Moments
@@ -774,11 +772,15 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
 
 
 class LinePicker:
-    """Picks Wisp's lines at random, never repeating one he said recently."""
+    """Deals Wisp's lines from a shuffled bag per moment and mood.
+
+    Every line in a bag is said once before the bag is refilled, and a refill
+    never starts with the line the last bag ended on.
+    """
 
     def __init__(self, rng: random.Random | None = None) -> None:
         self._rng = rng if rng is not None else random.Random()
-        self._recent: dict[tuple[Moment, Mood], deque[str]] = {}
+        self._bags: dict[tuple[Moment, Mood], list[str]] = {}
 
     def pick(self, moment: Moment, mood: Mood, **fields: str) -> str:
         """Return a line for this moment and mood with its placeholders filled.
@@ -791,11 +793,16 @@ class LinePicker:
             raise ValueError(
                 f"{moment} lines need fields {sorted(expected)}, got {sorted(fields)}"
             )
-        options = LINES[(moment, mood)]
-        recent = self._recent.setdefault(
-            (moment, mood),
-            deque(maxlen=min(len(options) - 1, LINES_REMEMBERED)),
-        )
-        line = self._rng.choice([option for option in options if option not in recent])
-        recent.append(line)
+        key = (moment, mood)
+        bag = self._bags.get(key) or self._shuffled(key, after=None)
+        line = bag.pop()
+        self._bags[key] = bag or self._shuffled(key, after=line)
         return line.format(**fields)
+
+    def _shuffled(self, key: tuple[Moment, Mood], after: str | None) -> list[str]:
+        """A full bag for `key`, dealt from the end, whose first line is not `after`."""
+        bag = list(LINES[key])
+        self._rng.shuffle(bag)
+        if bag[-1] == after:
+            bag[0], bag[-1] = bag[-1], bag[0]
+        return bag

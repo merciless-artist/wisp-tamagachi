@@ -370,8 +370,6 @@ AI_MAX_CHARS = 600
 # Talking
 # ---
 
-LINES_REMEMBERED = 5
-
 TALK_COOLDOWN = timedelta(seconds=15)
 CHIME_IN_CHANCE = 0.04
 CHIME_IN_GAP = timedelta(minutes=90)

@@ -1,9 +1,11 @@
-"""Tests for Wisp's lines and the no-repeat line picker."""
+"""Tests for Wisp's lines and the shuffle-bag line picker."""
 
 import random
 import re
 import unicodedata
+from collections.abc import MutableSequence
 from string import Formatter
+from typing import Any
 
 import pytest
 
@@ -245,14 +247,61 @@ def test_farewell_moment_lines_have_no_numbers(moment: Moment) -> None:
 # ---
 
 
+class FlippingShuffle(random.Random):
+    """Shuffles by leaving every other bag in order and reversing the rest.
+
+    The two deal the same lines in opposite orders, so each refill would start
+    with the line the bag before it ended on.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.flip = False
+
+    def shuffle(self, x: MutableSequence[Any]) -> None:
+        if self.flip:
+            x.reverse()
+        self.flip = not self.flip
+
+
 @pytest.mark.parametrize("key", ALL_KEYS)
-def test_picker_does_not_repeat_recent(key: tuple[Moment, Mood]) -> None:
+def test_picker_deals_every_line_once_per_bag(key: tuple[Moment, Mood]) -> None:
     moment, mood = key
     picker = LinePicker(random.Random(7))
-    window = min(len(LINES[key]) - 1, 5)
+    expected = sorted(line.format(**fields_for(moment)) for line in LINES[key])
+    size = len(expected)
+    picks = [picker.pick(moment, mood, **fields_for(moment)) for _ in range(size * 4)]
+    for start in range(0, len(picks), size):
+        assert sorted(picks[start : start + size]) == expected
+
+
+@pytest.mark.parametrize("key", ALL_KEYS)
+@pytest.mark.parametrize("seed", range(5))
+def test_picker_never_says_a_line_twice_in_a_row(
+    key: tuple[Moment, Mood], seed: int
+) -> None:
+    moment, mood = key
+    picker = LinePicker(random.Random(seed))
     picks = [picker.pick(moment, mood, **fields_for(moment)) for _ in range(60)]
-    for index, line in enumerate(picks):
-        assert line not in picks[max(0, index - window) : index]
+    assert all(first != second for first, second in zip(picks, picks[1:]))
+
+
+def test_a_refill_never_starts_with_the_line_that_ended_the_last_bag() -> None:
+    picker = LinePicker(FlippingShuffle())
+    size = len(LINES[(Moment.QUIET, Mood.HAPPY)])
+    picks = [picker.pick(Moment.QUIET, Mood.HAPPY) for _ in range(size * 3)]
+    for end in range(size, len(picks), size):
+        assert picks[end] != picks[end - 1]
+        assert len(set(picks[end : end + size])) == size
+
+
+def test_each_moment_and_mood_has_its_own_bag() -> None:
+    picker = LinePicker(random.Random(2))
+    happy = len(LINES[(Moment.QUIET, Mood.HAPPY)])
+    picker.pick(Moment.QUIET, Mood.HANGRY)
+    picker.pick(Moment.HUNGRY, Mood.HAPPY)
+    picks = [picker.pick(Moment.QUIET, Mood.HAPPY) for _ in range(happy)]
+    assert set(picks) == set(LINES[(Moment.QUIET, Mood.HAPPY)])
 
 
 @pytest.mark.parametrize("key", ALL_KEYS)
