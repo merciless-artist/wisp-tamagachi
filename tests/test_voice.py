@@ -1,22 +1,33 @@
 """Tests for Wisp's voice: who talks how, his prompts and reply cleaning."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from ai.prompt import Prompt
 from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
-from wisp.rules import AI_MAX_CHARS, Stage
+from wisp.rules import (
+    AI_MAX_CHARS,
+    EGG_FOOD_NEEDED,
+    EGG_LINE_CHARS,
+    EGG_WARMTH,
+    HATCHING_TIME,
+    Stage,
+)
 from wisp.voice import (
+    EGG_EXPRESSION,
     NO_U_GIF,
     ChatLine,
+    Fed,
+    Poker,
     Reply,
     Speaker,
     Talk,
     build_prompt,
     chimes_in,
+    egg_prompt,
     goodbye_prompt,
     keeps_notes,
     parse_reply,
@@ -59,6 +70,38 @@ def prompt_for(
     )
 
 
+def egg(
+    food: int = 0,
+    in_phase: timedelta = timedelta(0),
+    *,
+    hatching: bool = False,
+    coal: bool = False,
+) -> Life:
+    life = new_egg(1, NOW)
+    life.egg_food = food
+    life.phase_seconds = in_phase.total_seconds()
+    life.from_coal = coal
+    if hatching:
+        life.phase = Phase.HATCHING
+    return life
+
+
+def poke(
+    life: Life | None = None,
+    fed: Fed = Fed.NOTHING,
+    message: str = "hello little one",
+    *,
+    emoji: bool = False,
+) -> Prompt:
+    return egg_prompt(
+        egg() if life is None else life,
+        Poker("Myra", fed),
+        CONTEXT,
+        message,
+        emoji=emoji,
+    )
+
+
 def emoji_text(name: str) -> str:
     return EMOJIS.get(name, "")
 
@@ -79,8 +122,8 @@ def clean(raw: str) -> Reply:
         (Phase.DEAD, Stage.TEEN, Talk.SILENT),
         (Phase.COLD, Stage.EGG, Talk.SILENT),
         (Phase.PASSED, Stage.OLD_FOGEY, Talk.SILENT),
-        (Phase.EGG, Stage.EGG, Talk.POKE),
-        (Phase.HATCHING, Stage.EGG, Talk.POKE),
+        (Phase.EGG, Stage.EGG, Talk.EGG),
+        (Phase.HATCHING, Stage.EGG, Talk.EGG),
         (Phase.ALIVE, Stage.BABY, Talk.BABY),
         *[(Phase.ALIVE, stage, Talk.AI) for stage in AI_STAGES],
     ],
@@ -228,10 +271,164 @@ def test_chime_in_prompt_has_no_speaker_and_says_so() -> None:
     assert "<pickles>" not in prompt.system and "<note>" not in prompt.system
 
 
-def test_baby_and_egg_have_no_ai_prompt() -> None:
-    for stage in (Stage.EGG, Stage.BABY):
-        with pytest.raises(ValueError, match=stage.label):
-            prompt_for(stage)
+def test_the_egg_has_no_chat_prompt() -> None:
+    with pytest.raises(ValueError, match="Egg"):
+        prompt_for(Stage.EGG)
+
+
+# ---
+# The baby's prompt
+# ---
+
+
+@pytest.mark.parametrize("mood", list(Mood))
+def test_baby_makes_noises_and_single_words_only(mood: Mood) -> None:
+    system = prompt_for(Stage.BABY, mood).system
+    assert "You're a Baby" in system
+    assert "only baby noises and single words" in system
+    assert "a few sounds or one or two words" in system
+    assert "a line or two" not in system
+    assert "fresh every time" in system
+    assert "You don't swear" in system
+    assert not re.search(r"you swear", system, re.IGNORECASE)
+
+
+def test_baby_keeps_the_pickle_tag_but_no_note_tag() -> None:
+    system = prompt_for(Stage.BABY, who=speaker(notes=(NOTE,))).system
+    assert "<pickles>love</pickles>" in system
+    assert "<note>" not in system
+    assert NOTE not in system
+
+
+def test_baby_may_use_one_expression() -> None:
+    system = prompt_for(Stage.BABY).system
+    assert ":wisp_happy:" in system and "At most one" in system
+
+
+def test_hangry_baby_is_fussy_and_never_swears() -> None:
+    hangry = prompt_for(Stage.BABY, Mood.HANGRY).system
+    assert "fussy" in hangry and "never swearing" in hangry
+    assert "compliments aren't food" not in hangry
+    assert "fussy" not in prompt_for(Stage.BABY, Mood.HAPPY).system
+
+
+# ---
+# The egg's prompt
+# ---
+
+
+@pytest.mark.parametrize(
+    ("food", "words"),
+    [
+        (0, "not fed at all yet"),
+        (2, "barely fed"),
+        (EGG_FOOD_NEEDED // 2, "halfway fed"),
+        (EGG_FOOD_NEEDED - 1, "almost ready to hatch"),
+    ],
+)
+def test_egg_prompt_says_how_fed_it_is_in_words(food: int, words: str) -> None:
+    system = poke(egg(food)).system
+    assert f"It's {words}." in system
+    assert str(EGG_FOOD_NEEDED) not in system
+    assert f" {food} " not in system
+
+
+@pytest.mark.parametrize(
+    ("in_phase", "words"),
+    [
+        (timedelta(0), "toasty warm"),
+        (EGG_WARMTH * 0.4, "warm"),
+        (EGG_WARMTH * 0.6, "cooling down"),
+        (EGG_WARMTH - timedelta(hours=1), "getting cold"),
+    ],
+)
+def test_egg_prompt_says_how_warm_it_is_in_words(
+    in_phase: timedelta, words: str
+) -> None:
+    assert f"It's {words}." in poke(egg(in_phase=in_phase)).system
+
+
+def test_egg_prompt_says_whether_it_is_a_coal_egg() -> None:
+    assert "coal egg" in poke(egg(coal=True)).system
+    assert "coal" not in poke(egg()).system
+
+
+@pytest.mark.parametrize(
+    ("in_phase", "words"),
+    [
+        (timedelta(0), "just starting to crack"),
+        (HATCHING_TIME / 2, "cracking open"),
+        (HATCHING_TIME - timedelta(minutes=5), "almost out"),
+    ],
+)
+def test_hatching_egg_prompt_says_how_far_along(
+    in_phase: timedelta, words: str
+) -> None:
+    system = poke(egg(EGG_FOOD_NEEDED, in_phase, hatching=True)).system
+    assert f"it's hatching: {words}." in system
+    assert "cold" not in system and "fed at all" not in system
+
+
+@pytest.mark.parametrize(
+    ("fed", "relation"),
+    [
+        (Fed.NOTHING, "Myra hasn't fed it any songs yet."),
+        (Fed.SOME, "Myra's songs have been feeding it."),
+        (Fed.MOST, "Myra's songs have fed it more than anyone's."),
+    ],
+)
+def test_egg_prompt_knows_how_the_poker_fed_it(fed: Fed, relation: str) -> None:
+    system = poke(fed=fed).system
+    assert "Myra is poking it." in system
+    assert relation in system
+
+
+@pytest.mark.parametrize(
+    "life",
+    [egg(), egg(5, coal=True), egg(EGG_FOOD_NEEDED, hatching=True)],
+)
+@pytest.mark.parametrize("emoji", [True, False])
+def test_egg_prompt_asks_for_wordless_action_without_tags(
+    life: Life, emoji: bool
+) -> None:
+    system = poke(life, emoji=emoji).system
+    for rule in (
+        "third person",
+        f"under {EGG_LINE_CHARS} characters",
+        "no words",
+        "no speech",
+        "nothing in the first person",
+        "no swearing",
+        "different from the egg's earlier ones",
+        "No Unicode emoji",
+        "@everyone",
+    ):
+        assert rule in system
+    assert not re.search(r"you swear", system, re.IGNORECASE)
+    assert "You are Wisp" not in system
+    assert "<note>" not in system and "<pickles>" not in system
+    assert NO_U_GIF not in system
+    assert "expressions" not in system.lower()
+
+
+def test_egg_prompt_offers_its_emoji_now_and_then() -> None:
+    system = poke(emoji=True).system
+    (line,) = [line for line in system.splitlines() if f":{EGG_EXPRESSION}:" in line]
+    assert "not every reply" in line
+    assert EGG_EXPRESSION not in poke(emoji=False).system
+
+
+def test_egg_prompt_user_part_has_the_chat_then_the_poke() -> None:
+    user = poke(message="hello little one").user
+    assert "Foggy: anyone up?" in user
+    assert user.index("Myra: always") < user.index("Myra pokes the egg")
+    assert user.endswith("Myra pokes the egg and says: hello little one")
+    assert poke(message="").user.endswith("Myra pokes the egg.")
+
+
+def test_egg_prompt_needs_an_egg() -> None:
+    with pytest.raises(ValueError, match="not an egg"):
+        poke(life_in(Phase.ALIVE, Stage.BABY))
 
 
 def test_goodbye_prompt_speaks_to_the_member_with_their_notes() -> None:
