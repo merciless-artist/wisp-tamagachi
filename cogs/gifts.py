@@ -33,8 +33,7 @@ from wisp.rules import (
     Gift,
     GiftCollection,
 )
-from wisp.text import count, richest, with_emoji
-from wisp.voice import COIN_EMOJI
+from wisp.text import VAULT_RAIL, count, richest, text_length, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -42,7 +41,7 @@ if TYPE_CHECKING:
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Gifts have to wait until he is."
 _BACK_IN_VAULT: Final = "♪ It's back in the ViiBR Vault."
 _KEPT_TODAY: Final = (
-    "・Wisp already picked his treasure today. "
+    f"{VAULT_RAIL}Wisp already picked his treasure today. "
     "Anything you give him goes back to the Vault."
 )
 _MOMENTS: Final = {
@@ -135,22 +134,23 @@ def gift_section(bot: "WispBot", state: GiftState | None, room: int) -> list[str
     """The Vault's Gifts lines: each collection's stock, or why it is shut.
 
     Once he has kept a gift today, a line says so before anyone pays. The
-    lines take at most `room` characters: a collection shows each gift while
-    there is room, else how many are left.
+    lines take at most `room`, counted by `text_length`: a collection shows
+    each gift while there is room, else how many are left.
     """
-    price = with_emoji(bot.emoji(COIN_EMOJI), f"{count(GIFT_COST, 'point')} each")
-    heading = f"Gifts ・ {price} ・ he might not like it"
+    price = count(GIFT_COST, "point")
+    heading = f"{VAULT_RAIL}**Gifts**・{price} each・he might not like it"
     if state is None:
-        return [heading, "・He takes gifts once he has hatched"]
+        return [heading, f"{VAULT_RAIL}He takes gifts once he has hatched"]
     head = [heading, *([_KEPT_TODAY] if state.kept_today else [])]
 
     def lines(rich: bool) -> list[str]:
         return [
-            f"・{collection.name}: {_stock(bot, state, collection, rich=rich)}"
+            f"{VAULT_RAIL}{collection.name}: "
+            + _stock(bot, state, collection, rich=rich)
             for collection in GIFT_COLLECTIONS
         ]
 
-    left = room - len("\n".join(head)) - 1
+    left = room - text_length("\n".join(head)) - 1
     return [*head, *richest(lines(False), lines(True), left)]
 
 

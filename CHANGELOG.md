@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-25 (Vault and Snack Pack frames)
+
+- The Vault shop follows Myra's template: the balance above a ViiBR Vault
+  frame with the `viibr_logo` emoji, and inside it each snack and badge as its
+  emoji and price, then the gift collections. Names, care and bond stay in the
+  dropdowns.
+- The Snack Pack follows her template: a box with the member's mention and
+  balance, then Snacks ("cheese :snack_cheese: x2"), Keepsakes and Badges
+  ("Wisp v1's" and the item's emoji). An item whose emoji is missing shows
+  its name.
+- Message length is counted in UTF-16 units, so the frame's music symbols can
+  never push a message past Discord's limit.
+
 ## 2026-10-25 (egg art)
 
 - New egg picture for the status card, the Poke Wisp panel and new-egg posts.

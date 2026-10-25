@@ -6,6 +6,8 @@ from typing import Final
 
 SEPARATOR: Final = "・♪ ────────・──────── ♪・"
 MESSAGE_LIMIT: Final = 2000
+VAULT_RAIL: Final = "𝄃 "
+PACK_RAIL: Final = "│"
 USER_ERROR: Final = "That didn't work. The error is posted in this channel."
 
 # Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
@@ -20,6 +22,16 @@ _EMOJI: Final = re.compile(
 def with_emoji(emoji: str, text: str) -> str:
     """`text` after its emoji and a space, or alone when there is no emoji."""
     return f"{emoji} {text}" if emoji else text
+
+
+def text_length(text: str) -> int:
+    """The length of `text` counted in UTF-16 units, as JavaScript counts it.
+
+    Characters outside the Basic Multilingual Plane, such as the Vault frame's
+    music symbols, count twice, so a text this fits never runs over Discord's
+    limit however Discord counts it.
+    """
+    return len(text.encode("utf-16-le")) // 2
 
 
 def fit(head: list[str], optional: list[str], tail: Sequence[str] = ()) -> str:
@@ -39,8 +51,8 @@ def richest(plain: Sequence[str], rich: Sequence[str], room: int) -> list[str]:
     """`plain`, with each line swapped for its `rich` form while all still fit.
 
     Lines are tried in order, and a swap is kept only when the joined lines
-    stay within `room` characters. The plain lines are kept even when they do
-    not fit.
+    stay within `room`, counted by `text_length`. The plain lines are kept
+    even when they do not fit.
     """
     lines = list(plain)
     for index, line in enumerate(rich):

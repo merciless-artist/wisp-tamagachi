@@ -31,7 +31,7 @@ from wisp.gifts import GiftState, Outcome, decide, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
-from wisp.text import USER_ERROR
+from wisp.text import USER_ERROR, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -584,7 +584,7 @@ async def test_a_collection_is_given_from_once_a_day(
 
     text, _ = await open_vault(bot, OTHER_USER_ID)
     assert not any(key.startswith("alien_") for key in await offered(bot))
-    assert "・Alien Dolls: back tomorrow" in text
+    assert "𝄃 Alien Dolls: back tomorrow" in text
 
     stale = await give(bot, "alien_green", OTHER_USER_ID, select=before)
 
@@ -644,7 +644,7 @@ async def test_the_fourth_item_completes_the_collection_with_a_bonus(
     )
     assert "Books" in edited(interaction)
     vault_text, _ = await open_vault(bot)
-    assert "・Books: all kept this life" in vault_text
+    assert "𝄃 Books: all kept this life" in vault_text
 
 
 async def test_a_new_life_restocks_the_vault(bot: app.WispBot) -> None:
@@ -767,22 +767,24 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
 
     text, selects = await open_vault(bot)
 
-    sections = text.split(SEPARATOR + "\n")
-    snack_box, badge_lines, gift_lines = sections[1].split("\n\n")
-    assert snack_box.startswith("Snack Box")
-    assert badge_lines.startswith("Badges")
-    assert gift_lines.splitlines() == [
-        f"Gifts ・ {emoji_text('wisp_coin', 1)} 15 points each ・ he might not like it",
-        "・Lunchbox Liners: Bird Butterfly Kitties Poppies",
-        f"・Alien Dolls: {emoji_text('gift_alien_blue', 2)} "
+    lines = text.splitlines()
+    snacks_at = lines.index("𝄃 **Snacks**")
+    badges_at = lines.index("𝄃 **Badges**")
+    gifts_at = lines.index("𝄃 **Gifts**・15 points each・he might not like it")
+    assert snacks_at < badges_at < gifts_at
+    assert lines[gifts_at + 1 :] == [
+        "𝄃 Lunchbox Liners: Bird Butterfly Kitties Poppies",
+        f"𝄃 Alien Dolls: {emoji_text('gift_alien_blue', 2)} "
         f"{emoji_text('gift_alien_green', 3)} Purple Yellow",
-        "・Books: Blue Green Orange Red",
-        "・Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You",
-        "・Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi",
-        "・Tetris: Tetris Handheld I Block L Block T Block S Block Z Block",
-        "・Jewels: Amethyst Crystal Rainbow Jewel Ruby",
+        "𝄃 Books: Blue Green Orange Red",
+        "𝄃 Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You",
+        "𝄃 Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi",
+        "𝄃 Tetris: Tetris Handheld I Block L Block T Block S Block Z Block",
+        "𝄃 Jewels: Amethyst Crystal Rainbow Jewel Ruby",
+        "╚══════════════════╝",
+        "𝄃𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
     ]
-    assert len(text) < 2000
+    assert text_length(text) < 2000
     snack_select, collections = selects
     assert snack_select.placeholder == "Buy a snack"
     assert collections.placeholder == PICK
@@ -809,7 +811,7 @@ async def test_picking_a_collection_shows_its_gifts_with_the_price(
     interaction = await pick(bot, "tetris")
 
     text, selects = shown(interaction)
-    assert text.startswith("♪ The ViiBR Vault")
+    assert text.startswith("♪ You have")
     assert [select.placeholder for select in selects] == ["Buy a snack", PICK, GIVE]
     items = gift_select(selects)
     assert [(option.label, option.value) for option in items.options] == [
@@ -904,8 +906,8 @@ async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None
 
     text, _ = await open_vault(bot)
 
-    assert "・Alien Dolls: Green Purple Yellow" in text
-    assert "・Books: back tomorrow" in text
+    assert "𝄃 Alien Dolls: Green Purple Yellow" in text
+    assert "𝄃 Books: back tomorrow" in text
     options = await offered(bot)
     assert "alien_blue" not in options
     assert not any(option.startswith("book_") for option in options)
@@ -922,9 +924,10 @@ async def test_the_vault_warns_when_he_already_kept_a_gift_today(
 
     text, _ = await open_vault(bot)
 
-    gift_lines = text.split("\n\n")[2].splitlines()
-    assert gift_lines[1] == (
-        "・Wisp already picked his treasure today. "
+    lines = text.splitlines()
+    heading = next(i for i, line in enumerate(lines) if line.startswith("𝄃 **Gifts**"))
+    assert lines[heading + 1] == (
+        "𝄃 Wisp already picked his treasure today. "
         "Anything you give him goes back to the Vault."
     )
     assert "book_red" in await offered(bot)
@@ -969,7 +972,7 @@ async def test_before_he_hatches_the_vault_says_gifts_wait(
 
     text, selects = await open_vault(bot)
 
-    assert "・He takes gifts once he has hatched" in text
+    assert "𝄃 He takes gifts once he has hatched" in text
     assert [select.placeholder for select in selects] == ["Buy a snack"]
 
 
@@ -1118,7 +1121,7 @@ async def test_the_sixth_tetris_piece_completes_its_collection(
     assert text == "♪ Member1 gave Wisp a Z Block\n[gift_kept]\n[collection_done]"
     assert kwargs["file"].filename == "tetris_z.gif"
     vault_text, _ = await open_vault(bot)
-    assert "・Tetris: all kept this life" in vault_text
+    assert "𝄃 Tetris: all kept this life" in vault_text
     lunchbox = await lunchbox_text(bot, GUILD_ID)
     assert f"・Tetris 6/6 complete ・ finished by <@{USER_ID}>" in lunchbox
 
@@ -1155,12 +1158,12 @@ async def test_the_vault_fits_with_long_emojis_and_everything_in_stock(
 
     text, _ = await open_vault(bot)
 
-    assert len(text) <= 2000
-    assert "Gifts ・" in text
+    assert text_length(text) <= 2000
+    assert "𝄃 **Gifts**・" in text
     for group in GIFT_COLLECTIONS:
-        assert f"・{group.name}: " in text
+        assert f"𝄃 {group.name}: " in text
     assert "treasure today" in text
-    liners = next(line for line in text.splitlines() if line.startswith("・Lunchbox"))
+    liners = next(line for line in text.splitlines() if line.startswith("𝄃 Lunchbox"))
     assert LONG_EMOJI in liners
 
 
@@ -1175,9 +1178,9 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
 
     text = edited(interaction)
     assert text.startswith("♪ Wisp kept your Future Is Bright Affirmation Card")
-    assert len(text) <= 2000
+    assert text_length(text) <= 2000
     for group in GIFT_COLLECTIONS:
-        assert f"・{group.name}: " in text
+        assert f"𝄃 {group.name}: " in text
 
 
 async def test_the_lunchbox_fits_with_every_collection_nearly_full(

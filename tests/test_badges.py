@@ -29,7 +29,7 @@ from db.settings import SettingsRepo
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, SNACKS, Stage
-from wisp.text import MESSAGE_LIMIT
+from wisp.text import MESSAGE_LIMIT, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -39,7 +39,8 @@ USER_ID = 1
 OTHER_USER_ID = 2
 LEFT_USER_ID = 3
 QUALIFYING_ROLE = 7
-SEPARATOR = "・♪ ────────・──────── ♪・"
+DIVIDER = "├─────────────────•"
+PACK_BOTTOM = "└─────────────────┛"
 NO_PING = discord.AllowedMentions.none().to_dict()
 CANNOT_FEED = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
@@ -499,7 +500,7 @@ async def test_a_role_that_cannot_be_remembered_is_deleted_and_reported(
 # ---
 
 
-async def test_the_vault_lists_every_badge_with_its_price_and_bond(
+async def test_the_vault_lists_every_badge_with_its_price(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
@@ -508,12 +509,13 @@ async def test_the_vault_lists_every_badge_with_its_price_and_bond(
 
     text, selects = await open_vault(bot, server)
 
-    section = text.split("\nBadges\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    badges = text.split("\n𝄃 **Badges**\n", 1)[1]
+    section = badges.split("\n𝄃 **Gifts**", 1)[0].splitlines()
     assert section == [
-        "・Pickle Diplomat ・ 25 points ・ bond +5",
-        "・Flame Keeper ・ 100 points ・ bond +15",
-        "・<:badge_team_viibr:1> Team ViiBR ・ 250 points ・ bond +25",
-        "・Bandmate ・ 250 points ・ bond +25 ・ Bandmates only",
+        "𝄃 Pickle Diplomat・25 points",
+        "𝄃 Flame Keeper・100 points",
+        "𝄃 <:badge_team_viibr:1>・250 points",
+        "𝄃 Bandmate・250 points・Bandmates only",
     ]
     select = badge_select(selects)
     assert select is not None
@@ -548,7 +550,7 @@ async def test_owned_badges_are_marked_and_left_out_of_the_select(
 
     text, selects = await open_vault(bot, server)
 
-    assert "・Pickle Diplomat ・ 25 points ・ bond +5 ・ owned" in text
+    assert "𝄃 Pickle Diplomat・25 points・owned" in text
     select = badge_select(selects)
     assert select is not None
     assert "pickle_diplomat" not in [option.value for option in select.options]
@@ -562,7 +564,7 @@ async def test_badges_without_a_role_cannot_be_bought_yet(
 
     text, selects = await open_vault(bot, server)
 
-    assert "・Team ViiBR ・ 250 points ・ bond +25 ・ coming soon" in text
+    assert "𝄃 Team ViiBR・250 points・coming soon" in text
     assert badge_select(selects) is None
 
 
@@ -1083,12 +1085,13 @@ async def test_the_snack_pack_lists_every_badge_ever_bought_retired_too(
 
     text = await snack_pack(bot, server)
 
-    badge_part = text.split(SEPARATOR + "\n")[3].splitlines()
+    badge_part = text.split(DIVIDER + "\n")[3].splitlines()
     assert badge_part == [
-        "Badges",
-        "・Wisp v3's ViiBR Roadie",
-        "・<:badge_team_viibr:1> Wisp v2's Team ViiBR",
-        "・Wisp v1's Egg Warmer",
+        "│**Badges**",
+        "│Wisp v3's ViiBR Roadie",
+        "│Wisp v2's <:badge_team_viibr:1>",
+        "│Wisp v1's Egg Warmer",
+        PACK_BOTTOM,
     ]
 
 
@@ -1097,7 +1100,11 @@ async def test_a_snack_pack_without_badges_says_so(
 ) -> None:
     text = await snack_pack(bot, server)
 
-    assert text.split(SEPARATOR + "\n")[3].splitlines() == ["Badges", "・None yet"]
+    assert text.split(DIVIDER + "\n")[3].splitlines() == [
+        "│**Badges**",
+        "│ None yet",
+        PACK_BOTTOM,
+    ]
 
 
 async def test_the_fullest_snack_pack_still_fits_one_message(
@@ -1121,11 +1128,12 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
 
     text = await snack_pack(bot, server)
 
-    assert len(text) <= MESSAGE_LIMIT
-    sections = text.split(SEPARATOR + "\n")
+    assert text_length(text) <= MESSAGE_LIMIT
+    sections = text.split(DIVIDER + "\n")
     keepsakes = sections[2].splitlines()
-    badge_lines = sections[3].splitlines()
-    assert keepsakes[-1].startswith("・and ") and keepsakes[-1].endswith(" more")
-    assert badge_lines[-1].startswith("・and ") and badge_lines[-1].endswith(" more")
+    *badge_lines, bottom = sections[3].splitlines()
+    assert bottom == PACK_BOTTOM
+    assert keepsakes[-1].startswith("│ and ") and keepsakes[-1].endswith(" more")
+    assert badge_lines[-1].startswith("│ and ") and badge_lines[-1].endswith(" more")
     assert len(keepsakes) > 3 and len(badge_lines) > 3
-    assert badge_lines[1] == "・<:badge_bandmate:5> Wisp v1029's Bandmate"
+    assert badge_lines[1] == "│Wisp v1029's <:badge_bandmate:5>"

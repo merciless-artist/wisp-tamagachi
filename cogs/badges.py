@@ -19,7 +19,7 @@ from db.badges import OwnedBadge
 from wisp.bond import tier_for
 from wisp.life import is_over
 from wisp.rules import BADGE_BY_KEY, BADGES, Badge, badge_name
-from wisp.text import count, with_emoji
+from wisp.text import PACK_RAIL, VAULT_RAIL, count
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -265,18 +265,17 @@ async def badge_offers(
     return offers
 
 
-def _named(bot: "WispBot", badge: Badge) -> str:
-    return with_emoji(bot.emoji(badge.emoji_name), badge.name)
-
-
 def badge_section(bot: "WispBot", offers: list[Offer]) -> list[str]:
-    """The Vault's Badges lines: each badge's price and bond, and any reason."""
-    lines = ["Badges"]
+    """The Vault's Badges lines: each badge's emoji, price and any reason.
+
+    A badge whose emoji is not uploaded shows its name instead.
+    """
+    lines = [f"{VAULT_RAIL}**Badges**"]
     for offer in offers:
         badge = offer.badge
-        price = count(badge.cost, "point")
-        line = f"・{_named(bot, badge)} ・ {price} ・ bond +{badge.bond}"
-        lines.append(line if offer.reason is None else f"{line} ・ {offer.reason}")
+        icon = bot.emoji(badge.emoji_name) or badge.name
+        line = f"{VAULT_RAIL}{icon}・{count(badge.cost, 'point')}"
+        lines.append(line if offer.reason is None else f"{line}・{offer.reason}")
     return lines
 
 
@@ -304,14 +303,15 @@ def badge_options(bot: "WispBot", offers: list[Offer]) -> list[discord.SelectOpt
 def badge_pack_lines(bot: "WispBot", owned: list[OwnedBadge]) -> list[str]:
     """One line per badge the member ever bought, in the order given.
 
-    A badge no longer sold is kept as a collectible under its stored key.
+    Each reads "Wisp v3's" and the badge's emoji, or its name when the emoji
+    is not uploaded. A badge no longer sold is kept as a collectible under
+    its stored key.
     """
-    lines = []
-    for item in owned:
-        title = f"Wisp v{item.version}'s {badge_name(item.badge)}"
-        emoji = bot.emoji(f"badge_{item.badge}")
-        lines.append(f"・{with_emoji(emoji, title)}")
-    return lines
+    return [
+        f"{PACK_RAIL}Wisp v{item.version}'s "
+        + (bot.emoji(f"badge_{item.badge}") or badge_name(item.badge))
+        for item in owned
+    ]
 
 
 # ---

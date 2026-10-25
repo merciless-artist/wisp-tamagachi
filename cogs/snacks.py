@@ -47,6 +47,7 @@ from cogs.players import (
     say_privately,
 )
 from db.activity import InteractionKind
+from db.keepsakes import Keepsake
 from db.players import Player
 from wisp.bond import PickleStance, casual_bond_grant, meal_grant, tier_for
 from wisp.gifts import GiftState
@@ -66,7 +67,14 @@ from wisp.rules import (
     GiftCollection,
     Snack,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, with_emoji
+from wisp.text import (
+    MESSAGE_LIMIT,
+    PACK_RAIL,
+    VAULT_RAIL,
+    count,
+    text_length,
+    with_emoji,
+)
 from wisp.voice import COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -87,7 +95,13 @@ _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
 _BADGE_NOT_READY: Final = (
     "♪ That badge isn't ready yet. Staff can set it up with !wisp setup."
 )
-_NONE_YET: Final = "・None yet"
+_NONE_YET: Final = f"{PACK_RAIL} None yet"
+_LOGO_EMOJI: Final = "viibr_logo"
+_VAULT_EDGE: Final = "𝄃𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
+_VAULT_BOTTOM: Final = "╚══════════════════╝"
+_PACK_TOP: Final = "┌─────────────────┓"
+_PACK_DIVIDER: Final = "├─────────────────•"
+_PACK_BOTTOM: Final = "└─────────────────┛"
 _ROLE_REASON: Final = "Bought in the ViiBR Vault"
 _ROLE_FAILURES: Final = (
     discord.HTTPException,
@@ -124,8 +138,9 @@ def _care(snack: Snack) -> str:
     return f"care +{snack.care}"
 
 
-def _named(bot: "WispBot", snack: Snack) -> str:
-    return with_emoji(bot.emoji(snack.emoji_name), snack.name)
+def _icon(bot: "WispBot", snack: Snack) -> str:
+    """The snack's emoji, or its name when the emoji is not uploaded."""
+    return bot.emoji(snack.emoji_name) or snack.name
 
 
 def _option(
@@ -268,32 +283,28 @@ def _vault_text(
     gifts: GiftState | None,
     note: str | None,
 ) -> str:
-    """The balance, the Snack Box, the Badges and the Gifts, after an optional note.
+    """The balance, then the Vault frame of snacks, badges and gifts.
 
-    The Gifts take whatever room the rest of one message leaves.
+    An optional note comes first. Inside the frame each item is its emoji and
+    price. The Gifts take whatever room the rest of one message leaves.
     """
-    free = (
-        f"・{_named(bot, _FREE)} ・ free once a day ・ {_care(_FREE)} ・ "
-        "feed it with the Feed Wisp button"
-    )
-    prices = [
-        f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
-        for snack in _MENU
-    ]
+    logo = with_emoji(bot.emoji(_LOGO_EMOJI), "𝐕𝐀𝐔𝐋𝐓")
     head = [
         *([note] if note else []),
-        "♪ The ViiBR Vault",
-        with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
-        SEPARATOR,
-        "Snack Box",
-        free,
-        *prices,
-        "",
+        f"♪ You have {with_emoji(bot.emoji(COIN_EMOJI), count(balance, 'point'))}",
+        _VAULT_EDGE,
+        f"╔══ 𝆕 𝐕𝐢𝐢𝐁𝐑 {logo} 𝆕. ══╗",
+        f"{VAULT_RAIL}**Snacks**",
+        f"{VAULT_RAIL}{_icon(bot, _FREE)}・free once a day",
+        *(
+            f"{VAULT_RAIL}{_icon(bot, snack)}・{count(snack.cost, 'point')}"
+            for snack in _MENU
+        ),
         *badge_section(bot, offers),
-        "",
     ]
-    room = MESSAGE_LIMIT - len("\n".join(head)) - 1
-    return "\n".join([*head, *gift_section(bot, gifts, room)])
+    tail = [_VAULT_BOTTOM, _VAULT_EDGE]
+    room = MESSAGE_LIMIT - text_length("\n".join([*head, *tail])) - 2
+    return "\n".join([*head, *gift_section(bot, gifts, room), *tail])
 
 
 async def _vault(
@@ -366,10 +377,21 @@ async def _confirm(
         )
 
 
-async def _snack_pack_text(
-    bot: "WispBot", guild_id: int, user_id: int, display_name: str
-) -> str:
-    """The member's balance, snacks, keepsakes and badges.
+def _pack_snack(bot: "WispBot", snack: Snack, extra: str) -> str:
+    """A Snack Pack line: the snack's key, its emoji when uploaded, then `extra`."""
+    parts = (snack.key, bot.emoji(snack.emoji_name), extra)
+    return PACK_RAIL + " ".join(part for part in parts if part)
+
+
+def _pack_keepsake(bot: "WispBot", keepsake: Keepsake) -> str:
+    """A Snack Pack line: "Wisp v3's" and the keepsake's emoji, else its title."""
+    emoji = bot.emoji(f"keepsake_{keepsake.kind.value}")
+    title = f"Wisp v{keepsake.version}'s {emoji}" if emoji else keepsake.title
+    return PACK_RAIL + title
+
+
+async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
+    """The member's Snack Pack frame: balance, snacks, keepsakes and badges.
 
     Keepsakes and badges are listed newest life first. When they do not all
     fit in one message, each is cut short with how many more there are: the
@@ -381,47 +403,53 @@ async def _snack_pack_text(
         guild_id, user_id, discord.utils.utcnow()
     )
     snacks = [
-        f"・{_named(bot, snack)} x{owned[snack.key]}"
+        _pack_snack(bot, snack, f"x{owned[snack.key]}")
         for snack in _MENU
         if snack.key in owned
     ]
     if free_left:
-        snacks.append(f"・{_named(bot, _FREE)} ・ free today")
+        snacks.append(_pack_snack(bot, _FREE, "free today"))
+    balance = with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point"))
     head = [
-        f"♪ {player.name or display_name}'s Snack Pack",
-        with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point")),
-        SEPARATOR,
-        "Snacks",
-        *(snacks or ["・Nothing saved yet"]),
-        SEPARATOR,
-        "Keepsakes",
+        _PACK_TOP,
+        f"{PACK_RAIL}<@{user_id}> snack pack",
+        f"{PACK_RAIL}{balance}",
+        _PACK_DIVIDER,
+        f"{PACK_RAIL}**Snacks**",
+        *(snacks or [f"{PACK_RAIL} Nothing saved yet"]),
+        _PACK_DIVIDER,
+        f"{PACK_RAIL}**Keepsakes**",
     ]
     held = await bot.keepsakes.of(guild_id, user_id)
     newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
-    keepsakes = [
-        f"・{with_emoji(bot.emoji(f'keepsake_{keepsake.kind.value}'), keepsake.title)}"
-        for keepsake in newest_life_first
-    ] or [_NONE_YET]
+    keepsakes = [_pack_keepsake(bot, keepsake) for keepsake in newest_life_first] or [
+        _NONE_YET
+    ]
     badges = badge_pack_lines(bot, await bot.badges.of(guild_id, user_id)) or [
         _NONE_YET
     ]
-    between = [SEPARATOR, "Badges"]
-    room = MESSAGE_LIMIT - len("\n".join([*head, *between])) - 2
-    badge_room = min(len("\n".join(badges)), room // 2)
+    between = [_PACK_DIVIDER, f"{PACK_RAIL}**Badges**"]
+    tail = [_PACK_BOTTOM]
+    framing = "\n".join([*head, *between, *tail])
+    room = MESSAGE_LIMIT - text_length(framing) - 3
+    badge_room = min(text_length("\n".join(badges)), room // 2)
     kept = _shown(keepsakes, room - badge_room)
-    worn = _shown(badges, room - len("\n".join(kept)))
-    return "\n".join([*head, *kept, *between, *worn])
+    worn = _shown(badges, room - text_length("\n".join(kept)))
+    return "\n".join([*head, *kept, *between, *worn, *tail])
 
 
 def _shown(lines: list[str], room: int) -> list[str]:
-    """As many of `lines` as fit in `room` characters, then how many more."""
-    if len("\n".join(lines)) <= room:
+    """As many of `lines` as fit in `room`, then how many more.
+
+    The room is counted by `text_length`.
+    """
+    if text_length("\n".join(lines)) <= room:
         return lines
     for shown in range(len(lines) - 1, -1, -1):
-        cut = [*lines[:shown], f"・and {len(lines) - shown} more"]
-        if len("\n".join(cut)) <= room:
+        cut = [*lines[:shown], f"{PACK_RAIL} and {len(lines) - shown} more"]
+        if text_length("\n".join(cut)) <= room:
             return cut
-    return [f"・and {len(lines)} more"]
+    return [f"{PACK_RAIL} and {len(lines)} more"]
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
@@ -642,10 +670,7 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
     view.add_item(ShopButton())
     await interaction.followup.send(
         await _snack_pack_text(
-            bot_of(interaction),
-            require_guild(interaction),
-            interaction.user.id,
-            interaction.user.display_name,
+            bot_of(interaction), require_guild(interaction), interaction.user.id
         ),
         view=view,
         ephemeral=True,

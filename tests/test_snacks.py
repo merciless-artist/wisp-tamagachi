@@ -31,7 +31,7 @@ from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
 from db.gifts import GiftRepo
-from db.keepsakes import Keepsake, KeepsakeKind, KeepsakeRepo
+from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
@@ -40,7 +40,7 @@ from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import SNACKS, Stage
-from wisp.text import MESSAGE_LIMIT, USER_ERROR
+from wisp.text import MESSAGE_LIMIT, USER_ERROR, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -54,7 +54,10 @@ CANNOT_FEED = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
     "can feed Wisp."
 )
-SEPARATOR = "・♪ ────────・──────── ♪・"
+VAULT_EDGE = "𝄃𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
+PACK_TOP = "┌─────────────────┓"
+DIVIDER = "├─────────────────•"
+PACK_BOTTOM = "└─────────────────┛"
 NO_PING = discord.AllowedMentions.none().to_dict()
 
 # ---
@@ -284,6 +287,16 @@ def say(bot: app.WispBot, line: str = "yum") -> MagicMock:
 # ---
 
 
+def pack_sections(text: str) -> list[list[str]]:
+    """A Snack Pack's sections inside its frame: head, snacks, keepsakes, badges."""
+    lines = text.splitlines()
+    assert lines[0] == PACK_TOP
+    assert lines[-1] == PACK_BOTTOM
+    return [
+        section.splitlines() for section in "\n".join(lines[1:-1]).split(DIVIDER + "\n")
+    ]
+
+
 async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> None:
     give_emojis(bot, "wisp_coin", "snack_cloudwave", "snack_sinewave")
     await bot.players.add_points(GUILD_ID, USER_ID, 12)
@@ -298,34 +311,49 @@ async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> 
     assert isinstance(kwargs["view"], snacks.Menu)
     text = interaction.followup.send.await_args.args[0]
     lines = text.splitlines()
-    assert lines[:2] == ["♪ The ViiBR Vault", f"{emoji_text('wisp_coin')} 12 points"]
-    (menu,) = text.split(SEPARATOR + "\n")[1:]
-    assert menu.splitlines()[:2] == [
-        "Snack Box",
-        f"・{emoji_text('snack_sinewave', 3)} Sine Wave ・ free once a day ・ "
-        "care +2 ・ feed it with the Feed Wisp button",
+    assert lines[:5] == [
+        f"♪ You have {emoji_text('wisp_coin')} 12 points",
+        VAULT_EDGE,
+        "╔══ 𝆕 𝐕𝐢𝐢𝐁𝐑 𝐕𝐀𝐔𝐋𝐓 𝆕. ══╗",
+        "𝄃 **Snacks**",
+        f"𝄃 {emoji_text('snack_sinewave', 3)}・free once a day",
     ]
-    assert (
-        f"・{emoji_text('snack_cloudwave', 2)} Cloud Wave ・ 3 points ・ care +5"
-        in text
-    )
-    for snack in SNACKS:
-        if snack.cost > 0:
-            assert f"{snack.name} ・ {snack.cost} points ・ care +{snack.care}" in menu
-    assert menu.count("Sine Wave") == 1
-    assert "Your snacks" not in text
+    assert lines[-2:] == ["╚══════════════════╝", VAULT_EDGE]
+    paid = [snack for snack in SNACKS if snack.cost > 0]
+    assert lines[5 : 5 + len(paid)] == [
+        (
+            f"𝄃 {emoji_text('snack_cloudwave', 2)}・3 points"
+            if snack.key == "cloudwave"
+            else f"𝄃 {snack.name}・{snack.cost} points"
+        )
+        for snack in paid
+    ]
+    assert "Sine Wave" not in text
     assert "x2" not in text
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
-    paid = [snack.key for snack in SNACKS if snack.cost > 0]
-    assert option_values(select) == paid
+    assert option_values(select) == [snack.key for snack in paid]
+
+
+async def test_vault_title_shows_the_viibr_logo_when_uploaded(
+    bot: app.WispBot,
+) -> None:
+    give_emojis(bot, "viibr_logo")
+
+    interaction, _ = await open_vault(bot)
+
+    text = interaction.followup.send.await_args.args[0]
+    assert text.splitlines()[2] == (
+        f"╔══ 𝆕 𝐕𝐢𝐢𝐁𝐑 {emoji_text('viibr_logo')} 𝐕𝐀𝐔𝐋𝐓 𝆕. ══╗"
+    )
 
 
 async def test_vault_without_emojis_stays_tidy(bot: app.WispBot) -> None:
     interaction, _ = await open_vault(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert text.splitlines()[:2] == ["♪ The ViiBR Vault", "0 points"]
-    assert len(text) < 2000
+    assert text.splitlines()[:2] == ["♪ You have 0 points", VAULT_EDGE]
+    assert "𝄃 Sine Wave・free once a day" in text
+    assert text_length(text) <= MESSAGE_LIMIT
 
 
 # ---
@@ -350,18 +378,18 @@ async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     text = interaction.followup.send.await_args.args[0]
-    assert text.splitlines()[:2] == [
-        "♪ Member1's Snack Pack",
-        f"{emoji_text('wisp_coin')} 12 points",
+    head, snack_lines, keepsakes, badges = pack_sections(text)
+    assert head == [
+        f"│<@{USER_ID}> snack pack",
+        f"│{emoji_text('wisp_coin')} 12 points",
     ]
-    snacks, keepsakes, badges = text.split(SEPARATOR + "\n")[1:]
-    assert badges.splitlines() == ["Badges", "・None yet"]
-    assert snacks.splitlines() == [
-        "Snacks",
-        f"・{emoji_text('snack_cloudwave', 2)} Cloud Wave x2",
-        f"・{emoji_text('snack_sinewave', 3)} Sine Wave ・ free today",
+    assert snack_lines == [
+        "│**Snacks**",
+        f"│cloudwave {emoji_text('snack_cloudwave', 2)} x2",
+        f"│sinewave {emoji_text('snack_sinewave', 3)} free today",
     ]
-    assert keepsakes.splitlines() == ["Keepsakes", "・Wisp v3's Last Ember"]
+    assert keepsakes == ["│**Keepsakes**", "│Wisp v3's Last Ember"]
+    assert badges == ["│**Badges**", "│ None yet"]
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     (button,) = kwargs["view"].children
     assert isinstance(button, ShopButton)
@@ -373,16 +401,16 @@ async def test_snack_pack_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> N
 
     interaction = await open_my_snack_pack(bot)
 
-    snacks = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[1]
-    assert snacks.splitlines() == [
-        "Snacks",
-        "・Jelly Wave x3",
-        "・Cheese x1",
-        "・Sine Wave ・ free today",
+    snack_lines = pack_sections(interaction.followup.send.await_args.args[0])[1]
+    assert snack_lines == [
+        "│**Snacks**",
+        "│jellywave x3",
+        "│cheese x1",
+        "│sinewave free today",
     ]
 
 
-async def test_snack_pack_puts_each_keepsakes_emoji_in_front_when_uploaded(
+async def test_snack_pack_shows_each_keepsakes_emoji_in_place_of_its_name(
     bot: app.WispBot,
 ) -> None:
     give_emojis(bot, "keepsake_eggshell", "keepsake_last_ember")
@@ -396,12 +424,12 @@ async def test_snack_pack_puts_each_keepsakes_emoji_in_front_when_uploaded(
 
     interaction = await open_my_snack_pack(bot)
 
-    keepsakes = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[2]
-    assert keepsakes.splitlines() == [
-        "Keepsakes",
-        f"・{emoji_text('keepsake_eggshell', 1)} Wisp v3's Eggshell",
-        f"・{emoji_text('keepsake_last_ember', 2)} Wisp v3's Last Ember",
-        "・Wisp v3's Teen Spark",
+    keepsakes = pack_sections(interaction.followup.send.await_args.args[0])[2]
+    assert keepsakes == [
+        "│**Keepsakes**",
+        f"│Wisp v3's {emoji_text('keepsake_eggshell', 1)}",
+        f"│Wisp v3's {emoji_text('keepsake_last_ember', 2)}",
+        "│Wisp v3's Teen Spark",
     ]
 
 
@@ -421,20 +449,21 @@ async def test_snack_pack_lists_the_newest_life_first_in_the_order_given(
 
     interaction = await open_my_snack_pack(bot)
 
-    keepsakes = interaction.followup.send.await_args.args[0].split(SEPARATOR + "\n")[2]
-    assert keepsakes.splitlines() == [
-        "Keepsakes",
-        "・Wisp v4's Eggshell",
-        "・Wisp v4's First Spark",
-        "・Wisp v4's Teen Spark",
-        "・Wisp v2's Last Ember",
+    keepsakes = pack_sections(interaction.followup.send.await_args.args[0])[2]
+    assert keepsakes == [
+        "│**Keepsakes**",
+        "│Wisp v4's Eggshell",
+        "│Wisp v4's First Spark",
+        "│Wisp v4's Teen Spark",
+        "│Wisp v2's Last Ember",
     ]
 
 
 async def test_a_long_keepsake_list_is_cut_to_one_message(bot: app.WispBot) -> None:
     give_emojis(bot, *(f"keepsake_{kind.value}" for kind in KeepsakeKind))
     at = discord.utils.utcnow()
-    for version in range(1, 7):
+    lives = 12
+    for version in range(1, lives + 1):
         for index, kind in enumerate(KeepsakeKind):
             await bot.keepsakes.give(
                 GUILD_ID, USER_ID, kind, version, at + timedelta(minutes=index)
@@ -443,19 +472,17 @@ async def test_a_long_keepsake_list_is_cut_to_one_message(bot: app.WispBot) -> N
     interaction = await open_my_snack_pack(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert len(text) <= MESSAGE_LIMIT
-    keepsakes = text.split(SEPARATOR + "\n")[2].splitlines()
+    assert text_length(text) <= MESSAGE_LIMIT
+    keepsakes = pack_sections(text)[2]
     shown = keepsakes[1:-1]
-    assert keepsakes[0] == "Keepsakes"
-    assert keepsakes[-1] == f"・and {6 * len(KeepsakeKind) - len(shown)} more"
+    assert keepsakes[0] == "│**Keepsakes**"
+    assert keepsakes[-1] == f"│ and {lives * len(KeepsakeKind) - len(shown)} more"
     newest_first = [
-        Keepsake(kind, version, at).title
-        for version in range(6, 0, -1)
-        for kind in KeepsakeKind
+        (version, kind) for version in range(lives, 0, -1) for kind in KeepsakeKind
     ]
     assert len(shown) < len(newest_first)
-    for line, title in zip(shown, newest_first, strict=False):
-        assert line.endswith(f"> {title}"), line
+    for line, (version, kind) in zip(shown, newest_first, strict=False):
+        assert line.startswith(f"│Wisp v{version}'s <:keepsake_{kind.value}:"), line
 
 
 async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
@@ -466,16 +493,15 @@ async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
     interaction = await open_my_snack_pack(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert text.splitlines()[:2] == ["♪ Member1's Snack Pack", "0 points"]
-    snacks, keepsakes, badges = text.split(SEPARATOR + "\n")[1:]
-    assert snacks.splitlines() == ["Snacks", "・Nothing saved yet"]
-    assert keepsakes.splitlines() == ["Keepsakes", "・None yet"]
-    assert badges.splitlines() == ["Badges", "・None yet"]
+    head, snack_lines, keepsakes, badges = pack_sections(text)
+    assert head == [f"│<@{USER_ID}> snack pack", "│0 points"]
+    assert snack_lines == ["│**Snacks**", "│ Nothing saved yet"]
+    assert keepsakes == ["│**Keepsakes**", "│ None yet"]
+    assert badges == ["│**Badges**", "│ None yet"]
     assert "free today" not in text
 
 
 async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:
-    await bot.players.set_name(GUILD_ID, USER_ID, "Zed")
     await bot.activity_log.add_snack(GUILD_ID, OTHER_USER_ID, "cheese")
     await bot.keepsakes.give(
         GUILD_ID, OTHER_USER_ID, KeepsakeKind.LAST_EMBER, 3, discord.utils.utcnow()
@@ -484,8 +510,9 @@ async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:
     interaction = await open_my_snack_pack(bot)
 
     text = interaction.followup.send.await_args.args[0]
-    assert text.startswith("♪ Zed's Snack Pack")
-    assert "Cheese" not in text
+    assert pack_sections(text)[0][0] == f"│<@{USER_ID}> snack pack"
+    assert f"<@{OTHER_USER_ID}>" not in text
+    assert "cheese" not in text
     assert "Last Ember" not in text
 
 
@@ -527,7 +554,7 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     assert isinstance(kwargs["view"], snacks.Menu)
     text = interaction.followup.send.await_args.args[0]
-    assert text.splitlines()[:2] == ["♪ The ViiBR Vault", "12 points"]
+    assert text.splitlines()[:2] == ["♪ You have 12 points", VAULT_EDGE]
 
 
 async def test_snack_pack_button_opens_the_members_own_snack_pack(
@@ -546,9 +573,9 @@ async def test_snack_pack_button_opens_the_members_own_snack_pack(
     (button,) = kwargs["view"].children
     assert isinstance(button, ShopButton)
     text = interaction.followup.send.await_args.args[0]
-    assert text.startswith("♪ Member1's Snack Pack")
-    assert "Cloud Wave x2" in text
-    assert "Cheese" not in text
+    assert pack_sections(text)[0][0] == f"│<@{USER_ID}> snack pack"
+    assert "│cloudwave x2" in text
+    assert "cheese" not in text
 
 
 async def test_vault_view_holds_both_persistent_buttons() -> None:
@@ -1160,8 +1187,9 @@ def test_fancy_starts_at_the_fancy_cost() -> None:
 
 
 async def test_house_post_has_the_snack_emoji_and_line(
-    bot: app.WispBot, server: FakeServer
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(snacks, "_eating_gif", lambda gif_name: None)
     give_emojis(bot, "snack_cloudwave")
     await lay(bot)
     say(bot, "yum")
