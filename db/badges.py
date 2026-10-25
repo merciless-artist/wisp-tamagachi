@@ -52,6 +52,14 @@ class BadgeRepo:
             (guild_id, badge, role_id),
         )
 
+    async def forget_role(self, guild_id: int, badge: str) -> None:
+        """Forget the role stored for a badge."""
+        await self._db.execute(
+            f"DELETE FROM {self._db.t('badge_roles')} "
+            "WHERE guild_id = %s AND badge = %s",
+            (guild_id, badge),
+        )
+
     async def record(
         self,
         guild_id: int,

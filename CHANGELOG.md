@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-24 (four badges)
+
+- The Vault sells four badges: Pickle Diplomat (25 points, bond +5), Flame
+  Keeper (100, +15), Team ViiBR (250, +25, replacing Team Wisp) and Bandmate
+  (250, +25, Bandmate tier only). Egg Warmer and ViiBR Roadie are no longer
+  sold.
+- Startup moves stored `team_wisp` badge roles and purchases to
+  `team_viibr`; repeating it changes nothing.
+- Setup renames a badge role whose name is not its badge's ("Team Wisp"
+  becomes "Team ViiBR"), and deletes the roles Wisp stored for badges no
+  longer sold, then forgets them. A failure is posted where setup ran and
+  the role stays stored for the next setup.
+- A badge bought before it was retired stays in the Snack Pack under a name
+  made from its key ("Egg Warmer"), and the sweep still takes its role back.
+- Badge icons for the four badges are in `ASSETS/badges`.
+
 ## 2026-10-24 (staff command follow-ups)
 
 - `/wispadmin setup` and `/wispadmin faq` are back as slash commands beside

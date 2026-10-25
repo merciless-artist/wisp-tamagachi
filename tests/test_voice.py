@@ -598,7 +598,8 @@ APP_EMOJIS = {
     "gift_tama_nano",
     "keepsake_eggshell",
     "snack_cheese",
-    "badge_team_wisp",
+    "badge_team_viibr",
+    "badge_egg_warmer",
     COIN_EMOJI,
 }
 
@@ -662,7 +663,8 @@ def note_for(name: str) -> str:
             "keepsake_eggshell, which is Eggshell, one of your keepsakes",
         ),
         ("snack_cheese", "snack_cheese, which is Cheese, one of your snacks"),
-        ("badge_team_wisp", "badge_team_wisp, which is your Team Wisp badge"),
+        ("badge_team_viibr", "badge_team_viibr, which is your Team ViiBR badge"),
+        ("badge_egg_warmer", "badge_egg_warmer, which is your Egg Warmer badge"),
         (COIN_EMOJI, "wisp_coin, which is the coin members spend in the ViiBR Vault"),
         ("WispLove", "WispLove, which is a ViiBR emote of Wisp"),
     ],

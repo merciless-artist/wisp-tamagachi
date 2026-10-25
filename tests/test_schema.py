@@ -123,6 +123,36 @@ async def test_create_tables_adds_the_house_panel_to_a_live_settings_table(
             )
 
 
+async def test_the_team_wisp_badge_becomes_team_viibr_and_renaming_repeats_safely(
+    db: Database,
+) -> None:
+    roles = db.t("badge_roles")
+    bought = db.t("badges")
+    await db.execute(
+        f"INSERT INTO {roles} (guild_id, badge, role_id) VALUES "
+        "(1, 'team_wisp', 11), (1, 'flame_keeper', 12), "
+        "(2, 'team_wisp', 21), (2, 'team_viibr', 22)"
+    )
+    await db.execute(
+        f"INSERT INTO {bought} (guild_id, user_id, badge, life_id, version, "
+        "bought_at) VALUES (1, 5, 'team_wisp', 3, 3, UTC_TIMESTAMP())"
+    )
+
+    for _ in range(2):
+        await create_tables(db)
+
+    rows = await db.fetchall(
+        f"SELECT guild_id, badge, role_id FROM {roles} ORDER BY guild_id, role_id"
+    )
+    assert [(row["guild_id"], row["badge"], row["role_id"]) for row in rows] == [
+        (1, "team_viibr", 11),
+        (1, "flame_keeper", 12),
+        (2, "team_wisp", 21),
+        (2, "team_viibr", 22),
+    ]
+    assert await db.fetchall(f"SELECT badge FROM {bought}") == [{"badge": "team_viibr"}]
+
+
 async def test_create_tables_adds_staff_roles_beside_live_tables(
     db: Database,
 ) -> None:

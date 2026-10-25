@@ -18,7 +18,7 @@ from cogs.assets import ASSETS_DIR
 from db.badges import OwnedBadge
 from wisp.bond import tier_for
 from wisp.life import is_over
-from wisp.rules import BADGE_BY_KEY, BADGES, Badge
+from wisp.rules import BADGE_BY_KEY, BADGES, Badge, badge_name
 from wisp.text import count, with_emoji
 
 if TYPE_CHECKING:
@@ -29,6 +29,7 @@ _ROLE_ICONS: Final = "ROLE_ICONS"
 _SET_UP: Final = "Wisp's badge for the ViiBR Vault"
 _TAKING_BACK: Final = "taking back badge roles"
 _FORGOTTEN: Final = "Wisp could not remember this badge role"
+_RETIRED: Final = "This badge is no longer sold in the ViiBR Vault"
 _NO_ICONS: Final = (
     "・Role icons are not available on this server (it needs more boosts), "
     "so the badges have no icons."
@@ -55,7 +56,9 @@ class _RoleSetup:
     icons_allowed: bool
     created: list[str] = field(default_factory=list)
     recreated: list[str] = field(default_factory=list)
+    renamed: list[str] = field(default_factory=list)
     iconed: list[str] = field(default_factory=list)
+    retired: list[str] = field(default_factory=list)
 
     def lines(self) -> list[str]:
         lines = [
@@ -63,7 +66,9 @@ class _RoleSetup:
             for what, names in (
                 ("roles created", self.created),
                 ("roles recreated", self.recreated),
+                ("roles renamed", self.renamed),
                 ("icons added", self.iconed),
+                ("roles no longer sold, deleted", self.retired),
             )
             if names
         ]
@@ -77,34 +82,38 @@ class _RoleSetup:
 async def ensure_badge_roles(
     bot: "WispBot", guild: discord.Guild, where: discord.abc.Messageable | None
 ) -> list[str]:
-    """Create each badge role that is missing and give icons to roles without one.
+    """Make the badge roles match the catalog.
 
-    Roles are found by their stored id, so a stored role that was deleted is
-    created again. A role gets its icon when its art exists and the server can
-    show role icons; one Discord turns the icon down is made without it, and
-    the server is treated as having no role icons. Failures are reported in
-    `where`. A missing permission, or a new role that cannot be remembered,
-    stops the setup there, since every later badge would fail the same way;
-    the role that was not remembered is deleted again. Returns the lines for
-    the setup reply.
+    Each missing role is created, a role whose name differs from its badge's
+    is renamed, roles without an icon get one, and the roles of badges no
+    longer sold are deleted (see `_delete_retired`). Roles are found by their
+    stored id, so a stored role that was deleted is created again. A role gets
+    its icon when its art exists and the server can show role icons; one
+    Discord turns the icon down is made without it, and the server is treated
+    as having no role icons. Failures are reported in `where`. A missing
+    permission, or a new role that cannot be remembered, stops the setup
+    there, since every later badge would fail the same way; the role that was
+    not remembered is deleted again. Returns the lines for the setup reply.
     """
     setup = _RoleSetup(icons_allowed=_ROLE_ICONS in guild.features)
     stored = await bot.badges.role_ids(guild.id)
     for badge in BADGES:
         role_id = stored.get(badge.key)
         role = None if role_id is None else guild.get_role(role_id)
-        context = (
-            f"creating the {badge.name} badge role"
-            if role is None
-            else f"adding the {badge.name} badge icon"
-        )
+        context = f"creating the {badge.name} badge role"
         try:
             if role is None:
                 await _create_role(bot, guild, badge, setup)
                 (setup.created if role_id is None else setup.recreated).append(
                     badge.name
                 )
-            elif await _add_icon(role, badge, setup):
+                continue
+            if role.name != badge.name:
+                context = f"renaming the {badge.name} badge role"
+                await role.edit(name=badge.name, reason=_SET_UP)
+                setup.renamed.append(badge.name)
+            context = f"adding the {badge.name} badge icon"
+            if await _add_icon(role, badge, setup):
                 setup.iconed.append(badge.name)
         except discord.Forbidden as error:
             await bot.report_error(guild, context, error, where=where)
@@ -115,7 +124,42 @@ async def ensure_badge_roles(
             context = f"remembering the {badge.name} badge role"
             await bot.report_error(guild, context, error, where=where)
             break
+    else:
+        await _delete_retired(bot, guild, stored, setup, where)
     return setup.lines()
+
+
+async def _delete_retired(
+    bot: "WispBot",
+    guild: discord.Guild,
+    stored: dict[str, int],
+    setup: _RoleSetup,
+    where: discord.abc.Messageable | None,
+) -> None:
+    """Delete the roles of stored badges that are no longer sold, then forget them.
+
+    Only roles Wisp stored, by id, are deleted; one already gone is just
+    forgotten. A role that cannot be deleted stays stored, so the next setup
+    tries again and the sweep can still take it back. A missing permission
+    stops here, since every later deletion would fail the same way.
+    """
+    for key, role_id in stored.items():
+        if key in BADGE_BY_KEY:
+            continue
+        name = badge_name(key)
+        context = f"deleting the {name} badge role, no longer sold"
+        role = guild.get_role(role_id)
+        try:
+            if role is not None:
+                await role.delete(reason=_RETIRED)
+            await bot.badges.forget_role(guild.id, key)
+        except discord.Forbidden as error:
+            await bot.report_error(guild, context, error, where=where)
+            return
+        except (discord.HTTPException, pymysql.err.Error) as error:
+            await bot.report_error(guild, context, error, where=where)
+            continue
+        setup.retired.append(name)
 
 
 async def _create_role(
@@ -258,13 +302,15 @@ def badge_options(bot: "WispBot", offers: list[Offer]) -> list[discord.SelectOpt
 
 
 def badge_pack_lines(bot: "WispBot", owned: list[OwnedBadge]) -> list[str]:
-    """One line per badge the member ever bought, in the order given."""
+    """One line per badge the member ever bought, in the order given.
+
+    A badge no longer sold is kept as a collectible under its stored key.
+    """
     lines = []
     for item in owned:
-        badge = BADGE_BY_KEY.get(item.badge)
-        if badge is not None:
-            title = f"Wisp v{item.version}'s {badge.name}"
-            lines.append(f"・{with_emoji(bot.emoji(badge.emoji_name), title)}")
+        title = f"Wisp v{item.version}'s {badge_name(item.badge)}"
+        emoji = bot.emoji(f"badge_{item.badge}")
+        lines.append(f"・{with_emoji(emoji, title)}")
     return lines
 
 

@@ -193,6 +193,11 @@ _ADDED_INDEXES: dict[str, dict[str, str]] = {
     "badges": {"idx_guild_removed": "guild_id, removed_at"},
 }
 
+# Badge keys renamed after going live, old key to new, in the tables that
+# store badge keys. Renaming again finds nothing, so startup can repeat it.
+_RENAMED_BADGES: dict[str, str] = {"team_wisp": "team_viibr"}
+_BADGE_KEY_TABLES: tuple[str, ...] = ("badge_roles", "badges")
+
 TABLES: tuple[str, ...] = tuple(_DEFINITIONS)
 
 
@@ -236,6 +241,7 @@ async def create_tables(db: Database) -> None:
     Columns and indexes that are already there are skipped, so a normal startup
     does not draw a duplicate note from the server. Afterwards every table is
     checked against its definition: extra columns are logged as a warning.
+    Last, rows stored under a renamed badge key move to the new key.
 
     Raises:
         SchemaError: A table lacks a defined column, so it was built from an
@@ -268,6 +274,21 @@ async def create_tables(db: Database) -> None:
                     f"CREATE INDEX IF NOT EXISTS {index} ON {db.t(name)} ({columns})"
                 )
     await _check_columns(db)
+    await _rename_badges(db)
+
+
+async def _rename_badges(db: Database) -> None:
+    """Move rows stored under a renamed badge key to its new key.
+
+    A row whose new key is already stored is left under the old key rather
+    than overwriting it.
+    """
+    for table in _BADGE_KEY_TABLES:
+        for old, new in _RENAMED_BADGES.items():
+            await db.execute(
+                f"UPDATE IGNORE {db.t(table)} SET badge = %s WHERE badge = %s",
+                (new, old),
+            )
 
 
 async def _check_columns(db: Database) -> None:

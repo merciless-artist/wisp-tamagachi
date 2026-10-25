@@ -113,14 +113,17 @@ Member commands:
   like a Last Ember, and every badge you ever wore, with a button to shop
   the Vault.
 
-Badges: the Vault sells six badge roles (Egg Warmer and Pickle Diplomat at
-25 points, Flame Keeper and ViiBR Roadie at 100, Team Wisp and Bandmate at
-250; Bandmate only for members at the Bandmate bond tier). Each raises your
+Badges: the Vault sells four badge roles (Pickle Diplomat at 25 points,
+Flame Keeper at 100, Team ViiBR and Bandmate at 250; Bandmate only for
+members at the Bandmate bond tier). Each raises your
 bond, outside the daily cap, and shows by your name for the current Wisp
 only: when his life ends the roles come off, and the next Wisp sells them
 again. `!wisp setup` makes the roles, with `ASSETS/badges/<key>.png` as
-the role icon when it exists and the server can show role icons. If Discord
-will not give the role, the purchase is undone and the points come back.
+the role icon when it exists and the server can show role icons. Setup
+also renames a badge role whose name is not its badge's, and deletes the
+roles Wisp made for badges no longer sold. A badge bought before it was
+retired stays in the buyer's Snack Pack. If Discord will not give the role,
+the purchase is undone and the points come back.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
@@ -217,9 +220,9 @@ posts text only.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
   `events/farewell.png`.
 - `shame/*` any images, picked at random when a member is punished.
-- `badges/<key>.png` for each badge key (`egg_warmer`, `pickle_diplomat`,
-  `flame_keeper`, `viibr_roadie`, `team_wisp`, `bandmate`), the badge role
-  icons, and the app emojis `badge_<key>` for the Vault and Snack Pack.
+- `badges/<key>.png` for each badge key (`pickle_diplomat`,
+  `flame_keeper`, `team_viibr`, `bandmate`), the badge role icons, and the
+  app emojis `badge_<key>` for the Vault and Snack Pack.
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
 - `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's

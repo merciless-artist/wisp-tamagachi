@@ -385,11 +385,9 @@ class Badge:
 
 
 BADGES: tuple[Badge, ...] = (
-    Badge("egg_warmer", "Egg Warmer", 25, 5, "is now an Egg Warmer"),
     Badge("pickle_diplomat", "Pickle Diplomat", 25, 5, "is now a Pickle Diplomat"),
     Badge("flame_keeper", "Flame Keeper", 100, 15, "is now a Flame Keeper"),
-    Badge("viibr_roadie", "ViiBR Roadie", 100, 15, "is now a ViiBR Roadie"),
-    Badge("team_wisp", "Team Wisp", 250, 25, "joined Team Wisp"),
+    Badge("team_viibr", "Team ViiBR", 250, 25, "joined Team ViiBR"),
     Badge(
         "bandmate",
         "Bandmate",
@@ -400,6 +398,16 @@ BADGES: tuple[Badge, ...] = (
     ),
 )
 BADGE_BY_KEY: dict[str, Badge] = {badge.key: badge for badge in BADGES}
+
+
+def badge_name(key: str) -> str:
+    """A badge's name; for a badge no longer sold, one made from its key.
+
+    Members keep retired badges they bought, so "egg_warmer" reads "Egg Warmer".
+    """
+    badge = BADGE_BY_KEY.get(key)
+    return badge.name if badge is not None else key.replace("_", " ").title()
+
 
 # ---
 # AI voice

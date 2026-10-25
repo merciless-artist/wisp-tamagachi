@@ -16,7 +16,6 @@ from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, is_over
 from wisp.rules import (
     AI_MAX_CHARS,
-    BADGE_BY_KEY,
     BOND_TIERS,
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
@@ -32,6 +31,7 @@ from wisp.rules import (
     POKE_TICKLED_WEIGHT,
     SNACK_BY_KEY,
     Stage,
+    badge_name,
 )
 from wisp.text import strip_emoji
 
@@ -404,8 +404,8 @@ def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
         return f"{words.title()}, one of {whose} keepsakes"
     if kind == "snack" and key in SNACK_BY_KEY:
         return f"{SNACK_BY_KEY[key].name}, one of {whose} snacks"
-    if kind == "badge" and key in BADGE_BY_KEY:
-        return f"{whose} {BADGE_BY_KEY[key].name} badge"
+    if kind == "badge" and key:
+        return f"{whose} {badge_name(key)} badge"
     return _SERVER_EMOTE
 
 

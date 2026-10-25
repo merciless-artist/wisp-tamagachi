@@ -447,7 +447,7 @@ async def test_setup_creates_five_threads_with_the_vault(
 
     text = sent_text(ctx)
     assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
-    assert "・Badge roles created: Egg Warmer, Pickle Diplomat" in text
+    assert "・Badge roles created: Pickle Diplomat, Flame Keeper" in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
     assert house_posts(server) == []

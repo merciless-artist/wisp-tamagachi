@@ -1,5 +1,7 @@
 """Sanity checks on the rule tables."""
 
+import pytest
+
 from wisp.links import TrackKind
 from wisp.rules import (
     BADGE_BY_KEY,
@@ -10,6 +12,7 @@ from wisp.rules import (
     SNACKS,
     STAGE_RULES,
     Stage,
+    badge_name,
 )
 
 
@@ -59,21 +62,29 @@ def test_the_badge_catalog() -> None:
         (badge.key, badge.name, badge.cost, badge.bond, badge.needs_tier)
         for badge in BADGES
     ] == [
-        ("egg_warmer", "Egg Warmer", 25, 5, None),
         ("pickle_diplomat", "Pickle Diplomat", 25, 5, None),
         ("flame_keeper", "Flame Keeper", 100, 15, None),
-        ("viibr_roadie", "ViiBR Roadie", 100, 15, None),
-        ("team_wisp", "Team Wisp", 250, 25, None),
+        ("team_viibr", "Team ViiBR", 250, 25, None),
         ("bandmate", "Bandmate", 250, 25, "Bandmate"),
     ]
     assert {badge.key: badge.phrase for badge in BADGES} == {
-        "egg_warmer": "is now an Egg Warmer",
         "pickle_diplomat": "is now a Pickle Diplomat",
         "flame_keeper": "is now a Flame Keeper",
-        "viibr_roadie": "is now a ViiBR Roadie",
-        "team_wisp": "joined Team Wisp",
+        "team_viibr": "joined Team ViiBR",
         "bandmate": "is now one of Wisp's Bandmates",
     }
     assert BOND_TIERS[-1][0] == "Bandmate"
-    assert BADGE_BY_KEY["team_wisp"].emoji_name == "badge_team_wisp"
+    assert BADGE_BY_KEY["team_viibr"].emoji_name == "badge_team_viibr"
     assert all(len(badge.key) <= 20 for badge in BADGES)
+
+
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [
+        ("team_viibr", "Team ViiBR"),
+        ("egg_warmer", "Egg Warmer"),
+        ("viibr_roadie", "Viibr Roadie"),
+    ],
+)
+def test_a_badge_no_longer_sold_still_has_a_readable_name(key: str, name: str) -> None:
+    assert badge_name(key) == name
