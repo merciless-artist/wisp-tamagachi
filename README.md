@@ -50,36 +50,48 @@ next egg. Members can also talk to him in Wisp's House.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
   role must sit above the badge roles.
 - Upload the app emojis listed under Assets.
-- In the server, run `/wispadmin setup`, then `/wispadmin roles add` for each
-  role allowed to feed Wisp.
+- In the server, run `!wisp setup #house #studio #tracks`, then
+  `!wisp roles add @role` for each role allowed to feed Wisp.
 
 ## Commands
 
-Staff commands need the Manage Server permission.
+Members use `/wisp` slash commands. Staff type `!wisp <command>` text
+commands, so they never dig through slash menus. Staff are Wisp's app owner
+(in every server), members with Manage Server, and members holding one of the
+server's staff roles. Anyone else is ignored without a word. Bare `!wisp` is
+kept free for the help menu.
 
-- `/wispadmin setup house studio tracks` sets Wisp's House, the Studio forum
-  and the track drop channel, and creates the Studio threads that are missing
-  (see Wisp's Studio).
-- `/wispadmin roles add`, `roles remove`, `roles list` choose which roles can
-  feed Wisp.
-- `/wispadmin food viibr suno` sets how many meal points a viibrmusic.com track
-  and a Suno track feed Wisp (0 to 50 each; leaderboard points match), and
-  updates the quick rules post at the end of the Wisp FAQ. Until staff set
-  them, the starting values in `wisp/rules.py` apply.
-- `/wispadmin faq` rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
+Staff commands answer publicly in the channel they were used in; from the
+track drop the answer goes to Wisp's House. Wrong arguments get one usage
+line, an unknown command gets the list of commands, and a failure is posted
+where the command was used.
+
+- `!wisp setup #house #studio #tracks` sets Wisp's House, the Studio forum
+  and the track drop channel (mentions, ids or names), and creates the Studio
+  threads that are missing (see Wisp's Studio).
+- `!wisp roles add @role`, `!wisp roles remove @role`, `!wisp roles list`
+  choose which roles can feed Wisp.
+- `!wisp staff add @role`, `!wisp staff remove @role`, `!wisp staff list`
+  choose which roles are Wisp staff. The owner or a Manage Server member adds
+  the first one.
+- `!wisp food <viibr> <suno>` sets how many meal points a viibrmusic.com
+  track and a Suno track feed Wisp (0 to 50 each; leaderboard points match),
+  and updates the quick rules post at the end of the Wisp FAQ. Until staff
+  set them, the starting values in `wisp/rules.py` apply.
+- `!wisp faq` rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
-- `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
-- `/wispadmin eggs on|off` turns new eggs on or off. Off, no egg is laid
-  when Wisp's life ends (the ending, Last Embers and badge roles still
-  happen as usual) and the House says so once; on, the next tick lays the
-  egg. A living Wisp is not affected.
-- `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
-  The log line with the reason is posted publicly in the channel the command
-  was run in.
-- `/wispadmin unban` lifts a member's ban.
-- `/wispadmin strip` takes leaderboard points from a member.
-- `/wispadmin resetname` makes Wisp forget a member's name.
+- `!wisp freeze` and `!wisp unfreeze` pause and resume care draining.
+- `!wisp eggs on|off` turns new eggs on or off. Off, no egg is laid when
+  Wisp's life ends (the ending, Last Embers and badge roles still happen as
+  usual) and the House says so once; on, the next tick lays the egg. A living
+  Wisp is not affected.
+- `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
+  of offenses. The reason is the rest of the line, and the answer, reason
+  included, is public.
+- `!wisp unban @member` lifts a member's ban.
+- `!wisp strip @member <points>` takes leaderboard points from a member.
+- `!wisp resetname @member` makes Wisp forget a member's name.
 
 Member commands:
 
@@ -97,7 +109,7 @@ Badges: the Vault sells six badge roles (Egg Warmer and Pickle Diplomat at
 250; Bandmate only for members at the Bandmate bond tier). Each raises your
 bond, outside the daily cap, and shows by your name for the current Wisp
 only: when his life ends the roles come off, and the next Wisp sells them
-again. `/wispadmin setup` makes the roles, with `ASSETS/badges/<key>.png` as
+again. `!wisp setup` makes the roles, with `ASSETS/badges/<key>.png` as
 the role icon when it exists and the server can show role icons. If Discord
 will not give the role, the purchase is undone and the points come back.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked

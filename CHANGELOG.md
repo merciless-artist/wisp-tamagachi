@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-24 (staff commands move to !wisp)
+
+- Staff commands are typed text commands now: `!wisp setup`, `roles`,
+  `food`, `freeze`, `unfreeze`, `eggs`, `faq`, `punish`, `unban`, `strip`
+  and `resetname`, with the same behaviour as before. The `/wispadmin` slash
+  group is gone; members' `/wisp` commands are unchanged.
+- Staff are the app owner, Manage Server holders and members with a staff
+  role. `!wisp staff add|remove|list` manages the staff roles, kept in the new
+  `staff_roles` table (created at startup when missing). Anyone else is
+  ignored without a reply.
+- Answers are public, in the channel the command was used in, or in Wisp's
+  House from the track drop. Wrong arguments get a usage line, an unknown
+  command gets the list of commands, and a failure is posted where the
+  command was used. `!wisp punish` now posts one public answer, the log line
+  with the reason, instead of a log line plus a private reply.
+- Bare `!wisp` gets no reply; it is kept for the help menu. Mentioning Wisp
+  never runs a command.
+- Bot messages that named `/wispadmin` now name the `!wisp` command.
+
 ## 2026-10-24 (eggs switch)
 
 - `/wispadmin eggs on|off`. Off: when a life ends no egg is laid, by the

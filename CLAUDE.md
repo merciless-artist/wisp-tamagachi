@@ -35,7 +35,7 @@ UTC and a day is a UTC calendar day.
 - Bullet `・`, flair `♪`, separator `・♪ ────────・──────── ♪・`.
 - No embeds.
 - No direct messages. Wisp ignores DMs and is guild-only.
-- Slash commands only, under `/wisp` and `/wispadmin` (staff need Manage Server).
+- Members use `/wisp` slash commands; staff use `!wisp` text commands.
 - Errors are posted as plain text in the channel where they happened:
   `Error in <context>: <Type>: <message>`.
 - Keep messages under 2,000 characters.
