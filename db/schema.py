@@ -34,6 +34,11 @@ _DEFINITIONS: dict[str, str] = {
         role_id BIGINT NOT NULL,
         PRIMARY KEY (guild_id, role_id)
     """,
+    "staff_roles": """
+        guild_id BIGINT NOT NULL,
+        role_id BIGINT NOT NULL,
+        PRIMARY KEY (guild_id, role_id)
+    """,
     "lives": """
         id BIGINT NOT NULL AUTO_INCREMENT,
         guild_id BIGINT NOT NULL,

@@ -42,6 +42,9 @@ class Settings:
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
 _ID_LISTS = frozenset({"faq_message_ids"})
+_FEEDING_ROLES = "qualifying_roles"
+_STAFF_ROLES = "staff_roles"
+_ROLE_TABLES = (_FEEDING_ROLES, _STAFF_ROLES)
 
 
 def _to_column(name: str, value: Any) -> Any:
@@ -92,18 +95,19 @@ def meal_points(settings: Settings) -> dict[TrackKind, int]:
 
 
 class SettingsRepo:
-    """Reads and writes guild settings and the qualifying role list.
+    """Reads and writes guild settings, the qualifying roles and the staff roles.
 
-    Both are cached in this process after the first read, since nearly every
-    guild message needs them, and every write here refreshes its guild. There
-    is one bot process, so nothing else changes them behind the cache. A read
-    that overlaps a write is not cached, so it cannot bring back an old value.
+    All three are cached in this process after the first read, since nearly
+    every guild message needs them, and every write here refreshes its guild.
+    There is one bot process, so nothing else changes them behind the cache. A
+    read that overlaps a write is not cached, so it cannot bring back an old
+    value.
     """
 
     def __init__(self, db: Database) -> None:
         self._db = db
         self._settings: dict[int, Settings] = {}
-        self._roles: dict[int, frozenset[int]] = {}
+        self._role_sets: dict[tuple[str, int], frozenset[int]] = {}
         self._writes: dict[int, int] = {}
 
     async def get(self, guild_id: int) -> Settings:
@@ -144,33 +148,53 @@ class SettingsRepo:
 
     async def roles(self, guild_id: int) -> frozenset[int]:
         """Return the role ids that qualify a member to feed Wisp."""
-        cached = self._roles.get(guild_id)
+        return await self._role_ids(_FEEDING_ROLES, guild_id)
+
+    async def add_role(self, guild_id: int, role_id: int) -> None:
+        """Add a qualifying role; adding it twice changes nothing."""
+        await self._add_role_id(_FEEDING_ROLES, guild_id, role_id)
+
+    async def remove_role(self, guild_id: int, role_id: int) -> None:
+        """Remove a qualifying role."""
+        await self._remove_role_id(_FEEDING_ROLES, guild_id, role_id)
+
+    async def staff_roles(self, guild_id: int) -> frozenset[int]:
+        """Return the role ids whose members may use the staff commands."""
+        return await self._role_ids(_STAFF_ROLES, guild_id)
+
+    async def add_staff_role(self, guild_id: int, role_id: int) -> None:
+        """Add a staff role; adding it twice changes nothing."""
+        await self._add_role_id(_STAFF_ROLES, guild_id, role_id)
+
+    async def remove_staff_role(self, guild_id: int, role_id: int) -> None:
+        """Remove a staff role."""
+        await self._remove_role_id(_STAFF_ROLES, guild_id, role_id)
+
+    async def _role_ids(self, table: str, guild_id: int) -> frozenset[int]:
+        cached = self._role_sets.get((table, guild_id))
         if cached is not None:
             return cached
         writes = self._writes.get(guild_id, 0)
         rows = await self._db.fetchall(
-            f"SELECT role_id FROM {self._db.t('qualifying_roles')} WHERE guild_id = %s",
+            f"SELECT role_id FROM {self._db.t(table)} WHERE guild_id = %s",
             (guild_id,),
         )
-        roles = frozenset(row["role_id"] for row in rows)
+        role_ids = frozenset(row["role_id"] for row in rows)
         if self._writes.get(guild_id, 0) == writes:
-            self._roles[guild_id] = roles
-        return roles
+            self._role_sets[(table, guild_id)] = role_ids
+        return role_ids
 
-    async def add_role(self, guild_id: int, role_id: int) -> None:
-        """Add a qualifying role; adding it twice changes nothing."""
+    async def _add_role_id(self, table: str, guild_id: int, role_id: int) -> None:
         await self._db.execute(
-            f"INSERT INTO {self._db.t('qualifying_roles')} (guild_id, role_id) "
+            f"INSERT INTO {self._db.t(table)} (guild_id, role_id) "
             "VALUES (%s, %s) ON DUPLICATE KEY UPDATE role_id = role_id",
             (guild_id, role_id),
         )
         self._forget(guild_id)
 
-    async def remove_role(self, guild_id: int, role_id: int) -> None:
-        """Remove a qualifying role."""
+    async def _remove_role_id(self, table: str, guild_id: int, role_id: int) -> None:
         await self._db.execute(
-            f"DELETE FROM {self._db.t('qualifying_roles')} "
-            "WHERE guild_id = %s AND role_id = %s",
+            f"DELETE FROM {self._db.t(table)} WHERE guild_id = %s AND role_id = %s",
             (guild_id, role_id),
         )
         self._forget(guild_id)
@@ -183,10 +207,11 @@ class SettingsRepo:
         return [row["guild_id"] for row in rows]
 
     def _forget(self, guild_id: int) -> None:
-        """Drop a guild's cached settings and roles after a write."""
+        """Drop a guild's cached settings and role lists after a write."""
         self._writes[guild_id] = self._writes.get(guild_id, 0) + 1
         self._settings.pop(guild_id, None)
-        self._roles.pop(guild_id, None)
+        for table in _ROLE_TABLES:
+            self._role_sets.pop((table, guild_id), None)
 
     async def _ensure(self, guild_id: int) -> None:
         await self._db.execute(

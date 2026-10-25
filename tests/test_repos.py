@@ -189,6 +189,51 @@ async def test_roles_are_cached_until_a_role_changes(db: Database) -> None:
     assert await repo.roles(GUILD) == {8, 9}
 
 
+async def test_staff_role_list_round_trip(db: Database) -> None:
+    repo = SettingsRepo(db)
+    assert await repo.staff_roles(GUILD) == set()
+
+    await repo.add_staff_role(GUILD, 7)
+    await repo.add_staff_role(GUILD, 7)
+    await repo.add_staff_role(GUILD, 8)
+    await repo.add_staff_role(OTHER_GUILD, 9)
+    assert await repo.staff_roles(GUILD) == {7, 8}
+
+    await repo.remove_staff_role(GUILD, 7)
+    assert await repo.staff_roles(GUILD) == {8}
+    assert await repo.staff_roles(OTHER_GUILD) == {9}
+
+
+async def test_staff_roles_and_feeding_roles_are_separate(db: Database) -> None:
+    repo = SettingsRepo(db)
+    await repo.add_staff_role(GUILD, 7)
+    await repo.add_role(GUILD, 8)
+
+    assert await repo.staff_roles(GUILD) == {7}
+    assert await repo.roles(GUILD) == {8}
+    await repo.remove_role(GUILD, 7)
+    assert await repo.staff_roles(GUILD) == {7}
+
+
+async def test_staff_roles_are_cached_until_a_staff_role_changes(
+    db: Database,
+) -> None:
+    repo = SettingsRepo(db)
+    await repo.add_staff_role(GUILD, 7)
+    assert await repo.staff_roles(GUILD) == {7}
+
+    await db.execute(
+        f"INSERT INTO {db.t('staff_roles')} (guild_id, role_id) VALUES (%s, 8)",
+        (GUILD,),
+    )
+    assert await repo.staff_roles(GUILD) == {7}
+
+    await repo.remove_staff_role(GUILD, 7)
+    assert await repo.staff_roles(GUILD) == {8}
+    await repo.add_staff_role(GUILD, 9)
+    assert await repo.staff_roles(GUILD) == {8, 9}
+
+
 async def test_guilds_lists_configured_guilds(db: Database) -> None:
     repo = SettingsRepo(db)
     assert await repo.guilds() == []

@@ -104,6 +104,22 @@ async def test_create_tables_adds_lay_eggs_to_a_live_settings_table(
             )
 
 
+async def test_create_tables_adds_staff_roles_beside_live_tables(
+    db: Database,
+) -> None:
+    settings = db.t("settings")
+    staff_roles = db.t("staff_roles")
+    await db.execute(f"INSERT INTO {settings} (guild_id) VALUES (1)")
+    await db.execute(f"DROP TABLE {staff_roles}")
+
+    await create_tables(db)
+
+    assert await db.fetchone(f"SELECT guild_id FROM {settings}") == {"guild_id": 1}
+    await db.execute(f"INSERT INTO {staff_roles} (guild_id, role_id) VALUES (1, 2)")
+    with pytest.raises(pymysql.err.IntegrityError):
+        await db.execute(f"INSERT INTO {staff_roles} (guild_id, role_id) VALUES (1, 2)")
+
+
 async def test_track_key_is_unique_per_guild(db: Database) -> None:
     insert = (
         f"INSERT INTO {db.t('feeds')} "
