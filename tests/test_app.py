@@ -67,9 +67,8 @@ def test_intents_ignore_direct_messages_and_privileged_extras(
     assert intents.guild_messages
 
 
-def test_no_text_commands_are_registered(bot: app.WispBot) -> None:
+def test_there_is_no_default_help_command(bot: app.WispBot) -> None:
     assert bot.help_command is None
-    assert not bot.commands
 
 
 def test_every_send_pings_nobody_by_default(bot: app.WispBot) -> None:

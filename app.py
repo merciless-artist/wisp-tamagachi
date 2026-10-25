@@ -16,6 +16,15 @@ from cogs.channels import may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from cogs.share_links import ShareLinkResolver
 from cogs.speech import HouseTalk
+from cogs.staff import (
+    command_context,
+    command_list,
+    command_prefix,
+    is_staff,
+    reply,
+    staff_check,
+    usage_line,
+)
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
@@ -44,6 +53,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.conversation",
     "cogs.life_loop",
     "cogs.discipline",
+    "cogs.staff",
 )
 
 _REFUSAL = "That command is for staff."
@@ -103,7 +113,11 @@ class WispTree(app_commands.CommandTree["WispBot"]):
 
 
 class WispBot(commands.Bot):
-    """The bot: shared storage, Wisp's voice, error reporting and per-guild locks."""
+    """The bot: shared storage, Wisp's voice, error reporting and per-guild locks.
+
+    Staff commands are typed as `!wisp <command>`; a mention of Wisp is talk,
+    never a command.
+    """
 
     def __init__(self) -> None:
         intents = discord.Intents.default()
@@ -112,12 +126,15 @@ class WispBot(commands.Bot):
         intents.dm_reactions = False
         intents.dm_typing = False
         super().__init__(
-            command_prefix=commands.when_mentioned,
+            command_prefix=command_prefix,
             intents=intents,
             help_command=None,
             tree_cls=WispTree,
             allowed_mentions=discord.AllowedMentions.none(),
+            case_insensitive=True,
+            strip_after_prefix=True,
         )
+        self.add_check(staff_check, call_once=True)
         self.db = Database(config.TABLE_PREFIX)
         self.settings = SettingsRepo(self.db)
         self.lives = LifeRepo(self.db)
@@ -173,9 +190,42 @@ class WispBot(commands.Bot):
             await self._post_everywhere(context, line)
 
     async def on_message(self, message: discord.Message) -> None:
-        """Ignore direct messages. Guild messages reach the cogs' own listeners."""
+        """Ignore direct messages; run the staff commands in guild messages.
+
+        Guild messages also reach the cogs' own listeners.
+        """
         if message.guild is None:
             return
+        await self.process_commands(message)
+
+    async def on_command_error(
+        self, context: commands.Context[Any], exception: commands.CommandError, /
+    ) -> None:
+        """Answer a staff command that could not run.
+
+        A failed staff check, and an unknown command from anyone but staff, get
+        no answer at all. An unknown command from staff gets the list of
+        commands, wrong arguments get the usage line, and anything else is
+        reported where the command was used.
+        """
+        if isinstance(exception, commands.CheckFailure):
+            return
+        if isinstance(exception, commands.CommandNotFound):
+            author = context.author
+            if isinstance(author, discord.Member) and await is_staff(self, author):
+                await reply(context, command_list(self))
+            return
+        if isinstance(exception, commands.UserInputError) and context.command:
+            await reply(context, usage_line(context.command))
+            return
+        cause = (
+            exception.original
+            if isinstance(exception, commands.CommandInvokeError)
+            else exception
+        )
+        await self.report_error(
+            context.guild, command_context(context), cause, where=context.channel
+        )
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
         """Report an exception raised in an event listener.
