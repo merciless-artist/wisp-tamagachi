@@ -17,8 +17,10 @@ from cogs import faq, feeding, groups, studio
 from cogs.studio import StudioError, ensure_studio, rules_text, studio_thread
 from db.badges import BadgeRepo
 from db.database import Database
+from db.lives import LifeRepo
 from db.settings import SettingsRepo
 from wisp import rules
+from wisp.life import Phase, new_egg
 from wisp.links import TrackKind
 from wisp.text import MESSAGE_LIMIT
 
@@ -291,6 +293,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.badges = BadgeRepo(db)
+    wisp_bot.lives = LifeRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -1109,6 +1112,42 @@ async def test_freeze_sets_flag(bot: app.WispBot, server: FakeServer) -> None:
     await invoke(studio.unfreeze, interaction)
     assert (await bot.settings.get(GUILD_ID)).frozen is False
     assert "unfrozen" in sent_text(interaction).lower()
+
+
+@pytest.mark.parametrize("phase", [None, Phase.DEAD])
+async def test_turning_eggs_off_and_on_with_no_living_wisp(
+    bot: app.WispBot, server: FakeServer, phase: Phase | None
+) -> None:
+    if phase is not None:
+        life = new_egg(1, discord.utils.utcnow())
+        life.phase = phase
+        await bot.lives.insert(GUILD_ID, life)
+
+    interaction = make_interaction(server, bot)
+    await invoke(studio.eggs, interaction, "off")
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
+    assert sent_text(interaction) == (
+        "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
+        "until you turn eggs back on."
+    )
+
+    interaction = make_interaction(server, bot)
+    await invoke(studio.eggs, interaction, "on")
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
+    assert sent_text(interaction) == (
+        "♪ New eggs are on. A new egg arrives within a few minutes."
+    )
+
+
+async def test_turning_eggs_on_while_he_lives_says_only_that(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
+
+    interaction = make_interaction(server, bot)
+    await invoke(studio.eggs, interaction, "on")
+
+    assert sent_text(interaction) == "♪ New eggs are on."
 
 
 # ---

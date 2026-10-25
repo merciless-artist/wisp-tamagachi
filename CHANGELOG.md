@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-24 (eggs switch)
+
+- `/wispadmin eggs on|off`. Off: when a life ends no egg is laid, by the
+  ending or by the life loop's self-heal, and the House says once "No new egg
+  for now". The ending is still announced, the Last Embers still given and
+  the badge roles still taken back. On: the next tick lays the egg, a coal egg
+  after a full life. A living Wisp is unaffected.
+- New settings column `lay_eggs` (default on), added to a live table at
+  startup.
+
 ## 2026-10-24 (poke and badge review fixes)
 
 - A badge bought again in a new life keeps its role: the purchase marks the

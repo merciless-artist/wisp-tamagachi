@@ -687,6 +687,65 @@ async def test_expired_ban_does_not_stop_the_ember(
     assert await embers(bot, MEMBER) == ["Wisp v3's Last Ember"]
 
 
+NO_EGG = "♪ No new egg for now. Staff can turn eggs back on with /wispadmin eggs."
+
+
+async def test_with_eggs_off_a_death_lays_no_egg_and_says_so_once(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, lay_eggs=False)
+    life = await ended_life(bot, Phase.DEAD)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+
+    died, paused = server.house.send.await_args_list
+    assert said(died.args[0], Moment.DIED, version="3")
+    assert paused.args[0] == NO_EGG
+    assert sends_without_pinging(paused.kwargs)
+    assert (await current_life(bot)).id == life.id
+
+
+async def test_with_eggs_off_a_farewell_still_gives_its_embers(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, lay_eggs=False)
+    life = await ended_life(bot, Phase.PASSED)
+    await known_sharers(bot, server, life)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+
+    farewell, named, member, nameless, paused = server.house.send.await_args_list
+    assert said(farewell.args[0], Moment.FAREWELL, version="3")
+    assert gift_said(named.args[0], "Aria", 3)
+    assert paused.args[0] == NO_EGG
+    assert (await current_life(bot)).id == life.id
+    for user_id in (NAMED, MEMBER, NAMELESS):
+        assert await embers(bot, user_id) == ["Wisp v3's Last Ember"]
+
+    await bot.settings.update(GUILD_ID, lay_eggs=True)
+    server.house.send.reset_mock()
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+
+    (laid,) = server.house.send.await_args_list
+    assert said(laid.args[0], Moment.COAL_EGG, version="4")
+    egg = await current_life(bot)
+    assert (egg.version, egg.phase, egg.from_coal) == (4, Phase.EGG, True)
+    assert egg.egg_food == rules.COAL_EGG_FOOD
+
+
+async def test_with_eggs_off_and_no_life_nothing_is_laid(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, lay_eggs=False)
+
+    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+
+    assert await bot.lives.current(GUILD_ID) is None
+    server.house.send.assert_not_awaited()
+
+
 async def test_neglect_death_gives_no_gifts_and_a_fresh_egg(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:

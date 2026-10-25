@@ -85,6 +85,25 @@ async def test_create_tables_adds_the_removal_index_to_a_live_badges_table(
     assert "idx_guild_removed" in {row["Key_name"] for row in rows}
 
 
+async def test_create_tables_adds_lay_eggs_to_a_live_settings_table(
+    db: Database,
+) -> None:
+    settings = db.t("settings")
+    await db.execute(f"INSERT INTO {settings} (guild_id) VALUES (1)")
+    await db.execute(f"ALTER TABLE {settings} DROP COLUMN lay_eggs")
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT lay_eggs FROM {settings}")
+        assert row == {"lay_eggs": 1}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {settings}")
+        if "lay_eggs" not in {column["Field"] for column in restored}:
+            await db.execute(
+                f"ALTER TABLE {settings} ADD COLUMN lay_eggs BOOL NOT NULL DEFAULT 1"
+            )
+
+
 async def test_track_key_is_unique_per_guild(db: Database) -> None:
     insert = (
         f"INSERT INTO {db.t('feeds')} "

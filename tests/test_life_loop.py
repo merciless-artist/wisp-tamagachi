@@ -34,7 +34,7 @@ from wisp import rules
 from wisp.bond import happiness
 from wisp.card import render_status
 from wisp.life import Life, Mood, Phase, new_egg
-from wisp.lines import Moment
+from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import PAID_SNACKS, SNACKS, Stage
 
@@ -1015,6 +1015,53 @@ async def test_cog_is_registered_and_set_up(
     assert "cogs.life_loop" in app.EXTENSIONS
     (added,) = add_cog.await_args.args
     assert isinstance(added, LifeLoop)
+
+
+async def test_with_eggs_off_the_tick_lays_nothing_until_they_are_on(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, lay_eggs=False)
+    ended = new_egg(1, NOW - timedelta(days=70))
+    ended.phase = Phase.PASSED
+    ended.stage = ended.peak_stage = Stage.OLD_FOGEY
+    ended.hatched_at = NOW - timedelta(days=61)
+    ended.ended_at = NOW - timedelta(hours=1)
+    await bot.lives.insert(GUILD_ID, ended)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+
+    current = await bot.lives.current(GUILD_ID)
+    assert current is not None and current.version == 1
+    server.house.send.assert_not_awaited()
+
+    await bot.settings.update(GUILD_ID, lay_eggs=True)
+    await cog.run_tick(NOW + 2 * rules.TICK_EVERY)
+
+    egg = await bot.lives.current(GUILD_ID)
+    assert egg is not None
+    assert (egg.version, egg.phase, egg.from_coal) == (2, Phase.EGG, True)
+    (laid,) = [call.args[0] for call in server.house.send.await_args_list]
+    assert laid in {
+        line.format(version="2") for line in LINES[(Moment.COAL_EGG, Mood.HAPPY)]
+    }
+
+
+async def test_eggs_off_changes_nothing_while_he_is_alive(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, lay_eggs=False)
+    life = await lay(bot, care=80.0)
+
+    await cog.run_tick(NOW)
+
+    current = await bot.lives.current(GUILD_ID)
+    assert current is not None and current.id == life.id
+    assert current.phase is Phase.ALIVE
+    assert current.care < 80.0
+    server.card_edit.assert_awaited_once()
 
 
 async def test_a_restart_between_the_egg_and_the_badges_is_healed_on_the_next_tick(

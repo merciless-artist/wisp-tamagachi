@@ -26,6 +26,7 @@ _DEFINITIONS: dict[str, str] = {
         viibr_meal_points INT NULL,
         suno_meal_points INT NULL,
         frozen BOOL NOT NULL DEFAULT 0,
+        lay_eggs BOOL NOT NULL DEFAULT 1,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -172,7 +173,10 @@ _DEFINITIONS: dict[str, str] = {
 # in its definition: startup adds it to a table that lacks it.
 _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
-    "settings": {"faq_message_ids": "TEXT NULL"},
+    "settings": {
+        "faq_message_ids": "TEXT NULL",
+        "lay_eggs": "BOOL NOT NULL DEFAULT 1",
+    },
     "badges": {"removed_at": "DATETIME NULL"},
 }
 

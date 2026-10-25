@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
+_NO_EGG: Final = (
+    "♪ No new egg for now. Staff can turn eggs back on with /wispadmin eggs."
+)
 _BABY_STAGE: Final = "baby"
 _GIVING: Final = "giving a keepsake"
 _STAGE_KEEPSAKES: Final = {
@@ -241,7 +244,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         if (kind := _milestone(event)) is not None:
             await _give_milestone(bot, guild_id, house, life, kind)
         if event.kind in _ENDINGS:
-            await _next_life(bot, guild_id, house, discord.utils.utcnow())
+            await _next_life(bot, guild_id, house, discord.utils.utcnow(), ending=True)
 
 
 # ---
@@ -320,23 +323,33 @@ async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
     and the rest still come.
     Nothing happens while the current life goes on, so calling this twice is
     safe. Wisp's House hears who got an ember, each with a goodbye from his AI
-    voice, then the new egg.
+    voice, then the new egg. While staff have new eggs turned off, the embers
+    are still given but no egg is laid.
     Takes `bot.guild_lock`, so it must be called outside it. The goodbyes are
     written after the lock is released, since AI calls take seconds.
     """
-    await _next_life(bot, guild_id, _House(bot, guild_id), now)
+    await _next_life(bot, guild_id, _House(bot, guild_id), now, ending=False)
 
 
 async def _next_life(
-    bot: "WispBot", guild_id: int, house: _House, now: datetime
+    bot: "WispBot", guild_id: int, house: _House, now: datetime, *, ending: bool
 ) -> None:
+    """Give any Last Embers and lay the next egg, when eggs are on.
+
+    With eggs off and `ending` set, which is only when the ending itself is
+    announced, the House is told once that no egg is coming.
+    """
     async with bot.guild_lock(guild_id):
         ended = await bot.lives.current(guild_id)
         if ended is not None and not is_over(ended):
             return
         embers = await _give_last_embers(bot, guild_id, ended, now)
-        version = await bot.lives.next_version(guild_id)
-        egg = await bot.lives.insert(guild_id, egg_after(ended, version, now))
+        egg = None
+        if (await bot.settings.get(guild_id)).lay_eggs:
+            version = await bot.lives.next_version(guild_id)
+            egg = await bot.lives.insert(guild_id, egg_after(ended, version, now))
+    if egg is None and not ending and (embers is None or not embers.receivers):
+        return
     await house.open()
     if embers is not None:
         guild = bot.get_guild(guild_id)
@@ -352,6 +365,10 @@ async def _next_life(
             await house.say(
                 f"{heading}\n{goodbye}", keepsake_image(KeepsakeKind.LAST_EMBER)
             )
+    if egg is None:
+        if ending:
+            await house.say(_NO_EGG)
+        return
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
     await house.say(_line(bot, moment, egg), life_image(egg), poke_view())
 

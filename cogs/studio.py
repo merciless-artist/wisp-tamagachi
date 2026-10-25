@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 import discord
 from discord import app_commands
@@ -17,6 +17,7 @@ from cogs.faq import FAQ_SECTIONS, fill_faq
 from cogs.groups import require_guild, wispadmin
 from db.settings import Settings, meal_points
 from wisp import rules
+from wisp.life import is_over
 from wisp.links import TrackKind
 from wisp.text import SEPARATOR, count
 
@@ -586,6 +587,34 @@ async def unfreeze(interaction: discord.Interaction["WispBot"]) -> None:
     await interaction.response.send_message(
         "♪ Wisp is unfrozen. His care drains normally again.", ephemeral=True
     )
+
+
+@wispadmin.command(name="eggs", description="Turn new eggs on or off.")
+@app_commands.describe(state="Whether a new egg is laid when Wisp's life ends")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def eggs(
+    interaction: discord.Interaction["WispBot"], state: Literal["on", "off"]
+) -> None:
+    """Turn laying the next egg on or off. A living Wisp is not affected.
+
+    Turned back on with no living Wisp, the life loop lays the egg on its next
+    tick.
+    """
+    bot = interaction.client
+    guild_id = require_guild(interaction)
+    on = state == "on"
+    await bot.settings.update(guild_id, lay_eggs=on)
+    if not on:
+        reply = (
+            "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
+            "until you turn eggs back on."
+        )
+    else:
+        life = await bot.lives.current(guild_id)
+        reply = "♪ New eggs are on."
+        if life is None or is_over(life):
+            reply += " A new egg arrives within a few minutes."
+    await interaction.response.send_message(reply, ephemeral=True)
 
 
 async def setup(bot: "WispBot") -> None:

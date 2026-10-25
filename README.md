@@ -70,6 +70,10 @@ Staff commands need the Manage Server permission.
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
 - `/wispadmin freeze` and `/wispadmin unfreeze` pause and resume care draining.
+- `/wispadmin eggs on|off` turns new eggs on or off. Off, no egg is laid
+  when Wisp's life ends (the ending, Last Embers and badge roles still
+  happen as usual) and the House says so once; on, the next tick lays the
+  egg. A living Wisp is not affected.
 - `/wispadmin punish` bans a member from Wisp, on a rising ladder of offenses.
   The log line with the reason is posted publicly in the channel the command
   was run in.

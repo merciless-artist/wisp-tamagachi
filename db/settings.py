@@ -1,4 +1,4 @@
-"""Per-guild settings: channels, threads, roles, food values and the freeze."""
+"""Per-guild settings: channels, threads, roles, food values, freeze and eggs."""
 
 import json
 import logging
@@ -18,7 +18,8 @@ class Settings:
 
     It is frozen, so the copy the repository caches can be shared safely.
     `faq_message_ids` are the Wisp FAQ's section posts, in order; the column
-    holds them as a JSON list.
+    holds them as a JSON list. With `lay_eggs` off, no new egg is laid when a
+    life ends until staff turn it back on.
     """
 
     tracks_channel_id: int | None = None
@@ -36,6 +37,7 @@ class Settings:
     viibr_meal_points: int | None = None
     suno_meal_points: int | None = None
     frozen: bool = False
+    lay_eggs: bool = True
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
@@ -72,7 +74,9 @@ def _from_row(guild_id: int, row: dict[str, Any]) -> Settings:
         name: _id_list(guild_id, name, value) if name in _ID_LISTS else value
         for name, value in row.items()
     }
-    return Settings(**{**values, "frozen": bool(row["frozen"])})
+    return Settings(
+        **{**values, "frozen": bool(row["frozen"]), "lay_eggs": bool(row["lay_eggs"])}
+    )
 
 
 def meal_points(settings: Settings) -> dict[TrackKind, int]:
