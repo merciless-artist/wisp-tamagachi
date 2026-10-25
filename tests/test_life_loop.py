@@ -17,10 +17,11 @@ import pymysql
 import pytest
 
 import app
-from cogs import announce, life_loop
+from cogs import announce, life_loop, pictures
 from cogs.conversation import PokeButton
 from cogs.life_loop import LifeLoop
 from cogs.snacks import FeedButton
+from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
@@ -49,6 +50,7 @@ MEALTIME_ID = 62
 CARD_ID = 777
 VAULT_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
+PANEL_ID = 999
 USER_ID = 1
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 FULL_GAP = rules.MAX_CREDITED_GAP
@@ -554,6 +556,7 @@ def stage_art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name in ("egg", "baby"):
         (stages / f"{name}.png").write_bytes(b"png")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     return stages
 
 
@@ -566,6 +569,117 @@ def card_pictures(server: FakeServer) -> list[list[str]]:
             file.close()
         pictures.append([file.filename for file in files])
     return pictures
+
+
+async def with_panel(bot: app.WispBot, server: FakeServer) -> MagicMock:
+    """Configure the guild with a Poke Wisp panel in the House."""
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, house_panel_message_id=PANEL_ID)
+    panel = MagicMock(spec=discord.Message)
+    panel.id = PANEL_ID
+    panel.edit = AsyncMock(return_value=panel)
+    server.house.fetch_message = AsyncMock(return_value=panel)
+    return panel
+
+
+def panel_pictures(panel: MagicMock) -> list[list[str]]:
+    """The pictures put on the panel by each edit; edits touch nothing else."""
+    pictures_shown: list[list[str]] = []
+    for call in panel.edit.await_args_list:
+        assert set(call.kwargs) == {"attachments"}
+        files: list[discord.File] = call.kwargs["attachments"]
+        for file in files:
+            file.close()
+        pictures_shown.append([file.filename for file in files])
+    return pictures_shown
+
+
+async def test_the_panel_switches_to_the_baby_on_hatch_and_skips_unchanged_ticks(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    panel = await with_panel(bot, server)
+    almost = rules.HATCHING_TIME - FULL_GAP
+    await lay(
+        bot,
+        phase=Phase.HATCHING,
+        gap=timedelta(minutes=1),
+        phase_seconds=almost.total_seconds(),
+    )
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + timedelta(minutes=2))
+    await cog.run_tick(NOW + timedelta(minutes=2) + FULL_GAP)
+    await cog.run_tick(NOW + timedelta(minutes=4) + FULL_GAP)
+
+    assert (await current_life(bot)).phase is Phase.ALIVE
+    assert panel_pictures(panel) == [["egg.png"], ["baby.png"]]
+    assert house_reports(server) == []
+
+
+async def test_a_restart_puts_the_panel_picture_on_once_more(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    panel = await with_panel(bot, server)
+
+    await cog.run_tick(NOW)
+    bot.shown_images.clear()
+    await cog.run_tick(NOW + timedelta(minutes=2))
+    await cog.run_tick(NOW + timedelta(minutes=4))
+
+    assert panel_pictures(panel) == [["egg.png"], ["egg.png"]]
+
+
+async def test_a_missing_panel_is_left_alone_by_the_tick(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await with_panel(bot, server)
+    server.house.fetch_message.side_effect = discord.NotFound(
+        MagicMock(status=404), "Unknown Message"
+    )
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + timedelta(minutes=2))
+
+    assert house_reports(server) == []
+    assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == PANEL_ID
+    assert all(
+        call.args[:1] != (HOUSE_PANEL,) for call in server.house.send.await_args_list
+    )
+
+
+async def test_missing_art_leaves_the_panel_alone(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
+    panel = await with_panel(bot, server)
+
+    await cog.run_tick(NOW)
+
+    server.house.fetch_message.assert_not_awaited()
+    panel.edit.assert_not_awaited()
+    assert house_reports(server) == []
+
+
+async def test_a_refused_panel_picture_falls_back_and_is_reported_once(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    panel = await with_panel(bot, server)
+    refused = discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
+    panel.edit.side_effect = [refused, panel, refused, panel]
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + timedelta(minutes=2))
+
+    assert panel_pictures(panel) == [["egg.png"], [], ["egg.png"], []]
+    (report,) = house_reports(server)
+    assert report.startswith(
+        "Error in attaching the Poke Wisp panel picture: HTTPException"
+    )
 
 
 async def test_the_card_shows_the_egg_picture(

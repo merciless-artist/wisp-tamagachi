@@ -14,7 +14,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import app
-from cogs import faq, feeding, groups, studio
+from cogs import faq, feeding, groups, pictures, studio
 from cogs.speech import POKE_ID
 from cogs.studio import (
     HOUSE_PANEL,
@@ -138,12 +138,18 @@ class FakeServer:
         message.pinned = False
         message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
         message.components = button_rows(fields.get("view"))
+        message.attachments = file_names([fields["file"]] if "file" in fields else [])
         message.edit = AsyncMock(
-            side_effect=lambda **edited: setattr(
-                message, "components", button_rows(edited.get("view"))
-            )
+            side_effect=lambda **edited: self._house_edit(message, edited)
         )
         self.house_messages[message.id] = message
+        return message
+
+    def _house_edit(self, message: MagicMock, edited: dict[str, Any]) -> MagicMock:
+        if "view" in edited:
+            message.components = button_rows(edited["view"])
+        if "attachments" in edited:
+            message.attachments = file_names(edited["attachments"])
         return message
 
     def _house_find(self, message_id: int) -> MagicMock:
@@ -291,6 +297,13 @@ class FakeServer:
         return match
 
 
+def file_names(files: list[discord.File]) -> list[str]:
+    """The names of uploaded files, closed once read."""
+    for file in files:
+        file.close()
+    return [file.filename for file in files]
+
+
 def button_rows(view: discord.ui.View | None) -> list[discord.ActionRow]:
     """The component rows Discord would return for a message sent with `view`."""
     if view is None:
@@ -335,13 +348,21 @@ def add_thumbnails(art_dir: Path) -> None:
 @pytest.fixture(autouse=True)
 def art_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """An ASSETS folder with only stand-in FAQ pictures, so no real art is sent."""
-    pictures = tmp_path / "faq"
-    pictures.mkdir()
+    faq_pictures = tmp_path / "faq"
+    faq_pictures.mkdir()
     for name in FAQ_PICTURES:
-        (pictures / name).write_bytes(b"png")
+        (faq_pictures / name).write_bytes(b"png")
     monkeypatch.setattr(studio, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(faq, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     return tmp_path
+
+
+def add_stage_art(art_dir: Path, *names: str) -> None:
+    stages = art_dir / "stages"
+    stages.mkdir(exist_ok=True)
+    for name in names:
+        (stages / f"{name}.png").write_bytes(b"png")
 
 
 @pytest.fixture
@@ -1094,6 +1115,52 @@ async def test_setup_posts_and_pins_the_poke_panel_in_the_house(
     )
     assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == panel.id
     assert not re.search(EMOJI, HOUSE_PANEL)
+
+
+async def test_setup_gives_the_panel_wisps_current_picture(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_stage_art(art_dir, "egg", "baby")
+    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
+
+    await run_setup(bot, server)
+
+    (panel,) = panels(server)
+    assert panel.attachments == ["egg.png"]
+    assert bot.shown_images[(GUILD_ID, "house_panel_message_id")] == (
+        panel.id,
+        "egg.png",
+    )
+
+
+async def test_a_rerun_adds_the_picture_to_a_panel_without_one(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    await run_setup(bot, server)
+    (panel,) = panels(server)
+    assert panel.attachments == []
+    add_stage_art(art_dir, "egg")
+    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
+
+    await run_setup(bot, server)
+
+    assert panels(server) == [panel]
+    assert panel.attachments == ["egg.png"]
+    (edit,) = panel.edit.await_args_list
+    assert set(edit.kwargs) == {"attachments"}
+
+
+async def test_a_panel_without_art_is_posted_and_pinned_without_a_picture(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
+
+    ctx = await run_setup(bot, server)
+
+    (panel,) = panels(server)
+    assert panel.attachments == []
+    assert panel.pinned
+    assert sent_text(ctx).startswith("♪ Wisp is set up.")
 
 
 async def test_a_rerun_leaves_the_panel_alone(

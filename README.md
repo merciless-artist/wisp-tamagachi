@@ -76,7 +76,8 @@ where the command was used.
   House, the Studio forum and the track drop channel (mentions, ids or names),
   and creates the Studio threads that are missing (see Wisp's Studio). It also
   pins one Poke Wisp panel in the House: "♪ Poke Wisp" with the Poke Wisp
-  button. A rerun leaves a panel that still exists alone, pins it again or
+  button. The panel shows Wisp's current picture (the egg, the coal
+  egg or his stage), and the life loop swaps it when the picture changes. A rerun leaves a panel that still exists alone, pins it again or
   gives back its button if needed, and posts a new one if it was deleted.
 - `!wisp roles add @role`, `!wisp roles remove @role`, `!wisp roles list`
   choose which roles can feed Wisp.

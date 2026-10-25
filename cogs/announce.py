@@ -1,6 +1,5 @@
 """Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +9,7 @@ import discord
 import pymysql
 
 from cogs.assets import ASSETS_DIR, asset_image
+from cogs.pictures import Picture, art_kwargs, life_image
 from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
@@ -57,25 +57,6 @@ def _image_for(event: Event) -> Path | None:
 def keepsake_image(kind: KeepsakeKind) -> Path | None:
     """Return a keepsake's picture when it exists, or None for text only."""
     return asset_image(ASSETS_DIR / "keepsakes", kind.value)
-
-
-def life_image(life: Life) -> Path | None:
-    """Return the existing picture of Wisp as he is now, or None.
-
-    An egg, hatching or not, is the egg picture; an egg from coal is the coal
-    egg's own picture when it exists. A living Wisp is his stage's picture. A
-    life that is over has none.
-    """
-    stages = ASSETS_DIR / "stages"
-    candidates: list[Path] = []
-    match life.phase:
-        case Phase.EGG | Phase.HATCHING:
-            if life.from_coal:
-                candidates.append(stages / "coal_egg.png")
-            candidates.append(stages / "egg.png")
-        case Phase.ALIVE:
-            candidates.append(stages / f"{life.stage.value}.png")
-    return next((path for path in candidates if path.is_file()), None)
 
 
 # ---
@@ -472,63 +453,6 @@ async def show_in_thread(
         bot.failing_displays.discard(key)
 
 
-def _art(field: str, art: discord.File | None) -> dict[str, Any]:
-    """The keyword that attaches `art`: "attachments" for an edit, "file" to send."""
-    if art is None:
-        return {}
-    return {field: [art] if field == "attachments" else art}
-
-
-class _Picture:
-    """Attaches a display's picture, falling back to no picture when refused."""
-
-    def __init__(
-        self,
-        bot: "WispBot",
-        guild_id: int,
-        thread: discord.Thread,
-        message_attr: str,
-        label: str,
-    ) -> None:
-        self._bot = bot
-        self._guild_id = guild_id
-        self._thread = thread
-        self._key = (guild_id, f"{message_attr} picture")
-        self._label = label
-
-    async def attach(
-        self,
-        image: Path | None,
-        send: Callable[[discord.File | None], Awaitable[discord.Message]],
-    ) -> tuple[discord.Message, str | None]:
-        """Send with `image` attached; return the message and the picture's name.
-
-        The name is None when no picture was attached.
-
-        A refused picture is sent again without it, then reported once per
-        streak. A missing message (NotFound) is raised for the caller.
-        """
-        if image is None:
-            return await send(None), None
-        try:
-            message = await send(discord.File(image))
-        except discord.NotFound:
-            raise
-        except discord.HTTPException as error:
-            message = await send(None)
-            if self._key not in self._bot.failing_displays:
-                self._bot.failing_displays.add(self._key)
-                await self._bot.report_error(
-                    self._bot.get_guild(self._guild_id),
-                    f"attaching the {self._label} picture",
-                    error,
-                    where=self._thread,
-                )
-            return message, None
-        self._bot.failing_displays.discard(self._key)
-        return message, image.name
-
-
 async def _show(
     bot: "WispBot",
     guild_id: int,
@@ -540,7 +464,7 @@ async def _show(
     image: Path | None,
 ) -> None:
     key = (guild_id, message_attr)
-    picture = _Picture(bot, guild_id, thread, message_attr, label)
+    picture = Picture(bot, guild_id, thread, message_attr, label)
     extras: dict[str, Any] = {} if view is None else {"view": view}
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
@@ -556,7 +480,7 @@ async def _show(
                     content=content,
                     allowed_mentions=_NO_PING,
                     **extras,
-                    **_art("attachments", art),
+                    **art_kwargs("attachments", art),
                 ),
             )
         except discord.NotFound:
@@ -571,7 +495,7 @@ async def _show(
             content,
             allowed_mentions=_NO_PING,
             **extras,
-            **_art("file", art),
+            **art_kwargs("file", art),
         ),
     )
     if attached is not None:

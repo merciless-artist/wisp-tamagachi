@@ -19,7 +19,7 @@ from aiohttp.test_utils import TestServer
 from discord.ext import commands
 
 import app
-from cogs import announce, feeding
+from cogs import announce, feeding, pictures
 from cogs.announce import post_events
 from cogs.feeding import Feeding
 from cogs.share_links import ShareLinkResolver
@@ -1021,6 +1021,7 @@ async def test_first_day_of_feeding_does_not_introduce_him(
 @pytest.fixture
 def assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     return tmp_path
 
 

@@ -1,7 +1,7 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -16,11 +16,12 @@ from cogs.badges import ensure_badge_roles
 from cogs.channels import where_of
 from cogs.faq import FAQ_SECTIONS, fill_faq
 from cogs.groups import wispadmin
+from cogs.pictures import Picture, art_kwargs, life_image
 from cogs.speech import POKE_ID, poke_view
 from cogs.staff import StaffContext, guild_of, refused, reply, usage_line
 from db.settings import Settings, meal_points
 from wisp import rules
-from wisp.life import is_over
+from wisp.life import Life, is_over
 from wisp.links import TrackKind
 from wisp.text import SEPARATOR, count
 
@@ -44,6 +45,8 @@ _NUMBER_WORDS: Final = (
 )
 HOUSE_PANEL: Final = "♪ Poke Wisp\n・tap the button, or mention @Wisp to talk"
 _PANEL_CONTEXT: Final = "setting up the Poke Wisp panel in Wisp's House"
+_PANEL_ATTR: Final = "house_panel_message_id"
+_PANEL_LABEL: Final = "Poke Wisp panel"
 TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -465,33 +468,102 @@ async def _stored_panel(
         return None
 
 
+def _attachment_edit(
+    panel: discord.Message,
+) -> Callable[[discord.File | None], Awaitable[discord.Message]]:
+    """An edit of the panel's picture alone; no picture clears it."""
+    return lambda art: panel.edit(attachments=[] if art is None else [art])
+
+
+def _remember(
+    bot: "WispBot", guild_id: int, message_id: int, attached: str | None
+) -> None:
+    if attached is not None:
+        bot.shown_images[(guild_id, _PANEL_ATTR)] = (message_id, attached)
+
+
 async def ensure_house_panel(
     bot: "WispBot", guild: discord.Guild, where: discord.abc.Messageable | None
 ) -> None:
     """Make sure Wisp's House has its one pinned Poke Wisp panel.
 
-    A stored panel that still exists is left alone, apart from pinning it
-    again and giving it back its button. One that is gone is posted anew and
-    pinned. A failure, such as a missing Pin Messages permission, is reported
-    in `where`.
+    The panel shows Wisp's current picture when he has one. A stored panel
+    that still exists is left alone, apart from pinning it again, giving it
+    back its button and adding the picture when it has none. One that is gone
+    is posted anew, with the picture, and pinned. A failure, such as a missing
+    Pin Messages permission, is reported in `where`.
     """
     house = await bot.house_channel(guild)
     if house is None:
         return
     stored = (await bot.settings.get(guild.id)).house_panel_message_id
+    life = await bot.lives.current(guild.id)
+    image = None if life is None or is_over(life) else life_image(life)
+    picture = Picture(bot, guild.id, where, _PANEL_ATTR, _PANEL_LABEL)
     try:
         panel = await _stored_panel(house, stored)
         if panel is None:
-            panel = await house.send(
-                HOUSE_PANEL, view=poke_view(), allowed_mentions=_NO_PING
+            panel, attached = await picture.attach(
+                image,
+                lambda art: house.send(
+                    HOUSE_PANEL,
+                    view=poke_view(),
+                    allowed_mentions=_NO_PING,
+                    **art_kwargs("file", art),
+                ),
             )
+            _remember(bot, guild.id, panel.id, attached)
             await bot.settings.update(guild.id, house_panel_message_id=panel.id)
-        elif not _has_poke_button(panel):
-            await panel.edit(view=poke_view())
+        else:
+            if not _has_poke_button(panel):
+                await panel.edit(view=poke_view())
+            if image is not None and not panel.attachments:
+                _, attached = await picture.attach(image, _attachment_edit(panel))
+                _remember(bot, guild.id, panel.id, attached)
         if not panel.pinned:
             await panel.pin()
     except discord.HTTPException as error:
         await bot.report_error(guild, _PANEL_CONTEXT, error, where=where)
+
+
+async def refresh_house_panel(bot: "WispBot", guild_id: int, life: Life) -> None:
+    """Keep the House panel's picture on Wisp as he is now; the tick calls this.
+
+    Only the attachment is edited, and only when the picture is not the one
+    this process last attached; after a restart it is attached once more. A
+    life that is over, missing art or a panel that is gone leave the panel
+    alone; setup posts a missing one again. A failure is reported in the House
+    once per streak.
+    """
+    image = None if is_over(life) else life_image(life)
+    message_id = (await bot.settings.get(guild_id)).house_panel_message_id
+    key = (guild_id, _PANEL_ATTR)
+    if (
+        image is None
+        or message_id is None
+        or bot.shown_images.get(key) == (message_id, image.name)
+    ):
+        return
+    guild = bot.get_guild(guild_id)
+    house = await bot.house_channel(guild)
+    if house is None:
+        return
+    picture = Picture(bot, guild_id, house, _PANEL_ATTR, _PANEL_LABEL)
+    try:
+        panel = await house.fetch_message(message_id)
+        _, attached = await picture.attach(image, _attachment_edit(panel))
+    except discord.NotFound:
+        bot.failing_displays.discard(key)
+        return
+    except discord.HTTPException as error:
+        if key not in bot.failing_displays:
+            bot.failing_displays.add(key)
+            await bot.report_error(
+                guild, f"updating the {_PANEL_LABEL} picture", error, where=house
+            )
+        return
+    bot.failing_displays.discard(key)
+    _remember(bot, guild_id, message_id, attached)
 
 
 # ---

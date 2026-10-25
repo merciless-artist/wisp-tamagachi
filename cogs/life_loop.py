@@ -10,15 +10,16 @@ import pymysql
 from discord.ext import commands, tasks
 
 from cogs.announce import (
-    life_image,
     next_life,
     post_events,
     say_in_house,
     show_in_thread,
 )
 from cogs.badges import sweep_badges
+from cogs.pictures import life_image
 from cogs.players import status_text
 from cogs.snacks import status_view
+from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.bond import happiness
@@ -114,6 +115,7 @@ class LifeLoop(commands.Cog):
             return
         await self._speak_if_quiet(guild_id, current, frozen, now)
         await self._update_card(guild_id, current, now, happy)
+        await refresh_house_panel(bot, guild_id, current)
         await refresh_vault(bot, guild_id)
         await pick_favorite_song(bot, guild, current, self.rng, now)
 

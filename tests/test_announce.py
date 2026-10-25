@@ -17,8 +17,9 @@ import pytest
 import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
-from cogs import announce
-from cogs.announce import life_image, next_life, post_events, show_in_thread
+from cogs import announce, pictures
+from cogs.announce import next_life, post_events, show_in_thread
+from cogs.pictures import life_image
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
@@ -525,6 +526,7 @@ async def test_unreachable_studio_is_posted_in_the_house_not_raised(
 @pytest.fixture
 def assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     return tmp_path
 
 

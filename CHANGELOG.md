@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-24 (panel picture)
+
+- The Poke Wisp panel in Wisp's House shows his current picture, the same one
+  as the status card. Setup attaches it to a new panel, or to an existing one
+  without a picture. The life loop changes only the attachment, only when the
+  picture changes (once more after a restart), and leaves a missing panel,
+  missing art or an ended life alone. A refused picture uses the status
+  card's fallback.
+
 ## 2026-10-24 (four badges)
 
 - The Vault sells four badges: Pickle Diplomat (25 points, bond +5), Flame
