@@ -13,7 +13,7 @@ from discord.ext import commands
 import config
 from ai.chain import chain_from_config
 from cogs.channels import may_post_in, where_of
-from cogs.groups import wisp, wispadmin
+from cogs.groups import wisp
 from cogs.share_links import ShareLinkResolver
 from cogs.speech import HouseTalk
 from cogs.staff import (
@@ -56,7 +56,6 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.staff",
 )
 
-_REFUSAL = "That command is for staff."
 _NO_PING: Final = discord.AllowedMentions.none()
 
 # ---
@@ -72,18 +71,13 @@ class WispTree(app_commands.CommandTree["WispBot"]):
         interaction: discord.Interaction["WispBot"],
         error: app_commands.AppCommandError,
     ) -> None:
-        """Refuse failed checks politely; otherwise tell the user and post the error.
+        """Tell the user the command failed and post the error.
 
-        The error is posted in the channel or thread the command was used in. A
-        bot that lacks permissions is a fault staff must fix, not a refusal.
+        The error is posted in the channel or thread the command was used in.
+        Every slash command is open to members, so no failure is a refusal.
         """
         command = interaction.command
         context = f"/{command.qualified_name}" if command else "an interaction"
-        if isinstance(error, app_commands.CheckFailure) and not isinstance(
-            error, app_commands.BotMissingPermissions
-        ):
-            await self._reply(interaction, _REFUSAL, context)
-            return
         cause = (
             error.original
             if isinstance(error, app_commands.CommandInvokeError)
@@ -160,10 +154,10 @@ class WispBot(commands.Bot):
     async def setup_hook(self) -> None:
         """Connect storage, fetch emojis, load the cogs and sync the commands.
 
-        The cogs attach their commands to the shared groups as they load, so the
-        groups join the command tree only once all of them are in. A cog that
-        fails to load is logged now and posted in Wisp's House once the bot is
-        ready.
+        The cogs attach their slash commands to the members' group as they
+        load, so the group joins the command tree only once all of them are in.
+        Staff commands are text commands and are never synced. A cog that fails
+        to load is logged now and posted in Wisp's House once the bot is ready.
         """
         await self.db.connect()
         await create_tables(self.db)
@@ -179,7 +173,6 @@ class WispBot(commands.Bot):
                 log.error("Error in %s", context, exc_info=error)
                 self._startup_reports.append((context, _report_line(context, error)))
         self.tree.add_command(wisp)
-        self.tree.add_command(wispadmin)
         synced = await self.tree.sync()
         log.info("Synced %d commands", len(synced))
 

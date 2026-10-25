@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 from discord import app_commands
+from discord.ext import commands
 
 import app
 from cogs import faq, feeding, groups, studio
@@ -29,6 +30,7 @@ FORUM_ID = 10
 OTHER_FORUM_ID = 11
 HOUSE_ID = 20
 TRACKS_ID = 30
+COMMAND_CHANNEL_ID = 40
 
 STATUS = "☀️ | Status"
 MEALTIME = "🧡 | Mealtime"
@@ -299,20 +301,15 @@ def bot(
     yield wisp_bot
 
 
-def make_interaction(
-    server: FakeServer, bot: app.WispBot, *, staff: bool = True
-) -> MagicMock:
-    interaction = MagicMock(spec=discord.Interaction)
-    interaction.client = bot
-    interaction.guild = server.guild
-    interaction.guild_id = GUILD_ID
-    interaction.permissions = discord.Permissions(manage_guild=staff)
-    interaction.response = MagicMock()
-    interaction.response.defer = AsyncMock()
-    interaction.response.send_message = AsyncMock()
-    interaction.followup = MagicMock()
-    interaction.followup.send = AsyncMock()
-    return interaction
+def make_ctx(server: FakeServer, bot: app.WispBot) -> MagicMock:
+    """A staff command used in a plain text channel of the fake guild."""
+    ctx = MagicMock(spec=commands.Context)
+    ctx.bot = bot
+    ctx.guild = server.guild
+    ctx.channel = MagicMock(spec=discord.TextChannel)
+    ctx.channel.id = COMMAND_CHANNEL_ID
+    ctx.channel.send = AsyncMock()
+    return ctx
 
 
 def make_channel(spec: type, channel_id: int) -> MagicMock:
@@ -332,30 +329,29 @@ def make_role(role_id: int) -> MagicMock:
 async def run_setup(
     bot: app.WispBot, server: FakeServer, tracks: MagicMock | None = None
 ) -> MagicMock:
-    interaction = make_interaction(server, bot)
+    ctx = make_ctx(server, bot)
     await invoke(
         studio.setup_studio,
-        interaction,
+        ctx,
         server.house,
         server.forum,
         tracks or make_channel(discord.TextChannel, TRACKS_ID),
     )
-    return interaction
+    return ctx
 
 
 async def invoke(command: Any, *args: Any) -> None:
     await command.callback(*args)
 
 
-def sent_text(interaction: MagicMock) -> str:
-    send = (
-        interaction.followup.send
-        if interaction.response.defer.await_count
-        else interaction.response.send_message
-    )
+def sent_text(ctx: MagicMock) -> str:
+    """The one answer posted in the command's channel, unable to ping."""
+    send = ctx.channel.send
     send.assert_awaited_once()
     (text,) = send.await_args.args
-    assert send.await_args.kwargs == {"ephemeral": True}
+    assert set(send.await_args.kwargs) == {"allowed_mentions"}
+    mentions = send.await_args.kwargs["allowed_mentions"]
+    assert mentions.to_dict() == discord.AllowedMentions.none().to_dict()
     assert isinstance(text, str)
     return text
 
@@ -368,7 +364,7 @@ def sent_text(interaction: MagicMock) -> str:
 async def test_setup_creates_five_threads_with_the_vault(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    interaction = await run_setup(bot, server)
+    ctx = await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
     settings = await bot.settings.get(GUILD_ID)
@@ -393,8 +389,7 @@ async def test_setup_creates_five_threads_with_the_vault(
     for thread in server.threads.values():
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
 
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    text = sent_text(interaction)
+    text = sent_text(ctx)
     assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
     assert "・Badge roles created: Egg Warmer, Pickle Diplomat" in text
     assert not re.search(EMOJI, text)
@@ -495,11 +490,11 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     await run_setup(bot, server)
     first = await bot.settings.get(GUILD_ID)
 
-    interaction = await run_setup(bot, server)
+    ctx = await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all five already exist" in sent_text(interaction)
+    assert "Studio threads: all five already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     server.house.send.assert_not_awaited()
@@ -699,7 +694,7 @@ async def test_archived_thread_is_unarchived_not_recreated(
 
 
 async def test_ensure_studio_without_a_forum_raises(bot: app.WispBot) -> None:
-    with pytest.raises(StudioError, match="/wispadmin setup"):
+    with pytest.raises(StudioError, match="!wisp setup"):
         await ensure_studio(bot, GUILD_ID)
 
 
@@ -818,7 +813,7 @@ async def test_food_command_edits_the_faq_rules_post(
     thread = server.thread_named(FAQ)
     posts = server.live_posts(thread)
 
-    await invoke(feeding.set_food, make_interaction(server, bot), 12, 1)
+    await invoke(feeding.set_food, make_ctx(server, bot), 12, 1)
 
     assert server.live_posts(thread) == posts
     assert posts[-1].content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
@@ -873,14 +868,14 @@ async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_o
     missing = art_dir / "faq" / "05_your_bond.png"
     missing.unlink()
 
-    interaction = await run_setup(bot, server)
+    ctx = await run_setup(bot, server)
 
     thread = server.thread_named(FAQ)
     (report,) = [post.content for post in thread.posts]
     assert report.startswith("Error in building the Wisp FAQ: FileNotFoundError")
     assert "05_your_bond.png" in report
     assert (await bot.settings.get(GUILD_ID)).faq_message_ids is None
-    assert sent_text(interaction).startswith("♪ Wisp is set up.")
+    assert sent_text(ctx).startswith("♪ Wisp is set up.")
     server.house.send.assert_not_awaited()
 
     missing.write_bytes(b"png")
@@ -959,9 +954,9 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     before = await bot.settings.get(GUILD_ID)
     assert before.faq_message_ids is not None
     old_ids = [*before.faq_message_ids, before.rules_message_id]
-    interaction = make_interaction(server, bot)
+    ctx = make_ctx(server, bot)
 
-    await invoke(studio.rebuild_faq, interaction)
+    await invoke(studio.rebuild_faq, ctx)
 
     assert server.deleted == old_ids
     *sections, rules_post = assert_faq_built(server.live_posts(thread))
@@ -971,8 +966,7 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     assert rules_post.content == rules_text(rules.MEAL_POINTS)
     starter = server.messages[thread.id]
     assert starter.content.splitlines() == toc_lines(thread.id, after.faq_message_ids)
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    assert sent_text(interaction) == "♪ The Wisp FAQ is rebuilt."
+    assert sent_text(ctx) == "♪ The Wisp FAQ is rebuilt."
     assert server.created_names == list(THREAD_NAMES)
     server.house.send.assert_not_awaited()
 
@@ -988,24 +982,24 @@ async def test_faq_command_skips_posts_already_gone_and_never_the_first_post(
     del server.messages[gone]
     del server.messages[before.rules_message_id or 0]
     await bot.settings.update(GUILD_ID, rules_message_id=thread.id)
-    interaction = make_interaction(server, bot)
+    ctx = make_ctx(server, bot)
 
-    await invoke(studio.rebuild_faq, interaction)
+    await invoke(studio.rebuild_faq, ctx)
 
     assert server.deleted == kept
     assert thread.id in server.messages
     assert_faq_built(server.live_posts(thread))
-    assert sent_text(interaction) == "♪ The Wisp FAQ is rebuilt."
+    assert sent_text(ctx) == "♪ The Wisp FAQ is rebuilt."
 
 
 async def test_faq_command_without_a_studio_says_how_to_set_it_up(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    interaction = make_interaction(server, bot)
+    ctx = make_ctx(server, bot)
 
-    await invoke(studio.rebuild_faq, interaction)
+    await invoke(studio.rebuild_faq, ctx)
 
-    assert "/wispadmin setup" in sent_text(interaction)
+    assert "!wisp setup" in sent_text(ctx)
     assert server.created_names == []
 
 
@@ -1076,24 +1070,24 @@ async def test_studio_thread_rejects_an_unknown_setting(
 
 
 async def test_roles_add_list_remove(bot: app.WispBot, server: FakeServer) -> None:
-    interaction = make_interaction(server, bot)
-    await invoke(studio.roles_list, interaction)
-    assert "No qualifying roles" in sent_text(interaction)
+    ctx = make_ctx(server, bot)
+    await invoke(studio.roles_list, ctx)
+    assert "No qualifying roles" in sent_text(ctx)
 
     for role_id in (7, 5, 7):
-        interaction = make_interaction(server, bot)
-        await invoke(studio.roles_add, interaction, make_role(role_id))
-        assert f"<@&{role_id}>" in sent_text(interaction)
+        ctx = make_ctx(server, bot)
+        await invoke(studio.roles_add, ctx, make_role(role_id))
+        assert f"<@&{role_id}>" in sent_text(ctx)
     assert await bot.settings.roles(GUILD_ID) == {5, 7}
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.roles_list, interaction)
-    listed = sent_text(interaction)
+    ctx = make_ctx(server, bot)
+    await invoke(studio.roles_list, ctx)
+    listed = sent_text(ctx)
     assert listed.index("<@&5>") < listed.index("<@&7>")
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.roles_remove, interaction, make_role(5))
-    assert "<@&5>" in sent_text(interaction)
+    ctx = make_ctx(server, bot)
+    await invoke(studio.roles_remove, ctx, make_role(5))
+    assert "<@&5>" in sent_text(ctx)
     assert await bot.settings.roles(GUILD_ID) == {7}
 
 
@@ -1103,15 +1097,15 @@ async def test_roles_add_list_remove(bot: app.WispBot, server: FakeServer) -> No
 
 
 async def test_freeze_sets_flag(bot: app.WispBot, server: FakeServer) -> None:
-    interaction = make_interaction(server, bot)
-    await invoke(studio.freeze, interaction)
+    ctx = make_ctx(server, bot)
+    await invoke(studio.freeze, ctx)
     assert (await bot.settings.get(GUILD_ID)).frozen is True
-    assert "frozen" in sent_text(interaction).lower()
+    assert "frozen" in sent_text(ctx).lower()
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.unfreeze, interaction)
+    ctx = make_ctx(server, bot)
+    await invoke(studio.unfreeze, ctx)
     assert (await bot.settings.get(GUILD_ID)).frozen is False
-    assert "unfrozen" in sent_text(interaction).lower()
+    assert "unfrozen" in sent_text(ctx).lower()
 
 
 @pytest.mark.parametrize("phase", [None, Phase.DEAD])
@@ -1123,18 +1117,18 @@ async def test_turning_eggs_off_and_on_with_no_living_wisp(
         life.phase = phase
         await bot.lives.insert(GUILD_ID, life)
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.eggs, interaction, "off")
+    ctx = make_ctx(server, bot)
+    await invoke(studio.eggs, ctx, "off")
     assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
-    assert sent_text(interaction) == (
+    assert sent_text(ctx) == (
         "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
         "until you turn eggs back on."
     )
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.eggs, interaction, "on")
+    ctx = make_ctx(server, bot)
+    await invoke(studio.eggs, ctx, "on")
     assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
-    assert sent_text(interaction) == (
+    assert sent_text(ctx) == (
         "♪ New eggs are on. A new egg arrives within a few minutes."
     )
 
@@ -1144,14 +1138,14 @@ async def test_turning_eggs_on_while_he_lives_says_only_that(
 ) -> None:
     await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
 
-    interaction = make_interaction(server, bot)
-    await invoke(studio.eggs, interaction, "on")
+    ctx = make_ctx(server, bot)
+    await invoke(studio.eggs, ctx, "on")
 
-    assert sent_text(interaction) == "♪ New eggs are on."
+    assert sent_text(ctx) == "♪ New eggs are on."
 
 
 # ---
-# Staff only
+# Members' slash group
 # ---
 
 
@@ -1169,47 +1163,9 @@ def assert_guild_only(group: app_commands.Group) -> None:
     assert (installs.guild, installs.user) == (True, False)
 
 
-async def test_staff_only(bot: app.WispBot, server: FakeServer) -> None:
-    group = groups.wispadmin
-    assert group.default_permissions == discord.Permissions(manage_guild=True)
-    assert_guild_only(group)
-
-    leaves = [
-        command
-        for command in group.walk_commands()
-        if isinstance(command, app_commands.Command)
-    ]
-    assert {command.qualified_name for command in leaves} >= {
-        "wispadmin setup",
-        "wispadmin roles add",
-        "wispadmin roles remove",
-        "wispadmin roles list",
-        "wispadmin freeze",
-        "wispadmin unfreeze",
-        "wispadmin faq",
-    }
-    for command in leaves:
-        assert command.checks, command.qualified_name
-        for check in command.checks:
-            assert check(make_interaction(server, bot, staff=True))
-            with pytest.raises(app_commands.MissingPermissions):
-                check(make_interaction(server, bot, staff=False))
-
-
 def test_members_group_is_open_to_everyone_in_guilds() -> None:
     assert groups.wisp.default_permissions is None
     assert_guild_only(groups.wisp)
-
-
-def test_setup_command_options() -> None:
-    command = groups.wispadmin.get_command("setup")
-    assert isinstance(command, app_commands.Command)
-    params = {parameter.name: parameter for parameter in command.parameters}
-    assert list(params) == ["house", "studio", "tracks"]
-    assert discord.ChannelType.forum in params["studio"].channel_types
-    assert discord.ChannelType.text not in params["studio"].channel_types
-    assert discord.ChannelType.forum in params["tracks"].channel_types
-    assert discord.ChannelType.text in params["tracks"].channel_types
 
 
 # ---
@@ -1217,15 +1173,18 @@ def test_setup_command_options() -> None:
 # ---
 
 
-async def test_studio_commands_hang_off_the_shared_group(bot: app.WispBot) -> None:
+async def test_the_studio_commands_join_the_bot(bot: app.WispBot) -> None:
     await studio.setup(bot)
 
-    assert groups.wispadmin.get_command("setup") is studio.setup_studio
-    assert groups.wispadmin.get_command("freeze") is studio.freeze
-    assert groups.wispadmin.get_command("faq") is studio.rebuild_faq
-    roles = groups.wispadmin.get_command("roles")
-    assert isinstance(roles, app_commands.Group)
-    assert roles.get_command("add") is studio.roles_add
+    assert bot.get_command("setup") is studio.setup_studio
+    assert bot.get_command("freeze") is studio.freeze
+    assert bot.get_command("unfreeze") is studio.unfreeze
+    assert bot.get_command("eggs") is studio.eggs
+    assert bot.get_command("faq") is studio.rebuild_faq
+    assert bot.get_command("roles") is studio.roles
+    assert bot.get_command("roles add") is studio.roles_add
+    assert bot.get_command("roles remove") is studio.roles_remove
+    assert bot.get_command("roles list") is studio.roles_list
 
 
 def test_studio_is_a_loaded_extension() -> None:

@@ -8,13 +8,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 import discord
-from discord import app_commands
+from discord.ext import commands
 
 from cogs.assets import ASSETS_DIR
 from cogs.badges import ensure_badge_roles
-from cogs.channels import where_of
 from cogs.faq import FAQ_SECTIONS, fill_faq
-from cogs.groups import require_guild, wispadmin
+from cogs.staff import StaffContext, guild_of, reply, usage_line
 from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import is_over
@@ -224,12 +223,12 @@ def _studio_forum(
     if guild is None:
         raise StudioError("Wisp cannot see this server.")
     if settings.studio_forum_id is None:
-        raise StudioError("The Studio forum is not set. Run /wispadmin setup first.")
+        raise StudioError("The Studio forum is not set. Run !wisp setup first.")
     forum = guild.get_channel(settings.studio_forum_id)
     if not isinstance(forum, discord.ForumChannel) or forum.is_media():
         raise StudioError(
             "The Studio channel is missing or is not a forum. "
-            "Run /wispadmin setup again with a forum channel."
+            "Run !wisp setup again with a forum channel."
         )
     return forum
 
@@ -440,41 +439,27 @@ async def studio_thread(bot: "WispBot", guild_id: int, attr: str) -> discord.Thr
 # ---
 
 
-roles = app_commands.Group(
-    name="roles", description="Roles that can feed Wisp.", parent=wispadmin
-)
-
-
-@wispadmin.command(
-    name="setup", description="Set Wisp's channels, Studio and badge roles."
-)
-@app_commands.describe(
-    house="Where Wisp talks and announces his big moments",
-    studio="The forum for Wisp's Studio threads",
-    tracks="The track drop channel Wisp eats from",
-)
-@app_commands.checks.has_permissions(manage_guild=True)
+@commands.command(name="setup", usage="#house #studio #tracks")
 async def setup_studio(
-    interaction: discord.Interaction["WispBot"],
+    ctx: StaffContext,
     house: discord.TextChannel,
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
 ) -> None:
     """Save the channels, then create any missing Studio threads and badge roles."""
-    bot = interaction.client
-    guild_id = require_guild(interaction)
-    await interaction.response.defer(ephemeral=True)
-    before = await bot.settings.get(guild_id)
+    bot = ctx.bot
+    guild = guild_of(ctx)
+    before = await bot.settings.get(guild.id)
     await bot.settings.update(
-        guild_id,
+        guild.id,
         house_channel_id=house.id,
         studio_forum_id=studio.id,
         tracks_channel_id=tracks.id,
     )
     try:
-        after = await ensure_studio(bot, guild_id)
+        after = await ensure_studio(bot, guild.id)
     except StudioError as error:
-        await interaction.followup.send(str(error), ephemeral=True)
+        await reply(ctx, str(error))
         return
     created = [
         spec.title
@@ -486,13 +471,9 @@ async def setup_studio(
         if created
         else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )
-    guild = interaction.guild
-    badge_lines = (
-        []
-        if guild is None
-        else await ensure_badge_roles(bot, guild, where_of(interaction))
-    )
-    await interaction.followup.send(
+    badge_lines = await ensure_badge_roles(bot, guild, ctx.channel)
+    await reply(
+        ctx,
         "\n".join(
             [
                 "♪ Wisp is set up.",
@@ -503,119 +484,107 @@ async def setup_studio(
                 *badge_lines,
             ]
         ),
-        ephemeral=True,
     )
 
 
-@roles.command(name="add", description="Let a role's members feed Wisp.")
-@app_commands.describe(role="The role to add")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def roles_add(
-    interaction: discord.Interaction["WispBot"], role: discord.Role
-) -> None:
+@commands.group(
+    name="roles",
+    invoke_without_command=True,
+    case_insensitive=True,
+    usage="add @role | remove @role | list",
+)
+async def roles(ctx: StaffContext) -> None:
+    """Explain the feeding role commands when no known one was typed."""
+    await reply(ctx, usage_line(roles))
+
+
+@roles.command(name="add", usage="@role")
+async def roles_add(ctx: StaffContext, role: discord.Role) -> None:
     """Add a qualifying role."""
-    await interaction.client.settings.add_role(require_guild(interaction), role.id)
-    await interaction.response.send_message(
-        f"♪ {role.mention} can now feed Wisp.", ephemeral=True
-    )
+    await ctx.bot.settings.add_role(guild_of(ctx).id, role.id)
+    await reply(ctx, f"♪ {role.mention} can now feed Wisp.")
 
 
-@roles.command(name="remove", description="Stop a role's members feeding Wisp.")
-@app_commands.describe(role="The role to remove")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def roles_remove(
-    interaction: discord.Interaction["WispBot"], role: discord.Role
-) -> None:
+@roles.command(name="remove", usage="@role")
+async def roles_remove(ctx: StaffContext, role: discord.Role) -> None:
     """Remove a qualifying role."""
-    await interaction.client.settings.remove_role(require_guild(interaction), role.id)
-    await interaction.response.send_message(
-        f"♪ {role.mention} no longer feeds Wisp.", ephemeral=True
-    )
+    await ctx.bot.settings.remove_role(guild_of(ctx).id, role.id)
+    await reply(ctx, f"♪ {role.mention} no longer feeds Wisp.")
 
 
-@roles.command(name="list", description="Show the roles that can feed Wisp.")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def roles_list(interaction: discord.Interaction["WispBot"]) -> None:
+@roles.command(name="list")
+async def roles_list(ctx: StaffContext) -> None:
     """List the qualifying roles."""
-    role_ids = await interaction.client.settings.roles(require_guild(interaction))
+    role_ids = await ctx.bot.settings.roles(guild_of(ctx).id)
     if role_ids:
         mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
         text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
     else:
-        text = "♪ No qualifying roles yet. Add one with /wispadmin roles add."
-    await interaction.response.send_message(text, ephemeral=True)
+        text = "♪ No qualifying roles yet. Add one with !wisp roles add @role."
+    await reply(ctx, text)
 
 
-@wispadmin.command(name="faq", description="Rebuild the Wisp FAQ thread.")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def rebuild_faq(interaction: discord.Interaction["WispBot"]) -> None:
+@commands.command(name="faq")
+async def rebuild_faq(ctx: StaffContext) -> None:
     """Delete Wisp's own FAQ posts and post them fresh with a new contents list.
 
     Staff use it after the FAQ pictures change. A Discord failure goes to the
-    command tree's error handler.
+    bot's command error handler.
     """
-    bot = interaction.client
-    guild_id = require_guild(interaction)
-    await interaction.response.defer(ephemeral=True)
+    bot = ctx.bot
+    guild_id = guild_of(ctx).id
     try:
         thread = await studio_thread(bot, guild_id, _FAQ_ATTR)
     except StudioError as error:
-        await interaction.followup.send(str(error), ephemeral=True)
+        await reply(ctx, str(error))
         return
     async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
         rules = rules_post(await bot.settings.get(guild_id))
         await fill_faq(bot, guild_id, thread, rules)
-    await interaction.followup.send("♪ The Wisp FAQ is rebuilt.", ephemeral=True)
+    await reply(ctx, "♪ The Wisp FAQ is rebuilt.")
 
 
-@wispadmin.command(name="freeze", description="Pause Wisp's care draining.")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def freeze(interaction: discord.Interaction["WispBot"]) -> None:
+@commands.command(name="freeze")
+async def freeze(ctx: StaffContext) -> None:
     """Freeze Wisp so his care stops draining."""
-    await interaction.client.settings.update(require_guild(interaction), frozen=True)
-    await interaction.response.send_message(
-        "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
-        ephemeral=True,
+    await ctx.bot.settings.update(guild_of(ctx).id, frozen=True)
+    await reply(
+        ctx, "♪ Wisp is frozen. His care will not drain until you unfreeze him."
     )
 
 
-@wispadmin.command(name="unfreeze", description="Let Wisp's care drain again.")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def unfreeze(interaction: discord.Interaction["WispBot"]) -> None:
+@commands.command(name="unfreeze")
+async def unfreeze(ctx: StaffContext) -> None:
     """Unfreeze Wisp so his care drains normally."""
-    await interaction.client.settings.update(require_guild(interaction), frozen=False)
-    await interaction.response.send_message(
-        "♪ Wisp is unfrozen. His care drains normally again.", ephemeral=True
-    )
+    await ctx.bot.settings.update(guild_of(ctx).id, frozen=False)
+    await reply(ctx, "♪ Wisp is unfrozen. His care drains normally again.")
 
 
-@wispadmin.command(name="eggs", description="Turn new eggs on or off.")
-@app_commands.describe(state="Whether a new egg is laid when Wisp's life ends")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def eggs(
-    interaction: discord.Interaction["WispBot"], state: Literal["on", "off"]
-) -> None:
+@commands.command(name="eggs", usage="on|off")
+async def eggs(ctx: StaffContext, state: Literal["on", "off"]) -> None:
     """Turn laying the next egg on or off. A living Wisp is not affected.
 
     Turned back on with no living Wisp, the life loop lays the egg on its next
     tick.
     """
-    bot = interaction.client
-    guild_id = require_guild(interaction)
+    bot = ctx.bot
+    guild_id = guild_of(ctx).id
     on = state == "on"
     await bot.settings.update(guild_id, lay_eggs=on)
     if not on:
-        reply = (
+        text = (
             "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
             "until you turn eggs back on."
         )
     else:
         life = await bot.lives.current(guild_id)
-        reply = "♪ New eggs are on."
+        text = "♪ New eggs are on."
         if life is None or is_over(life):
-            reply += " A new egg arrives within a few minutes."
-    await interaction.response.send_message(reply, ephemeral=True)
+            text += " A new egg arrives within a few minutes."
+    await reply(ctx, text)
 
 
 async def setup(bot: "WispBot") -> None:
-    """Load the Studio extension; its commands join the shared groups on import."""
+    """Load the Studio staff commands."""
+    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, eggs):
+        bot.add_command(command)

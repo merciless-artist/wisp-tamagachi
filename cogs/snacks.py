@@ -85,7 +85,7 @@ _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomo
 _FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
 _BADGE_NOT_READY: Final = (
-    "♪ That badge isn't ready yet. Staff can set it up with /wispadmin setup."
+    "♪ That badge isn't ready yet. Staff can set it up with !wisp setup."
 )
 _NONE_YET: Final = "・None yet"
 _ROLE_REASON: Final = "Bought in the ViiBR Vault"

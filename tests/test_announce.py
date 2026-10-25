@@ -687,7 +687,7 @@ async def test_expired_ban_does_not_stop_the_ember(
     assert await embers(bot, MEMBER) == ["Wisp v3's Last Ember"]
 
 
-NO_EGG = "♪ No new egg for now. Staff can turn eggs back on with /wispadmin eggs."
+NO_EGG = "♪ No new egg for now. Staff can turn eggs back on with !wisp eggs on."
 
 
 async def test_with_eggs_off_a_death_lays_no_egg_and_says_so_once(

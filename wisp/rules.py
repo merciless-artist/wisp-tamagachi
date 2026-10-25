@@ -29,7 +29,7 @@ class Stage(StrEnum):
 # Meals and points
 # ---
 
-# Starting values; staff can change them per guild with /wispadmin food.
+# Starting values; staff can change them per guild with !wisp food.
 MEAL_POINTS: dict[TrackKind, int] = {TrackKind.VIIBR: 5, TrackKind.SUNO: 1}
 MEAL_POINTS_MAX = 50
 DAILY_MEAL_CAP = 15

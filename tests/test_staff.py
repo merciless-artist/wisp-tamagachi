@@ -5,18 +5,22 @@ length snowflakes, since the converters only read mentions of those.
 """
 
 import asyncio
+import importlib
 from collections.abc import AsyncIterator, Iterable
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import discord
 import pymysql
 import pytest
 
 import app
-from cogs import staff
+from cogs import discipline, feeding, groups, staff, studio
 from db.database import Database
-from db.settings import SettingsRepo
+from db.lives import LifeRepo
+from db.players import PlayerRepo
+from db.settings import Settings, SettingsRepo
+from wisp.rules import MEAL_POINTS_MAX
 
 WISP_ID = 900000000000000001
 OWNER_ID = 900000000000000002
@@ -27,9 +31,18 @@ HOUSE_ID = 920000000000000001
 TRACKS_ID = 920000000000000002
 HERE_ID = 920000000000000003
 TRACK_THREAD_ID = 920000000000000004
+STUDIO_ID = 920000000000000005
+FORUM_DROP_ID = 920000000000000006
 STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
+COMMANDS = (
+    "setup, roles, faq, freeze, unfreeze, eggs, food, punish, unban, strip, "
+    "resetname, staff"
+)
+FOOD_USAGE = (
+    "♪ Usage: !wisp food <viibr points> <suno points> " f"(each 0 to {MEAL_POINTS_MAX})"
+)
 
 # ---
 # Fakes
@@ -51,11 +64,17 @@ class FakeServer:
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.channels: dict[int, MagicMock] = {}
-        self.house = self.add_channel(discord.TextChannel, HOUSE_ID)
-        self.tracks = self.add_channel(discord.TextChannel, TRACKS_ID)
-        self.here = self.add_channel(discord.TextChannel, HERE_ID)
-        self.track_thread = self.add_channel(discord.Thread, TRACK_THREAD_ID)
+        self.house = self.add_channel(discord.TextChannel, HOUSE_ID, "house")
+        self.tracks = self.add_channel(discord.TextChannel, TRACKS_ID, "tracks")
+        self.here = self.add_channel(discord.TextChannel, HERE_ID, "staff-chat")
+        self.track_thread = self.add_channel(discord.Thread, TRACK_THREAD_ID, "t")
         self.track_thread.parent_id = TRACKS_ID
+        self.studio = self.add_channel(discord.ForumChannel, STUDIO_ID, "studio")
+        self.forum_drop = self.add_channel(
+            discord.ForumChannel, FORUM_DROP_ID, "forum-drop"
+        )
+        self.guild.text_channels = [self.house, self.tracks, self.here]
+        self.guild.forums = [self.studio, self.forum_drop]
         self.roles = {
             role_id: make_role(role_id) for role_id in (STAFF_ROLE_ID, OTHER_ROLE_ID)
         }
@@ -64,10 +83,13 @@ class FakeServer:
         self.guild._roles = self.roles
         self.guild.get_role.side_effect = self.roles.get
         self.guild.get_member.return_value = None
+        self.guild.get_member_named.return_value = None
+        self.guild.query_members = AsyncMock(return_value=[])
 
-    def add_channel(self, spec: type, channel_id: int) -> MagicMock:
+    def add_channel(self, spec: type, channel_id: int, name: str) -> MagicMock:
         channel = MagicMock(spec=spec)
         channel.id = channel_id
+        channel.name = name
         channel.mention = f"<#{channel_id}>"
         channel.send = AsyncMock()
         self.channels[channel_id] = channel
@@ -127,6 +149,8 @@ async def bot(
 ) -> AsyncIterator[app.WispBot]:
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
+    wisp_bot.lives = LifeRepo(db)
+    wisp_bot.players = PlayerRepo(db)
     wisp_bot.owner_id = OWNER_ID
     wisp = server.member(WISP_ID, bot=True)
     monkeypatch.setattr(app.WispBot, "user", wisp)
@@ -135,7 +159,8 @@ async def bot(
     await wisp_bot.settings.update(
         GUILD_ID, house_channel_id=HOUSE_ID, tracks_channel_id=TRACKS_ID
     )
-    await staff.setup(wisp_bot)
+    for extension in (studio, feeding, discipline, staff):
+        await extension.setup(wisp_bot)
     yield wisp_bot
 
 
@@ -180,10 +205,7 @@ async def test_an_unknown_command_lists_the_staff_commands(
 ) -> None:
     await say(bot, server.message("!wisp nonsense", boss))
 
-    (text,) = sent(server.here)
-    assert text == staff.command_list(bot)
-    assert text.startswith("♪ Wisp staff commands: ")
-    assert "staff" in text.split(": ", 1)[1].split(", ")
+    assert sent(server.here) == [f"♪ Wisp staff commands: {COMMANDS}"]
 
 
 async def test_an_unknown_command_from_a_member_is_ignored(
@@ -422,3 +444,306 @@ async def test_a_failure_in_the_track_drop_is_reported_in_the_house(
 
 def test_the_staff_role_commands_are_a_loaded_extension() -> None:
     assert "cogs.staff" in app.EXTENSIONS
+
+
+# ---
+# Each command through the prefix
+# ---
+
+
+@pytest.fixture
+def no_studio_work(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Stand in for the Studio and badge role work, which test_studio covers."""
+    calls: list[str] = []
+
+    async def ensure_studio(bot: app.WispBot, guild_id: int) -> Settings:
+        calls.append("studio")
+        return await bot.settings.get(guild_id)
+
+    async def ensure_badge_roles(
+        _bot: app.WispBot, _guild: object, where: object
+    ) -> list[str]:
+        calls.append(f"badges in {getattr(where, 'id', None)}")
+        return ["・Badge roles: all 2 ready"]
+
+    monkeypatch.setattr(studio, "ensure_studio", ensure_studio)
+    monkeypatch.setattr(studio, "ensure_badge_roles", ensure_badge_roles)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        f"<#{HOUSE_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}>",
+        f"{HOUSE_ID} {STUDIO_ID} {TRACKS_ID}",
+        "house studio tracks",
+    ],
+    ids=["mentions", "ids", "names"],
+)
+async def test_setup(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    no_studio_work: list[str],
+    arguments: str,
+) -> None:
+    await bot.settings.update(GUILD_ID, house_channel_id=None, tracks_channel_id=None)
+
+    await say(bot, server.message(f"!wisp setup {arguments}", boss))
+
+    settings = await bot.settings.get(GUILD_ID)
+    assert (
+        settings.house_channel_id,
+        settings.studio_forum_id,
+        settings.tracks_channel_id,
+    ) == (HOUSE_ID, STUDIO_ID, TRACKS_ID)
+    assert no_studio_work == ["studio", f"badges in {HERE_ID}"]
+    assert sent(server.here) == [
+        "♪ Wisp is set up.\n"
+        f"・Wisp's House: <#{HOUSE_ID}>\n"
+        f"・Wisp's Studio: <#{STUDIO_ID}>\n"
+        f"・Track drop: <#{TRACKS_ID}>\n"
+        "・Studio threads: all five already exist\n"
+        "・Badge roles: all 2 ready"
+    ]
+
+
+async def test_setup_takes_a_forum_as_the_track_drop(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
+) -> None:
+    content = f"!wisp setup <#{HOUSE_ID}> <#{STUDIO_ID}> <#{FORUM_DROP_ID}>"
+
+    await say(bot, server.message(content, boss))
+
+    assert (await bot.settings.get(GUILD_ID)).tracks_channel_id == FORUM_DROP_ID
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        f"<#{HOUSE_ID}> <#{HERE_ID}> <#{TRACKS_ID}>",
+        f"<#{STUDIO_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}>",
+        f"<#{HOUSE_ID}> <#{STUDIO_ID}>",
+        f"<#{HOUSE_ID}> <#{STUDIO_ID}> <#920000000000000099>",
+    ],
+    ids=["a text studio", "a forum house", "no track drop", "an unknown channel"],
+)
+async def test_setup_with_the_wrong_channels_gets_the_usage_line(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    no_studio_work: list[str],
+    arguments: str,
+) -> None:
+    await say(bot, server.message(f"!wisp setup {arguments}", boss))
+
+    assert sent(server.here) == ["♪ Usage: !wisp setup #house #studio #tracks"]
+    assert no_studio_work == []
+    assert (await bot.settings.get(GUILD_ID)).studio_forum_id is None
+
+
+async def test_roles(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> None:
+    for content in (
+        "!wisp roles list",
+        f"!wisp roles add <@&{OTHER_ROLE_ID}>",
+        f"!wisp roles add <@&{STAFF_ROLE_ID}>",
+        "!wisp roles list",
+        f"!wisp roles remove <@&{STAFF_ROLE_ID}>",
+        "!wisp roles add",
+        "!wisp roles",
+    ):
+        await say(bot, server.message(content, boss))
+
+    assert sent(server.here) == [
+        "♪ No qualifying roles yet. Add one with !wisp roles add @role.",
+        f"♪ <@&{OTHER_ROLE_ID}> can now feed Wisp.",
+        f"♪ <@&{STAFF_ROLE_ID}> can now feed Wisp.",
+        f"♪ Roles that can feed Wisp\n・<@&{STAFF_ROLE_ID}>\n・<@&{OTHER_ROLE_ID}>",
+        f"♪ <@&{STAFF_ROLE_ID}> no longer feeds Wisp.",
+        "♪ Usage: !wisp roles add @role",
+        "♪ Usage: !wisp roles add @role | remove @role | list",
+    ]
+    assert await bot.settings.roles(GUILD_ID) == {OTHER_ROLE_ID}
+    assert await bot.settings.staff_roles(GUILD_ID) == set()
+
+
+async def test_food(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh = AsyncMock()
+    monkeypatch.setattr(feeding, "refresh_rules", refresh)
+
+    await say(bot, server.message("!wisp food 12 0", boss))
+
+    settings = await bot.settings.get(GUILD_ID)
+    assert (settings.viibr_meal_points, settings.suno_meal_points) == (12, 0)
+    refresh.assert_awaited_once_with(bot, GUILD_ID)
+    assert sent(server.here) == [
+        "♪ Food values: viibrmusic.com track 12 meal points, "
+        "Suno track 0 meal points."
+    ]
+
+
+@pytest.mark.parametrize(
+    "arguments", ["", "5", "five 1", f"{MEAL_POINTS_MAX + 1} 1", "1 -1"]
+)
+async def test_food_out_of_range_or_missing_gets_the_usage_line(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, arguments: str
+) -> None:
+    await say(bot, server.message(f"!wisp food {arguments}", boss))
+
+    assert sent(server.here) == [FOOD_USAGE]
+    settings = await bot.settings.get(GUILD_ID)
+    assert (settings.viibr_meal_points, settings.suno_meal_points) == (None, None)
+
+
+async def test_freeze_and_unfreeze(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    await say(bot, server.message("!wisp freeze", boss))
+    assert (await bot.settings.get(GUILD_ID)).frozen is True
+
+    await say(bot, server.message("!wisp unfreeze", boss))
+    assert (await bot.settings.get(GUILD_ID)).frozen is False
+
+    assert sent(server.here) == [
+        "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
+        "♪ Wisp is unfrozen. His care drains normally again.",
+    ]
+
+
+async def test_eggs(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> None:
+    await say(bot, server.message("!wisp eggs off", boss))
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
+
+    await say(bot, server.message("!wisp eggs maybe", boss))
+    await say(bot, server.message("!wisp eggs", boss))
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
+
+    await say(bot, server.message("!wisp eggs on", boss))
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
+
+    assert sent(server.here) == [
+        "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
+        "until you turn eggs back on.",
+        "♪ Usage: !wisp eggs on|off",
+        "♪ Usage: !wisp eggs on|off",
+        "♪ New eggs are on. A new egg arrives within a few minutes.",
+    ]
+
+
+async def test_faq(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    thread = MagicMock(spec=discord.Thread)
+    fill_faq = AsyncMock()
+    monkeypatch.setattr(studio, "studio_thread", AsyncMock(return_value=thread))
+    monkeypatch.setattr(studio, "fill_faq", fill_faq)
+
+    await say(bot, server.message("!wisp faq", boss))
+
+    fill_faq.assert_awaited_once_with(bot, GUILD_ID, thread, ANY)
+    assert sent(server.here) == ["♪ The Wisp FAQ is rebuilt."]
+
+
+async def test_faq_without_a_studio_says_how_to_set_it_up(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    await say(bot, server.message("!wisp faq", boss))
+
+    assert sent(server.here) == ["The Studio forum is not set. Run !wisp setup first."]
+
+
+async def test_punish_takes_the_rest_of_the_line_as_the_reason(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    cheater = server.member(MEMBER_ID)
+    content = f"!wisp punish <@{MEMBER_ID}> posted   a fake link, twice"
+
+    await say(bot, server.message(content, boss, mentions=[cheater]))
+
+    player = await bot.players.get(GUILD_ID, MEMBER_ID)
+    assert player.offenses == 1
+    assert sent(server.here) == [
+        f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): "
+        "posted   a fake link, twice\n"
+        "・Wisp has no life right now, so nothing was posted in his House."
+    ]
+
+
+@pytest.mark.parametrize(
+    "arguments", ["", f"<@{MEMBER_ID}>", "nobody at all", f"<@{MEMBER_ID}> {'x' * 501}"]
+)
+async def test_punish_without_a_member_or_reason_gets_the_usage_line(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, arguments: str
+) -> None:
+    cheater = server.member(MEMBER_ID)
+    message = server.message(f"!wisp punish {arguments}", boss, mentions=[cheater])
+
+    await say(bot, message)
+
+    assert sent(server.here) == ["♪ Usage: !wisp punish @member <reason>"]
+    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 0
+
+
+async def test_unban_strip_and_resetname(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    member = server.member(MEMBER_ID)
+    mention = f"<@{MEMBER_ID}>"
+    await bot.players.set_offense(GUILD_ID, MEMBER_ID, 1, None, True)
+    await bot.players.add_points(GUILD_ID, MEMBER_ID, 10)
+    await bot.players.set_name(GUILD_ID, MEMBER_ID, "Nova")
+
+    for content in (
+        f"!wisp unban {mention}",
+        f"!wisp strip {mention} 4",
+        f"!wisp strip {mention} 0",
+        f"!wisp strip {mention}",
+        f"!wisp resetname {mention}",
+        "!wisp unban",
+    ):
+        await say(bot, server.message(content, boss, mentions=[member]))
+
+    player = await bot.players.get(GUILD_ID, MEMBER_ID)
+    assert not player.is_banned(discord.utils.utcnow())
+    assert (player.balance, player.name) == (6, None)
+    assert sent(server.here) == [
+        f"♪ {mention} can play with Wisp again. Their offense count stays at 1.",
+        f"♪ Took 4 points from {mention}.",
+        "♪ Usage: !wisp strip @member <points>",
+        "♪ Usage: !wisp strip @member <points>",
+        f"♪ Wisp forgot {mention}'s name. They can choose a new one.",
+        "♪ Usage: !wisp unban @member",
+    ]
+
+
+# ---
+# The slash commands
+# ---
+
+
+def test_the_staff_slash_group_is_gone() -> None:
+    assert not hasattr(groups, "wispadmin")
+
+
+def test_the_members_slash_commands_are_still_registered() -> None:
+    for extension in app.EXTENSIONS:
+        importlib.import_module(extension)
+    names = {command.qualified_name for command in groups.wisp.walk_commands()}
+
+    assert names == {
+        "wisp status",
+        "wisp vault",
+        "wisp snackpack",
+        "wisp board",
+        "wisp lunchbox",
+        "wisp play",
+        "wisp play rhyme",
+    }

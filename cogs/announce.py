@@ -24,9 +24,7 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
-_NO_EGG: Final = (
-    "♪ No new egg for now. Staff can turn eggs back on with /wispadmin eggs."
-)
+_NO_EGG: Final = "♪ No new egg for now. Staff can turn eggs back on with !wisp eggs on."
 _BABY_STAGE: Final = "baby"
 _GIVING: Final = "giving a keepsake"
 _STAGE_KEEPSAKES: Final = {

@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
-from discord import app_commands
+from discord.ext import commands
 
 import app
-from cogs import discipline, groups
+from cogs import discipline
 from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
@@ -99,40 +99,24 @@ def make_member(
     return member
 
 
-def make_interaction(bot: app.WispBot, *, staff: bool = True) -> MagicMock:
-    interaction = MagicMock(spec=discord.Interaction)
-    interaction.client = bot
-    interaction.guild = bot.get_guild(GUILD_ID)
-    interaction.guild_id = GUILD_ID
-    interaction.channel = interaction.guild.get_channel_or_thread(COMMAND_CHANNEL_ID)
-    interaction.permissions = discord.Permissions(manage_guild=staff)
-    interaction.user = make_member(STAFF_ID, "Staffer")
-    interaction.response = MagicMock()
-    interaction.response.is_done.return_value = False
-
-    async def answer(*_args: Any, **_kwargs: Any) -> None:
-        interaction.response.is_done.return_value = True
-
-    interaction.response.defer = AsyncMock(side_effect=answer)
-    interaction.response.send_message = AsyncMock(side_effect=answer)
-    interaction.followup = MagicMock()
-    interaction.followup.send = AsyncMock()
-    return interaction
+def make_ctx(bot: app.WispBot) -> MagicMock:
+    """A staff command used in the command channel by a staff member."""
+    ctx = MagicMock(spec=commands.Context)
+    ctx.bot = bot
+    ctx.guild = bot.get_guild(GUILD_ID)
+    ctx.channel = ctx.guild.get_channel_or_thread(COMMAND_CHANNEL_ID)
+    ctx.author = make_member(STAFF_ID, "Staffer")
+    return ctx
 
 
-async def run(command: Any, *args: Any) -> None:
-    await command.callback(*args)
+async def run(command: Any, *args: Any, **kwargs: Any) -> None:
+    await command.callback(*args, **kwargs)
 
 
-def replies(interaction: MagicMock) -> list[str]:
-    """Texts sent back to the staff member, all private and unable to ping."""
+def replies(ctx: MagicMock) -> list[str]:
+    """Texts posted in the command's channel, none able to ping."""
     sent = []
-    calls = [
-        *interaction.response.send_message.await_args_list,
-        *interaction.followup.send.await_args_list,
-    ]
-    for call in calls:
-        assert call.kwargs["ephemeral"] is True
+    for call in ctx.channel.send.await_args_list:
         assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
         sent.append(call.args[0])
     return sent
@@ -150,9 +134,9 @@ async def lay(bot: app.WispBot) -> Life:
 async def punish(
     bot: app.WispBot, member: MagicMock | None = None, reason: str = REASON
 ) -> MagicMock:
-    interaction = make_interaction(bot)
-    await run(discipline.punish, interaction, member or make_member(), reason)
-    return interaction
+    ctx = make_ctx(bot)
+    await run(discipline.punish, ctx, member or make_member(), reason=reason)
+    return ctx
 
 
 def banned_lines(name: str) -> set[str]:
@@ -169,7 +153,7 @@ def house_text(server: FakeServer) -> str:
 
 
 def staff_log(server: FakeServer) -> str:
-    """The log line posted in the channel the command was run in."""
+    """The answer posted in the channel the command was run in."""
     server.here.send.assert_awaited_once()
     return str(server.here.send.await_args.args[0])
 
@@ -251,18 +235,15 @@ async def test_punish_uses_the_chosen_name_in_the_house(
     assert house_text(server) in banned_lines("Nova")
 
 
-async def test_the_log_line_is_posted_in_the_channel_the_command_was_run_in(
+async def test_the_answer_names_the_staff_member_and_the_reason(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
-    interaction = await punish(bot, make_member(display_name="Cheater"))
-    assert staff_log(server) == (
+    ctx = await punish(bot, make_member(display_name="Cheater"))
+    assert replies(ctx) == [
         f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}"
-    )
+    ]
     assert REASON not in house_text(server)
-    assert server.here.send.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
-    (reply,) = replies(interaction)
-    assert reply == "♪ <@1> is banned from Wisp (offense 1, 1 day)."
 
 
 async def test_the_staff_log_names_the_permanent_ban(
@@ -274,14 +255,6 @@ async def test_the_staff_log_names_the_permanent_ban(
     assert staff_log(server) == (
         f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 3, permanent): {REASON}"
     )
-
-
-async def test_punish_tells_the_staff_member_the_outcome(bot: app.WispBot) -> None:
-    await lay(bot)
-    interaction = await punish(bot, make_member(display_name="Cheater"))
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    (reply,) = replies(interaction)
-    assert reply == "♪ <@1> is banned from Wisp (offense 1, 1 day)."
 
 
 async def test_shame_image_optional(
@@ -320,43 +293,26 @@ async def test_a_random_shame_image_is_attached(
     assert sent.filename == "d.webp"
 
 
-async def test_punish_without_a_life_still_bans_and_logs(
+async def test_punish_without_a_life_still_bans_and_says_so(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    interaction = await punish(bot)
+    ctx = await punish(bot)
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert player.is_banned(discord.utils.utcnow())
     server.house.send.assert_not_awaited()
-    assert REASON in staff_log(server)
-    (reply,) = replies(interaction)
-    assert "no life" in reply
-
-
-async def test_a_failed_log_line_is_reported_where_it_failed_and_noted(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await lay(bot)
-    server.here.send.side_effect = [
-        discord.HTTPException(MagicMock(status=500), "boom"),
-        None,
+    assert replies(ctx) == [
+        f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}\n"
+        "・Wisp has no life right now, so nothing was posted in his House."
     ]
-    interaction = await punish(bot)
-    (reply,) = replies(interaction)
-    assert reply.endswith("\n・The log line could not be posted here.")
-    assert "not recorded" not in reply
-    assert "Error in logging the punishment" in str(server.here.send.await_args.args[0])
-    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
 
 
-async def test_a_log_line_with_nowhere_to_go_is_noted(
+async def test_an_answer_that_cannot_be_posted_still_leaves_the_ban(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
-    interaction = make_interaction(bot)
-    interaction.channel = MagicMock(spec=discord.CategoryChannel)
-    await run(discipline.punish, interaction, make_member(), REASON)
-    (reply,) = replies(interaction)
-    assert reply.endswith("\n・The log line could not be posted here.")
+    server.here.send.side_effect = discord.HTTPException(MagicMock(status=500), "boom")
+    with pytest.raises(discord.HTTPException):
+        await punish(bot)
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).offenses == 1
 
 
@@ -382,10 +338,10 @@ async def test_punish_in_the_track_drop_logs_in_the_house_instead(
     if parent_id is not None:
         where.parent_id = parent_id
     where.send = AsyncMock()
-    interaction = make_interaction(bot)
-    interaction.channel = where
+    ctx = make_ctx(bot)
+    ctx.channel = where
 
-    await run(discipline.punish, interaction, make_member(), REASON)
+    await run(discipline.punish, ctx, make_member(), reason=REASON)
 
     where.send.assert_not_awaited()
     log_line = f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}"
@@ -394,15 +350,6 @@ async def test_punish_in_the_track_drop_logs_in_the_house_instead(
     ]
     assert len(logged) == 1
     assert logged[0].kwargs["allowed_mentions"].to_dict() == NO_PING
-    (reply,) = replies(interaction)
-    assert reply == "♪ <@1> is banned from Wisp (offense 1, 1 day)."
-
-
-def test_the_reason_is_described_as_public() -> None:
-    reason = discipline.punish.get_parameter("reason")
-    assert reason is not None
-    assert "only staff" not in reason.description
-    assert "posted in this channel" in reason.description
 
 
 # ---
@@ -414,19 +361,19 @@ async def test_unban_keeps_offense_count(bot: app.WispBot) -> None:
     await lay(bot)
     await punish(bot)
     await punish(bot)
-    interaction = make_interaction(bot)
-    await run(discipline.unban, interaction, make_member())
+    ctx = make_ctx(bot)
+    await run(discipline.unban, ctx, make_member())
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert player.offenses == 2
     assert (player.banned_until, player.banned_forever) == (None, False)
     assert not player.is_banned(discord.utils.utcnow())
-    (reply,) = replies(interaction)
+    *_punishments, reply = replies(ctx)
     assert reply == "♪ <@1> can play with Wisp again. Their offense count stays at 2."
 
 
 async def test_unban_lifts_a_permanent_ban(bot: app.WispBot) -> None:
     await bot.players.set_offense(GUILD_ID, MEMBER_ID, 3, None, True)
-    await run(discipline.unban, make_interaction(bot), make_member())
+    await run(discipline.unban, make_ctx(bot), make_member())
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert (player.offenses, player.banned_forever) == (3, False)
 
@@ -435,9 +382,9 @@ async def test_unban_of_someone_not_banned_changes_nothing(bot: app.WispBot) -> 
     await bot.players.set_offense(
         GUILD_ID, MEMBER_ID, 1, discord.utils.utcnow() - timedelta(days=2), False
     )
-    interaction = make_interaction(bot)
-    await run(discipline.unban, interaction, make_member())
-    (reply,) = replies(interaction)
+    ctx = make_ctx(bot)
+    await run(discipline.unban, ctx, make_member())
+    (reply,) = replies(ctx)
     assert reply == "♪ <@1> is not banned."
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).banned_until is not None
 
@@ -450,27 +397,22 @@ async def test_unban_of_someone_not_banned_changes_nothing(bot: app.WispBot) -> 
 async def test_strip_never_negative(bot: app.WispBot) -> None:
     await bot.players.add_points(GUILD_ID, MEMBER_ID, 10)
     await bot.players.spend(GUILD_ID, MEMBER_ID, 8)
-    interaction = make_interaction(bot)
-    await run(discipline.strip, interaction, make_member(), 5)
+    ctx = make_ctx(bot)
+    await run(discipline.strip, ctx, make_member(), 5)
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert (player.lifetime_points, player.balance) == (5, 0)
-    await run(discipline.strip, make_interaction(bot), make_member(), 500)
+    await run(discipline.strip, make_ctx(bot), make_member(), 500)
     player = await bot.players.get(GUILD_ID, MEMBER_ID)
     assert (player.lifetime_points, player.balance) == (0, 0)
-    (reply,) = replies(interaction)
+    reply, _second = replies(ctx)
     assert reply == "♪ Took 5 points from <@1>."
 
 
 async def test_strip_one_point_is_singular(bot: app.WispBot) -> None:
-    interaction = make_interaction(bot)
-    await run(discipline.strip, interaction, make_member(), 1)
-    (reply,) = replies(interaction)
+    ctx = make_ctx(bot)
+    await run(discipline.strip, ctx, make_member(), 1)
+    (reply,) = replies(ctx)
     assert reply == "♪ Took 1 point from <@1>."
-
-
-def test_strip_needs_at_least_one_point() -> None:
-    points = discipline.strip.parameters[1]
-    assert (points.name, points.min_value) == ("points", 1)
 
 
 # ---
@@ -480,49 +422,11 @@ def test_strip_needs_at_least_one_point() -> None:
 
 async def test_resetname_clears_name(bot: app.WispBot) -> None:
     await bot.players.set_name(GUILD_ID, MEMBER_ID, "Nova")
-    interaction = make_interaction(bot)
-    await run(discipline.resetname, interaction, make_member())
+    ctx = make_ctx(bot)
+    await run(discipline.resetname, ctx, make_member())
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).name is None
-    (reply,) = replies(interaction)
+    (reply,) = replies(ctx)
     assert reply == "♪ Wisp forgot <@1>'s name. They can choose a new one."
-
-
-@pytest.mark.parametrize(
-    ("command_name", "extra", "storage"),
-    [
-        ("unban", (), "get"),
-        ("strip", (5,), "strip_points"),
-        ("resetname", (), "set_name"),
-    ],
-)
-async def test_corrections_defer_before_touching_storage(
-    bot: app.WispBot,
-    monkeypatch: pytest.MonkeyPatch,
-    command_name: str,
-    extra: tuple[Any, ...],
-    storage: str,
-) -> None:
-    order: list[str] = []
-    interaction = make_interaction(bot)
-    original_defer = interaction.response.defer.side_effect
-
-    async def defer(*args: Any, **kwargs: Any) -> None:
-        order.append("defer")
-        await original_defer(*args, **kwargs)
-
-    interaction.response.defer.side_effect = defer
-    original = getattr(bot.players, storage)
-
-    async def spy(*args: Any) -> Any:
-        order.append("storage")
-        return await original(*args)
-
-    monkeypatch.setattr(bot.players, storage, spy)
-    await run(getattr(discipline, command_name), interaction, make_member(), *extra)
-    assert order[:2] == ["defer", "storage"]
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    interaction.response.send_message.assert_not_awaited()
-    assert len(replies(interaction)) == 1
 
 
 # ---
@@ -532,36 +436,30 @@ async def test_corrections_defer_before_touching_storage(
 
 @pytest.mark.parametrize(
     "command_name, extra",
-    [("punish", (REASON,)), ("unban", ()), ("strip", (5,)), ("resetname", ())],
+    [
+        ("punish", {"reason": REASON}),
+        ("unban", {}),
+        ("strip", {"points": 5}),
+        ("resetname", {}),
+    ],
 )
 async def test_bots_are_refused(
-    bot: app.WispBot, server: FakeServer, command_name: str, extra: tuple[Any, ...]
+    bot: app.WispBot, server: FakeServer, command_name: str, extra: dict[str, Any]
 ) -> None:
     await lay(bot)
-    interaction = make_interaction(bot)
+    ctx = make_ctx(bot)
     command = getattr(discipline, command_name)
-    await run(command, interaction, make_member(7, bot=True), *extra)
-    (reply,) = replies(interaction)
-    assert reply == "♪ <@7> is a bot, and bots do not play with Wisp."
+    await run(command, ctx, make_member(7, bot=True), **extra)
+    assert replies(ctx) == ["♪ <@7> is a bot, and bots do not play with Wisp."]
     assert (await bot.players.get(GUILD_ID, 7)).offenses == 0
     server.house.send.assert_not_awaited()
-    server.here.send.assert_not_awaited()
 
 
-def test_every_discipline_leaf_is_staff_only() -> None:
-    leaves = {
-        command.name: command
-        for command in groups.wispadmin.walk_commands()
-        if isinstance(command, app_commands.Command)
-    }
+async def test_the_discipline_commands_join_the_bot(bot: app.WispBot) -> None:
+    await discipline.setup(bot)
+
     for name in ("punish", "unban", "strip", "resetname"):
-        command = leaves[name]
-        assert command.parent is groups.wispadmin
-        assert command.checks, name
-        for check in command.checks:
-            assert check(make_interaction(MagicMock(), staff=True))
-            with pytest.raises(app_commands.MissingPermissions):
-                check(make_interaction(MagicMock(), staff=False))
+        assert bot.get_command(name) is getattr(discipline, name)
 
 
 def test_the_extension_is_registered() -> None:

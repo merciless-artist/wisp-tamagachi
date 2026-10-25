@@ -16,10 +16,10 @@ import discord
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-from discord import app_commands
+from discord.ext import commands
 
 import app
-from cogs import announce, feeding, groups
+from cogs import announce, feeding
 from cogs.announce import post_events
 from cogs.feeding import Feeding
 from cogs.share_links import ShareLinkResolver
@@ -374,15 +374,14 @@ async def test_unset_food_values_use_the_rules(
     assert (await current_life(bot)).care == 50.0 + 7 + 3
 
 
-def make_staff_interaction(bot: app.WispBot) -> MagicMock:
-    interaction = MagicMock(spec=discord.Interaction)
-    interaction.client = bot
-    interaction.guild_id = GUILD_ID
-    interaction.response = MagicMock()
-    interaction.response.defer = AsyncMock()
-    interaction.followup = MagicMock()
-    interaction.followup.send = AsyncMock()
-    return interaction
+def make_staff_context(bot: app.WispBot, server: FakeServer) -> MagicMock:
+    ctx = MagicMock(spec=commands.Context)
+    ctx.bot = bot
+    ctx.guild = server.guild
+    ctx.channel = MagicMock(spec=discord.TextChannel)
+    ctx.channel.id = 60
+    ctx.channel.send = AsyncMock()
+    return ctx
 
 
 async def test_food_command_saves_the_values_and_updates_the_rules_post(
@@ -392,35 +391,32 @@ async def test_food_command_saves_the_values_and_updates_the_rules_post(
     await bot.settings.update(
         GUILD_ID, rules_thread_id=RULES_ID, rules_message_id=RULES_MESSAGE_ID
     )
-    interaction = make_staff_interaction(bot)
+    ctx = make_staff_context(bot, server)
     command: Any = feeding.set_food
 
-    await command.callback(interaction, 12, 1)
+    await command.callback(ctx, 12, 1)
 
     settings = await bot.settings.get(GUILD_ID)
     assert (settings.viibr_meal_points, settings.suno_meal_points) == (12, 1)
     server.rules.get_partial_message.assert_called_once_with(RULES_MESSAGE_ID)
     expected = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
     assert server.rules_edit.await_args.kwargs["content"] == expected
-    interaction.followup.send.assert_awaited_once_with(
+    ctx.channel.send.assert_awaited_once()
+    assert ctx.channel.send.await_args.args == (
         "♪ Food values: viibrmusic.com track 12 meal points, "
         "Suno track 1 meal point.",
-        ephemeral=True,
     )
+    assert sends_without_pinging(ctx.channel.send.await_args.kwargs)
     server.house.send.assert_not_awaited()
 
 
-def test_food_command_takes_two_staff_values_from_zero_to_the_maximum() -> None:
-    command = groups.wispadmin.get_command("food")
-    assert isinstance(command, app_commands.Command)
-    params = {parameter.name: parameter for parameter in command.parameters}
-    assert list(params) == ["viibr", "suno"]
-    for parameter in params.values():
-        assert (parameter.min_value, parameter.max_value) == (
-            0,
-            rules.MEAL_POINTS_MAX,
-        )
-    assert command.checks
+async def test_the_food_command_joins_the_bot_with_the_feeding_cog(
+    bot: app.WispBot,
+) -> None:
+    await feeding.setup(bot)
+
+    assert bot.get_command("food") is feeding.set_food
+    assert isinstance(bot.get_cog("Feeding"), Feeding)
 
 
 async def test_unqualified_role_is_silent(

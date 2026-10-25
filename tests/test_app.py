@@ -496,42 +496,19 @@ async def test_tree_error_reports_when_interaction_was_already_answered(
 
 
 @pytest.mark.parametrize(
-    ("response_done", "used"), [(False, "response"), (True, "followup")]
-)
-@pytest.mark.parametrize(
     "error",
     [
         app_commands.CheckFailure("no"),
         app_commands.MissingPermissions(["manage_guild"]),
+        app_commands.BotMissingPermissions(["manage_threads"]),
     ],
 )
-async def test_check_failure_is_refused_not_reported(
-    bot: app.WispBot,
-    response_done: bool,
-    used: str,
-    error: app_commands.AppCommandError,
-) -> None:
-    interaction = make_interaction(response_done, make_guild(None))
-    bot.report_error = AsyncMock()  # type: ignore[method-assign]
-
-    await bot.tree.on_error(interaction, error)
-
-    send = (
-        interaction.response.send_message
-        if used == "response"
-        else interaction.followup.send
-    )
-    send.assert_awaited_once_with("That command is for staff.", ephemeral=True)
-    bot.report_error.assert_not_awaited()
-
-
-async def test_missing_bot_permissions_is_a_bot_fault_not_a_refusal(
-    bot: app.WispBot,
+async def test_a_failed_slash_check_is_reported_not_refused(
+    bot: app.WispBot, error: app_commands.AppCommandError
 ) -> None:
     guild = make_guild(None)
     interaction = make_interaction(False, guild)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
-    error = app_commands.BotMissingPermissions(["manage_threads"])
 
     await bot.tree.on_error(interaction, error)
 
@@ -607,11 +584,10 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
         "load cogs.broken",
         "load cogs.fine",
         "add wisp",
-        "add wispadmin",
         "sync",
     ]
     assert bot.tree.get_command("wisp") is groups.wisp
-    assert bot.tree.get_command("wispadmin") is groups.wispadmin
+    assert bot.tree.get_command("wispadmin") is None
     assert bot.emojis_by_name == {"a": emoji}
 
 

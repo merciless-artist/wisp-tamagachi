@@ -1,4 +1,4 @@
-"""The command groups every cog attaches its slash commands to."""
+"""The members' slash command groups every cog attaches its commands to."""
 
 from typing import Final
 
@@ -18,14 +18,6 @@ wisp = app_commands.Group(
     allowed_installs=_GUILD_INSTALL,
 )
 play = app_commands.Group(name="play", description="Play games with Wisp.", parent=wisp)
-wispadmin = app_commands.Group(
-    name="wispadmin",
-    description="Staff settings for Wisp.",
-    guild_only=True,
-    default_permissions=discord.Permissions(manage_guild=True),
-    allowed_contexts=_GUILDS_ONLY,
-    allowed_installs=_GUILD_INSTALL,
-)
 
 
 def require_guild(interaction: discord.Interaction) -> int:
