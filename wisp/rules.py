@@ -183,10 +183,10 @@ SNACKS: tuple[Snack, ...] = (
     Snack("jellywave", "Jelly Wave", 3, 5, 1),
     Snack("juicewave", "Juice Wave", 3, 5, 1),
     Snack("spicywave", "Spicy Wave", 5, 8, 2),
-    Snack("glitterwave", "Glitter Wave", 8, 12, 3),
-    Snack("viibrwave", "ViiBR Wave", 10, 15, 3),
     Snack("cheese", "Cheese", 6, 8, 2),
     Snack("pickles", "Pickles", 6, 8, 2),
+    Snack("glitterwave", "Glitter Wave", 8, 12, 3),
+    Snack("viibrwave", "ViiBR Wave", 10, 15, 3),
 )
 SNACK_BY_KEY: dict[str, Snack] = {snack.key: snack for snack in SNACKS}
 PAID_SNACKS: tuple[Snack, ...] = tuple(snack for snack in SNACKS if snack.cost > 0)
@@ -398,15 +398,22 @@ BADGES: tuple[Badge, ...] = (
     ),
 )
 BADGE_BY_KEY: dict[str, Badge] = {badge.key: badge for badge in BADGES}
+RETIRED_BADGE_NAMES: dict[str, str] = {
+    "egg_warmer": "Egg Warmer",
+    "viibr_roadie": "ViiBR Roadie",
+}
 
 
 def badge_name(key: str) -> str:
-    """A badge's name; for a badge no longer sold, one made from its key.
+    """A badge's name; for a badge no longer sold, its old name.
 
-    Members keep retired badges they bought, so "egg_warmer" reads "Egg Warmer".
+    Members keep retired badges they bought. A key with no known name reads
+    as its words, so "old_badge" reads "Old Badge".
     """
     badge = BADGE_BY_KEY.get(key)
-    return badge.name if badge is not None else key.replace("_", " ").title()
+    if badge is not None:
+        return badge.name
+    return RETIRED_BADGE_NAMES.get(key) or key.replace("_", " ").title()
 
 
 # ---

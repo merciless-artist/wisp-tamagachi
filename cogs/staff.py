@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
 import discord
+import pymysql
 from discord.ext import commands
 
 from cogs.channels import may_post_in
@@ -22,6 +23,9 @@ log = logging.getLogger("wisp")
 PREFIX: Final = "!wisp "
 STAFF_ONLY: Final = "That command is for staff."
 _NO_PING: Final = discord.AllowedMentions.none()
+_NOT_EVERYONE: Final = (
+    "♪ Everyone has that role, so it can't make anyone staff. Pick another role."
+)
 
 StaffContext: TypeAlias = commands.Context["WispBot"]
 
@@ -35,12 +39,13 @@ async def is_staff(bot: "WispBot", member: discord.Member) -> bool:
 
     Staff have Manage Server, hold one of the guild's staff roles, or own
     Wisp's Discord application, which counts in every server. discord.py
-    fetches the owner once and keeps it.
+    fetches the owner once and keeps it. The @everyone role never counts,
+    even when stored, since every member has it.
     """
     if member.guild_permissions.manage_guild:
         return True
     staff_roles = await bot.settings.staff_roles(member.guild.id)
-    if not staff_roles.isdisjoint(role.id for role in member.roles):
+    if any(role.id in staff_roles and not role.is_default() for role in member.roles):
         return True
     return await bot.is_owner(member)
 
@@ -58,22 +63,43 @@ async def refused(interaction: discord.Interaction["WispBot"]) -> bool:
     return True
 
 
+async def is_known_staff(bot: "WispBot", author: discord.abc.User) -> bool:
+    """Whether a message's author is staff, as far as can be told.
+
+    When it cannot be told, because the database or Discord failed, the
+    failure is logged and the author does not count as staff, so nothing is
+    posted in reply to someone who may not be staff.
+    """
+    if not isinstance(author, discord.Member):
+        return False
+    try:
+        return await is_staff(bot, author)
+    except (pymysql.err.Error, discord.HTTPException):
+        log.exception("Could not tell whether %d is staff", author.id)
+        return False
+
+
 async def staff_check(ctx: StaffContext) -> bool:
     """The check every staff command runs before its arguments are read."""
-    return isinstance(ctx.author, discord.Member) and await is_staff(
-        ctx.bot, ctx.author
-    )
+    return await is_known_staff(ctx.bot, ctx.author)
+
+
+def _starts_with_prefix(content: str) -> bool:
+    return content[: len(PREFIX)].lower() == PREFIX
 
 
 def is_command(content: str) -> bool:
-    """Whether a message's text starts with the `!wisp ` prefix, in any case."""
-    return content[: len(PREFIX)].lower() == PREFIX
+    """Whether a message is a staff command: bare `!wisp`, or `!wisp ` and more.
+
+    Case does not matter.
+    """
+    return _starts_with_prefix(content) or content.strip().lower() == PREFIX.strip()
 
 
 def command_prefix(_bot: "WispBot", message: discord.Message) -> str:
     """The `!wisp ` prefix in whatever case the message typed it."""
     content = message.content
-    return content[: len(PREFIX)] if is_command(content) else PREFIX
+    return content[: len(PREFIX)] if _starts_with_prefix(content) else PREFIX
 
 
 # ---
@@ -145,7 +171,10 @@ async def staff(ctx: StaffContext) -> None:
 
 @staff.command(name="add", usage="@role")
 async def staff_add(ctx: StaffContext, role: discord.Role) -> None:
-    """Make a role's members Wisp staff."""
+    """Make a role's members Wisp staff; @everyone is refused."""
+    if role.is_default():
+        await reply(ctx, _NOT_EVERYONE)
+        return
     await ctx.bot.settings.add_staff_role(guild_of(ctx).id, role.id)
     await reply(ctx, f"♪ {role.mention} is now a Wisp staff role.")
 

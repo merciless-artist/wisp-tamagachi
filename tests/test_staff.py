@@ -49,11 +49,12 @@ FOOD_USAGE = (
 # ---
 
 
-def make_role(role_id: int) -> MagicMock:
+def make_role(role_id: int, name: str | None = None) -> MagicMock:
     role = MagicMock(spec=discord.Role)
     role.id = role_id
-    role.name = f"role{role_id}"
+    role.name = name or f"role{role_id}"
     role.mention = f"<@&{role_id}>"
+    role.is_default.return_value = role_id == GUILD_ID
     return role
 
 
@@ -78,6 +79,7 @@ class FakeServer:
         self.roles = {
             role_id: make_role(role_id) for role_id in (STAFF_ROLE_ID, OTHER_ROLE_ID)
         }
+        self.roles[GUILD_ID] = make_role(GUILD_ID, "@everyone")
         self.guild.get_channel.side_effect = self.channels.get
         self.guild.get_channel_or_thread.side_effect = self.channels.get
         self.guild._roles = self.roles
@@ -110,7 +112,7 @@ class FakeServer:
         member.display_name = f"Member{user_id}"
         member.mention = f"<@{user_id}>"
         member.guild_permissions = discord.Permissions(manage_guild=manage_guild)
-        member.roles = [make_role(role_id) for role_id in role_ids]
+        member.roles = [make_role(role_id) for role_id in (GUILD_ID, *role_ids)]
         return member
 
     def message(
@@ -225,6 +227,16 @@ async def test_the_prefix_ignores_case_and_extra_spaces(
     assert text.startswith("♪ No staff roles yet.")
 
 
+async def test_a_word_that_only_starts_like_the_prefix_runs_no_command(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    await say(bot, server.message("!wispy staff list", boss))
+    await say(bot, server.message(f"!wispy staff add <@&{STAFF_ROLE_ID}>", boss))
+
+    assert server.all_sent() == []
+    assert await bot.settings.staff_roles(GUILD_ID) == set()
+
+
 async def test_a_mention_of_wisp_runs_no_command(
     bot: app.WispBot, server: FakeServer, boss: MagicMock
 ) -> None:
@@ -294,6 +306,56 @@ async def test_a_plain_member_is_ignored_without_a_word(
     assert await bot.settings.staff_roles(GUILD_ID) == {STAFF_ROLE_ID}
     assert server.all_sent() == []
     bot.report_error.assert_not_awaited()
+
+
+@pytest.mark.parametrize("arguments", ["@everyone", str(GUILD_ID), f"<@&{GUILD_ID}>"])
+async def test_everyone_cannot_be_a_staff_role(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, arguments: str
+) -> None:
+    await say(bot, server.message(f"!wisp staff add {arguments}", boss))
+
+    assert sent(server.here) == [
+        "♪ Everyone has that role, so it can't make anyone staff. " "Pick another role."
+    ]
+    assert await bot.settings.staff_roles(GUILD_ID) == set()
+
+
+async def test_a_stored_everyone_row_makes_nobody_staff(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.add_staff_role(GUILD_ID, GUILD_ID)
+    member = server.member(MEMBER_ID)
+
+    assert not await staff.is_staff(bot, member)
+    await say(bot, server.message("!wisp staff list", member))
+    await say(bot, server.message("!wisp nonsense", member))
+
+    assert server.all_sent() == []
+
+
+async def test_a_failed_staff_lookup_stays_silent(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def fail(*_args: Any) -> None:
+        raise pymysql.err.OperationalError(2013, "Lost connection")
+
+    monkeypatch.setattr(bot.settings, "staff_roles", fail)
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    member = server.member(MEMBER_ID, role_ids=[STAFF_ROLE_ID])
+
+    await say(bot, server.message("!wisp staff list", member))
+    await say(bot, server.message("!wisp nonsense", member))
+
+    assert server.all_sent() == []
+    bot.report_error.assert_not_awaited()
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "wisp" and "staff" in record.getMessage()
+    ] == [f"Could not tell whether {MEMBER_ID} is staff"] * 2
 
 
 async def test_the_owner_is_fetched_from_discord_once(
@@ -518,6 +580,22 @@ async def test_setup(
     ]
 
 
+async def test_setup_refuses_a_house_that_is_the_track_drop(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
+) -> None:
+    content = f"!wisp setup <#{TRACKS_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}>"
+
+    await say(bot, server.message(content, boss))
+
+    assert sent(server.here) == [
+        "♪ Wisp's House can't be the track drop, since Wisp never posts there. "
+        "Pick a different channel for one of them."
+    ]
+    assert no_studio_work == []
+    settings = await bot.settings.get(GUILD_ID)
+    assert (settings.house_channel_id, settings.studio_forum_id) == (HOUSE_ID, None)
+
+
 async def test_setup_takes_a_forum_as_the_track_drop(
     bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
 ) -> None:
@@ -633,15 +711,21 @@ async def test_eggs(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> No
     await say(bot, server.message("!wisp eggs", boss))
     assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
 
-    await say(bot, server.message("!wisp eggs on", boss))
+    await say(bot, server.message("!wisp eggs ON", boss))
     assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
+    await say(bot, server.message("!wisp eggs Off", boss))
+    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
 
-    assert sent(server.here) == [
+    off = (
         "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-        "until you turn eggs back on.",
+        "until you turn eggs back on."
+    )
+    assert sent(server.here) == [
+        off,
         "♪ Usage: !wisp eggs on|off",
         "♪ Usage: !wisp eggs on|off",
         "♪ New eggs are on. A new egg arrives within a few minutes.",
+        off,
     ]
 
 

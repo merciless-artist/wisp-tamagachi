@@ -83,7 +83,8 @@ def test_the_badge_catalog() -> None:
     [
         ("team_viibr", "Team ViiBR"),
         ("egg_warmer", "Egg Warmer"),
-        ("viibr_roadie", "Viibr Roadie"),
+        ("viibr_roadie", "ViiBR Roadie"),
+        ("some_old_badge", "Some Old Badge"),
     ],
 )
 def test_a_badge_no_longer_sold_still_has_a_readable_name(key: str, name: str) -> None:

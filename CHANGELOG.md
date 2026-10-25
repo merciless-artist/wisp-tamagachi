@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-24 (staff review fixes)
+
+- `!wisp staff add` refuses @everyone, and a stored @everyone row never makes
+  anyone staff.
+- Retired badges keep their real names in the Snack Pack ("ViiBR Roadie").
+- Setup refuses a House that is also the track drop.
+- When staff cannot be told apart because the database or Discord failed,
+  nobody counts as staff and nothing is posted; the failure is logged.
+- `!wisp eggs` takes on or off in any case.
+- Bare `!wisp` is not talk to Wisp either.
+- The Snack Box is ordered by price: Sine Wave, Cloud, Jelly and Juice Wave,
+  Spicy Wave, Cheese, Pickles, Glitter Wave, ViiBR Wave.
+
 ## 2026-10-24 (panel picture)
 
 - The Poke Wisp panel in Wisp's House shows his current picture, the same one

@@ -20,7 +20,7 @@ from cogs.staff import (
     command_context,
     command_list,
     command_prefix,
-    is_staff,
+    is_known_staff,
     reply,
     staff_check,
     usage_line,
@@ -206,8 +206,7 @@ class WispBot(commands.Bot):
         if isinstance(exception, commands.CheckFailure):
             return
         if isinstance(exception, commands.CommandNotFound):
-            author = context.author
-            if isinstance(author, discord.Member) and await is_staff(self, author):
+            if await is_known_staff(self, context.author):
                 await reply(context, command_list(self))
             return
         if isinstance(exception, commands.UserInputError) and context.command:

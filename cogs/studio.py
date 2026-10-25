@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final
 
 import discord
 from discord import app_commands
@@ -46,6 +46,10 @@ _NUMBER_WORDS: Final = (
 HOUSE_PANEL: Final = "♪ Poke Wisp\n・tap the button, or mention @Wisp to talk"
 _PANEL_CONTEXT: Final = "setting up the Poke Wisp panel in Wisp's House"
 _PANEL_ATTR: Final = "house_panel_message_id"
+_HOUSE_IS_TRACKS: Final = (
+    "♪ Wisp's House can't be the track drop, since Wisp never posts there. "
+    "Pick a different channel for one of them."
+)
 _PANEL_LABEL: Final = "Poke Wisp panel"
 TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
@@ -581,9 +585,12 @@ async def set_up(
 ) -> str:
     """Save the channels, then make the House panel, Studio threads and badge roles.
 
-    Failures along the way are reported in `where`. Returns the answer for
-    staff.
+    Failures along the way are reported in `where`. A House that is also the
+    track drop is refused, since Wisp never posts there. Returns the answer
+    for staff.
     """
+    if house.id == tracks.id:
+        return _HOUSE_IS_TRACKS
     before = await bot.settings.get(guild.id)
     await bot.settings.update(
         guild.id,
@@ -752,15 +759,19 @@ async def unfreeze(ctx: StaffContext) -> None:
 
 
 @commands.command(name="eggs", usage="on|off")
-async def eggs(ctx: StaffContext, state: Literal["on", "off"]) -> None:
-    """Turn laying the next egg on or off. A living Wisp is not affected.
+async def eggs(ctx: StaffContext, state: str) -> None:
+    """Turn laying the next egg on or off, in any case. A living Wisp is not affected.
 
     Turned back on with no living Wisp, the life loop lays the egg on its next
-    tick.
+    tick. Anything but on or off gets the usage line.
     """
+    choice = state.lower()
+    if choice not in ("on", "off"):
+        await reply(ctx, usage_line(eggs))
+        return
     bot = ctx.bot
     guild_id = guild_of(ctx).id
-    on = state == "on"
+    on = choice == "on"
     await bot.settings.update(guild_id, lay_eggs=on)
     if not on:
         text = (

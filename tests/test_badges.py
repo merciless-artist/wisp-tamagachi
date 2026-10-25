@@ -371,7 +371,7 @@ async def test_setup_deletes_the_roles_of_badges_no_longer_sold(
     egg.delete.assert_awaited_once()
     unrelated.delete.assert_not_awaited()
     assert set(await bot.badges.role_ids(GUILD_ID)) == set(BADGE_BY_KEY)
-    assert "・Badge roles no longer sold, deleted: Egg Warmer, Viibr Roadie" in lines
+    assert "・Badge roles no longer sold, deleted: Egg Warmer, ViiBR Roadie" in lines
     server.setup_channel.send.assert_not_awaited()
 
 
@@ -1086,7 +1086,7 @@ async def test_the_snack_pack_lists_every_badge_ever_bought_retired_too(
     badge_part = text.split(SEPARATOR + "\n")[3].splitlines()
     assert badge_part == [
         "Badges",
-        "・Wisp v3's Viibr Roadie",
+        "・Wisp v3's ViiBR Roadie",
         "・<:badge_team_viibr:1> Wisp v2's Team ViiBR",
         "・Wisp v1's Egg Warmer",
     ]

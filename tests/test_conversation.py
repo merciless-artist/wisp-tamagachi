@@ -957,6 +957,8 @@ async def test_staff_commands_are_not_talk(
         message("!wisp freeze"),
         message("!WISP Roles list", author=MEMBERS[SECOND]),
         message(f"!wisp <@{WISP_ID}> are you there", mentions=[WISP]),
+        message("!WISP"),
+        message(" !wisp ", author=MEMBERS[SECOND]),
     ]
     for command in commands:
         await cog.on_message(command)
