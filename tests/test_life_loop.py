@@ -165,6 +165,7 @@ async def lay(
     version: int = 1,
     gap: timedelta = FULL_GAP,
     phase_seconds: float = 0.0,
+    stage: Stage = Stage.BABY,
 ) -> Life:
     """Insert a life whose last tick was `gap` before NOW."""
     life = new_egg(version, NOW - gap)
@@ -172,7 +173,7 @@ async def lay(
     life.care = care
     life.phase_seconds = phase_seconds
     if phase is Phase.ALIVE:
-        life.stage = life.peak_stage = Stage.BABY
+        life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = NOW - timedelta(hours=1)
     return await bot.lives.insert(GUILD_ID, life)
 
@@ -898,6 +899,32 @@ async def test_quiet_line_once_per_stretch(
     assert server.house.send.await_args.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
+
+
+@pytest.mark.parametrize(
+    ("stage", "picture"),
+    [
+        (Stage.BABY, "nap.gif"),
+        (Stage.CHILD, "nap.gif"),
+        (Stage.TEEN, None),
+        (Stage.ADULT, None),
+    ],
+)
+async def test_the_quiet_post_shows_the_nap_picture_only_while_young(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    stage: Stage,
+    picture: str | None,
+) -> None:
+    await configure(bot)
+    await lay(bot, gap=timedelta(minutes=5), stage=stage)
+
+    await cog.run_tick(NOW)
+
+    (post,) = server.house.send.await_args_list
+    shown = post.kwargs["file"].filename if "file" in post.kwargs else None
+    assert shown == picture
 
 
 async def test_no_quiet_line_before_the_quiet_time(

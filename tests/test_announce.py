@@ -530,10 +530,10 @@ def assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def add_image(assets: Path, folder: str, name: str) -> None:
-    target = assets / folder / f"{name}.png"
+def add_image(assets: Path, folder: str, name: str, suffix: str = ".png") -> None:
+    target = assets / folder / f"{name}{suffix}"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(b"png")
+    target.write_bytes(b"art")
 
 
 async def ended_life(bot: app.WispBot, phase: Phase, version: int = 3) -> Life:
@@ -1009,6 +1009,49 @@ async def test_hatching_gives_the_eggshell_to_whoever_filled_the_egg(
     assert sends_without_pinging(won.kwargs)
     assert await embers(bot, NAMED) == ["Wisp v1's Eggshell"]
     assert await embers(bot, MEMBER) == []
+
+
+async def test_hatch_started_posts_its_animated_picture(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "events", "hatch_started", ".gif")
+    life = await growing_life(bot, hatched_by=NAMED)
+    life.phase = Phase.HATCHING
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HATCH_STARTED)])
+
+    cracking = server.house.send.await_args_list[0]
+    assert said(cracking.args[0], Moment.HATCH_STARTED, version="1")
+    assert cracking.kwargs["file"].filename == "hatch_started.gif"
+
+
+async def test_an_event_gif_beats_its_png(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "events", "hatch_started")
+    add_image(assets, "events", "hatch_started", ".gif")
+    life = await growing_life(bot, hatched_by=NAMED)
+    life.phase = Phase.HATCHING
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HATCH_STARTED)])
+
+    assert server.house.send.await_args_list[0].kwargs["file"].filename == (
+        "hatch_started.gif"
+    )
+
+
+async def test_hatched_keeps_the_baby_picture_first(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "stages", "baby")
+    add_image(assets, "events", "hatched", ".gif")
+    await growing_life(bot, hatched_by=NAMED)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HATCHED)])
+
+    assert server.house.send.await_args_list[0].kwargs["file"].filename == "baby.png"
 
 
 async def test_keepsake_art_prefers_the_animated_gif(

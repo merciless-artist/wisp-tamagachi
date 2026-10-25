@@ -15,6 +15,7 @@ from cogs.announce import (
     say_in_house,
     show_in_thread,
 )
+from cogs.assets import nap_image
 from cogs.badges import sweep_badges
 from cogs.pictures import life_image
 from cogs.players import status_text
@@ -157,7 +158,9 @@ class LifeLoop(commands.Cog):
         if frozen or life.phase is not Phase.ALIVE or guild_id in self._quiet_announced:
             return
         self._quiet_announced.add(guild_id)
-        await say_in_house(self.bot, guild_id, Moment.QUIET, life)
+        await say_in_house(
+            self.bot, guild_id, Moment.QUIET, life, image=nap_image(life.stage)
+        )
 
     # ---
     # Status card

@@ -13,6 +13,7 @@ from discord.ext import commands
 
 from ai.prompt import Prompt
 from cogs.announce import post_in_house
+from cogs.assets import nap_image
 from cogs.groups import require_guild
 from cogs.players import EXPECTED_FAILURES, bot_of, report_failure, say_privately
 from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
@@ -159,7 +160,7 @@ async def _prompt(
         speaker,
         chat,
         text,
-        expressions=expressions(bot),
+        expressions=expressions(bot, life.stage),
         poked=poked,
         own_emojis=emojis,
     )
@@ -325,7 +326,12 @@ class Conversation(commands.Cog):
             return
         self._chimed_at[guild.id] = now
         prompt = build_prompt(
-            life.stage, mood(life), None, chat, None, expressions=expressions(self.bot)
+            life.stage,
+            mood(life),
+            None,
+            chat,
+            None,
+            expressions=expressions(self.bot, life.stage),
         )
         reply = await ai_reply(self.bot, guild, prompt)
         if reply is None:
@@ -375,7 +381,8 @@ async def _poke(interaction: discord.Interaction) -> None:
     name = player.name or user.display_name
     reaction = await _reaction(interaction, life, level, player, name, flavor)
     poked = "the egg" if level is Talk.EGG else "Wisp"
-    await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}")
+    nap = nap_image(life.stage) if flavor is PokeFlavor.WOKE_UP else None
+    await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}", nap)
     log.info(
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
     )

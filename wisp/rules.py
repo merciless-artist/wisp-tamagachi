@@ -149,6 +149,9 @@ TICK_EVERY = timedelta(minutes=5)
 HAPPINESS_WINDOW = timedelta(hours=24)
 QUIET_AFTER = timedelta(hours=9)
 
+# The stages that have nap art, and so show it when he is woken or goes quiet.
+NAP_STAGES: Final = frozenset({Stage.BABY, Stage.CHILD})
+
 # ---
 # Snacks
 # ---

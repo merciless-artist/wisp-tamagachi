@@ -9,8 +9,21 @@ import discord
 
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
-from wisp.rules import CONTEXT_LINES, POKE_SPAM_WINDOW, TALK_COOLDOWN
-from wisp.voice import COIN_EMOJI, EGG_EXPRESSION, ChatLine, Reply, parse_reply
+from wisp.rules import (
+    CONTEXT_LINES,
+    NAP_STAGES,
+    POKE_SPAM_WINDOW,
+    TALK_COOLDOWN,
+    Stage,
+)
+from wisp.voice import (
+    COIN_EMOJI,
+    EGG_EXPRESSION,
+    NAP_EMOJI,
+    ChatLine,
+    Reply,
+    parse_reply,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -26,15 +39,19 @@ _CONTEXT: Final = "Wisp's AI voice"
 # ---
 
 
-def expressions(bot: "WispBot") -> list[str]:
-    """Names of hatched Wisp's uploaded face emojis, sorted.
+def expressions(bot: "WispBot", stage: Stage) -> list[str]:
+    """Names of hatched Wisp's uploaded emojis he can use at `stage`, sorted.
 
-    The coin is not a face, and the egg's face is only the egg's.
+    The coin is not a face, the egg's face is only the egg's and the nap is
+    only for the stages that have nap art.
     """
+    unavailable = (
+        _NOT_HIS_FACES if stage in NAP_STAGES else _NOT_HIS_FACES | {NAP_EMOJI}
+    )
     return sorted(
         name
         for name in bot.emojis_by_name
-        if name.startswith(_EXPRESSION_PREFIX) and name not in _NOT_HIS_FACES
+        if name.startswith(_EXPRESSION_PREFIX) and name not in unavailable
     )
 
 

@@ -595,6 +595,10 @@ def test_an_egg_gets_the_egg_version_of_each_flavor(
 APP_EMOJIS = {
     "wisp_happy",
     "wisp_big_grin",
+    "wisp_gg",
+    "wisp_chill",
+    "wisp_in_love",
+    "wisp_excited",
     "gift_tama_nano",
     "keepsake_eggshell",
     "snack_cheese",
@@ -654,6 +658,10 @@ def note_for(name: str) -> str:
     [
         ("wisp_happy", "wisp_happy, which is your happy face"),
         ("wisp_big_grin", "wisp_big_grin, which is your big grin face"),
+        ("wisp_gg", "wisp_gg, which is your GG sticker"),
+        ("wisp_chill", "wisp_chill, which is your chill face"),
+        ("wisp_in_love", "wisp_in_love, which is your heart-eyes face"),
+        ("wisp_excited", "wisp_excited, which is your excited face"),
         (
             "gift_tama_nano",
             "gift_tama_nano, which is Tamagotchi Nano, one of your gifts",

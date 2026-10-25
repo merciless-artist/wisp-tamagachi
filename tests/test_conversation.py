@@ -1001,7 +1001,27 @@ def test_expressions_are_wisp_faces_without_the_coin_or_the_egg(
 ) -> None:
     give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_egg", "wisp_happy")
 
-    assert expressions(bot) == ["wisp_happy", "wisp_sad"]
+    assert expressions(bot, Stage.TEEN) == ["wisp_happy", "wisp_sad"]
+
+
+@pytest.mark.parametrize(
+    ("stage", "gets_nap"),
+    [
+        (Stage.BABY, True),
+        (Stage.CHILD, True),
+        (Stage.TEEN, False),
+        (Stage.ADULT, False),
+        (Stage.ROCKSTAR, False),
+        (Stage.OLD_FOGEY, False),
+    ],
+)
+def test_the_nap_emoji_is_only_for_baby_and_child(
+    bot: app.WispBot, stage: Stage, gets_nap: bool
+) -> None:
+    give_emojis(bot, "wisp_happy", "wisp_nap", "wisp_gg")
+
+    assert ("wisp_nap" in expressions(bot, stage)) is gets_nap
+    assert "wisp_gg" in expressions(bot, stage)
 
 
 # ---
@@ -1223,6 +1243,75 @@ async def test_a_quiet_house_means_the_poke_wakes_him(
 
     (prompt,) = prompts(ai)
     assert "this poke woke you up" in prompt.user
+
+
+def house_pictures(server: FakeServer) -> list[str | None]:
+    """The picture attached to each House post, or None for text only."""
+    return [
+        post.kwargs["file"].filename if "file" in post.kwargs else None
+        for post in server.house.send.await_args_list
+    ]
+
+
+@pytest.mark.parametrize(
+    ("stage", "picture"),
+    [
+        (Stage.BABY, "nap.gif"),
+        (Stage.CHILD, "nap.gif"),
+        (Stage.TEEN, None),
+        (Stage.ADULT, None),
+    ],
+)
+async def test_waking_him_shows_the_nap_picture_only_while_young(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    cog: Conversation,
+    clock: Clock,
+    server: FakeServer,
+    poke: Press,
+    stage: Stage,
+    picture: str | None,
+) -> None:
+    await lay(bot, stage)
+    await cog.on_message(message("anyone here", author=MEMBERS[SECOND]))
+    clock.advance(POKE_SLEEP_AFTER)
+
+    await poke()
+
+    (prompt,) = prompts(ai)
+    assert "this poke woke you up" in prompt.user
+    assert house_pictures(server) == [picture]
+
+
+async def test_a_poke_that_does_not_wake_him_has_no_picture(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot, Stage.BABY)
+
+    await poke()
+
+    assert "woke you up" not in prompts(ai)[0].user
+    assert house_pictures(server) == [None]
+
+
+async def test_a_sleepy_egg_has_no_nap_picture(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    cog: Conversation,
+    clock: Clock,
+    server: FakeServer,
+    poke: Press,
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    await cog.on_message(message("anyone here", author=MEMBERS[SECOND]))
+    clock.advance(POKE_SLEEP_AFTER)
+
+    await poke()
+
+    assert "a sleepy egg" in prompts(ai)[0].user
+    assert house_pictures(server) == [None]
 
 
 async def test_a_flurry_of_pokes_annoys_him(

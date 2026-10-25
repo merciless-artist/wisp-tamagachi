@@ -43,15 +43,23 @@ def _image_for(event: Event) -> Path | None:
     """Return the first existing image for an event, or None for text only."""
     stages = ASSETS_DIR / "stages"
     events = ASSETS_DIR / "events"
-    candidates: list[Path] = []
+    candidates: list[tuple[Path, str]] = []
     match event.kind:
         case EventKind.STAGE_UP | EventKind.GREW_OLD if event.stage is not None:
-            candidates = [stages / f"{event.stage.value}.png"]
+            candidates = [(stages, event.stage.value)]
         case EventKind.HATCHED:
-            candidates = [stages / f"{_BABY_STAGE}.png", events / "hatched.png"]
-        case EventKind.DIED | EventKind.EGG_COLD | EventKind.FAREWELL:
-            candidates = [events / f"{event.kind.value}.png"]
-    return next((path for path in candidates if path.is_file()), None)
+            candidates = [(stages, _BABY_STAGE), (events, "hatched")]
+        case (
+            EventKind.HATCH_STARTED
+            | EventKind.DIED
+            | EventKind.EGG_COLD
+            | EventKind.FAREWELL
+        ):
+            candidates = [(events, event.kind.value)]
+    return next(
+        (path for folder, name in candidates if (path := asset_image(folder, name))),
+        None,
+    )
 
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:

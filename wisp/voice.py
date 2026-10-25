@@ -40,6 +40,15 @@ NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 EGG_EXPRESSION: Final = "wisp_egg"
 # The Vault's points, not one of his faces.
 COIN_EMOJI: Final = "wisp_coin"
+# The nap GIF in small, only for the stages that have nap art.
+NAP_EMOJI: Final = "wisp_nap"
+# Reactions whose names do not read as "<name> face".
+_REACTIONS: Final = {
+    "wisp_gg": "GG sticker",
+    "wisp_chill": "chill face",
+    "wisp_in_love": "heart-eyes face",
+    "wisp_excited": "excited face",
+}
 # A custom emoji name as Discord allows it.
 EMOJI_NAME_PATTERN: Final = r"[A-Za-z0-9_]{2,32}"
 _EMOJI_NAME: Final = re.compile(EMOJI_NAME_PATTERN)
@@ -396,6 +405,8 @@ def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
     words = key.replace("_", " ")
     if emoji.name == COIN_EMOJI:
         return "the coin members spend in the ViiBR Vault"
+    if emoji.name in _REACTIONS:
+        return f"{whose} {_REACTIONS[emoji.name]}"
     if kind == "wisp" and key:
         return f"{whose} {words} face"
     if kind == "gift" and key in GIFT_BY_KEY:
