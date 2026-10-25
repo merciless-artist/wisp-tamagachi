@@ -584,10 +584,11 @@ async def test_setup_hook_runs_in_order_and_survives_a_bad_extension(
         "load cogs.broken",
         "load cogs.fine",
         "add wisp",
+        "add wispadmin",
         "sync",
     ]
     assert bot.tree.get_command("wisp") is groups.wisp
-    assert bot.tree.get_command("wispadmin") is None
+    assert bot.tree.get_command("wispadmin") is groups.wispadmin
     assert bot.emojis_by_name == {"a": emoji}
 
 

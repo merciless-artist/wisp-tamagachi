@@ -466,8 +466,14 @@ def no_studio_work(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         calls.append(f"badges in {getattr(where, 'id', None)}")
         return ["・Badge roles: all 2 ready"]
 
+    async def ensure_house_panel(
+        _bot: app.WispBot, _guild: object, where: object
+    ) -> None:
+        calls.append(f"panel in {getattr(where, 'id', None)}")
+
     monkeypatch.setattr(studio, "ensure_studio", ensure_studio)
     monkeypatch.setattr(studio, "ensure_badge_roles", ensure_badge_roles)
+    monkeypatch.setattr(studio, "ensure_house_panel", ensure_house_panel)
     return calls
 
 
@@ -497,7 +503,11 @@ async def test_setup(
         settings.studio_forum_id,
         settings.tracks_channel_id,
     ) == (HOUSE_ID, STUDIO_ID, TRACKS_ID)
-    assert no_studio_work == ["studio", f"badges in {HERE_ID}"]
+    assert no_studio_work == [
+        f"panel in {HERE_ID}",
+        "studio",
+        f"badges in {HERE_ID}",
+    ]
     assert sent(server.here) == [
         "♪ Wisp is set up.\n"
         f"・Wisp's House: <#{HOUSE_ID}>\n"
@@ -729,8 +739,121 @@ async def test_unban_strip_and_resetname(
 # ---
 
 
-def test_the_staff_slash_group_is_gone() -> None:
-    assert not hasattr(groups, "wispadmin")
+def test_the_staff_slash_group_has_only_setup_and_faq() -> None:
+    group = groups.wispadmin
+    assert group.default_permissions == discord.Permissions(manage_guild=True)
+    assert group.guild_only
+    contexts = group.allowed_contexts
+    assert contexts is not None
+    assert (contexts.guild, contexts.dm_channel, contexts.private_channel) == (
+        True,
+        False,
+        False,
+    )
+    names = {command.qualified_name for command in group.walk_commands()}
+    assert names == {"wispadmin setup", "wispadmin faq"}
+    assert group.get_command("setup") is studio.setup_slash
+    assert group.get_command("faq") is studio.faq_slash
+
+
+def slash(bot: app.WispBot, server: FakeServer, user: MagicMock) -> MagicMock:
+    """A /wispadmin command used in the staff channel."""
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.client = bot
+    interaction.user = user
+    interaction.guild = server.guild
+    interaction.guild_id = GUILD_ID
+    interaction.channel = server.here
+    interaction.response = MagicMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    return interaction
+
+
+@pytest.fixture
+def shared(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
+    """The shared setup and FAQ logic, standing in so each form's call shows."""
+    stand_ins = {
+        "set_up": AsyncMock(return_value="♪ set up"),
+        "rebuild": AsyncMock(return_value="♪ rebuilt"),
+    }
+    for name, stand_in in stand_ins.items():
+        monkeypatch.setattr(studio, name, stand_in)
+    return stand_ins
+
+
+@pytest.mark.parametrize("who", ["the app owner", "a Manage Server holder"])
+async def test_slash_setup_and_faq_reach_the_shared_logic_privately(
+    bot: app.WispBot, server: FakeServer, shared: dict[str, AsyncMock], who: str
+) -> None:
+    user = (
+        server.member(OWNER_ID)
+        if who == "the app owner"
+        else server.member(STAFF_ID, manage_guild=True)
+    )
+    setup_command: Any = studio.setup_slash
+    faq_command: Any = studio.faq_slash
+    setup_used = slash(bot, server, user)
+    faq_used = slash(bot, server, user)
+
+    await setup_command.callback(
+        setup_used, server.house, server.studio, server.forum_drop
+    )
+    await faq_command.callback(faq_used)
+
+    shared["set_up"].assert_awaited_once_with(
+        bot, server.guild, server.house, server.studio, server.forum_drop, server.here
+    )
+    shared["rebuild"].assert_awaited_once_with(bot, GUILD_ID)
+    for used, text in ((setup_used, "♪ set up"), (faq_used, "♪ rebuilt")):
+        used.response.defer.assert_awaited_once_with(ephemeral=True)
+        call = used.followup.send.await_args
+        assert call.args == (text,)
+        assert call.kwargs["ephemeral"] is True
+        assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert server.all_sent() == []
+
+
+async def test_the_typed_forms_reach_the_same_shared_logic(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    shared: dict[str, AsyncMock],
+) -> None:
+    content = f"!wisp setup <#{HOUSE_ID}> <#{STUDIO_ID}> <#{FORUM_DROP_ID}>"
+
+    await say(bot, server.message(content, boss))
+    await say(bot, server.message("!wisp faq", boss))
+
+    shared["set_up"].assert_awaited_once_with(
+        bot, server.guild, server.house, server.studio, server.forum_drop, server.here
+    )
+    shared["rebuild"].assert_awaited_once_with(bot, GUILD_ID)
+    assert sent(server.here) == ["♪ set up", "♪ rebuilt"]
+
+
+async def test_slash_setup_and_faq_refuse_anyone_but_staff(
+    bot: app.WispBot, server: FakeServer, shared: dict[str, AsyncMock]
+) -> None:
+    member = server.member(MEMBER_ID, role_ids=[OTHER_ROLE_ID])
+    setup_command: Any = studio.setup_slash
+    faq_command: Any = studio.faq_slash
+    setup_used = slash(bot, server, member)
+    faq_used = slash(bot, server, member)
+
+    await setup_command.callback(setup_used, server.house, server.studio, server.tracks)
+    await faq_command.callback(faq_used)
+
+    for used in (setup_used, faq_used):
+        used.response.send_message.assert_awaited_once_with(
+            "That command is for staff.", ephemeral=True
+        )
+        used.response.defer.assert_not_awaited()
+        used.followup.send.assert_not_awaited()
+    shared["set_up"].assert_not_awaited()
+    shared["rebuild"].assert_not_awaited()
 
 
 def test_the_members_slash_commands_are_still_registered() -> None:

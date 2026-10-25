@@ -8,12 +8,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from cogs.assets import ASSETS_DIR
 from cogs.badges import ensure_badge_roles
+from cogs.channels import where_of
 from cogs.faq import FAQ_SECTIONS, fill_faq
-from cogs.staff import StaffContext, guild_of, reply, usage_line
+from cogs.groups import wispadmin
+from cogs.speech import POKE_ID, poke_view
+from cogs.staff import StaffContext, guild_of, refused, reply, usage_line
 from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import is_over
@@ -38,6 +42,8 @@ _NUMBER_WORDS: Final = (
     "nine",
     "ten",
 )
+HOUSE_PANEL: Final = "♪ Poke Wisp\n・tap the button, or mention @Wisp to talk"
+_PANEL_CONTEXT: Final = "setting up the Poke Wisp panel in Wisp's House"
 TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -435,6 +441,168 @@ async def studio_thread(bot: "WispBot", guild_id: int, attr: str) -> discord.Thr
 
 
 # ---
+# House panel
+# ---
+
+
+def _has_poke_button(message: discord.Message) -> bool:
+    return any(
+        isinstance(child, discord.Button) and child.custom_id == POKE_ID
+        for row in message.components
+        if isinstance(row, discord.ActionRow)
+        for child in row.children
+    )
+
+
+async def _stored_panel(
+    house: discord.abc.Messageable, message_id: int | None
+) -> discord.Message | None:
+    if message_id is None:
+        return None
+    try:
+        return await house.fetch_message(message_id)
+    except discord.NotFound:
+        return None
+
+
+async def ensure_house_panel(
+    bot: "WispBot", guild: discord.Guild, where: discord.abc.Messageable | None
+) -> None:
+    """Make sure Wisp's House has its one pinned Poke Wisp panel.
+
+    A stored panel that still exists is left alone, apart from pinning it
+    again and giving it back its button. One that is gone is posted anew and
+    pinned. A failure, such as a missing Pin Messages permission, is reported
+    in `where`.
+    """
+    house = await bot.house_channel(guild)
+    if house is None:
+        return
+    stored = (await bot.settings.get(guild.id)).house_panel_message_id
+    try:
+        panel = await _stored_panel(house, stored)
+        if panel is None:
+            panel = await house.send(
+                HOUSE_PANEL, view=poke_view(), allowed_mentions=_NO_PING
+            )
+            await bot.settings.update(guild.id, house_panel_message_id=panel.id)
+        elif not _has_poke_button(panel):
+            await panel.edit(view=poke_view())
+        if not panel.pinned:
+            await panel.pin()
+    except discord.HTTPException as error:
+        await bot.report_error(guild, _PANEL_CONTEXT, error, where=where)
+
+
+# ---
+# Setup and FAQ, shared by both ways staff run them
+# ---
+
+
+async def set_up(
+    bot: "WispBot",
+    guild: discord.Guild,
+    house: discord.TextChannel,
+    studio: discord.ForumChannel,
+    tracks: discord.TextChannel | discord.ForumChannel,
+    where: discord.abc.Messageable | None,
+) -> str:
+    """Save the channels, then make the House panel, Studio threads and badge roles.
+
+    Failures along the way are reported in `where`. Returns the answer for
+    staff.
+    """
+    before = await bot.settings.get(guild.id)
+    await bot.settings.update(
+        guild.id,
+        house_channel_id=house.id,
+        studio_forum_id=studio.id,
+        tracks_channel_id=tracks.id,
+    )
+    await ensure_house_panel(bot, guild, where)
+    try:
+        after = await ensure_studio(bot, guild.id)
+    except StudioError as error:
+        return str(error)
+    created = [
+        spec.title
+        for spec in STUDIO_THREADS
+        if getattr(before, spec.attr) != getattr(after, spec.attr)
+    ]
+    threads = (
+        f"Created threads: {', '.join(created)}"
+        if created
+        else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
+    )
+    badge_lines = await ensure_badge_roles(bot, guild, where)
+    return "\n".join(
+        [
+            "♪ Wisp is set up.",
+            f"・Wisp's House: {house.mention}",
+            f"・Wisp's Studio: {studio.mention}",
+            f"・Track drop: {tracks.mention}",
+            f"・{threads}",
+            *badge_lines,
+        ]
+    )
+
+
+async def rebuild(bot: "WispBot", guild_id: int) -> str:
+    """Delete Wisp's own FAQ posts and post them fresh with a new contents list.
+
+    Staff use it after the FAQ pictures change. A Discord failure is raised to
+    the command's error handler. Returns the answer for staff.
+    """
+    try:
+        thread = await studio_thread(bot, guild_id, _FAQ_ATTR)
+    except StudioError as error:
+        return str(error)
+    async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
+        rules = rules_post(await bot.settings.get(guild_id))
+        await fill_faq(bot, guild_id, thread, rules)
+    return "♪ The Wisp FAQ is rebuilt."
+
+
+@wispadmin.command(
+    name="setup", description="Set Wisp's channels, Studio and badge roles."
+)
+@app_commands.describe(
+    house="Where Wisp talks and announces his big moments",
+    studio="The forum for Wisp's Studio threads",
+    tracks="The track drop channel Wisp eats from",
+)
+async def setup_slash(
+    interaction: discord.Interaction["WispBot"],
+    house: discord.TextChannel,
+    studio: discord.ForumChannel,
+    tracks: discord.TextChannel | discord.ForumChannel,
+) -> None:
+    """The slash form of `!wisp setup`, answered privately."""
+    if await refused(interaction) or interaction.guild is None:
+        return
+    await interaction.response.defer(ephemeral=True)
+    text = await set_up(
+        interaction.client,
+        interaction.guild,
+        house,
+        studio,
+        tracks,
+        where_of(interaction),
+    )
+    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
+
+
+@wispadmin.command(name="faq", description="Rebuild the Wisp FAQ thread.")
+async def faq_slash(interaction: discord.Interaction["WispBot"]) -> None:
+    """The slash form of `!wisp faq`, answered privately."""
+    if await refused(interaction) or interaction.guild_id is None:
+        return
+    await interaction.response.defer(ephemeral=True)
+    text = await rebuild(interaction.client, interaction.guild_id)
+    await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
+
+
+# ---
 # Staff commands
 # ---
 
@@ -446,44 +614,9 @@ async def setup_studio(
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
 ) -> None:
-    """Save the channels, then create any missing Studio threads and badge roles."""
-    bot = ctx.bot
-    guild = guild_of(ctx)
-    before = await bot.settings.get(guild.id)
-    await bot.settings.update(
-        guild.id,
-        house_channel_id=house.id,
-        studio_forum_id=studio.id,
-        tracks_channel_id=tracks.id,
-    )
-    try:
-        after = await ensure_studio(bot, guild.id)
-    except StudioError as error:
-        await reply(ctx, str(error))
-        return
-    created = [
-        spec.title
-        for spec in STUDIO_THREADS
-        if getattr(before, spec.attr) != getattr(after, spec.attr)
-    ]
-    threads = (
-        f"Created threads: {', '.join(created)}"
-        if created
-        else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
-    )
-    badge_lines = await ensure_badge_roles(bot, guild, ctx.channel)
+    """Save the channels, then make the House panel, Studio threads and badges."""
     await reply(
-        ctx,
-        "\n".join(
-            [
-                "♪ Wisp is set up.",
-                f"・Wisp's House: {house.mention}",
-                f"・Wisp's Studio: {studio.mention}",
-                f"・Track drop: {tracks.mention}",
-                f"・{threads}",
-                *badge_lines,
-            ]
-        ),
+        ctx, await set_up(ctx.bot, guild_of(ctx), house, studio, tracks, ctx.channel)
     )
 
 
@@ -526,22 +659,8 @@ async def roles_list(ctx: StaffContext) -> None:
 
 @commands.command(name="faq")
 async def rebuild_faq(ctx: StaffContext) -> None:
-    """Delete Wisp's own FAQ posts and post them fresh with a new contents list.
-
-    Staff use it after the FAQ pictures change. A Discord failure goes to the
-    bot's command error handler.
-    """
-    bot = ctx.bot
-    guild_id = guild_of(ctx).id
-    try:
-        thread = await studio_thread(bot, guild_id, _FAQ_ATTR)
-    except StudioError as error:
-        await reply(ctx, str(error))
-        return
-    async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
-        rules = rules_post(await bot.settings.get(guild_id))
-        await fill_faq(bot, guild_id, thread, rules)
-    await reply(ctx, "♪ The Wisp FAQ is rebuilt.")
+    """Rebuild the Wisp FAQ after its pictures change."""
+    await reply(ctx, await rebuild(ctx.bot, guild_of(ctx).id))
 
 
 @commands.command(name="freeze")

@@ -19,7 +19,8 @@ class Settings:
     It is frozen, so the copy the repository caches can be shared safely.
     `faq_message_ids` are the Wisp FAQ's section posts, in order; the column
     holds them as a JSON list. With `lay_eggs` off, no new egg is laid when a
-    life ends until staff turn it back on.
+    life ends until staff turn it back on. `house_panel_message_id` is the
+    pinned Poke Wisp panel in Wisp's House.
     """
 
     tracks_channel_id: int | None = None
@@ -38,6 +39,7 @@ class Settings:
     suno_meal_points: int | None = None
     frozen: bool = False
     lay_eggs: bool = True
+    house_panel_message_id: int | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))

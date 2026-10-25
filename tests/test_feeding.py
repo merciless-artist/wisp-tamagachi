@@ -23,6 +23,7 @@ from cogs import announce, feeding
 from cogs.announce import post_events
 from cogs.feeding import Feeding
 from cogs.share_links import ShareLinkResolver
+from cogs.speech import POKE_ID
 from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -1097,8 +1098,11 @@ async def test_death_announces_and_lays_the_next_egg(
     assert died.kwargs["file"].filename == "died.png"
     assert mentions_version(died.args[0], 1)
     assert mentions_version(new_egg_post.args[0], 2)
-    assert sends_without_pinging(new_egg_post.kwargs)
-    assert "file" not in new_egg_post.kwargs
+    sent = dict(new_egg_post.kwargs)
+    view = sent.pop("view")
+    assert [item.custom_id for item in view.children] == [POKE_ID]
+    assert sends_without_pinging(sent)
+    assert "file" not in sent
 
 
 async def test_cold_egg_lays_the_next_egg(

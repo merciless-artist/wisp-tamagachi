@@ -14,6 +14,7 @@ from cogs.announce import post_in_house
 from cogs.groups import require_guild
 from cogs.players import EXPECTED_FAILURES, bot_of, report_failure, say_privately
 from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
+from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
 from wisp.life import Life, mood
@@ -183,10 +184,11 @@ class Conversation(commands.Cog):
 
         Only the House channel itself counts, not its threads. Every line,
         Wisp's own included, joins the recent chat; bots are never answered and
-        never count as the House stirring.
+        never count as the House stirring. A staff command is not talk: it is
+        not heard, answered or chimed in on.
         """
         guild = message.guild
-        if guild is None:
+        if guild is None or is_command(message.content):
             return
         settings = await self.bot.settings.get(guild.id)
         wisp = self.bot.user

@@ -104,6 +104,25 @@ async def test_create_tables_adds_lay_eggs_to_a_live_settings_table(
             )
 
 
+async def test_create_tables_adds_the_house_panel_to_a_live_settings_table(
+    db: Database,
+) -> None:
+    settings = db.t("settings")
+    await db.execute(f"INSERT INTO {settings} (guild_id) VALUES (1)")
+    await db.execute(f"ALTER TABLE {settings} DROP COLUMN house_panel_message_id")
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT house_panel_message_id FROM {settings}")
+        assert row == {"house_panel_message_id": None}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {settings}")
+        if "house_panel_message_id" not in {column["Field"] for column in restored}:
+            await db.execute(
+                f"ALTER TABLE {settings} ADD COLUMN house_panel_message_id BIGINT NULL"
+            )
+
+
 async def test_create_tables_adds_staff_roles_beside_live_tables(
     db: Database,
 ) -> None:

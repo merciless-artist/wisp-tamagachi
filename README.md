@@ -61,14 +61,23 @@ commands, so they never dig through slash menus. Staff are Wisp's app owner
 server's staff roles. Anyone else is ignored without a word. Bare `!wisp` is
 kept free for the help menu.
 
+Setup and the FAQ rebuild also work as slash commands, `/wispadmin setup` and
+`/wispadmin faq`. They do exactly what `!wisp setup` and `!wisp faq` do, but
+answer privately. Discord shows them to members with Manage Server; a server
+admin can show them to a staff role under Server Settings, Integrations. Anyone
+who is not staff gets a private "That command is for staff."
+
 Staff commands answer publicly in the channel they were used in; from the
 track drop the answer goes to Wisp's House. Wrong arguments get one usage
 line, an unknown command gets the list of commands, and a failure is posted
 where the command was used.
 
-- `!wisp setup #house #studio #tracks` sets Wisp's House, the Studio forum
-  and the track drop channel (mentions, ids or names), and creates the Studio
-  threads that are missing (see Wisp's Studio).
+- `!wisp setup #house #studio #tracks` (or `/wispadmin setup`) sets Wisp's
+  House, the Studio forum and the track drop channel (mentions, ids or names),
+  and creates the Studio threads that are missing (see Wisp's Studio). It also
+  pins one Poke Wisp panel in the House: "♪ Poke Wisp" with the Poke Wisp
+  button. A rerun leaves a panel that still exists alone, pins it again or
+  gives back its button if needed, and posts a new one if it was deleted.
 - `!wisp roles add @role`, `!wisp roles remove @role`, `!wisp roles list`
   choose which roles can feed Wisp.
 - `!wisp staff add @role`, `!wisp staff remove @role`, `!wisp staff list`
@@ -78,7 +87,7 @@ where the command was used.
   track and a Suno track feed Wisp (0 to 50 each; leaderboard points match),
   and updates the quick rules post at the end of the Wisp FAQ. Until staff
   set them, the starting values in `wisp/rules.py` apply.
-- `!wisp faq` rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
+- `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
 - `!wisp freeze` and `!wisp unfreeze` pause and resume care draining.

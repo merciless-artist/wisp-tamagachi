@@ -2,7 +2,8 @@
 
 Members play through the /wisp slash commands; staff type their commands so
 they never dig through slash menus. Anyone who is not staff is ignored without
-a word. Bare `!wisp` is kept free for the help menu.
+a word. Bare `!wisp` is kept free for the help menu. Setup and the FAQ rebuild
+also have /wispadmin slash forms, which refuse non-staff privately.
 """
 
 import logging
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
 log = logging.getLogger("wisp")
 
 PREFIX: Final = "!wisp "
+STAFF_ONLY: Final = "That command is for staff."
 _NO_PING: Final = discord.AllowedMentions.none()
 
 StaffContext: TypeAlias = commands.Context["WispBot"]
@@ -43,6 +45,19 @@ async def is_staff(bot: "WispBot", member: discord.Member) -> bool:
     return await bot.is_owner(member)
 
 
+async def refused(interaction: discord.Interaction["WispBot"]) -> bool:
+    """Turn away a staff slash command from anyone but staff; True if refused.
+
+    The refusal is private. Discord already hides the command from members
+    without Manage Server, unless a server's integration settings show it.
+    """
+    user = interaction.user
+    if isinstance(user, discord.Member) and await is_staff(interaction.client, user):
+        return False
+    await interaction.response.send_message(STAFF_ONLY, ephemeral=True)
+    return True
+
+
 async def staff_check(ctx: StaffContext) -> bool:
     """The check every staff command runs before its arguments are read."""
     return isinstance(ctx.author, discord.Member) and await is_staff(
@@ -50,10 +65,15 @@ async def staff_check(ctx: StaffContext) -> bool:
     )
 
 
+def is_command(content: str) -> bool:
+    """Whether a message's text starts with the `!wisp ` prefix, in any case."""
+    return content[: len(PREFIX)].lower() == PREFIX
+
+
 def command_prefix(_bot: "WispBot", message: discord.Message) -> str:
     """The `!wisp ` prefix in whatever case the message typed it."""
-    typed = message.content[: len(PREFIX)]
-    return typed if typed.lower() == PREFIX else PREFIX
+    content = message.content
+    return content[: len(PREFIX)] if is_command(content) else PREFIX
 
 
 # ---

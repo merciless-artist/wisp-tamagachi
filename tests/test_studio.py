@@ -15,7 +15,14 @@ from discord.ext import commands
 
 import app
 from cogs import faq, feeding, groups, studio
-from cogs.studio import StudioError, ensure_studio, rules_text, studio_thread
+from cogs.speech import POKE_ID
+from cogs.studio import (
+    HOUSE_PANEL,
+    StudioError,
+    ensure_studio,
+    rules_text,
+    studio_thread,
+)
 from db.badges import BadgeRepo
 from db.database import Database
 from db.lives import LifeRepo
@@ -99,7 +106,9 @@ class FakeServer:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.id = HOUSE_ID
         self.house.mention = f"<#{HOUSE_ID}>"
-        self.house.send = AsyncMock()
+        self.house.send = AsyncMock(side_effect=self._house_post)
+        self.house.fetch_message = AsyncMock(side_effect=self._house_find)
+        self.house_messages: dict[int, MagicMock] = {}
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.guild.features = []
@@ -119,6 +128,28 @@ class FakeServer:
         role.display_icon = None
         self.roles[role.id] = role
         return role
+
+    def _house_post(self, content: str | None = None, **fields: Any) -> MagicMock:
+        self._next_id += 1
+        message = MagicMock(spec=discord.Message)
+        message.id = self._next_id
+        message.content = content
+        message.sent_kwargs = fields
+        message.pinned = False
+        message.pin = AsyncMock(side_effect=lambda: setattr(message, "pinned", True))
+        message.components = button_rows(fields.get("view"))
+        message.edit = AsyncMock(
+            side_effect=lambda **edited: setattr(
+                message, "components", button_rows(edited.get("view"))
+            )
+        )
+        self.house_messages[message.id] = message
+        return message
+
+    def _house_find(self, message_id: int) -> MagicMock:
+        if message_id not in self.house_messages:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Message")
+        return self.house_messages[message_id]
 
     def make_forum(self, forum_id: int) -> MagicMock:
         forum = MagicMock(spec=discord.ForumChannel)
@@ -260,9 +291,34 @@ class FakeServer:
         return match
 
 
+def button_rows(view: discord.ui.View | None) -> list[discord.ActionRow]:
+    """The component rows Discord would return for a message sent with `view`."""
+    if view is None:
+        return []
+    rows: list[Any] = view.to_components()
+    return [discord.ActionRow(row) for row in rows]
+
+
 @pytest.fixture
 def server() -> FakeServer:
     return FakeServer()
+
+
+def house_posts(server: FakeServer) -> list[Any]:
+    """The House sends other than the Poke Wisp panel."""
+    return [
+        call
+        for call in server.house.send.await_args_list
+        if call.args != (HOUSE_PANEL,)
+    ]
+
+
+def panels(server: FakeServer) -> list[MagicMock]:
+    return [
+        message
+        for message in server.house_messages.values()
+        if message.content == HOUSE_PANEL
+    ]
 
 
 def thumbnail_added(message: MagicMock) -> bool:
@@ -394,7 +450,7 @@ async def test_setup_creates_five_threads_with_the_vault(
     assert "・Badge roles created: Egg Warmer, Pickle Diplomat" in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_a_new_rules_post_shows_the_current_food_values(
@@ -453,7 +509,7 @@ async def test_a_starter_without_a_picture_gets_its_thumbnail(
         thread.fetch_message.assert_any_await(thread.id)
         assert server.messages[thread.id].attachments == [Path(relative).name]
     assert not thumbnail_added(server.messages[server.thread_named(STATUS).id])
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_a_starter_that_has_a_picture_is_left_alone(
@@ -483,7 +539,7 @@ async def test_thumbnail_failure_is_posted_in_its_thread(
     assert line.startswith("Error in adding the thumbnail to Mealtime: Forbidden")
     jam_starter = server.messages[server.thread_named(JAM).id]
     assert jam_starter.attachments == ["jam_space.png"]
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None:
@@ -497,7 +553,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert "Studio threads: all five already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_setup_recreates_deleted_thread(
@@ -515,10 +571,9 @@ async def test_setup_recreates_deleted_thread(
     assert settings.mealtime_thread_id == server.thread_named(MEALTIME).id
     assert settings.status_thread_id == before.status_thread_id
     assert settings.status_message_id == before.status_message_id
-    server.house.send.assert_awaited_once()
-    (line,) = server.house.send.await_args.args
-    assert line == "Wisp's Studio: recreated Mealtime."
-    assert server.house.send.await_args.kwargs["allowed_mentions"].to_dict() == (
+    (post,) = house_posts(server)
+    assert post.args == ("Wisp's Studio: recreated Mealtime.",)
+    assert post.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
 
@@ -559,7 +614,7 @@ async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
         (line,) = server.thread_named(name).send.await_args.args
         assert line.startswith(f"Error in pinning the card in {title}: Forbidden")
     server.thread_named(MEALTIME).send.assert_not_awaited()
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
@@ -582,7 +637,7 @@ async def test_lock_failure_is_posted_in_its_thread_and_setup_carries_on(
     assert server.created_names == list(THREAD_NAMES)
     (line,) = server.thread_named(FAQ).send.await_args_list[0].args
     assert line.startswith("Error in locking Wisp FAQ: Forbidden")
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_rerun_locks_an_existing_unlocked_rules_thread(
@@ -612,7 +667,7 @@ async def test_rerun_renames_threads_that_have_their_old_names(
     assert [thread.name for thread in server.threads.values()] == list(THREAD_NAMES)
     for thread in server.threads.values():
         thread.edit.assert_any_await(name=thread.name)
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_rename_failure_is_posted_in_its_thread_and_the_rest_carry_on(
@@ -632,7 +687,7 @@ async def test_rename_failure_is_posted_in_its_thread_and_the_rest_carry_on(
     (line,) = mealtime.send.await_args.args
     assert line.startswith("Error in renaming Mealtime: Forbidden")
     assert jam.name == JAM
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_rerun_pins_an_existing_unpinned_card(
@@ -661,7 +716,7 @@ async def test_rerun_skips_a_card_whose_message_is_gone(
     await ensure_studio(bot, GUILD_ID)
 
     assert server.created_names == list(THREAD_NAMES)
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_thread_in_another_forum_is_recreated(
@@ -690,7 +745,7 @@ async def test_archived_thread_is_unarchived_not_recreated(
 
     assert server.created_names == list(THREAD_NAMES)
     mealtime.edit.assert_awaited_once_with(archived=False)
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_ensure_studio_without_a_forum_raises(bot: app.WispBot) -> None:
@@ -787,7 +842,7 @@ async def test_setup_builds_the_faq_in_order(
     assert sends_without_pinging(starter.edit.await_args.kwargs)
     assert thread.locked is True
     tracks.send.assert_not_called()
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_the_faq_thread_has_its_thumbnail_and_table_of_contents(
@@ -846,7 +901,7 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
         old.id, tuple(section.id for section in sections)
     )
     assert server.deleted == []
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_a_built_faq_is_not_built_again(
@@ -876,7 +931,7 @@ async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_o
     assert "05_your_bond.png" in report
     assert (await bot.settings.get(GUILD_ID)).faq_message_ids is None
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
     missing.write_bytes(b"png")
     await ensure_studio(bot, GUILD_ID)
@@ -968,7 +1023,7 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     assert starter.content.splitlines() == toc_lines(thread.id, after.faq_message_ids)
     assert sent_text(ctx) == "♪ The Wisp FAQ is rebuilt."
     assert server.created_names == list(THREAD_NAMES)
-    server.house.send.assert_not_awaited()
+    assert house_posts(server) == []
 
 
 async def test_faq_command_skips_posts_already_gone_and_never_the_first_post(
@@ -1016,6 +1071,103 @@ def test_table_of_contents_fits_one_message() -> None:
 
 
 # ---
+# House panel
+# ---
+
+
+def has_poke_button(message: MagicMock) -> bool:
+    return [
+        child.custom_id for row in message.components for child in row.children
+    ] == [POKE_ID]
+
+
+async def test_setup_posts_and_pins_the_poke_panel_in_the_house(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    (panel,) = panels(server)
+    assert panel.pinned
+    assert has_poke_button(panel)
+    assert panel.sent_kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
+    assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == panel.id
+    assert not re.search(EMOJI, HOUSE_PANEL)
+
+
+async def test_a_rerun_leaves_the_panel_alone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    (panel,) = panels(server)
+
+    await run_setup(bot, server)
+
+    assert panels(server) == [panel]
+    panel.pin.assert_awaited_once()
+    panel.edit.assert_not_awaited()
+    assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == panel.id
+
+
+async def test_a_rerun_pins_the_panel_again_and_gives_back_its_button(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    (panel,) = panels(server)
+    panel.pinned = False
+    panel.components = []
+
+    await run_setup(bot, server)
+
+    assert panels(server) == [panel]
+    assert panel.pinned
+    assert has_poke_button(panel)
+
+
+async def test_a_deleted_panel_is_posted_again(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    (old,) = panels(server)
+    del server.house_messages[old.id]
+
+    await run_setup(bot, server)
+
+    (panel,) = panels(server)
+    assert panel is not old
+    assert panel.pinned
+    assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == panel.id
+
+
+async def test_a_panel_that_cannot_be_pinned_is_reported_where_setup_ran(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    original = server.house.send.side_effect
+
+    def unpinnable(*args: Any, **kwargs: Any) -> MagicMock:
+        message: MagicMock = original(*args, **kwargs)
+        message.pin.side_effect = discord.Forbidden(
+            MagicMock(status=403), "Missing Permissions"
+        )
+        return message
+
+    server.house.send.side_effect = unpinnable
+
+    ctx = await run_setup(bot, server)
+
+    (panel,) = panels(server)
+    assert not panel.pinned
+    assert (await bot.settings.get(GUILD_ID)).house_panel_message_id == panel.id
+    report, answer = (call.args[0] for call in ctx.channel.send.await_args_list)
+    assert report.startswith(
+        "Error in setting up the Poke Wisp panel in Wisp's House: Forbidden"
+    )
+    assert answer.startswith("♪ Wisp is set up.")
+    assert house_posts(server) == []
+
+
+# ---
 # studio_thread
 # ---
 
@@ -1054,7 +1206,7 @@ async def test_studio_thread_recreates_a_deleted_thread(
     assert thread is not old
     assert thread is server.thread_named(MEALTIME)
     assert (await bot.settings.get(GUILD_ID)).mealtime_thread_id == thread.id
-    server.house.send.assert_awaited_once()
+    assert len(house_posts(server)) == 1
 
 
 async def test_studio_thread_rejects_an_unknown_setting(

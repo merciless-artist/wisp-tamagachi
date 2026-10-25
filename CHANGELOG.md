@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-24 (staff command follow-ups)
+
+- `/wispadmin setup` and `/wispadmin faq` are back as slash commands beside
+  `!wisp setup` and `!wisp faq`, sharing their logic. The group needs Manage
+  Server by default, answers privately, and turns away anyone who is not
+  staff with "That command is for staff."
+- Setup pins a Poke Wisp panel in Wisp's House ("♪ Poke Wisp", with the Poke
+  Wisp button). Its id is kept in the new settings column
+  `house_panel_message_id`, added to a live table at startup. A rerun leaves
+  it alone, re-pins it or gives back its button, and posts a new one when it
+  was deleted. A failure, such as a missing Pin Messages permission, is
+  posted where setup ran.
+- Wisp's House conversation ignores `!wisp` commands: they are not answered,
+  not chimed in on and not kept as chat context.
+
 ## 2026-10-24 (staff commands move to !wisp)
 
 - Staff commands are typed text commands now: `!wisp setup`, `roles`,

@@ -944,6 +944,39 @@ async def test_context_includes_recent_house_lines(
     assert prompt.user.endswith("Member1 says to you: thoughts on Member2?")
 
 
+async def test_staff_commands_are_not_talk(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    cog.rng = FixedRandom(0.0)
+    commands = [
+        message("!wisp freeze"),
+        message("!WISP Roles list", author=MEMBERS[SECOND]),
+        message(f"!wisp <@{WISP_ID}> are you there", mentions=[WISP]),
+    ]
+    for command in commands:
+        await cog.on_message(command)
+
+    ai.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+    for command in commands:
+        command.reply.assert_not_awaited()
+
+    cog.rng = FixedRandom(1.0)
+    await cog.on_message(message("!wispy is a word", author=MEMBERS[SECOND]))
+    await cog.on_message(message.to_wisp("you there?"))
+
+    (prompt,) = prompts(ai)
+    assert "Member2: !wispy is a word" in prompt.user
+    assert "freeze" not in prompt.user
+    assert "Roles" not in prompt.user
+    assert "are you there" not in prompt.user
+
+
 async def test_context_keeps_only_the_latest_lines(
     cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
 ) -> None:
