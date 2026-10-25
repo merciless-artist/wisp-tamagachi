@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 (egg art)
+
+- New egg picture for the status card, the Poke Wisp panel and new-egg posts.
+- An egg born from the Last Ember's coal has its own glowing coal egg picture.
+- An egg that goes cold is posted with a cold blue egg picture.
+
 ## 2026-10-24 (faster answers, the free snack in the Vault)
 
 - The AI chain asks Groq first, then the Gemini fallback model, the Gemini
