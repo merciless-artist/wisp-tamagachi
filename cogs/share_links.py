@@ -36,6 +36,7 @@ class ShareLinkResolver:
         self._origins = dict(origins or {})
         self._timeout = timeout
         self._session: aiohttp.ClientSession | None = None
+        self._closed = False
 
     async def resolve(self, link: ShareLink) -> Track | None:
         """Return the song `link` names, shown as posted, or None if it names none.
@@ -57,7 +58,8 @@ class ShareLinkResolver:
         return None
 
     async def close(self) -> None:
-        """Close the HTTP session if one is open."""
+        """Close the HTTP session if one is open, and open no other."""
+        self._closed = True
         if self._session is not None and not self._session.closed:
             await self._session.close()
 
@@ -85,7 +87,14 @@ class ShareLinkResolver:
         return url if origin is None else str(URL(origin).join(parsed.relative()))
 
     def _open(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
+        """The shared session, opened on first use; none once the resolver is closed.
+
+        Raises:
+            aiohttp.ClientConnectionError: The resolver is closed for shutdown.
+        """
+        if self._closed:
+            raise aiohttp.ClientConnectionError("the share link resolver is closed")
+        if self._session is None:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self._timeout.total_seconds()),
                 headers={"User-Agent": _USER_AGENT},

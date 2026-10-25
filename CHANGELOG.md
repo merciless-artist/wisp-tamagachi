@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-24 (faster answers, the free snack in the Vault)
+
+- The AI chain asks Groq first, then the Gemini fallback model, the Gemini
+  chat model and OpenRouter. Each provider gets 8 seconds (was 12).
+- The AI chain and the share-link resolver open no new HTTP session once
+  closed, so a request still running at shutdown no longer leaves an
+  unclosed session behind.
+- The log has one line per AI answer (provider and time) and one per poke or
+  mention (time from receiving it to posting). Keys and prompts are never
+  logged.
+- The Vault's Snack Box starts with the free Sine Wave and how to feed it;
+  the buy select still lists only paid snacks.
+
 ## 2026-10-24 (staff review fixes)
 
 - `!wisp staff add` refuses @everyone, and a stored @everyone row never makes

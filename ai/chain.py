@@ -1,4 +1,4 @@
-"""Wisp's AI provider chain: Gemini, a Gemini fallback, Groq, then OpenRouter."""
+"""Wisp's AI provider chain: Groq, the Gemini models, then OpenRouter."""
 
 import logging
 import time
@@ -184,7 +184,9 @@ class AIChain:
     """Tries each provider in turn and returns the first answer.
 
     A provider that fails is skipped for AI_PROVIDER_COOLDOWN, so one that is
-    overloaded does not add its full timeout to every reply.
+    overloaded does not add its full timeout to every reply. Once closed, the
+    chain answers nothing and never opens another HTTP session, so a request
+    still running at shutdown cannot leave one unclosed.
     """
 
     def __init__(
@@ -196,13 +198,18 @@ class AIChain:
         self._clock = clock
         self._cooling_until: dict[str, float] = {}
         self._session: aiohttp.ClientSession | None = None
+        self._closed = False
 
     async def complete(self, prompt: Prompt) -> str:
         """Return the first provider's answer; raise AllProvidersFailed if none.
 
         If every provider is cooling down, it fails at once without asking any
-        of them, so an outage cannot hold up every reply.
+        of them, so an outage cannot hold up every reply. Each answer is logged
+        with the provider that gave it and how long it took; the prompt and
+        the keys never are.
         """
+        if self._closed:
+            raise AllProvidersFailed([("chain", "closed for shutdown")])
         now = self._clock()
         ready = [
             provider
@@ -216,21 +223,31 @@ class AIChain:
         session = self._open_session()
         failures: list[tuple[str, str]] = []
         for provider in ready:
+            asked = self._clock()
             try:
                 answer = await provider.complete(session, prompt)
             except ProviderError as error:
-                log.warning("AI provider %s failed: %s", provider.name, error)
+                log.warning(
+                    "AI provider %s failed after %.1f s: %s",
+                    provider.name,
+                    self._clock() - asked,
+                    error,
+                )
                 failures.append((provider.name, str(error)))
                 self._cooling_until[provider.name] = (
                     self._clock() + AI_PROVIDER_COOLDOWN.total_seconds()
                 )
             else:
+                log.info(
+                    "AI reply from %s in %.1f s", provider.name, self._clock() - asked
+                )
                 self._cooling_until.pop(provider.name, None)
                 return answer
         raise AllProvidersFailed(failures)
 
     async def close(self) -> None:
-        """Close the HTTP session, if one was opened."""
+        """Close the HTTP session, if one was opened, and open no other."""
+        self._closed = True
         session, self._session = self._session, None
         if session is not None:
             await session.close()
@@ -247,18 +264,22 @@ class AIChain:
 
 
 def chain_from_config() -> AIChain:
-    """Build the chain from the environment, skipping providers that lack settings."""
+    """Build the chain from the environment, skipping providers that lack settings.
+
+    Groq goes first, as the fastest, then the Gemini fallback model, the Gemini
+    chat model and OpenRouter.
+    """
     providers: list[Provider] = []
-    if config.GOOGLE_API_KEY:
-        providers += [
-            GeminiProvider(model, config.GOOGLE_API_KEY)
-            for model in (config.GOOGLE_CHAT_MODEL, config.GOOGLE_FALLBACK_MODEL)
-            if model
-        ]
     if config.GROQ_API_KEY and config.GROQ_MODEL:
         providers.append(
             ChatProvider("groq", GROQ_URL, config.GROQ_MODEL, config.GROQ_API_KEY)
         )
+    if config.GOOGLE_API_KEY:
+        providers += [
+            GeminiProvider(model, config.GOOGLE_API_KEY)
+            for model in (config.GOOGLE_FALLBACK_MODEL, config.GOOGLE_CHAT_MODEL)
+            if model
+        ]
     if config.OPENROUTER_API_KEY and config.OPENROUTER_MODEL:
         providers.append(
             ChatProvider(

@@ -300,7 +300,11 @@ async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> 
     lines = text.splitlines()
     assert lines[:2] == ["♪ The ViiBR Vault", f"{emoji_text('wisp_coin')} 12 points"]
     (menu,) = text.split(SEPARATOR + "\n")[1:]
-    assert menu.splitlines()[0] == "Snack Box"
+    assert menu.splitlines()[:2] == [
+        "Snack Box",
+        f"・{emoji_text('snack_sinewave', 3)} Sine Wave ・ free once a day ・ "
+        "care +2 ・ feed it with the Feed Wisp button",
+    ]
     assert (
         f"・{emoji_text('snack_cloudwave', 2)} Cloud Wave ・ 3 points ・ care +5"
         in text
@@ -308,7 +312,7 @@ async def test_vault_shows_the_snack_box_with_a_buy_select(bot: app.WispBot) -> 
     for snack in SNACKS:
         if snack.cost > 0:
             assert f"{snack.name} ・ {snack.cost} points ・ care +{snack.care}" in menu
-    assert "Sine Wave" not in menu
+    assert menu.count("Sine Wave") == 1
     assert "Your snacks" not in text
     assert "x2" not in text
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)

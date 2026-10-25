@@ -1,6 +1,7 @@
 """Tests for resolving viibrmusic.com share links, against local HTTP servers."""
 
 import asyncio
+import gc
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -189,8 +190,15 @@ async def test_closing_an_unused_resolver_is_safe() -> None:
     await ShareLinkResolver().close()
 
 
-async def test_a_closed_resolver_opens_a_new_session(sites: Sites) -> None:
+@pytest.mark.filterwarnings(
+    "error::ResourceWarning", "error::pytest.PytestUnraisableExceptionWarning"
+)
+async def test_a_closed_resolver_opens_no_new_session(sites: Sites) -> None:
     await sites.resolver.resolve(link("bDBmywB5"))
     await sites.resolver.close()
 
-    assert await sites.resolver.resolve(link("relative")) == song("relative", SONG)
+    with pytest.raises(aiohttp.ClientConnectionError, match="closed"):
+        await sites.resolver.resolve(link("relative"))
+    gc.collect()
+
+    assert sites.apex.requests == [("/s/bDBmywB5", "WispBot/1.0")]

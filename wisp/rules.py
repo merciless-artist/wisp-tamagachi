@@ -420,7 +420,7 @@ def badge_name(key: str) -> str:
 # AI voice
 # ---
 
-AI_TIMEOUT = timedelta(seconds=12)
+AI_TIMEOUT = timedelta(seconds=8)
 AI_PROVIDER_COOLDOWN = timedelta(minutes=5)
 AI_MAX_OUTPUT_TOKENS = 1024
 AI_MAX_CHARS = 600

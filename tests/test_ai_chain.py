@@ -1,4 +1,6 @@
 import asyncio
+import gc
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -452,6 +454,65 @@ async def test_close_without_a_request_is_safe_and_repeatable() -> None:
     await ai.close()
 
 
+@pytest.mark.filterwarnings(
+    "error::ResourceWarning", "error::pytest.PytestUnraisableExceptionWarning"
+)
+async def test_a_closed_chain_opens_no_new_session() -> None:
+    requests = 0
+
+    async def answer(request: web.Request) -> web.Response:
+        nonlocal requests
+        requests += 1
+        return chat_reply("hi")
+
+    async with serve(chat=answer) as url:
+        ai = AIChain([ChatProvider("groq", f"{url}/chat/completions", "big", KEY)])
+        assert await ai.complete(PROMPT) == "hi"
+        await ai.close()
+
+        with pytest.raises(AllProvidersFailed, match="closed"):
+            await ai.complete(PROMPT)
+        gc.collect()
+
+    assert requests == 1
+
+
+async def test_each_answer_is_logged_with_its_provider_and_time(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def broken(request: web.Request) -> web.Response:
+        return web.Response(status=500, text="boom")
+
+    async def working(request: web.Request) -> web.Response:
+        return chat_reply("from groq")
+
+    clock = FakeClock()
+    async with serve(gemini=broken, chat=working) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ],
+            clock=clock,
+        )
+        try:
+            with caplog.at_level(logging.INFO, logger="wisp"):
+                assert await ai.complete(PROMPT) == "from groq"
+        finally:
+            await ai.close()
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "AI reply from groq in 0.0 s" in messages
+    assert any(
+        message.startswith("AI provider gemini m failed after 0.0 s")
+        for message in messages
+    )
+    assert not any(
+        KEY in message or PROMPT.user in message or PROMPT.system in message
+        for message in messages
+    )
+
+
 # ---
 # Configuration
 # ---
@@ -490,7 +551,7 @@ def test_chain_from_config_orders_every_provider(
         monkeypatch.setattr(config, name, value)
 
     names = [p.name for p in chain.chain_from_config().providers]
-    assert names == ["gemini primary", "gemini backup", "groq", "openrouter"]
+    assert names == ["groq", "gemini backup", "gemini primary", "openrouter"]
 
 
 def test_chain_from_config_needs_a_model_as_well_as_a_key(

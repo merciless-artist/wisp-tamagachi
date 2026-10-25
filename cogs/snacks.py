@@ -272,6 +272,10 @@ def _vault_text(
 
     The Gifts take whatever room the rest of one message leaves.
     """
+    free = (
+        f"・{_named(bot, _FREE)} ・ free once a day ・ {_care(_FREE)} ・ "
+        "feed it with the Feed Wisp button"
+    )
     prices = [
         f"・{_named(bot, snack)} ・ {count(snack.cost, 'point')} ・ {_care(snack)}"
         for snack in _MENU
@@ -282,6 +286,7 @@ def _vault_text(
         with_emoji(bot.emoji(COIN_EMOJI), count(balance, "point")),
         SEPARATOR,
         "Snack Box",
+        free,
         *prices,
         "",
         *badge_section(bot, offers),

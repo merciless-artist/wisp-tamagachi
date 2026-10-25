@@ -1,7 +1,9 @@
 """Talking in Wisp's House: answers, chiming in and the Poke Wisp button."""
 
+import logging
 import random
 import re
+import time
 from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
@@ -41,6 +43,8 @@ from wisp.voice import (
 
 if TYPE_CHECKING:
     from app import WispBot
+
+log = logging.getLogger("wisp")
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _CONTEXT: Final = "talking in Wisp's House"
@@ -187,6 +191,7 @@ class Conversation(commands.Cog):
         never count as the House stirring. A staff command is not talk: it is
         not heard, answered or chimed in on.
         """
+        received = time.monotonic()
         guild = message.guild
         if guild is None or is_command(message.content):
             return
@@ -203,7 +208,7 @@ class Conversation(commands.Cog):
         now = discord.utils.utcnow()
         talk.stir(guild.id, now)
         if _aimed_at(message, wisp):
-            await self._answer(message, guild, text, earlier, now)
+            await self._answer(message, guild, text, earlier, now, received)
         else:
             await self._maybe_chime_in(message, guild, talk.chat(guild.id), now)
 
@@ -214,11 +219,13 @@ class Conversation(commands.Cog):
         text: str,
         earlier: Sequence[ChatLine],
         now: datetime,
+        received: float,
     ) -> None:
         """Answer someone talking to Wisp, as his stage allows.
 
         A member answered or poked through within TALK_COOLDOWN gets nothing. A
-        failure to post is reported in the House.
+        failure to post is reported in the House. The time from receiving the
+        message to posting the answer is logged.
         """
         life = await self.bot.lives.current(guild.id)
         level = talk_level(life)
@@ -233,6 +240,12 @@ class Conversation(commands.Cog):
             await self._talk(message, guild, life, level, player, text, earlier, now)
         except discord.HTTPException as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
+        else:
+            log.info(
+                "Answered a mention in guild %d in %.1f s",
+                guild.id,
+                time.monotonic() - received,
+            )
 
     async def _talk(
         self,
@@ -334,8 +347,10 @@ async def _poke(interaction: discord.Interaction) -> None:
     """Poke Wisp: post who poked him and his reaction in the House.
 
     Banned members, a poke with nobody alive to take it and a member still
-    within TALK_COOLDOWN of their last answer are told privately instead.
+    within TALK_COOLDOWN of their last answer are told privately instead. The
+    time from the press to the House post is logged.
     """
+    received = time.monotonic()
     await interaction.response.defer(ephemeral=True, thinking=True)
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -361,6 +376,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     reaction = await _reaction(interaction, life, level, player, name, flavor)
     poked = "the egg" if level is Talk.EGG else "Wisp"
     await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}")
+    log.info(
+        "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
+    )
     await say_privately(interaction, _POKE_DONE)
 
 

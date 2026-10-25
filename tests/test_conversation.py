@@ -3,7 +3,9 @@
 Discord objects and the AI voice are fakes; the repositories are the real ones.
 """
 
+import logging
 import random
+import re
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -1161,6 +1163,32 @@ async def test_poke_posts_who_poked_and_his_reaction_in_the_house(
     assert "You're a Teen" in prompt.system
     assert "Aria just poked you." in prompt.user
     assert "It tickled, and you giggle." in prompt.user
+
+
+async def test_each_poke_and_mention_logs_how_long_it_took(
+    bot: app.WispBot,
+    cog: Conversation,
+    ai: AsyncMock,
+    message: MessageFactory,
+    poke: Press,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    await lay(bot, Stage.TEEN)
+
+    with caplog.at_level(logging.INFO, logger="wisp"):
+        await poke()
+        await cog.on_message(message.to_wisp("hi there", author=MEMBERS[SECOND]))
+
+    timings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Answered a ")
+    ]
+    assert [re.sub(r"[0-9.]+ s$", "N s", line) for line in timings] == [
+        f"Answered a poke in guild {GUILD_ID} in N s",
+        f"Answered a mention in guild {GUILD_ID} in N s",
+    ]
+    assert not any("hi there" in record.getMessage() for record in caplog.records)
 
 
 async def test_poking_the_egg_uses_the_egg_voice(
