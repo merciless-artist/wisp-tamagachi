@@ -573,6 +573,37 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
     assert await bot.activity_log.people_since(GUILD_ID, now - timedelta(hours=1))
 
 
+@pytest.mark.parametrize("roll", [KEEP, PASS])
+async def test_every_gift_attempt_adds_care(
+    bot: app.WispBot, cog: Gifts, roll: float
+) -> None:
+    await lay(bot)
+    cog.rng = FixedRandom(roll)
+    say(bot)
+
+    await give(bot, "alien_blue")
+    assert (await current_life(bot)).care == rules.CARE_START + rules.CARE_PER_GIFT
+
+    cog.rng = FixedRandom(KEEP)
+    await give(bot, "book_red", OTHER_USER_ID)
+    await give(bot, "card_keepcalm", OTHER_USER_ID)
+
+    kept_today = roll == KEEP
+    assert await kept_keys(bot) == (["alien_blue"] if kept_today else ["book_red"])
+    expected = rules.CARE_START + 3 * rules.CARE_PER_GIFT
+    assert (await current_life(bot)).care == expected
+
+
+async def test_a_refused_gift_adds_no_care(bot: app.WispBot) -> None:
+    await lay(bot)
+    await bot.players.spend(GUILD_ID, USER_ID, 100 - rules.GIFT_COST + 1)
+    say(bot)
+
+    await give(bot, "alien_blue")
+
+    assert (await current_life(bot)).care == rules.CARE_START
+
+
 async def test_a_collection_is_given_from_once_a_day(
     bot: app.WispBot, server: FakeServer, cog: Gifts
 ) -> None:

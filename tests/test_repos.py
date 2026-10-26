@@ -20,7 +20,7 @@ from db.settings import Settings, SettingsRepo
 from wisp.bond import PickleStance
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
-from wisp.rules import COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, Stage
+from wisp.rules import CARE_START, COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, Stage
 
 GUILD = 100
 OTHER_GUILD = 200
@@ -353,6 +353,27 @@ async def test_the_food_meter_is_stored_in_the_care_column(db: Database) -> None
     loaded = await repo.current(GUILD)
     assert loaded is not None
     assert loaded.full == 42.5
+
+
+async def test_care_round_trips_through_the_fondness_column(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    assert life.care == CARE_START
+    life.care = 23.5
+    life.lonely_warned = True
+    await repo.save(GUILD, life)
+
+    row = await db.fetchone(
+        f"SELECT care, fondness, lonely_warned FROM {db.t('lives')} WHERE id = %s",
+        (life.id,),
+    )
+    assert row == {"care": life.full, "fondness": 23.5, "lonely_warned": 1}
+    loaded = await repo.current(GUILD)
+    assert loaded is not None
+    assert (loaded.care, loaded.lonely_warned) == (23.5, True)
+    loaded.lonely_warned = False
+    await repo.save(GUILD, loaded)
+    assert await repo.current(GUILD) == loaded
 
 
 async def test_from_coal_round_trips(db: Database) -> None:

@@ -1,4 +1,4 @@
-"""Wisp's life: eggs, hatching, fullness, stages and death.
+"""Wisp's life: eggs, hatching, fullness, care, stages and death.
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
 callers pass the current time (timezone-aware UTC) into every call.
@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
 from wisp.rules import (
+    CARE_DRAIN_PER_DAY,
+    CARE_MAX,
+    CARE_START,
     COAL_EGG_FOOD,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
@@ -19,6 +22,7 @@ from wisp.rules import (
     HANGRY_BELOW,
     HATCHED_FULL,
     HATCHING_TIME,
+    LONELY_BELOW,
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
     OLD_FOGEY_FULL_DRAIN_PER_DAY,
@@ -52,10 +56,11 @@ class Phase(StrEnum):
 
 
 class Mood(StrEnum):
-    """How Wisp feels about how full he is."""
+    """How Wisp feels about how full and how cared for he is."""
 
     HAPPY = auto()
     HANGRY = auto()
+    LONELY = auto()
 
 
 class EventKind(StrEnum):
@@ -70,6 +75,7 @@ class EventKind(StrEnum):
     STAGE_UP = auto()
     GREW_OLD = auto()
     FAREWELL = auto()
+    LONELY = auto()
 
 
 @dataclass(frozen=True)
@@ -85,7 +91,9 @@ class Life:
     """One Wisp, from egg to its end. Mirrors a row of the lives table.
 
     `favorite_snack` is the key of the snack he loves most, chosen when he
-    hatches; None while he is an egg.
+    hatches; None while he is an egg. `care` is the care meter, filled by
+    duels and gifts, and `lonely_warned` whether he has said he is lonely
+    since it last dropped below the lonely line.
     """
 
     id: int | None
@@ -108,6 +116,8 @@ class Life:
     hatched_by: int | None = None
     from_coal: bool = False
     favorite_snack: str | None = None
+    care: float = CARE_START
+    lonely_warned: bool = False
 
 
 # ---
@@ -146,9 +156,17 @@ def is_over(life: Life) -> bool:
 
 
 def mood(life: Life) -> Mood:
-    """Hangry while a living Wisp's full meter is below the hangry line."""
-    if life.phase is Phase.ALIVE and life.full < HANGRY_BELOW:
+    """How a living Wisp feels; anything else is happy.
+
+    Hangry while his full meter is below the hangry line, else lonely while
+    his care meter is below the lonely line.
+    """
+    if life.phase is not Phase.ALIVE:
+        return Mood.HAPPY
+    if life.full < HANGRY_BELOW:
         return Mood.HANGRY
+    if life.care < LONELY_BELOW:
+        return Mood.LONELY
     return Mood.HAPPY
 
 
@@ -181,6 +199,18 @@ def add_growth(life: Life, points: int) -> None:
     """Add growth points; they only count while Wisp is alive."""
     if life.phase is Phase.ALIVE:
         life.growth += points
+
+
+def add_care(life: Life, points: float) -> None:
+    """Add care, up to CARE_MAX; it only counts while Wisp is alive.
+
+    Back at or above the lonely line, his next drop below it is announced.
+    """
+    if life.phase is not Phase.ALIVE:
+        return
+    life.care = min(life.care + points, CARE_MAX)
+    if life.care >= LONELY_BELOW:
+        life.lonely_warned = False
 
 
 def _feed_egg(
@@ -240,6 +270,7 @@ def _tick_hatching(life: Life, now: datetime) -> list[Event]:
     _enter(life, Phase.ALIVE)
     life.stage = life.peak_stage = Stage.BABY
     life.full = HATCHED_FULL
+    life.care = CARE_START
     life.hatched_at = life.stage_started_at = now
     return [Event(EventKind.HATCHED)]
 
@@ -256,7 +287,9 @@ def _tick_alive(
         if life.stage is Stage.OLD_FOGEY
         else FULL_DRAIN_PER_DAY
     )
-    life.full = max(life.full - drain * elapsed.total_seconds() / _DAY_SECONDS, 0.0)
+    days = elapsed.total_seconds() / _DAY_SECONDS
+    life.full = max(life.full - drain * days, 0.0)
+    life.care = max(life.care - CARE_DRAIN_PER_DAY * days, 0.0)
     if life.full == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
@@ -278,6 +311,9 @@ def _warnings(life: Life) -> list[Event]:
     if life.full < FADING_BELOW and life.warned is not EventKind.FADING:
         life.warned = EventKind.FADING
         events.append(Event(EventKind.FADING))
+    if life.care < LONELY_BELOW and not life.lonely_warned:
+        life.lonely_warned = True
+        events.append(Event(EventKind.LONELY, stage=life.stage))
     return events
 
 

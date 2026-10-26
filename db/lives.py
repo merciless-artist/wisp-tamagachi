@@ -6,11 +6,13 @@ from db.database import Database, Row, from_db_time, to_db_time
 from wisp.life import EventKind, Life, Phase
 from wisp.rules import Stage
 
+# The columns keep their live names: `care` holds Life.full (the food meter)
+# and `fondness` holds Life.care (the care meter).
 _COLUMNS = (
     "version",
     "phase",
     "stage",
-    "care",  # the column keeps its old name; it holds Life.full
+    "care",
     "egg_food",
     "growth",
     "laid_at",
@@ -26,6 +28,8 @@ _COLUMNS = (
     "peak_stage",
     "from_coal",
     "favorite_snack",
+    "fondness",
+    "lonely_warned",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -52,6 +56,8 @@ def _from_row(row: Row) -> Life:
         peak_stage=Stage(row["peak_stage"]),
         from_coal=bool(row["from_coal"]),
         favorite_snack=row["favorite_snack"],
+        care=row["fondness"],
+        lonely_warned=bool(row["lonely_warned"]),
     )
 
 
@@ -77,6 +83,8 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.peak_stage.value,
         life.from_coal,
         life.favorite_snack,
+        life.care,
+        life.lonely_warned,
     )
 
 

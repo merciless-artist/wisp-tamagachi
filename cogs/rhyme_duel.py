@@ -11,11 +11,12 @@ from cogs.players import can_feed, maybe_meet, say_privately
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
-from wisp.life import Life, Phase, add_growth, mood
+from wisp.life import Life, Phase, add_care, add_growth, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
 from wisp.rules import (
     BOND_PER_PLAY,
+    CARE_PER_PLAY,
     GROWTH_PER_PLAY,
     PLAY_POINTS,
     PLAYS_PER_DAY,
@@ -163,7 +164,7 @@ async def _record_play(
 ) -> bool:
     """Count the duel as play and keep the score if it is the player's best.
 
-    The play, with its bond, growth and Vault point, only counts when the
+    The play, with its bond, growth, care and Vault point, only counts when the
     player scored a rhyme, can feed Wisp, Wisp is still alive and the member
     has had fewer than PLAYS_PER_DAY counted games today. The best score is
     always kept.
@@ -192,6 +193,7 @@ async def _record_play(
             )
             await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
             add_growth(life, GROWTH_PER_PLAY)
+            add_care(life, CARE_PER_PLAY)
             await bot.lives.save(guild_id, life)
         return await bot.players.record_rhyme_score(guild_id, user_id, points)
 

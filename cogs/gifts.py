@@ -21,10 +21,11 @@ from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
 from wisp.gifts import GiftState, Outcome, collection_of, decide, with_article
-from wisp.life import Life, Phase, add_growth, mood
+from wisp.life import Life, Phase, add_care, add_growth, mood
 from wisp.lines import Moment
 from wisp.rules import (
     BOND_PER_KEPT_GIFT,
+    CARE_PER_GIFT,
     COLLECTION_BOND_BONUS,
     GIFT_BY_KEY,
     GIFT_COLLECTIONS,
@@ -240,7 +241,8 @@ async def give_gift(
     Call this under the guild lock. He passes when he already kept a gift
     today; otherwise `rng` decides. A kept gift gives bond outside the daily
     cap, a bond moment's growth, and the collection bonus when it finishes its
-    collection. Every attempt counts as an interaction.
+    collection. Every attempt counts as an interaction and gives Wisp care,
+    since its points are spent whatever he does with the gift.
 
     Raises:
         Refusal: The member is banned, cannot feed Wisp or is short of points,
@@ -275,10 +277,11 @@ async def give_gift(
         0,
         now,
     )
+    add_care(life, CARE_PER_GIFT)
     if kept:
         await bot.players.add_bond(guild_id, member.id, bond)
         add_growth(life, GROWTH_PER_BOND_MOMENT)
-        await bot.lives.save(guild_id, life)
+    await bot.lives.save(guild_id, life)
     return GiftGiven(gift, outcome, completed, life, player, bond if kept else 0)
 
 

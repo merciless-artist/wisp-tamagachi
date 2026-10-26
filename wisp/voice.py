@@ -205,6 +205,25 @@ _BABY_HANGRY: Final = (
     "comes out as fussy, grumpy little noises, never swearing."
 )
 
+_LONELY: Final = (
+    "You're lonely right now. Nobody has played a Rhyme Duel with you or "
+    "brought you a gift in a while, so you feel left out and a bit grumpy "
+    "about it. You can sulk and say you miss everyone, but you never blame "
+    "or guilt-trip anyone, and you perk up as soon as someone spends time "
+    "with you."
+)
+
+_BABY_LONELY: Final = (
+    "You're lonely right now, so you're a clingy, grumpy baby: it all comes "
+    "out as pouty, lonely little noises, never swearing."
+)
+
+# The extra layer a mood adds to his prompt: (grown up, Baby).
+_MOOD_LAYERS: Final = {
+    Mood.HANGRY: (_HANGRY, _BABY_HANGRY),
+    Mood.LONELY: (_LONELY, _BABY_LONELY),
+}
+
 _BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
 
 _PICKLE_SIDES: Final = {
@@ -462,8 +481,9 @@ def build_prompt(
         raise ValueError(f"Wisp has no chat voice at the {stage.label} stage")
     baby = stage is Stage.BABY
     system = [*_personality(stage), _reactions(expressions, gif=not baby), voice]
-    if mood is Mood.HANGRY:
-        system.append(_BABY_HANGRY if baby else _HANGRY)
+    if (layers := _MOOD_LAYERS.get(mood)) is not None:
+        grown, little = layers
+        system.append(little if baby else grown)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))

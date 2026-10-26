@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-26 (Care and the lonely mood)
+
+- Wisp has a new Care meter, 0 to 100. It starts at 50 when he hatches and
+  drains 10 a day while he is alive (`CARE_*` in `wisp/rules.py`).
+- Each Rhyme Duel that counts as play adds 10 Care. Every gift bought adds 8
+  Care, whether he keeps it, passes on it or already kept one today, since
+  the points are spent either way. A refused gift adds nothing.
+- Below 30 Care he is lonely. Hangry still wins when Full is low too. Lonely
+  only changes how he talks: his AI voice is told he is lonely and grumpy
+  (never blaming anyone), and pokes, chat fallbacks and Baby talk have
+  lonely lines. Every other moment uses its happy lines when he is lonely.
+  It never hurts him.
+- The first time Care drops below 30 he posts once in the House (again
+  after it climbs back to 30 and drops again), with a picture for his stage
+  picked at random from `LONELY_PICTURES`: Baby `cry_baby.gif` or
+  `grumpy_baby.png`, Child `grumpy.gif`, Teen and older `cry_teen.gif`. A
+  missing picture means a text-only post. The four pictures are now in the
+  repo under `ASSETS/moments/`.
+- A lonely Wisp's track reaction in Mealtime shows `wisp_sad`.
+- Database: two new `lives` columns, `fondness DOUBLE NOT NULL DEFAULT 50`
+  (the Care meter) and `lonely_warned BOOL NOT NULL DEFAULT 0`. Startup adds
+  them to the live table; nothing is renamed or dropped. The old `care`
+  column still holds Full.
+
 ## 2026-10-26 (chat credit and duel points)
 
 - A member's first poke or mention of the UTC day records a new `chat`

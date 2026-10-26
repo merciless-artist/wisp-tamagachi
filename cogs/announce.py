@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from random import choice
 from typing import TYPE_CHECKING, Any, Final
 
 import discord
@@ -16,7 +17,7 @@ from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
 from wisp.life import Event, EventKind, Life, Phase, egg_after, is_over, mood
 from wisp.lines import FIELDS, Moment
-from wisp.rules import LAST_EMBER_GIFTS, Stage
+from wisp.rules import LAST_EMBER_GIFTS, LONELY_PICTURES, Stage
 from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
@@ -40,11 +41,17 @@ _STAGE_KEEPSAKES: Final = {
 
 
 def _image_for(event: Event) -> Path | None:
-    """Return the first existing image for an event, or None for text only."""
+    """Return the image for an event, or None for text only.
+
+    Most events show the first of their pictures that exists; a lonely post
+    picks one at random.
+    """
     stages = ASSETS_DIR / "stages"
     events = ASSETS_DIR / "events"
     candidates: list[tuple[Path, str]] = []
     match event.kind:
+        case EventKind.LONELY if event.stage is not None:
+            return _lonely_image(event.stage)
         case EventKind.STAGE_UP | EventKind.GREW_OLD if event.stage is not None:
             candidates = [(stages, event.stage.value)]
         case EventKind.HATCHED:
@@ -60,6 +67,17 @@ def _image_for(event: Event) -> Path | None:
         (path for folder, name in candidates if (path := asset_image(folder, name))),
         None,
     )
+
+
+def _lonely_image(stage: Stage) -> Path | None:
+    """One of the stage's lonely pictures that exists, at random, or None."""
+    moments = ASSETS_DIR / "moments"
+    pictures = [
+        path
+        for name in LONELY_PICTURES.get(stage, ())
+        if (path := moments / name).is_file()
+    ]
+    return choice(pictures) if pictures else None
 
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:

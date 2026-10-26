@@ -52,6 +52,28 @@ HANGRY_BELOW = 30.0
 FADING_BELOW = 10.0
 
 # ---
+# Care
+# ---
+
+# Filled by counted Rhyme Duels and every gift bought; below LONELY_BELOW he
+# is lonely, which only changes how he talks.
+CARE_MAX = 100.0
+CARE_START = 50.0
+CARE_DRAIN_PER_DAY = 10.0
+CARE_PER_PLAY = 10
+CARE_PER_GIFT = 8
+LONELY_BELOW = 30.0
+# The pictures in ASSETS/moments his lonely post picks from, by stage.
+LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
+    Stage.BABY: ("cry_baby.gif", "grumpy_baby.png"),
+    Stage.CHILD: ("grumpy.gif",),
+    Stage.TEEN: ("cry_teen.gif",),
+    Stage.ADULT: ("cry_teen.gif",),
+    Stage.ROCKSTAR: ("cry_teen.gif",),
+    Stage.OLD_FOGEY: ("cry_teen.gif",),
+}
+
+# ---
 # Egg
 # ---
 

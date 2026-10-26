@@ -186,6 +186,23 @@ def test_hangry_wisp_says_compliments_are_not_food() -> None:
         assert NO_U_GIF in prompt_for(mood=mood).system
 
 
+def test_lonely_mood_reaches_the_prompt() -> None:
+    lonely = prompt_for(mood=Mood.LONELY).system
+    assert "You're lonely right now" in lonely and "grumpy" in lonely
+    assert "never blame" in lonely
+    assert "You're starving" not in lonely
+    for mood in (Mood.HAPPY, Mood.HANGRY):
+        assert "lonely" not in prompt_for(mood=mood).system
+
+
+def test_a_lonely_baby_is_clingy_and_never_swears() -> None:
+    lonely = prompt_for(Stage.BABY, Mood.LONELY).system
+    assert "You're lonely right now" in lonely and "never swearing" in lonely
+    assert "clingy" in lonely
+    assert "never blame" not in lonely
+    assert "clingy" not in prompt_for(Stage.BABY, Mood.HAPPY).system
+
+
 def test_teen_does_not_claim_to_remember_conversations() -> None:
     teen = prompt_for(Stage.TEEN).system
     assert "you remember" not in teen.lower()

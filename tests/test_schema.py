@@ -1,10 +1,14 @@
 import logging
+from datetime import UTC, datetime
 
 import pymysql
 import pytest
 
+from db import schema
 from db.database import Database
+from db.lives import LifeRepo
 from db.schema import TABLES, SchemaError, create_tables
+from wisp.life import new_egg
 
 
 async def test_create_tables_is_idempotent(db: Database) -> None:
@@ -121,6 +125,40 @@ async def test_create_tables_adds_the_house_panel_to_a_live_settings_table(
             await db.execute(
                 f"ALTER TABLE {settings} ADD COLUMN house_panel_message_id BIGINT NULL"
             )
+
+
+def test_the_care_columns_are_defined_and_added_to_live_tables() -> None:
+    definition = schema._DEFINITIONS["lives"]
+    defined = {line.split()[0] for line in definition.splitlines() if line.strip()}
+    added = schema._ADDED_COLUMNS["lives"]
+    assert {"fondness", "lonely_warned"} <= defined
+    assert added == {
+        "fondness": "DOUBLE NOT NULL DEFAULT 50",
+        "lonely_warned": "BOOL NOT NULL DEFAULT 0",
+    }
+    for column, column_type in added.items():
+        assert f"{column} {column_type}," in definition
+
+
+async def test_create_tables_adds_care_to_a_live_lives_table(db: Database) -> None:
+    lives = db.t("lives")
+    await LifeRepo(db).insert(1, new_egg(1, datetime(2026, 10, 26, tzinfo=UTC)))
+    await db.execute(
+        f"ALTER TABLE {lives} DROP COLUMN fondness, DROP COLUMN lonely_warned"
+    )
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT fondness, lonely_warned FROM {lives}")
+        assert row == {"fondness": 50.0, "lonely_warned": 0}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {lives}")
+        present = {column["Field"] for column in restored}
+        for column, column_type in schema._ADDED_COLUMNS["lives"].items():
+            if column not in present:
+                await db.execute(
+                    f"ALTER TABLE {lives} ADD COLUMN {column} {column_type}"
+                )
 
 
 async def test_the_team_wisp_badge_becomes_team_viibr_and_renaming_repeats_safely(

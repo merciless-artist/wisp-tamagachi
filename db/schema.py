@@ -62,6 +62,8 @@ _DEFINITIONS: dict[str, str] = {
         peak_stage VARCHAR(10) NOT NULL,
         from_coal BOOL NOT NULL DEFAULT 0,
         favorite_snack VARCHAR(20) NULL,
+        fondness DOUBLE NOT NULL DEFAULT 50,
+        lonely_warned BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (id),
         UNIQUE KEY uq_guild_version (guild_id, version)
     """,
@@ -185,6 +187,10 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "house_panel_message_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
+    "lives": {
+        "fondness": "DOUBLE NOT NULL DEFAULT 50",
+        "lonely_warned": "BOOL NOT NULL DEFAULT 0",
+    },
 }
 
 # Indexes added after their table first went live, by table and index name,

@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from wisp.life import Mood
-from wisp.lines import FIELDS, LINES, LinePicker, Moment
+from wisp.lines import FIELDS, LINES, LinePicker, Moment, lines_for
 from wisp.rules import Stage
 
 SAMPLE_FIELDS = {
@@ -45,7 +45,9 @@ ONE_MOOD_MOMENTS = {
     Moment.LAST_EMBER,
     Moment.EGG_POKE,
     Moment.KEEPSAKE_WON,
+    Moment.LONELY,
 }
+LONELY_TALK_MOMENTS = [Moment.POKED, Moment.CHAT_FALLBACK, Moment.BABY_TALK]
 FAREWELL_MOMENTS = [
     Moment.GREW_OLD,
     Moment.FAREWELL,
@@ -55,7 +57,12 @@ FAREWELL_MOMENTS = [
 ALL_KEYS = sorted(LINES)
 GROWN_STAGES = [Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 STAGE_NOUNS = ("Wisp", "era", "years", "phase")
-STAGE_UP_LINES = [line for mood in Mood for line in LINES[(Moment.STAGE_UP, mood)]]
+STAGE_UP_LINES = [
+    line
+    for (moment, _), lines in LINES.items()
+    if moment is Moment.STAGE_UP
+    for line in lines
+]
 
 
 def fields_for(
@@ -79,8 +86,54 @@ def every_line() -> list[tuple[Moment, str]]:
 
 @pytest.mark.parametrize("moment", list(Moment))
 @pytest.mark.parametrize("mood", list(Mood))
-def test_every_moment_has_lines_for_both_moods(moment: Moment, mood: Mood) -> None:
-    assert len(LINES[(moment, mood)]) >= 4
+def test_every_moment_has_lines_for_every_mood(moment: Moment, mood: Mood) -> None:
+    assert len(lines_for(moment, mood)) >= 4
+    line = LinePicker(random.Random(1)).pick(moment, mood, **fields_for(moment))
+    assert line in {
+        text.format(**fields_for(moment)) for text in lines_for(moment, mood)
+    }
+
+
+@pytest.mark.parametrize("moment", sorted(set(Moment) - ONE_MOOD_MOMENTS))
+def test_happy_and_hangry_are_always_written(moment: Moment) -> None:
+    assert (moment, Mood.HAPPY) in LINES and (moment, Mood.HANGRY) in LINES
+
+
+def test_a_lonely_moment_without_lonely_lines_falls_back_to_happy() -> None:
+    assert (Moment.TRACK_FED, Mood.LONELY) not in LINES
+    assert (
+        lines_for(Moment.TRACK_FED, Mood.LONELY)
+        is LINES[(Moment.TRACK_FED, Mood.HAPPY)]
+    )
+
+
+def test_lonely_and_happy_share_a_bag_when_lonely_falls_back() -> None:
+    picker = LinePicker(random.Random(4))
+    happy = LINES[(Moment.QUIET, Mood.HAPPY)]
+    turns = [(Mood.LONELY, Mood.HAPPY)[turn % 2] for turn in range(len(happy))]
+    picks = [picker.pick(Moment.QUIET, feeling) for feeling in turns]
+    assert sorted(picks) == sorted(happy)
+
+
+def test_the_lonely_moment_has_its_own_lines() -> None:
+    assert FIELDS[Moment.LONELY] == set()
+    lines = LINES[(Moment.LONELY, Mood.HAPPY)]
+    assert len(lines) >= 8
+    others = {
+        line
+        for (moment, _), written in LINES.items()
+        if moment is not Moment.LONELY
+        for line in written
+    }
+    assert not set(lines) & others
+
+
+@pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)
+def test_lonely_talk_has_its_own_lines(moment: Moment) -> None:
+    lonely = set(LINES[(moment, Mood.LONELY)])
+    assert len(lonely) >= 8
+    assert not lonely & set(LINES[(moment, Mood.HAPPY)])
+    assert not lonely & set(LINES[(moment, Mood.HANGRY)])
 
 
 @pytest.mark.parametrize("moment", sorted(ONE_MOOD_MOMENTS))
@@ -138,7 +191,7 @@ def test_fields_cover_every_moment() -> None:
 
 def test_rhyme_start_lines_say_the_word() -> None:
     for mood in Mood:
-        for line in LINES[(Moment.RHYME_START, mood)]:
+        for line in lines_for(Moment.RHYME_START, mood):
             assert placeholders(line) == {"word"}, line
 
 
@@ -180,7 +233,7 @@ def test_keepsake_won_lines_speak_to_the_member_without_numbers() -> None:
 @pytest.mark.parametrize("mood", list(Mood))
 def test_poked_lines_name_the_poker(mood: Mood) -> None:
     assert FIELDS[Moment.POKED] == {"name"}
-    lines = LINES[(Moment.POKED, mood)]
+    lines = lines_for(Moment.POKED, mood)
     assert len(lines) >= 8
     for line in lines:
         assert placeholders(line) == {"name"}, line
@@ -201,7 +254,7 @@ def test_lunchbox_moments_speak_of_the_member(moment: Moment) -> None:
 def test_lunchbox_moments_have_about_six_lines_and_no_numbers(
     moment: Moment, mood: Mood
 ) -> None:
-    lines = LINES[(moment, mood)]
+    lines = lines_for(moment, mood)
     assert len(lines) >= 6
     for line in lines:
         assert not re.search(r"\d", line), line
@@ -220,7 +273,7 @@ GIFT_MOMENTS = [
 def test_gift_moments_have_about_six_lines_and_no_numbers(
     moment: Moment, mood: Mood
 ) -> None:
-    lines = LINES[(moment, mood)]
+    lines = lines_for(moment, mood)
     assert len(lines) >= 6
     for line in lines:
         assert not re.search(r"\d", line), line

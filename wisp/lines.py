@@ -24,6 +24,7 @@ class Moment(StrEnum):
     QUIET = auto()
     HUNGRY = auto()
     FADING = auto()
+    LONELY = auto()
     DIED = auto()
     NEW_EGG = auto()
     EGG_COLD = auto()
@@ -84,6 +85,7 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.QUIET: _NONE,
     Moment.HUNGRY: _NONE,
     Moment.FADING: _NONE,
+    Moment.LONELY: _NONE,
     Moment.RHYME_START: frozenset({"word"}),
     Moment.RHYME_WISP_STUCK: _NONE,
     Moment.RHYME_PLAYER_STUCK: _NONE,
@@ -441,6 +443,22 @@ _FADING = (
 )
 
 # ---
+# Loneliness
+# ---
+
+_LONELY = (
+    "nobody's rhymed with me in forever. I tried the mic stand. it never rhymes back",
+    "feeling kind of left out over here. not that anybody asked",
+    "playing rhyme duel against myself. I'm winning. it's lonely at the top",
+    "I'm not sulking. I'm just in the corner with my headphones on. facing the wall",
+    "I miss you guys. there, I said it. now somebody come hang out",
+    "my flame's doing the sad little flicker. a duel or a gift would help it out",
+    "*grumpy crackle* I'm not mad. I'm just a little flame with nobody to play with",
+    "the studio feels real big when nobody's hanging out with me",
+    "somebody challenge me to a rhyme. I'll even let you win. probably",
+)
+
+# ---
 # Life and death
 # ---
 
@@ -673,6 +691,17 @@ _BABY_TALK_HANGRY = (
     "no. hungy.",
 )
 
+_BABY_TALK_LONELY = (
+    "*sad sniffle*",
+    "play? ...play?",
+    "lonely. hmph.",
+    "*grumpy little crackle*",
+    "you stay. stay!",
+    "hug?",
+    "waaah. alone.",
+    "*tiny pout*",
+)
+
 _CHAT_FALLBACK_HAPPY = (
     "my brain's buffering. say that again in a bit?",
     "words aren't loading right now. I'm just gonna hum at you ♪",
@@ -696,6 +725,17 @@ _CHAT_FALLBACK_HANGRY = (
     "running on empty. the words got eaten before I could say them",
 )
 
+_CHAT_FALLBACK_LONELY = (
+    "sorry, I'm too mopey to think straight. say that again?",
+    "my words went quiet. I've been alone with my headphones too long",
+    "can't find the words right now. it's been a lonely day in here",
+    "brain's all foggy. I think I need a rhyme duel to wake it up",
+    "lost that one. I've been staring at the wall and forgot how talking works",
+    "*sad little static* try me again in a bit?",
+    "I heard you, I just can't find an answer. too busy feeling left out",
+    "words aren't coming. maybe some company would shake a few loose",
+)
+
 _POKED_HAPPY = (
     "hey! {name}, that tickles",
     "{name}, I felt that. right in the headphones",
@@ -716,6 +756,17 @@ _POKED_HANGRY = (
     "pokes don't fill plates, {name}",
     "{name}, I'm running on fumes here. share a song?",
     "*low growl* that's a hungry flame you're poking, {name}",
+)
+
+_POKED_LONELY = (
+    "oh hey {name}. thought everybody forgot about me",
+    "{name}! finally, somebody. stay a minute?",
+    "*perks up a little* hi {name}. I wasn't sulking. ok I was",
+    "a poke from {name}. that's the most attention I've had all day",
+    "{name}, if you poke me you have to play with me now. those are the rules",
+    "hi {name}. I've been lonely. not in a dramatic way. ok, a little dramatic",
+    "{name}, poke me again and I might actually smile",
+    "*clings to {name}'s finger* don't go yet",
 )
 
 _BADGE_BOUGHT_HAPPY = (
@@ -744,7 +795,7 @@ _BADGE_BOUGHT_HANGRY = (
 def _either_mood(
     moment: Moment, lines: tuple[str, ...]
 ) -> dict[tuple[Moment, Mood], tuple[str, ...]]:
-    """Map a moment that only happens in one mood to the same lines for both."""
+    """Map a moment that only happens in one mood to the same lines for every mood."""
     return {(moment, mood): lines for mood in Mood}
 
 
@@ -779,10 +830,13 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.RHYME_PLAYER_STUCK, Mood.HANGRY): _RHYME_PLAYER_STUCK_HANGRY,
     (Moment.BABY_TALK, Mood.HAPPY): _BABY_TALK_HAPPY,
     (Moment.BABY_TALK, Mood.HANGRY): _BABY_TALK_HANGRY,
+    (Moment.BABY_TALK, Mood.LONELY): _BABY_TALK_LONELY,
     (Moment.CHAT_FALLBACK, Mood.HAPPY): _CHAT_FALLBACK_HAPPY,
     (Moment.CHAT_FALLBACK, Mood.HANGRY): _CHAT_FALLBACK_HANGRY,
+    (Moment.CHAT_FALLBACK, Mood.LONELY): _CHAT_FALLBACK_LONELY,
     (Moment.POKED, Mood.HAPPY): _POKED_HAPPY,
     (Moment.POKED, Mood.HANGRY): _POKED_HANGRY,
+    (Moment.POKED, Mood.LONELY): _POKED_LONELY,
     (Moment.BADGE_BOUGHT, Mood.HAPPY): _BADGE_BOUGHT_HAPPY,
     (Moment.BADGE_BOUGHT, Mood.HANGRY): _BADGE_BOUGHT_HANGRY,
     (Moment.SNACK_FAVORITE, Mood.HAPPY): _SNACK_FAVORITE_HAPPY,
@@ -799,6 +853,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.COLLECTION_DONE, Mood.HANGRY): _COLLECTION_DONE_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
+    **_either_mood(Moment.LONELY, _LONELY),
     **_either_mood(Moment.DIED, _DIED),
     **_either_mood(Moment.NEW_EGG, _NEW_EGG),
     **_either_mood(Moment.EGG_COLD, _EGG_COLD),
@@ -813,6 +868,24 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.EGG_POKE, _EGG_POKE),
     **_either_mood(Moment.KEEPSAKE_WON, _KEEPSAKE_WON),
 }
+"""Every moment has happy and hangry lines. One without lonely lines of its own
+says its happy lines when he is lonely; see `lines_for`."""
+
+
+def _key(moment: Moment, mood: Mood) -> tuple[Moment, Mood]:
+    """The table key for a moment in a mood, after the lonely fallback."""
+    if mood is Mood.LONELY and (moment, mood) not in LINES:
+        return (moment, Mood.HAPPY)
+    return (moment, mood)
+
+
+def lines_for(moment: Moment, mood: Mood) -> tuple[str, ...]:
+    """The lines Wisp says for a moment in a mood.
+
+    A moment with no lonely lines of its own falls back to its happy lines.
+    """
+    return LINES[_key(moment, mood)]
+
 
 # ---
 # Picker
@@ -823,7 +896,8 @@ class LinePicker:
     """Deals Wisp's lines from a shuffled bag per moment and mood.
 
     Every line in a bag is said once before the bag is refilled, and a refill
-    never starts with the line the last bag ended on.
+    never starts with the line the last bag ended on. A lonely moment that
+    falls back to happy lines deals from the happy bag.
     """
 
     def __init__(self, rng: random.Random | None = None) -> None:
@@ -841,7 +915,7 @@ class LinePicker:
             raise ValueError(
                 f"{moment} lines need fields {sorted(expected)}, got {sorted(fields)}"
             )
-        key = (moment, mood)
+        key = _key(moment, mood)
         bag = self._bags.get(key) or self._shuffled(key, after=None)
         line = bag.pop()
         self._bags[key] = bag or self._shuffled(key, after=line)

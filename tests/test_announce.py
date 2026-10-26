@@ -1042,6 +1042,104 @@ async def test_an_event_gif_beats_its_png(
     )
 
 
+LONELY_ART = {
+    "cry_baby": ".gif",
+    "grumpy_baby": ".png",
+    "grumpy": ".gif",
+    "cry_teen": ".gif",
+}
+
+
+async def lonely_post(
+    bot: app.WispBot, server: FakeServer, stage: Stage
+) -> tuple[str, dict[str, Any]]:
+    """Post a LONELY event for a Wisp of `stage` and return the House post."""
+    life = await growing_life(bot)
+    life.stage = life.peak_stage = stage
+    await bot.lives.save(GUILD_ID, life)
+    await post_events(bot, GUILD_ID, [Event(EventKind.LONELY, stage)])
+    (post,) = server.house.send.await_args_list
+    return post.args[0], post.kwargs
+
+
+@pytest.mark.parametrize(
+    ("stage", "pictures"),
+    [
+        (Stage.BABY, {"cry_baby.gif", "grumpy_baby.png"}),
+        (Stage.CHILD, {"grumpy.gif"}),
+        (Stage.TEEN, {"cry_teen.gif"}),
+        (Stage.ADULT, {"cry_teen.gif"}),
+        (Stage.ROCKSTAR, {"cry_teen.gif"}),
+        (Stage.OLD_FOGEY, {"cry_teen.gif"}),
+    ],
+)
+async def test_lonely_post_has_a_picture_for_his_stage(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    stage: Stage,
+    pictures: set[str],
+) -> None:
+    for name, suffix in LONELY_ART.items():
+        add_image(assets, "moments", name, suffix)
+
+    text, kwargs = await lonely_post(bot, server, stage)
+
+    assert said(text, Moment.LONELY)
+    assert kwargs["file"].filename in pictures
+    assert sends_without_pinging(kwargs)
+
+
+def test_the_lonely_pictures_are_in_the_repo() -> None:
+    moments = Path(announce.__file__).resolve().parent.parent / "ASSETS" / "moments"
+    for names in rules.LONELY_PICTURES.values():
+        for name in names:
+            assert (moments / name).is_file(), name
+
+
+async def test_a_lonely_picture_is_picked_from_the_ones_on_disk(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "moments", "grumpy_baby")
+
+    _, kwargs = await lonely_post(bot, server, Stage.BABY)
+
+    assert kwargs["file"].filename == "grumpy_baby.png"
+
+
+async def test_both_baby_pictures_get_their_turn(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    add_image(assets, "moments", "cry_baby", ".gif")
+    add_image(assets, "moments", "grumpy_baby")
+    offered: list[list[str]] = []
+
+    def choose(pictures: list[Path]) -> Path:
+        offered.append(sorted(path.name for path in pictures))
+        return pictures[-1]
+
+    monkeypatch.setattr(announce, "choice", choose)
+
+    _, kwargs = await lonely_post(bot, server, Stage.BABY)
+
+    assert offered == [["cry_baby.gif", "grumpy_baby.png"]]
+    assert kwargs["file"].filename == "grumpy_baby.png"
+
+
+async def test_a_lonely_post_without_its_picture_is_text_only(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "moments", "cry_teen", ".gif")
+
+    text, kwargs = await lonely_post(bot, server, Stage.CHILD)
+
+    assert said(text, Moment.LONELY)
+    assert "file" not in kwargs
+
+
 async def test_hatched_keeps_the_baby_picture_first(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:

@@ -28,7 +28,11 @@ if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_MOOD_EMOJIS: Final = {Mood.HAPPY: "wisp_happy", Mood.HANGRY: "wisp_hangry"}
+_MOOD_EMOJIS: Final = {
+    Mood.HAPPY: "wisp_happy",
+    Mood.HANGRY: "wisp_hangry",
+    Mood.LONELY: "wisp_sad",
+}
 
 # ---
 # Listener
