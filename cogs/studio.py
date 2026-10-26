@@ -744,18 +744,18 @@ async def rebuild_faq(ctx: StaffContext) -> None:
 
 @commands.command(name="freeze")
 async def freeze(ctx: StaffContext) -> None:
-    """Freeze Wisp so his care stops draining."""
+    """Freeze Wisp so his meters stop draining."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=True)
     await reply(
-        ctx, "♪ Wisp is frozen. His care will not drain until you unfreeze him."
+        ctx, "♪ Wisp is frozen. His meters will not drain until you unfreeze him."
     )
 
 
 @commands.command(name="unfreeze")
 async def unfreeze(ctx: StaffContext) -> None:
-    """Unfreeze Wisp so his care drains normally."""
+    """Unfreeze Wisp so his meters drain normally."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=False)
-    await reply(ctx, "♪ Wisp is unfrozen. His care drains normally again.")
+    await reply(ctx, "♪ Wisp is unfrozen. His meters drain normally again.")
 
 
 @commands.command(name="eggs", usage="on|off")

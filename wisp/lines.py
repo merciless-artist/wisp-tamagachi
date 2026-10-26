@@ -416,12 +416,12 @@ _QUIET_HANGRY = (
     "I've started talking to the mic stand. it's a shit listener",
     "somewhere a finished song is sitting in a downloads folder. and I'm starving",
     "if anyone's still alive in here, I'm in the corner chewing on a cable",
-    "so quiet I can hear my care meter going down",
+    "so quiet I can hear my full meter going down",
 )
 
 _HUNGRY = (
     "getting hungry over here. real hungry. someone-post-a-song hungry",
-    "my care meter's in the red and so is my patience",
+    "my full meter's in the red and so is my patience",
     "PSA: I'm starving. this is not a bit",
     "uh oh. stomach's making that noise. the flat one",
     "I'd eat a song in any key right now. even a key that doesn't exist",

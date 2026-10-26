@@ -91,7 +91,7 @@ where the command was used.
 - `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
-- `!wisp freeze` and `!wisp unfreeze` pause and resume care draining.
+- `!wisp freeze` and `!wisp unfreeze` pause and resume the draining of his meters.
 - `!wisp eggs on|off` turns new eggs on or off. Off, no egg is laid when
   Wisp's life ends (the ending, Last Embers and badge roles still happen as
   usual) and the House says so once; on, the next tick lays the egg. A living

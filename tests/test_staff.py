@@ -698,8 +698,8 @@ async def test_freeze_and_unfreeze(
     assert (await bot.settings.get(GUILD_ID)).frozen is False
 
     assert sent(server.here) == [
-        "♪ Wisp is frozen. His care will not drain until you unfreeze him.",
-        "♪ Wisp is unfrozen. His care drains normally again.",
+        "♪ Wisp is frozen. His meters will not drain until you unfreeze him.",
+        "♪ Wisp is unfrozen. His meters drain normally again.",
     ]
 
 
