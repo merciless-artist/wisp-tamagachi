@@ -87,6 +87,8 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     sick_hours = rules.SICK_FOR // timedelta(hours=1)
     egg_meals = count(rules.EGG_FOOD_NEEDED, "meal point")
+    chat_points = count(rules.CHAT_POINTS, "point")
+    play_points = count(rules.PLAY_POINTS, "point")
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
@@ -104,11 +106,11 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "",
             "His meters",
             "・Full: tracks and snacks. Drains daily; hangry when low, dies at 0",
-            "・Happy: your first poke or chat each day earns 1 point. "
+            f"・Happy: your first poke or chat each day earns {chat_points}. "
             f"{rules.HAPPY_FULL_AT_PEOPLE} people in 24 h fill it; Rockstar "
             "needs it high",
-            f"・Care: rhyme duels (1 point, {rules.PLAYS_PER_DAY} a day) and gifts. "
-            "Drains daily; low is lonely, never hurt",
+            f"・Care: rhyme duels ({play_points}, {rules.PLAYS_PER_DAY} a day) and "
+            "gifts. Drains daily; low is lonely, never hurt",
             "",
             "Your bond",
             "・viibrmusic.com tracks, games, snacks and kept gifts build your bond",

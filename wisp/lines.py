@@ -471,7 +471,7 @@ _SICK = (
     "my nose is running and my flame is all wobbly. I've got a cold, everybody",
     "*sniff* I'm sick. I can't even hum without sneezing on the beat",
     "caught my first cold. my headphones are full of sneezes now. sorry, headphones",
-    "I've got spots and a thermometer in my mouth. the doctor says it's a cold. "
+    "I've got the sniffles and a thermometer in my mouth. the doctor says it's a cold. "
     "I am the doctor",
     "feeling hot and cold at the same time. which, for a flame, is a lot",
     "*achoo* being sick makes me extra hungry. an extra song and a snack would "
@@ -485,7 +485,7 @@ _SICK = (
 _RECOVERED = (
     "I can breathe through my nose again! the cold is gone and I'm never taking "
     "air for granted",
-    "no more sneezing. no more spots. I'm all better. "
+    "no more sneezing. no more tissues. I'm all better. "
     "thanks for the soup. I mean songs",
     "cold's gone. my flame stopped wobbling. listen, my voice is back: la la LA",
     "*big clear sniff* nothing. NOTHING. I'm better",

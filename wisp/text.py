@@ -51,7 +51,7 @@ def richest(plain: Sequence[str], rich: Sequence[str], room: int) -> list[str]:
     """`plain`, with each line swapped for its `rich` form while all still fit.
 
     Lines are tried in order, and a swap is kept only when the joined lines
-    stay within `room`, counted by `text_length`. The plain lines are kept
+    stay within `room`, counted by `len`. The plain lines are kept
     even when they do not fit.
     """
     lines = list(plain)

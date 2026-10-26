@@ -1643,3 +1643,75 @@ async def test_a_failed_credit_is_reported_and_the_poke_still_answered(
     assert private_reply(pressed) == "♪ You poked Wisp."
     posted = [str(call.args[0]) for call in server.house.send.await_args_list]
     assert any(text.startswith("♪ Member1 poked Wisp") for text in posted)
+
+
+# ---
+# Meeting through chat
+# ---
+
+
+async def test_chat_credits_on_three_days_make_him_meet_a_mentioner(
+    cog: Conversation,
+    bot: app.WispBot,
+    clock: Clock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    for _ in range(2):
+        await cog.on_message(message.to_wisp("hello"))
+        clock.advance(timedelta(days=1))
+    server.house.send.assert_not_awaited()
+    assert (await bot.players.get(GUILD_ID, FIRST)).met_at is None
+
+    await cog.on_message(message.to_wisp("hello"))
+
+    assert (await bot.players.get(GUILD_ID, FIRST)).met_at is not None
+    server.house.send.assert_awaited_once()
+    (button,) = server.house.send.await_args.kwargs["view"].children
+    assert button.item.custom_id == f"wisp:name:{FIRST}"
+
+
+async def test_chat_credits_on_three_days_make_him_meet_a_poker(
+    bot: app.WispBot, clock: Clock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    for _ in range(2):
+        await poke()
+        clock.advance(timedelta(days=1))
+    assert (await bot.players.get(GUILD_ID, FIRST)).met_at is None
+
+    await poke()
+
+    assert (await bot.players.get(GUILD_ID, FIRST)).met_at is not None
+    posted = [call.args[0] for call in server.house.send.await_args_list]
+    assert any(str(text).startswith("♪ Member1 poked Wisp") for text in posted)
+    assert any(
+        call.kwargs.get("view") is not None
+        for call in server.house.send.await_args_list
+    )
+
+
+async def test_a_failed_meeting_is_reported_and_the_mention_still_answered(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(bot.activity_log, "distinct_days", broken)
+    said = message.to_wisp("hello")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "hey you"
+    (report,) = reports(server)
+    assert report.startswith("Error in talking in Wisp's House: OperationalError")
+    assert await points(bot, FIRST) == CHAT_POINTS

@@ -21,6 +21,7 @@ from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
     credit_chat,
+    maybe_meet,
     report_failure,
     say_privately,
 )
@@ -247,8 +248,9 @@ class Conversation(commands.Cog):
             return
         if not self.bot.talk.take_turn(guild.id, player.user_id, now):
             return
+        credited = False
         try:
-            await credit_chat(self.bot, guild.id, message.author, life, now)
+            credited = await credit_chat(self.bot, guild.id, message.author, life, now)
         except pymysql.err.Error as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
         try:
@@ -260,6 +262,10 @@ class Conversation(commands.Cog):
                 "Answered a mention in guild %d in %.1f s",
                 guild.id,
                 time.monotonic() - received,
+            )
+        if credited:
+            await _meet_after_chat(
+                self.bot, guild.id, guild, message.author, _CONTEXT, message.channel
             )
 
     async def _talk(
@@ -390,8 +396,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     if not talk.take_turn(guild_id, user.id, now):
         await say_privately(interaction, _POKE_COOLING)
         return
+    credited = False
     try:
-        await credit_chat(bot, guild_id, user, life, now)
+        credited = await credit_chat(bot, guild_id, user, life, now)
     except pymysql.err.Error as error:
         await bot.report_error(
             interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
@@ -408,6 +415,28 @@ async def _poke(interaction: discord.Interaction) -> None:
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
     )
     await say_privately(interaction, _POKE_DONE)
+    if credited:
+        await _meet_after_chat(
+            bot, guild_id, interaction.guild, user, _POKE_CONTEXT, where_of(interaction)
+        )
+
+
+async def _meet_after_chat(
+    bot: "WispBot",
+    guild_id: int,
+    guild: discord.Guild | None,
+    member: discord.User | discord.Member,
+    context: str,
+    where: discord.abc.Messageable | None,
+) -> None:
+    """Let Wisp meet a member whose chat credit was just given.
+
+    A failure is reported as `context` and never stops the answer.
+    """
+    try:
+        await maybe_meet(bot, guild_id, member.id, display_name=member.display_name)
+    except pymysql.err.Error as error:
+        await bot.report_error(guild, context, error, where=where)
 
 
 async def _reaction(
