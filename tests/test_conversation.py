@@ -32,6 +32,7 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import (
+    CHAT_POINTS,
     CHIME_IN_CHANCE,
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
@@ -48,6 +49,7 @@ OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
 WISP_ID = 999
 WISP_ROLE_ID = 998
+QUALIFYING_ROLE = 997
 FIRST = 1
 SECOND = 2
 START = datetime(2026, 10, 23, 12, 0, tzinfo=UTC)
@@ -71,6 +73,7 @@ def make_user(user_id: int, name: str, *, bot: bool = False) -> MagicMock:
     user.id = user_id
     user.display_name = name
     user.bot = bot
+    user.roles = [MagicMock(spec=discord.Role, id=QUALIFYING_ROLE)]
     return user
 
 
@@ -229,6 +232,17 @@ async def lay(
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = START - timedelta(days=19)
     return await bot.lives.insert(GUILD_ID, life)
+
+
+async def enroll(bot: app.WispBot, *user_ids: int) -> None:
+    """Let members feed Wisp: the qualifying role is set and they opened the board."""
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    for user_id in user_ids:
+        await bot.players.activate(GUILD_ID, user_id, START)
+
+
+async def points(bot: app.WispBot, user_id: int) -> int:
+    return (await bot.players.get(GUILD_ID, user_id)).balance
 
 
 def give_emojis(bot: app.WispBot, *names: str) -> None:
@@ -1492,3 +1506,140 @@ async def test_poke_button_survives_restart(
         make_interaction(server, bot), MagicMock(spec=discord.ui.Button), match
     )
     assert isinstance(restored, PokeButton)
+
+
+# ---
+# Chat credit
+# ---
+
+
+async def test_poke_then_mention_credits_once(
+    cog: Conversation,
+    bot: app.WispBot,
+    clock: Clock,
+    message: MessageFactory,
+    poke: Press,
+    db: Database,
+) -> None:
+    life = await lay(bot)
+    await enroll(bot, FIRST, SECOND)
+
+    await poke(FIRST)
+    clock.advance(TALK_COOLDOWN)
+    await cog.on_message(message.to_wisp("hi again"))
+
+    rows = await db.fetchall(
+        f"SELECT user_id, life_id, kind, bond, meal_points FROM "
+        f"{db.t('interactions')}"
+    )
+    assert rows == [
+        {
+            "user_id": FIRST,
+            "life_id": life.id,
+            "kind": "chat",
+            "bond": 0,
+            "meal_points": 0,
+        }
+    ]
+    assert await points(bot, FIRST) == CHAT_POINTS
+
+    await poke(SECOND)
+    assert await points(bot, SECOND) == CHAT_POINTS
+    assert await points(bot, FIRST) == CHAT_POINTS
+    assert await bot.activity_log.chatters_since(GUILD_ID, START) == 2
+
+
+async def test_a_mention_credits_the_days_first_chat(
+    cog: Conversation,
+    bot: app.WispBot,
+    clock: Clock,
+    message: MessageFactory,
+    poke: Press,
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    await enroll(bot, FIRST)
+
+    await cog.on_message(message.to_wisp("hello"))
+    clock.advance(TALK_COOLDOWN)
+    await poke(FIRST)
+
+    assert await points(bot, FIRST) == CHAT_POINTS
+    assert await bot.activity_log.chatted_today(GUILD_ID, FIRST, START) is True
+
+
+async def test_chatting_earns_no_bond_growth_or_caretaking(
+    cog: Conversation, bot: app.WispBot, message: MessageFactory
+) -> None:
+    life = await lay(bot)
+    await enroll(bot, FIRST)
+
+    await cog.on_message(message.to_wisp("hello"))
+
+    after = await bot.lives.current(GUILD_ID)
+    assert after is not None and life.id is not None
+    assert (after.full, after.growth) == (life.full, life.growth)
+    assert (await bot.players.get(GUILD_ID, FIRST)).bond == 0
+    assert await bot.activity_log.caretakers(GUILD_ID, life.id, START) == 0
+    assert await bot.activity_log.latest_interactor(GUILD_ID, life.id) is None
+
+
+async def test_a_member_who_cannot_feed_is_answered_without_credit(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    poke: Press,
+    clock: Clock,
+) -> None:
+    await lay(bot)
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    said = message.to_wisp("hello")
+
+    await cog.on_message(said)
+    clock.advance(TALK_COOLDOWN)
+    pressed = await poke()
+
+    assert reply_text(said) == "hey you"
+    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert await points(bot, FIRST) == 0
+    assert await bot.activity_log.chatters_since(GUILD_ID, START) == 0
+
+
+async def test_a_failed_credit_is_reported_and_the_mention_still_answered(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(bot.activity_log, "record_interaction", broken)
+    said = message.to_wisp("hello")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "hey you"
+    (report,) = reports(server)
+    assert report.startswith("Error in talking in Wisp's House: OperationalError")
+    assert await points(bot, FIRST) == 0
+
+
+async def test_a_failed_credit_is_reported_and_the_poke_still_answered(
+    bot: app.WispBot,
+    server: FakeServer,
+    poke: Press,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(bot.activity_log, "record_interaction", broken)
+
+    pressed = await poke()
+
+    (report,) = reports(server)
+    assert report.startswith("Error in the Poke Wisp button: OperationalError")
+    assert private_reply(pressed) == "♪ You poked Wisp."
+    posted = [str(call.args[0]) for call in server.house.send.await_args_list]
+    assert any(text.startswith("♪ Member1 poked Wisp") for text in posted)

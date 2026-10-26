@@ -33,6 +33,10 @@ class Stage(StrEnum):
 MEAL_POINTS: dict[TrackKind, int] = {TrackKind.VIIBR: 5, TrackKind.SUNO: 1}
 MEAL_POINTS_MAX = 50
 DAILY_MEAL_CAP = 15
+# Vault points for a member's first poke or mention of the UTC day, and for each
+# counted Rhyme Duel.
+CHAT_POINTS = 1
+PLAY_POINTS = 1
 # How long viibrmusic.com has to say which song a share link names.
 VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 

@@ -28,6 +28,7 @@ from wisp.lines import LINES, Moment
 from wisp.rules import (
     BOND_PER_PLAY,
     GROWTH_PER_PLAY,
+    PLAY_POINTS,
     PLAYS_PER_DAY,
     RHYME_TURN,
     Stage,
@@ -572,9 +573,57 @@ async def test_a_duel_by_someone_who_cannot_feed_keeps_only_the_score(
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     player = await bot.players.get(GUILD_ID, newcomer)
     assert (player.bond, player.best_rhyme_score) == (0, 2)
+    assert (player.balance, player.lifetime_points) == (0, 0)
     current = await bot.lives.current(GUILD_ID)
     assert current is not None
     assert current.growth == life.growth
+
+
+async def test_a_counted_duel_pays_one_point(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    wisp_says(None, None)
+
+    await duel(bot, server, said("choir"))
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.lifetime_points) == (PLAY_POINTS, PLAY_POINTS)
+
+    await duel(bot, server, said("higher"))
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.balance, player.lifetime_points) == (2 * PLAY_POINTS,) * 2
+
+
+async def test_no_point_past_the_daily_play_limit(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    for _ in range(PLAYS_PER_DAY):
+        await bot.activity_log.record_interaction(
+            GUILD_ID,
+            life.id,
+            USER_ID,
+            InteractionKind.PLAY,
+            0,
+            0,
+            discord.utils.utcnow(),
+        )
+    wisp_says(None)
+
+    await duel(bot, server, said("choir"))
+
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 0
+
+
+async def test_a_duel_without_a_rhyme_pays_no_point(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+
+    await duel(bot, server, said("water"))
+
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 0
 
 
 async def test_play_bond_respects_the_daily_cap(

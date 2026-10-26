@@ -18,15 +18,14 @@ from cogs.announce import (
 from cogs.assets import nap_image
 from cogs.badges import sweep_badges
 from cogs.pictures import life_image
-from cogs.players import status_text
+from cogs.players import current_happiness, status_text
 from cogs.snacks import status_view
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
-from wisp.bond import happiness
 from wisp.life import Event, EventKind, Life, Phase, is_over, tick
 from wisp.lines import Moment
-from wisp.rules import HAPPINESS_WINDOW, PAID_SNACKS, QUIET_AFTER, TICK_EVERY
+from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -98,9 +97,7 @@ class LifeLoop(commands.Cog):
         if guild is None:
             return
         frozen = settings.frozen
-        happy = happiness(
-            await bot.activity_log.people_since(guild_id, now - HAPPINESS_WINDOW)
-        )
+        happy = await current_happiness(bot, guild_id, now)
         events: list[Event] | None = None
         async with bot.guild_lock(guild_id):
             life = await bot.lives.current(guild_id)

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-26 (chat credit and duel points)
+
+- A member's first poke or mention of the UTC day records a new `chat`
+  interaction and gives 1 Vault point (`CHAT_POINTS`). Later pokes and
+  mentions that day give nothing. Only members who can feed Wisp and are not
+  banned earn it; everyone else can still talk to him. If the credit fails
+  (a database error) it is reported in the channel and Wisp still replies.
+- Happy now counts the members who chatted with him in the last 24 hours,
+  not everyone who did anything. Feeding and playing no longer raise it.
+- A chat counts toward Wisp learning a member's name, but not toward bond,
+  growth, caretakers, the "fed by" line or the stage-up keepsake.
+- Each Rhyme Duel that counts as play (the daily limit, a scored rhyme and
+  the right to feed) also pays 1 Vault point (`PLAY_POINTS`).
+- New repo counts for the status menu: `chatters_since`, `feeders_since`,
+  `chatted_today` and `tracks_today` (ViiBR and Suno tracks fed today).
+  No database change: `kind` already fits `chat`.
+
 ## 2026-10-26 (new divider)
 
 - Myra's divider `❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰` replaces the old

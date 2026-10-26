@@ -698,6 +698,115 @@ async def test_people_and_caretakers_since(db: Database) -> None:
     assert await repo.caretakers(GUILD, 2, since) == 1
 
 
+async def test_chatted_today_is_once_per_utc_day(db: Database) -> None:
+    repo = ActivityRepo(db)
+    assert await repo.chatted_today(GUILD, USER, NOW) is False
+
+    await repo.record_interaction(GUILD, 1, USER, InteractionKind.CHAT, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, OTHER_USER, InteractionKind.PLAY, 0, 0, NOW)
+    await repo.record_interaction(
+        GUILD, 1, 3, InteractionKind.CHAT, 0, 0, MIDNIGHT - timedelta(seconds=1)
+    )
+
+    assert await repo.chatted_today(GUILD, USER, NOW) is True
+    assert await repo.chatted_today(GUILD, USER, MIDNIGHT + timedelta(days=1)) is False
+    assert await repo.chatted_today(GUILD, OTHER_USER, NOW) is False
+    assert await repo.chatted_today(GUILD, 3, NOW) is False
+    assert await repo.chatted_today(OTHER_GUILD, USER, NOW) is False
+
+
+async def test_chatters_since_counts_only_chats(db: Database) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(hours=24)
+    chat = InteractionKind.CHAT
+    await repo.record_interaction(GUILD, 1, 1, chat, 0, 0, since - timedelta(hours=1))
+    await repo.record_interaction(GUILD, 1, 2, chat, 0, 0, since)
+    await repo.record_interaction(GUILD, 1, 2, chat, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, 3, chat, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, 4, InteractionKind.FEED, 10, 5, NOW)
+    await repo.record_interaction(GUILD, 1, 5, InteractionKind.PLAY, 3, 0, NOW)
+    await repo.record_interaction(OTHER_GUILD, 1, 6, chat, 0, 0, NOW)
+
+    assert await repo.chatters_since(GUILD, since) == 2
+    assert await repo.chatters_since(OTHER_GUILD, since) == 1
+    assert await repo.chatters_since(GUILD, NOW + timedelta(seconds=1)) == 0
+
+
+async def test_feeders_since_counts_only_feeding(db: Database) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(hours=24)
+    for user, kind in [
+        (1, InteractionKind.FEED),
+        (2, InteractionKind.SNACK),
+        (3, InteractionKind.FREE_SNACK),
+        (3, InteractionKind.FEED),
+        (4, InteractionKind.PLAY),
+        (5, InteractionKind.GIFT),
+        (6, InteractionKind.CHAT),
+    ]:
+        await repo.record_interaction(GUILD, 1, user, kind, 0, 0, NOW)
+    await repo.record_interaction(
+        GUILD, 1, 7, InteractionKind.FEED, 0, 0, since - timedelta(seconds=1)
+    )
+    await repo.record_interaction(OTHER_GUILD, 1, 8, InteractionKind.FEED, 0, 0, NOW)
+
+    assert await repo.feeders_since(GUILD, since) == 3
+    assert await repo.feeders_since(OTHER_GUILD, since) == 1
+
+
+async def test_chat_rows_do_not_count_as_caretakers_or_last_interactor(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(hours=24)
+    await repo.record_interaction(GUILD, 1, 1, InteractionKind.SNACK, 1, 2, NOW)
+    await repo.record_interaction(
+        GUILD, 1, 2, InteractionKind.CHAT, 0, 0, NOW + timedelta(minutes=1)
+    )
+    await repo.record_interaction(
+        GUILD, 2, 3, InteractionKind.CHAT, 0, 0, NOW + timedelta(minutes=2)
+    )
+
+    assert await repo.caretakers(GUILD, 1, since) == 1
+    assert await repo.caretakers(GUILD, 2, since) == 0
+    assert await repo.latest_interactor(GUILD, 1) == 1
+    assert await repo.latest_interactor(GUILD, 2) is None
+
+
+async def test_chats_still_count_as_activity_and_toward_meeting(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(hours=24)
+    for at in (MIDNIGHT, MIDNIGHT + timedelta(days=1)):
+        await repo.record_interaction(GUILD, 1, USER, InteractionKind.CHAT, 0, 0, at)
+
+    assert await repo.people_since(GUILD, since) == 1
+    assert await repo.distinct_days(GUILD, USER) == 2
+    assert await repo.meal_points_today(GUILD, USER, NOW) == 0
+    assert await repo.casual_bond_today(GUILD, USER, NOW) == 0
+
+
+async def test_tracks_today_splits_viibr_and_suno(db: Database) -> None:
+    repo = ActivityRepo(db)
+    feeds = [
+        (GUILD, track("a", TrackKind.VIIBR), NOW),
+        (GUILD, track("b", TrackKind.VIIBR), MIDNIGHT),
+        (GUILD, track("c", TrackKind.SUNO), NOW),
+        (GUILD, track("d", TrackKind.SUNO), NOW),
+        (GUILD, track("e", TrackKind.SUNO), NOW),
+        (GUILD, track("f", TrackKind.VIIBR), MIDNIGHT - timedelta(seconds=1)),
+        (GUILD, track("g", TrackKind.SUNO), MIDNIGHT + timedelta(days=1)),
+        (OTHER_GUILD, track("h", TrackKind.VIIBR), NOW),
+    ]
+    for index, (guild, fed, at) in enumerate(feeds):
+        await repo.record_feed(guild, 1, USER, fed, 1, 900 + index, at)
+
+    assert await repo.tracks_today(GUILD, NOW) == (2, 3)
+    assert await repo.tracks_today(OTHER_GUILD, NOW) == (1, 0)
+    assert await repo.tracks_today(GUILD, MIDNIGHT + timedelta(days=5)) == (0, 0)
+
+
 async def test_top_this_life_orders_by_points(db: Database) -> None:
     repo = ActivityRepo(db)
     await repo.record_feed(GUILD, 1, 10, track("a"), 1, 1, NOW)

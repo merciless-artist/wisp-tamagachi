@@ -11,12 +11,13 @@ import pymysql
 from cogs.announce import say_in_house
 from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
+from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
 from wisp.card import render_status
 from wisp.life import Life, Phase, add_growth, is_over
 from wisp.lines import Moment
-from wisp.rules import GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
+from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
 from wisp.text import USER_ERROR, count
 
 if TYPE_CHECKING:
@@ -46,6 +47,46 @@ async def status_text(
         happiness=happy,
         fed_today=await bot.activity_log.people_since(guild_id, today),
     )
+
+
+# ---
+# Happy and chat credit
+# ---
+
+
+async def current_happiness(bot: "WispBot", guild_id: int, now: datetime) -> int:
+    """How happy Wisp is: how many members chatted with him in the last day."""
+    return happiness(
+        await bot.activity_log.chatters_since(guild_id, now - HAPPINESS_WINDOW)
+    )
+
+
+async def credit_chat(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    life: Life,
+    now: datetime,
+) -> bool:
+    """Give a member the day's chat credit for poking or mentioning Wisp.
+
+    The first poke or mention of the UTC day records a CHAT interaction, which
+    makes Wisp happy but earns no bond or growth, and gives CHAT_POINTS. Only a
+    member who is not banned and can feed Wisp earns it. Returns whether it was
+    given.
+    """
+    if life.id is None:
+        return False
+    player = await bot.players.get(guild_id, member.id)
+    if player.is_banned(now) or not await can_feed(bot, guild_id, member):
+        return False
+    if await bot.activity_log.chatted_today(guild_id, member.id, now):
+        return False
+    await bot.activity_log.record_interaction(
+        guild_id, life.id, member.id, InteractionKind.CHAT, 0, 0, now
+    )
+    await bot.players.add_points(guild_id, member.id, CHAT_POINTS)
+    return True
 
 
 # ---
@@ -304,9 +345,7 @@ async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
     if life is None or is_over(life):
         text = "♪ Wisp has no life to show right now. A new egg will be laid soon."
     else:
-        happy = happiness(
-            await bot.activity_log.people_since(guild_id, now - HAPPINESS_WINDOW)
-        )
+        happy = await current_happiness(bot, guild_id, now)
         text = await status_text(bot, guild_id, life, now, happy)
     await say_privately(interaction, text)
 

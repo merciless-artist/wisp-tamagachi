@@ -23,6 +23,8 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
+from wisp.bond import happiness
+from wisp.card import bar
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import Stage
@@ -32,6 +34,7 @@ GUILD_ID = 100
 HOUSE_ID = 20
 FIRST_USER = 1
 SECOND_USER = 2
+QUALIFYING_ROLE = 555
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 
 # ---
@@ -95,6 +98,21 @@ def make_interaction(
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
     return interaction
+
+
+def make_member(
+    user_id: int = FIRST_USER, roles: tuple[int, ...] = (QUALIFYING_ROLE,)
+) -> MagicMock:
+    member = MagicMock(spec=discord.Member)
+    member.id = user_id
+    member.roles = [MagicMock(spec=discord.Role, id=role_id) for role_id in roles]
+    return member
+
+
+async def enroll(bot: app.WispBot, user_id: int = FIRST_USER) -> None:
+    """Let a member feed Wisp: the qualifying role is set and they opened the board."""
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    await bot.players.activate(GUILD_ID, user_id, NOW)
 
 
 async def run(command: Any, *args: Any) -> None:
@@ -187,6 +205,136 @@ async def test_status_while_between_lives_says_so(bot: app.WispBot) -> None:
 
     (text,) = followups(interaction)
     assert "no life" in text
+
+
+# ---
+# Chat credit and happiness
+# ---
+
+
+async def test_chat_credit_is_once_a_day(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    await enroll(bot)
+    member = make_member()
+
+    assert await players.credit_chat(bot, GUILD_ID, member, life, NOW) is True
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert (player.balance, player.lifetime_points) == (rules.CHAT_POINTS,) * 2
+
+    later = NOW + timedelta(hours=5)
+    assert await players.credit_chat(bot, GUILD_ID, member, life, later) is False
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == rules.CHAT_POINTS
+
+    tomorrow = NOW.replace(hour=0, minute=0) + timedelta(days=1)
+    assert await players.credit_chat(bot, GUILD_ID, member, life, tomorrow) is True
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == (
+        2 * rules.CHAT_POINTS
+    )
+
+
+async def test_chat_credit_records_a_chat_with_no_bond_or_meal(
+    bot: app.WispBot, db: Database
+) -> None:
+    life = await lay(bot)
+    await enroll(bot)
+
+    await players.credit_chat(bot, GUILD_ID, make_member(), life, NOW)
+
+    rows = await db.fetchall(
+        f"SELECT user_id, life_id, kind, bond, meal_points FROM {db.t('interactions')}"
+    )
+    assert rows == [
+        {
+            "user_id": FIRST_USER,
+            "life_id": life.id,
+            "kind": InteractionKind.CHAT.value,
+            "bond": 0,
+            "meal_points": 0,
+        }
+    ]
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).bond == 0
+
+
+@pytest.mark.parametrize(
+    ("roles", "activated", "banned"),
+    [
+        ((), True, False),
+        ((QUALIFYING_ROLE,), False, False),
+        ((QUALIFYING_ROLE,), True, True),
+    ],
+    ids=["no-role", "board-not-opened", "banned"],
+)
+async def test_only_feeders_get_chat_credit(
+    bot: app.WispBot,
+    db: Database,
+    roles: tuple[int, ...],
+    activated: bool,
+    banned: bool,
+) -> None:
+    life = await lay(bot)
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    if activated:
+        await bot.players.activate(GUILD_ID, FIRST_USER, NOW)
+    if banned:
+        await bot.players.set_offense(
+            GUILD_ID, FIRST_USER, 1, NOW + timedelta(days=1), False
+        )
+
+    given = await players.credit_chat(
+        bot, GUILD_ID, make_member(roles=roles), life, NOW
+    )
+
+    assert given is False
+    assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
+
+
+async def test_chat_credit_needs_a_life_that_is_stored(bot: app.WispBot) -> None:
+    await enroll(bot)
+    unsaved = make_life(1, Phase.ALIVE, hatched_ago=timedelta(hours=1))
+
+    assert (
+        await players.credit_chat(bot, GUILD_ID, make_member(), unsaved, NOW) is False
+    )
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
+
+
+async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    log = bot.activity_log
+    for user_id, kind in [
+        (FIRST_USER, InteractionKind.FEED),
+        (SECOND_USER, InteractionKind.SNACK),
+        (3, InteractionKind.CHAT),
+    ]:
+        await log.record_interaction(GUILD_ID, life.id, user_id, kind, 0, 0, now)
+
+    assert await players.current_happiness(bot, GUILD_ID, now) == happiness(1)
+    interaction = make_interaction(bot)
+    await run(players.wisp_status, interaction)
+    (text,) = followups(interaction)
+    assert f"happiness  {bar(happiness(1))}  {happiness(1)}" in text
+
+
+async def test_chats_older_than_a_day_do_not_make_him_happy(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    await bot.activity_log.record_interaction(
+        GUILD_ID,
+        life.id,
+        FIRST_USER,
+        InteractionKind.CHAT,
+        0,
+        0,
+        now - rules.HAPPINESS_WINDOW - timedelta(minutes=1),
+    )
+
+    assert await players.current_happiness(bot, GUILD_ID, now) == happiness(0)
 
 
 # ---

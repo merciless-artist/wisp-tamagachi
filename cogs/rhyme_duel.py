@@ -17,6 +17,7 @@ from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
 from wisp.rules import (
     BOND_PER_PLAY,
     GROWTH_PER_PLAY,
+    PLAY_POINTS,
     PLAYS_PER_DAY,
     RHYME_THREAD_ARCHIVE_MINUTES,
     RHYME_TURN,
@@ -162,9 +163,10 @@ async def _record_play(
 ) -> bool:
     """Count the duel as play and keep the score if it is the player's best.
 
-    The play, with its bond and growth, only counts when the player scored a
-    rhyme, can feed Wisp, Wisp is still alive and the member has had fewer
-    than PLAYS_PER_DAY counted games today. The best score is always kept.
+    The play, with its bond, growth and Vault point, only counts when the
+    player scored a rhyme, can feed Wisp, Wisp is still alive and the member
+    has had fewer than PLAYS_PER_DAY counted games today. The best score is
+    always kept.
     Returns True on a new best score.
     """
     now = discord.utils.utcnow()
@@ -188,6 +190,7 @@ async def _record_play(
             await log.record_interaction(
                 guild_id, life.id, user_id, InteractionKind.PLAY, bond, 0, now
             )
+            await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
             add_growth(life, GROWTH_PER_PLAY)
             await bot.lives.save(guild_id, life)
         return await bot.players.record_rhyme_score(guild_id, user_id, points)

@@ -9,13 +9,21 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
 import discord
+import pymysql
 from discord.ext import commands
 
 from ai.prompt import Prompt
 from cogs.announce import post_in_house
 from cogs.assets import nap_image
+from cogs.channels import where_of
 from cogs.groups import require_guild
-from cogs.players import EXPECTED_FAILURES, bot_of, report_failure, say_privately
+from cogs.players import (
+    EXPECTED_FAILURES,
+    bot_of,
+    credit_chat,
+    report_failure,
+    say_privately,
+)
 from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
 from cogs.staff import is_command
 from db.players import Player
@@ -174,7 +182,8 @@ async def _prompt(
 class Conversation(commands.Cog):
     """Wisp in his House: he answers when spoken to and sometimes chimes in.
 
-    Talking to him earns no bond and no happiness, and leaves no interaction.
+    Talking to him earns no bond. A member's first mention or poke of the UTC
+    day also records a chat, which makes him happy and earns a Vault point.
     The recent chat and the talk cooldown live in `bot.talk`, shared with pokes.
     """
 
@@ -237,6 +246,10 @@ class Conversation(commands.Cog):
             return
         if not self.bot.talk.take_turn(guild.id, player.user_id, now):
             return
+        try:
+            await credit_chat(self.bot, guild.id, message.author, life, now)
+        except pymysql.err.Error as error:
+            await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
         try:
             await self._talk(message, guild, life, level, player, text, earlier, now)
         except discord.HTTPException as error:
@@ -375,6 +388,12 @@ async def _poke(interaction: discord.Interaction) -> None:
     if not talk.take_turn(guild_id, user.id, now):
         await say_privately(interaction, _POKE_COOLING)
         return
+    try:
+        await credit_chat(bot, guild_id, user, life, now)
+    except pymysql.err.Error as error:
+        await bot.report_error(
+            interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
+        )
     quiet_for = talk.quiet_for(guild_id, now)
     flavor = poke_flavor(mood(life), talk.poke(guild_id, now), quiet_for, now, talk.rng)
     talk.stir(guild_id, now)
@@ -399,7 +418,7 @@ async def _reaction(
 ) -> str:
     """Wisp's reaction to a poke from his AI voice, or a canned one when it fails.
 
-    A poke earns nothing; it keeps only the expressions a hatched Wisp used.
+    It keeps only the expressions a hatched Wisp used.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)

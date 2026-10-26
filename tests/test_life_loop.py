@@ -33,7 +33,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.bond import happiness
-from wisp.card import render_status
+from wisp.card import bar, render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -178,10 +178,16 @@ async def lay(
     return await bot.lives.insert(GUILD_ID, life)
 
 
-async def interact(bot: app.WispBot, life: Life, at: datetime) -> None:
+async def interact(
+    bot: app.WispBot,
+    life: Life,
+    at: datetime,
+    kind: InteractionKind = InteractionKind.PLAY,
+    user_id: int = USER_ID,
+) -> None:
     assert life.id is not None
     await bot.activity_log.record_interaction(
-        GUILD_ID, life.id, USER_ID, InteractionKind.PLAY, 0, 0, at
+        GUILD_ID, life.id, user_id, kind, 0, 0, at
     )
 
 
@@ -360,6 +366,7 @@ async def test_tick_edits_status_message(
     await configure(bot)
     life = await lay(bot)
     await interact(bot, life, NOW - timedelta(hours=2))
+    await interact(bot, life, NOW - timedelta(hours=2), InteractionKind.CHAT)
 
     await cog.run_tick(NOW)
 
@@ -384,7 +391,8 @@ async def test_fed_today_counts_only_the_current_utc_day(
 ) -> None:
     await configure(bot)
     life = await lay(bot)
-    await interact(bot, life, NOW.replace(hour=0, minute=0) - timedelta(minutes=1))
+    before_midnight = NOW.replace(hour=0, minute=0) - timedelta(minutes=1)
+    await interact(bot, life, before_midnight, InteractionKind.CHAT)
 
     await cog.run_tick(NOW)
 
@@ -392,6 +400,22 @@ async def test_fed_today_counts_only_the_current_utc_day(
     assert server.card_edit.await_args.kwargs["content"] == render_status(
         after, NOW, happiness=happiness(1), fed_today=0
     )
+
+
+async def test_happy_counts_only_chatters(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    recently = NOW - timedelta(hours=2)
+    await interact(bot, life, recently, InteractionKind.FEED, user_id=2)
+    await interact(bot, life, recently, InteractionKind.SNACK, user_id=3)
+    await interact(bot, life, recently, InteractionKind.CHAT, user_id=4)
+
+    await cog.run_tick(NOW)
+
+    content = server.card_edit.await_args.kwargs["content"]
+    assert f"happiness  {bar(happiness(1))}  {happiness(1)}" in content
 
 
 async def test_missing_status_message_is_reposted(

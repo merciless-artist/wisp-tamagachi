@@ -7,20 +7,30 @@ import pymysql
 from pymysql.constants import ER
 
 from db.database import Database, to_db_time
-from wisp.links import Track
+from wisp.links import Track, TrackKind
 
 
 class InteractionKind(StrEnum):
-    """What a member did with Wisp. FEED and GIFT are not casual play."""
+    """What a member did with Wisp.
+
+    FEED and GIFT are not casual play. CHAT is the day's first poke or mention:
+    it makes Wisp happy but is not caring for him.
+    """
 
     FEED = "feed"
     SNACK = "snack"
     FREE_SNACK = "free"
     PLAY = "play"
     GIFT = "gift"
+    CHAT = "chat"
 
 
 _CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)
+_FEEDING = (
+    InteractionKind.FEED,
+    InteractionKind.SNACK,
+    InteractionKind.FREE_SNACK,
+)
 
 
 def utc_day(now: datetime) -> tuple[datetime, datetime]:
@@ -110,7 +120,7 @@ class ActivityRepo:
         return int(row["days"])
 
     async def people_since(self, guild_id: int, since: datetime) -> int:
-        """Number of different members who interacted with Wisp since `since`."""
+        """Number of different members who did anything with Wisp since `since`."""
         row = await self._db.fetchone(
             f"SELECT COUNT(DISTINCT user_id) AS people FROM "
             f"{self._db.t('interactions')} WHERE guild_id = %s AND at >= %s",
@@ -119,23 +129,51 @@ class ActivityRepo:
         assert row is not None
         return int(row["people"])
 
+    async def chatters_since(self, guild_id: int, since: datetime) -> int:
+        """Number of different members who chatted with Wisp since `since`."""
+        return await self._people_since((InteractionKind.CHAT,), guild_id, since)
+
+    async def feeders_since(self, guild_id: int, since: datetime) -> int:
+        """Number of different members who fed Wisp or gave a snack since `since`."""
+        return await self._people_since(_FEEDING, guild_id, since)
+
+    async def _people_since(
+        self, kinds: tuple[InteractionKind, ...], guild_id: int, since: datetime
+    ) -> int:
+        marks = ", ".join(["%s"] * len(kinds))
+        row = await self._db.fetchone(
+            f"SELECT COUNT(DISTINCT user_id) AS people FROM "
+            f"{self._db.t('interactions')} WHERE guild_id = %s AND at >= %s "
+            f"AND kind IN ({marks})",
+            (guild_id, to_db_time(since), *(kind.value for kind in kinds)),
+        )
+        assert row is not None
+        return int(row["people"])
+
     async def caretakers(self, guild_id: int, life_id: int, since: datetime) -> int:
-        """Number of different members who cared for one life since `since`."""
+        """Number of different members who cared for one life since `since`.
+
+        Chatting is not caring.
+        """
         row = await self._db.fetchone(
             f"SELECT COUNT(DISTINCT user_id) AS people FROM "
             f"{self._db.t('interactions')} "
-            "WHERE guild_id = %s AND life_id = %s AND at >= %s",
-            (guild_id, life_id, to_db_time(since)),
+            "WHERE guild_id = %s AND life_id = %s AND at >= %s AND kind <> %s",
+            (guild_id, life_id, to_db_time(since), InteractionKind.CHAT.value),
         )
         assert row is not None
         return int(row["people"])
 
     async def latest_interactor(self, guild_id: int, life_id: int) -> int | None:
-        """The member who last interacted with one life in any way, or None."""
+        """The member who last cared for one life in any way, or None.
+
+        Chatting is not caring.
+        """
         row = await self._db.fetchone(
             f"SELECT user_id FROM {self._db.t('interactions')} "
-            "WHERE guild_id = %s AND life_id = %s ORDER BY at DESC, id DESC LIMIT 1",
-            (guild_id, life_id),
+            "WHERE guild_id = %s AND life_id = %s AND kind <> %s "
+            "ORDER BY at DESC, id DESC LIMIT 1",
+            (guild_id, life_id, InteractionKind.CHAT.value),
         )
         return None if row is None else int(row["user_id"])
 
@@ -197,6 +235,25 @@ class ActivityRepo:
         return bool(
             await self._count_today(InteractionKind.FREE_SNACK, guild_id, user_id, now)
         )
+
+    async def chatted_today(self, guild_id: int, user_id: int, now: datetime) -> bool:
+        """Whether the member has had today's chat credit on the UTC day of `now`."""
+        return bool(
+            await self._count_today(InteractionKind.CHAT, guild_id, user_id, now)
+        )
+
+    async def tracks_today(self, guild_id: int, now: datetime) -> tuple[int, int]:
+        """Return (ViiBR, Suno) tracks fed on the UTC day of `now`."""
+        start, end = utc_day(now)
+        row = await self._db.fetchone(
+            "SELECT COALESCE(SUM(track_key LIKE %s), 0) AS viibr, "
+            "COALESCE(SUM(track_key LIKE %s), 0) AS suno "
+            f"FROM {self._db.t('feeds')} "
+            "WHERE guild_id = %s AND fed_at >= %s AND fed_at < %s",
+            (f"{TrackKind.VIIBR}:%", f"{TrackKind.SUNO}:%", guild_id, start, end),
+        )
+        assert row is not None
+        return int(row["viibr"]), int(row["suno"])
 
     async def plays_today(self, guild_id: int, user_id: int, now: datetime) -> int:
         """Games the member has played with Wisp on the UTC day of `now`."""
