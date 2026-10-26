@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 (Old Fogey sigh)
+
+- When Wisp grows old, the post shows him sighing like he's really tired
+  (`ASSETS/stages/old_fogey.gif`). The status card keeps the still picture.
+
 ## 2026-10-25 (Vault and Snack Pack frames)
 
 - The Vault shop follows Myra's template: the balance above a ViiBR Vault
