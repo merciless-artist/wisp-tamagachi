@@ -161,7 +161,7 @@ async def lay(
     bot: app.WispBot,
     *,
     phase: Phase = Phase.ALIVE,
-    care: float = 50.0,
+    full: float = 50.0,
     version: int = 1,
     gap: timedelta = FULL_GAP,
     phase_seconds: float = 0.0,
@@ -170,7 +170,7 @@ async def lay(
     """Insert a life whose last tick was `gap` before NOW."""
     life = new_egg(version, NOW - gap)
     life.phase = phase
-    life.care = care
+    life.full = full
     life.phase_seconds = phase_seconds
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = stage
@@ -365,7 +365,7 @@ async def test_tick_edits_status_message(
 
     after = await current_life(bot)
     assert after.last_tick_at == NOW
-    assert after.care < 50.0
+    assert after.full < 50.0
     server.status.get_partial_message.assert_called_once_with(CARD_ID)
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
@@ -781,7 +781,7 @@ async def test_death_posts_died_then_new_egg_with_next_version(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, care=0.01)
+    await lay(bot, full=0.01)
 
     await cog.run_tick(NOW)
 
@@ -799,7 +799,7 @@ async def test_cold_egg_uses_up_version(
 ) -> None:
     await configure(bot)
     nearly_cold = rules.EGG_WARMTH.total_seconds() - 1
-    await lay(bot, phase=Phase.EGG, care=0.0, phase_seconds=nearly_cold)
+    await lay(bot, phase=Phase.EGG, full=0.0, phase_seconds=nearly_cold)
 
     await cog.run_tick(NOW)
 
@@ -815,7 +815,7 @@ async def test_finished_life_is_replaced_by_next_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, care=0.0)
+    await lay(bot, phase=Phase.DEAD, full=0.0)
 
     await cog.run_tick(NOW)
 
@@ -837,7 +837,7 @@ async def test_over_life_at_tick_start_uses_next_life(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    passed = await lay(bot, phase=Phase.PASSED, care=40.0)
+    passed = await lay(bot, phase=Phase.PASSED, full=40.0)
     assert passed.id is not None
     track = Track(TrackKind.VIIBR, "track", "https://viibrmusic.com/songs/track")
     await bot.activity_log.record_feed(
@@ -863,12 +863,12 @@ async def test_frozen_guild_does_not_drain(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot, frozen=True)
-    await lay(bot, care=50.0)
+    await lay(bot, full=50.0)
 
     await cog.run_tick(NOW)
 
     life = await current_life(bot)
-    assert life.care == 50.0
+    assert life.full == 50.0
     assert life.phase_seconds == 0.0
     assert life.last_tick_at == NOW
     server.house.send.assert_not_awaited()
@@ -954,24 +954,24 @@ async def test_no_quiet_line_for_an_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.EGG, care=0.0)
+    await lay(bot, phase=Phase.EGG, full=0.0)
 
     await cog.run_tick(NOW)
 
     server.house.send.assert_not_awaited()
 
 
-@pytest.mark.parametrize(("care", "expected"), [(80.0, Mood.HAPPY), (5.0, Mood.HANGRY)])
+@pytest.mark.parametrize(("full", "expected"), [(80.0, Mood.HAPPY), (5.0, Mood.HANGRY)])
 async def test_quiet_line_matches_his_mood(
     cog: LifeLoop,
     bot: app.WispBot,
     server: FakeServer,
     monkeypatch: pytest.MonkeyPatch,
-    care: float,
+    full: float,
     expected: Mood,
 ) -> None:
     await configure(bot)
-    await lay(bot, care=care, version=3)
+    await lay(bot, full=full, version=3)
     picked: list[tuple[Moment, Mood, dict[str, str]]] = []
 
     def pick(moment: Moment, mood: Mood, **fields: str) -> str:
@@ -1053,7 +1053,7 @@ async def test_guild_the_bot_cannot_see_is_skipped(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await configure(bot)
-    await lay(bot, care=50.0)
+    await lay(bot, full=50.0)
     monkeypatch.setattr(bot, "get_guild", lambda _id: None)
 
     await cog.run_tick(NOW)
@@ -1194,14 +1194,14 @@ async def test_eggs_off_changes_nothing_while_he_is_alive(
 ) -> None:
     await configure(bot)
     await bot.settings.update(GUILD_ID, lay_eggs=False)
-    life = await lay(bot, care=80.0)
+    life = await lay(bot, full=80.0)
 
     await cog.run_tick(NOW)
 
     current = await bot.lives.current(GUILD_ID)
     assert current is not None and current.id == life.id
     assert current.phase is Phase.ALIVE
-    assert current.care < 80.0
+    assert current.full < 80.0
     server.card_edit.assert_awaited_once()
 
 

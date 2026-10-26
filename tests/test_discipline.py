@@ -126,7 +126,7 @@ async def lay(bot: app.WispBot) -> Life:
     life = new_egg(1, discord.utils.utcnow() - timedelta(days=1))
     life.phase = Phase.ALIVE
     life.stage = life.peak_stage = Stage.BABY
-    life.care = 50.0
+    life.full = 50.0
     life.hatched_at = discord.utils.utcnow()
     return await bot.lives.insert(GUILD_ID, life)
 

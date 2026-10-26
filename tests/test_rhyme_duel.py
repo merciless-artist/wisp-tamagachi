@@ -230,7 +230,7 @@ def replies(interaction: MagicMock) -> list[str]:
 async def lay(bot: app.WispBot, phase: Phase = Phase.ALIVE) -> Life:
     life = new_egg(1, discord.utils.utcnow() - timedelta(days=1))
     life.phase = phase
-    life.care = 50.0
+    life.full = 50.0
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = Stage.BABY
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()
@@ -380,7 +380,7 @@ async def test_only_the_player_counts(
 
 async def test_wisp_answers_in_his_mood(bot: app.WispBot, server: FakeServer) -> None:
     life = await lay(bot)
-    life.care = 5.0
+    life.full = 5.0
     await bot.lives.save(GUILD_ID, life)
 
     await duel(bot, server)

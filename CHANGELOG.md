@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-26 (Full)
+
+- The food meter is now called Full. The snack confirmation, the Vault and
+  Snack Pack dropdowns and the status card say "full +n" and "full" instead of
+  "care". The database column keeps the name `care`, so nothing is migrated.
+
 ## 2026-10-25 (farewell art)
 
 - When Wisp dies of old age, the farewell post shows his flame burning down

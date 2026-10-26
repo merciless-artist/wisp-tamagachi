@@ -138,10 +138,10 @@ def on(day: date, hour: int = 12) -> datetime:
     return datetime(day.year, day.month, day.day, hour, tzinfo=UTC)
 
 
-async def lay(bot: app.WispBot, care: float = 50.0) -> Life:
+async def lay(bot: app.WispBot, full: float = 50.0) -> Life:
     life = new_egg(1, NOW - timedelta(days=2))
     life.phase = Phase.ALIVE
-    life.care = care
+    life.full = full
     life.stage = life.peak_stage = Stage.BABY
     life.hatched_at = life.stage_started_at = NOW - timedelta(days=1)
     return await bot.lives.insert(GUILD_ID, life)
@@ -343,7 +343,7 @@ async def test_the_favorite_line_names_the_member_as_elsewhere(
 async def test_the_favorite_line_follows_his_mood(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    life = await lay(bot, care=5.0)
+    life = await lay(bot, full=5.0)
     await fed(bot, viibr(1), on(YESTERDAY))
     pick = say(bot)
 

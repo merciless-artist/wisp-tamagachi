@@ -1,4 +1,4 @@
-"""Wisp's life: eggs, hatching, care, stages and death.
+"""Wisp's life: eggs, hatching, fullness, stages and death.
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
 callers pass the current time (timezone-aware UTC) into every call.
@@ -9,19 +9,19 @@ from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
 from wisp.rules import (
-    CARE_DRAIN_PER_DAY,
-    CARE_MAX,
     COAL_EGG_FOOD,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
     FADING_BELOW,
     FAREWELL_AT_DAY,
+    FULL_DRAIN_PER_DAY,
+    FULL_MAX,
     HANGRY_BELOW,
-    HATCHED_CARE,
+    HATCHED_FULL,
     HATCHING_TIME,
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
-    OLD_FOGEY_CARE_DRAIN_PER_DAY,
+    OLD_FOGEY_FULL_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
     ROCKSTAR_HAPPY_FOR,
     STAGE_RULES,
@@ -52,7 +52,7 @@ class Phase(StrEnum):
 
 
 class Mood(StrEnum):
-    """How Wisp feels about his care."""
+    """How Wisp feels about how full he is."""
 
     HAPPY = auto()
     HANGRY = auto()
@@ -92,7 +92,7 @@ class Life:
     version: int
     phase: Phase
     stage: Stage
-    care: float
+    full: float
     egg_food: int
     growth: int
     laid_at: datetime
@@ -122,7 +122,7 @@ def new_egg(version: int, now: datetime) -> Life:
         version=version,
         phase=Phase.EGG,
         stage=Stage.EGG,
-        care=0.0,
+        full=0.0,
         egg_food=0,
         growth=0,
         laid_at=now,
@@ -146,8 +146,8 @@ def is_over(life: Life) -> bool:
 
 
 def mood(life: Life) -> Mood:
-    """Hangry while a living Wisp's care is below the hangry line."""
-    if life.phase is Phase.ALIVE and life.care < HANGRY_BELOW:
+    """Hangry while a living Wisp's full meter is below the hangry line."""
+    if life.phase is Phase.ALIVE and life.full < HANGRY_BELOW:
         return Mood.HANGRY
     return Mood.HAPPY
 
@@ -169,10 +169,10 @@ def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Ev
     if life.phase is Phase.EGG:
         return _feed_egg(life, meal_points, feeder_id, now)
     if life.phase is Phase.ALIVE:
-        life.care = min(life.care + meal_points, CARE_MAX)
-        if life.care >= HANGRY_BELOW:
+        life.full = min(life.full + meal_points, FULL_MAX)
+        if life.full >= HANGRY_BELOW:
             life.warned = None
-        elif life.care >= FADING_BELOW and life.warned is EventKind.FADING:
+        elif life.full >= FADING_BELOW and life.warned is EventKind.FADING:
             life.warned = EventKind.HUNGRY
     return []
 
@@ -239,7 +239,7 @@ def _tick_hatching(life: Life, now: datetime) -> list[Event]:
         return []
     _enter(life, Phase.ALIVE)
     life.stage = life.peak_stage = Stage.BABY
-    life.care = HATCHED_CARE
+    life.full = HATCHED_FULL
     life.hatched_at = life.stage_started_at = now
     return [Event(EventKind.HATCHED)]
 
@@ -252,12 +252,12 @@ def _tick_alive(
     caretakers: int,
 ) -> list[Event]:
     drain = (
-        OLD_FOGEY_CARE_DRAIN_PER_DAY
+        OLD_FOGEY_FULL_DRAIN_PER_DAY
         if life.stage is Stage.OLD_FOGEY
-        else CARE_DRAIN_PER_DAY
+        else FULL_DRAIN_PER_DAY
     )
-    life.care = max(life.care - drain * elapsed.total_seconds() / _DAY_SECONDS, 0.0)
-    if life.care == 0:
+    life.full = max(life.full - drain * elapsed.total_seconds() / _DAY_SECONDS, 0.0)
+    if life.full == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
         return [Event(EventKind.DIED)]
@@ -272,10 +272,10 @@ def _tick_alive(
 
 def _warnings(life: Life) -> list[Event]:
     events: list[Event] = []
-    if life.care < HANGRY_BELOW and life.warned is None:
+    if life.full < HANGRY_BELOW and life.warned is None:
         life.warned = EventKind.HUNGRY
         events.append(Event(EventKind.HUNGRY))
-    if life.care < FADING_BELOW and life.warned is not EventKind.FADING:
+    if life.full < FADING_BELOW and life.warned is not EventKind.FADING:
         life.warned = EventKind.FADING
         events.append(Event(EventKind.FADING))
     return events

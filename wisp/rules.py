@@ -37,13 +37,13 @@ DAILY_MEAL_CAP = 15
 VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 
 # ---
-# Care
+# Full
 # ---
 
-CARE_MAX = 100.0
-CARE_DRAIN_PER_DAY = 15.0
-OLD_FOGEY_CARE_DRAIN_PER_DAY = 10.0
-HATCHED_CARE = 50.0
+FULL_MAX = 100.0
+FULL_DRAIN_PER_DAY = 15.0
+OLD_FOGEY_FULL_DRAIN_PER_DAY = 10.0
+HATCHED_FULL = 50.0
 HANGRY_BELOW = 30.0
 FADING_BELOW = 10.0
 
@@ -164,7 +164,7 @@ class Snack:
     key: str
     name: str
     cost: int
-    care: int
+    full: int
     growth: int
 
     @property

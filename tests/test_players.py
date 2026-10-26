@@ -123,7 +123,7 @@ def make_life(
     life.phase = phase
     life.peak_stage = Stage.BABY
     life.stage = Stage.BABY if phase is Phase.ALIVE else Stage.EGG
-    life.care = 50.0
+    life.full = 50.0
     if hatched_ago is not None:
         life.hatched_at = NOW - hatched_ago
     return life

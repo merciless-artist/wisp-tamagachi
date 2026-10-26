@@ -146,7 +146,7 @@ def make_life(
     life.stage = peak if phase is Phase.ALIVE else Stage.EGG
     life.hatched_by = hatched_by
     life.from_coal = from_coal
-    life.care = 50.0
+    life.full = 50.0
     if hatched_ago is not None:
         life.hatched_at = NOW - hatched_ago
         if lived is not None:

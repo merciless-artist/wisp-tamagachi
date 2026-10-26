@@ -319,7 +319,7 @@ async def test_life_insert_save_current_history(db: Database) -> None:
     second = await repo.insert(GUILD, new_egg(2, NOW + timedelta(days=3)))
     second.phase = Phase.ALIVE
     second.stage = second.peak_stage = Stage.CHILD
-    second.care = 42.5
+    second.full = 42.5
     second.growth = 9
     second.phase_seconds = 120.5
     second.hatch_started_at = NOW + timedelta(days=4)
@@ -337,6 +337,22 @@ async def test_life_insert_save_current_history(db: Database) -> None:
     assert current.laid_at.utcoffset() == timedelta(0)
     assert await repo.history(GUILD) == [second, first]
     assert await repo.history(OTHER_GUILD) == []
+
+
+async def test_the_food_meter_is_stored_in_the_care_column(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    life.full = 42.5
+    await repo.save(GUILD, life)
+
+    row = await db.fetchone(
+        f"SELECT care FROM {db.t('lives')} WHERE id = %s", (life.id,)
+    )
+    assert row is not None
+    assert row["care"] == 42.5
+    loaded = await repo.current(GUILD)
+    assert loaded is not None
+    assert loaded.full == 42.5
 
 
 async def test_from_coal_round_trips(db: Database) -> None:

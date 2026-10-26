@@ -220,11 +220,11 @@ async def lay(
     bot: app.WispBot,
     stage: Stage = Stage.ADULT,
     phase: Phase = Phase.ALIVE,
-    care: float = 80.0,
+    full: float = 80.0,
 ) -> Life:
     life = new_egg(1, START - timedelta(days=20))
     life.phase = phase
-    life.care = care
+    life.full = full
     if phase not in (Phase.EGG, Phase.HATCHING):
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = START - timedelta(days=19)
@@ -1449,7 +1449,7 @@ async def test_a_poke_earns_nothing(
     )
     after = await bot.lives.current(GUILD_ID)
     assert after is not None
-    assert (after.care, after.growth) == (life.care, life.growth)
+    assert (after.full, after.growth) == (life.full, life.growth)
 
 
 async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(

@@ -40,7 +40,7 @@ def alive_life(**fields: object) -> Life:
     life = new_egg(3, NOW - timedelta(days=12))
     life.phase = Phase.ALIVE
     life.stage = Stage.TEEN
-    life.care = 72.0
+    life.full = 72.0
     life.hatched_at = NOW - timedelta(days=9, hours=3)
     for name, value in fields.items():
         setattr(life, name, value)
@@ -50,7 +50,7 @@ def alive_life(**fields: object) -> Life:
 def test_alive_card_matches_spec_exactly() -> None:
     expected = (
         "♪ WISP v3 ・ TEEN ・ day 9\n"
-        "care       ███████░░░  72\n"
+        "full       ███████░░░  72\n"
         "happiness  █████░░░░░  50\n"
         "fed today by 4 people\n"
         "poke him, or mention @Wisp in his House\n"

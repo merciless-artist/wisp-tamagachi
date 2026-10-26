@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from wisp.life import Life, Phase, age_days
-from wisp.rules import CARE_MAX, EGG_FOOD_NEEDED, EGG_WARMTH, HATCHING_TIME
+from wisp.rules import EGG_FOOD_NEEDED, EGG_WARMTH, FULL_MAX, HATCHING_TIME
 from wisp.text import SEPARATOR
 
 _BAR_CELLS = 10
@@ -46,7 +46,7 @@ def render_status(life: Life, now: datetime, *, happiness: int, fed_today: int) 
         return "\n".join(
             [
                 f"{title}{life.stage.label.upper()} ・ day {age_days(life, now)}",
-                _row("care", life.care / CARE_MAX * 100),
+                _row("full", life.full / FULL_MAX * 100),
                 _row("happiness", happiness),
                 f"fed today by {people}",
                 _HINT.format(who="him"),

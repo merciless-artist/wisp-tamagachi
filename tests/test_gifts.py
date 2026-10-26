@@ -165,11 +165,11 @@ def emoji_text(name: str, index: int) -> str:
 
 
 async def lay(
-    bot: app.WispBot, phase: Phase = Phase.ALIVE, care: float = 50.0, version: int = 1
+    bot: app.WispBot, phase: Phase = Phase.ALIVE, full: float = 50.0, version: int = 1
 ) -> Life:
     life = new_egg(version, discord.utils.utcnow() - timedelta(days=2))
     life.phase = phase
-    life.care = care
+    life.full = full
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = Stage.BABY
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()
@@ -714,7 +714,7 @@ async def test_wisp_must_be_alive_for_gifts(
 ) -> None:
     await lay(bot)
     select = await item_select(bot, "aliens")
-    await lay(bot, phase=phase, care=0.0, version=2)
+    await lay(bot, phase=phase, full=0.0, version=2)
 
     interaction = await give(bot, "alien_blue", select=select)
 
@@ -724,7 +724,7 @@ async def test_wisp_must_be_alive_for_gifts(
 
 
 async def test_a_hangry_wisp_reacts_hangry(bot: app.WispBot) -> None:
-    await lay(bot, care=5.0)
+    await lay(bot, full=5.0)
     pick = say(bot)
 
     await give(bot, "alien_blue")
@@ -887,7 +887,7 @@ async def test_picking_a_collection_once_he_is_gone_says_gifts_wait(
 ) -> None:
     await lay(bot)
     _, before = await open_vault(bot)
-    await lay(bot, phase=Phase.DEAD, care=0.0, version=2)
+    await lay(bot, phase=Phase.DEAD, full=0.0, version=2)
 
     interaction = await pick(bot, "aliens", select=collection_select(before))
 
@@ -968,7 +968,7 @@ async def test_before_he_hatches_the_vault_says_gifts_wait(
     bot: app.WispBot, phase: Phase | None
 ) -> None:
     if phase is not None:
-        await lay(bot, phase=phase, care=0.0)
+        await lay(bot, phase=phase, full=0.0)
 
     text, selects = await open_vault(bot)
 

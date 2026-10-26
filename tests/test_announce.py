@@ -898,7 +898,7 @@ async def test_grew_old_is_announced_with_its_image(
     add_image(assets, "stages", "old_fogey")
     life = new_egg(1, discord.utils.utcnow() - timedelta(days=50))
     life.phase = Phase.ALIVE
-    life.care = 80.0
+    life.full = 80.0
     life.stage = Stage.OLD_FOGEY
     life.peak_stage = Stage.ADULT
     await bot.lives.insert(GUILD_ID, life)
@@ -963,7 +963,7 @@ async def growing_life(bot: app.WispBot, *, hatched_by: int | None = None) -> Li
     """A living Wisp v1 whose egg was filled by `hatched_by`."""
     life = new_egg(1, discord.utils.utcnow() - timedelta(days=3))
     life.phase = Phase.ALIVE
-    life.care = 80.0
+    life.full = 80.0
     life.stage = life.peak_stage = Stage.BABY
     life.hatched_by = hatched_by
     return await bot.lives.insert(GUILD_ID, life)
