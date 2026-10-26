@@ -81,27 +81,34 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     ]
     (first_name, _), *later_tiers = rules.BOND_TIERS
     tiers = ", ".join(
-        [first_name, *(f"{name} at {needed}" for name, needed in later_tiers)]
+        [first_name, *(f"{name} {needed}" for name, needed in later_tiers)]
     )
     daily_cap = count(rules.DAILY_MEAL_CAP, "point")
+    sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
+    sick_hours = rules.SICK_FOR // timedelta(hours=1)
     egg_meals = count(rules.EGG_FOOD_NEEDED, "meal point")
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "Wisp is one little guy for the whole server. Share music and he "
-            "grows from an egg into a Rockstar. If nobody feeds him, he fades "
-            "and a new egg takes over.",
+            "One Wisp for the whole server: share music and he grows from an egg "
+            "to a Rockstar. Neglected, he fades and a new egg takes over.",
             SEPARATOR,
-            "Who can feed him",
-            "・Active Lounger or higher",
-            "・Open /wisp board once to join in",
+            "Who can feed him and earn points",
+            "・Active Lounger or higher who opened /wisp board once",
             "",
             "What counts",
             "・Suno and viibrmusic.com links in the track drop",
             *meals,
-            "・Every track also earns leaderboard points",
-            f"・Your meals count up to {daily_cap} a day",
-            "・Each link only feeds him once, ever",
+            "・Each link feeds him once, ever, and earns leaderboard points",
+            f"・Your meals and snacks count up to {daily_cap} a day",
+            "",
+            "His meters",
+            "・Full: tracks and snacks. Drains daily; hangry when low, dies at 0",
+            "・Happy: your first poke or chat each day earns 1 point. "
+            f"{rules.HAPPY_FULL_AT_PEOPLE} people in 24 h fill it; Rockstar "
+            "needs it high",
+            f"・Care: rhyme duels (1 point, {rules.PLAYS_PER_DAY} a day) and gifts. "
+            "Drains daily; low is lonely, never hurt",
             "",
             "Your bond",
             "・viibrmusic.com tracks, games, snacks and kept gifts build your bond",
@@ -110,41 +117,33 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault spends leaderboard points on snacks and gifts",
-            "・The leaderboard is the pinned Vault post",
-            "・Snacks count toward the meal limit",
+            "・/wisp vault spends points on snacks and gifts. The board is its "
+            "pinned post",
             f"・Gifts cost {count(rules.GIFT_COST, 'point')} and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
             f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",
-            "",
-            "Your Snack Pack",
-            "・/wisp snackpack shows your saved snacks and keepsakes; feed them "
-            "from his status card",
-            "",
-            "Wisp's lunchbox",
-            "・/wisp lunchbox shows his favorite songs, snack, emoji and gifts",
+            "・/wisp snackpack: your snacks and keepsakes. /wisp lunchbox: his "
+            "favorites and gifts",
             "",
             "His life",
-            f"・Around day {rules.OLD_FOGEY_AT_DAY} he grows into an Old Fogey",
-            f"・Around day {rules.FAREWELL_AT_DAY} he passes on, a lump of coal "
-            "after a full life",
-            f"・The coal becomes the next egg, with {rules.COAL_EGG_FOOD} of its "
-            f"{egg_meals} already fed",
+            f"・Old Fogey around day {rules.OLD_FOGEY_AT_DAY}; around day "
+            f"{rules.FAREWELL_AT_DAY} he passes on, coal after a full life",
+            f"・The coal becomes an egg with {rules.COAL_EGG_FOOD} of its "
+            f"{egg_meals} fed",
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} each get "
-            "his Last Ember in their Snack Pack",
-            "・Dying of neglect leaves no Last Ember",
+            "his Last Ember, unless he died of neglect",
+            f"・Once before Adult he gets a {sick_hours}-hour cold: faster drain, "
+            f"he can't die, meals count up to {sick_cap} a day",
             "・Be there as he grows to win a keepsake",
             "",
             "Talking to Wisp",
-            "・Mention him or reply to him in Wisp's House",
-            "・He wobbles as an egg, babbles as a baby and talks as he grows",
-            "・Once grown he sometimes chimes in and remembers what you say",
-            "・Talking earns no bond or points",
+            "・Mention or reply to him in Wisp's House. Talking earns no bond",
+            "・Adults chime in and remember you",
             "",
             "Fair play",
             "・Fake links don't count; staff can strip points",
-            f"・Names are capped at {count(rules.NAME_MAX, 'character')}",
+            f"・Names max {count(rules.NAME_MAX, 'character')}",
             f"{_ban_line()}. Staff can lift bans",
         ]
     )

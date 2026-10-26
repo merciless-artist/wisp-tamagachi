@@ -30,7 +30,7 @@ from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import Phase, new_egg
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -1420,9 +1420,9 @@ def test_rules_text_is_headed_as_the_quick_rules() -> None:
 
 
 def test_rules_text_fits_one_message() -> None:
-    assert len(rules_text(rules.MEAL_POINTS)) < MESSAGE_LIMIT
+    assert text_length(rules_text(rules.MEAL_POINTS)) < MESSAGE_LIMIT
     biggest = {kind: rules.MEAL_POINTS_MAX for kind in TrackKind}
-    assert len(rules_text(biggest)) < MESSAGE_LIMIT
+    assert text_length(rules_text(biggest)) < MESSAGE_LIMIT
 
 
 def test_rules_text_fits_with_every_number_at_four_digits(
@@ -1440,8 +1440,12 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "GIFT_COST",
         "BOND_PER_KEPT_GIFT",
         "COLLECTION_BOND_BONUS",
+        "HAPPY_FULL_AT_PEOPLE",
+        "PLAYS_PER_DAY",
+        "SICK_EXTRA_MEAL_CAP",
     ):
         monkeypatch.setattr(rules, name, 9999)
+    monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=9999))
     monkeypatch.setattr(
         rules,
         "BOND_TIERS",
@@ -1454,7 +1458,7 @@ def test_rules_text_fits_with_every_number_at_four_digits(
     text = rules_text({kind: 9999 for kind in TrackKind})
 
     assert "9999" in text
-    assert len(text) < MESSAGE_LIMIT
+    assert text_length(text) < MESSAGE_LIMIT
 
 
 def test_rules_text_shows_the_food_values_it_is_given() -> None:
@@ -1464,12 +1468,12 @@ def test_rules_text_shows_the_food_values_it_is_given() -> None:
     assert "・Suno track: 1 meal point" in text
 
 
-def test_rules_text_has_vault_snack_pack_life_and_talking_sections() -> None:
+def test_rules_text_has_meters_vault_life_and_talking_sections() -> None:
     text = rules_text(rules.MEAL_POINTS)
 
     for heading in (
+        "His meters",
         "The ViiBR Vault",
-        "Your Snack Pack",
         "His life",
         "Talking to Wisp",
     ):
@@ -1481,21 +1485,61 @@ def test_rules_text_has_vault_snack_pack_life_and_talking_sections() -> None:
     assert "Last Ember" in text
     assert "coal" in text
     assert "neglect" in text
-    assert "Mention him or reply to him in Wisp's House" in text
-    section = text.split("\nYour Snack Pack\n")[1].split("\n\n")[0]
-    assert "/wisp snackpack" in section
-    assert "keepsake" in section
-    assert "Last Ember in their Snack Pack" in text
+    assert "Mention or reply to him in Wisp's House" in text
     assert "your lunchbox" not in text.lower()
 
 
-def test_rules_text_points_to_wisps_lunchbox() -> None:
+def test_rules_text_points_to_the_snack_pack_and_wisps_lunchbox() -> None:
     text = rules_text(rules.MEAL_POINTS)
 
-    section = text.split("\nWisp's lunchbox\n")[1].split("\n\n")[0]
+    section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
     assert (
-        section == "・/wisp lunchbox shows his favorite songs, snack, emoji and gifts"
+        "・/wisp snackpack: your snacks and keepsakes. "
+        "/wisp lunchbox: his favorites and gifts" in section
     )
+
+
+def test_rules_text_explains_the_three_meters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "HAPPY_FULL_AT_PEOPLE", 7)
+    monkeypatch.setattr(rules, "PLAYS_PER_DAY", 3)
+
+    text = rules_text(rules.MEAL_POINTS)
+
+    section = text.split("\nHis meters\n")[1].split("\n\n")[0]
+    full, happy, care = section.split("\n")
+    assert full.startswith("・Full: tracks and snacks")
+    assert "hangry" in full and "dies at 0" in full
+    assert happy.startswith("・Happy: your first poke or chat each day earns 1 point")
+    assert "7 people in 24 h" in happy and "Rockstar" in happy
+    assert care.startswith("・Care: rhyme duels (1 point, 3 a day) and gifts")
+    assert "lonely" in care and "never hurt" in care
+    assert "\nWho can feed him and earn points\n" in text
+
+
+def test_rules_text_explains_the_cold_and_the_bigger_meal_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 20)
+    monkeypatch.setattr(rules, "SICK_EXTRA_MEAL_CAP", 7)
+    monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=36))
+
+    text = rules_text(rules.MEAL_POINTS)
+
+    assert "・Your meals and snacks count up to 20 points a day" in text
+    cold = next(line for line in text.split("\n") if "cold" in line)
+    assert "Once before Adult" in cold
+    assert "36-hour cold" in cold
+    assert "he can't die" in cold
+    assert "meals count up to 27 a day" in cold
+
+
+def test_rules_text_does_not_say_talking_earns_no_points() -> None:
+    text = rules_text(rules.MEAL_POINTS)
+
+    assert "no bond or points" not in text
+    assert "Talking earns no bond" in text
 
 
 def test_rules_text_explains_gifts_with_numbers_from_the_rules(
@@ -1544,6 +1588,10 @@ def test_rules_text_numbers_come_from_the_rules(
 ) -> None:
     monkeypatch.setattr(rules, "MEAL_POINTS", {TrackKind.VIIBR: 41, TrackKind.SUNO: 43})
     monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 47)
+    monkeypatch.setattr(rules, "HAPPY_FULL_AT_PEOPLE", 107)
+    monkeypatch.setattr(rules, "PLAYS_PER_DAY", 109)
+    monkeypatch.setattr(rules, "SICK_EXTRA_MEAL_CAP", 113)
+    monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=127))
     monkeypatch.setattr(rules, "MEET_AFTER_DAYS", 53)
     monkeypatch.setattr(
         rules,
@@ -1565,5 +1613,7 @@ def test_rules_text_numbers_come_from_the_rules(
     text = rules_text(rules.MEAL_POINTS)
 
     for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103):
+        assert str(number) in text, number
+    for number in (107, 109, 127, 160):
         assert str(number) in text, number
     assert "permanent" in text

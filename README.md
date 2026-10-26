@@ -3,9 +3,41 @@
 Wisp is a Discord Tamagotchi for a music community. The whole server shares one
 pet: members feed him by dropping tracks in the track channel and by buying
 snacks from the ViiBR Vault, and he grows from an egg to a rockstar as long as
-he is cared for. If he is neglected he dies and a new egg is laid. If he lives a
+he is fed. If he is neglected he dies and a new egg is laid. If he lives a
 full life he grows old, passes on as a lump of coal and the coal becomes the
 next egg. Members can also talk to him in Wisp's House.
+
+## His three meters
+
+The status card shows three meters, each from 0 to 100, plus a cold line while
+he is sick. All the numbers are starting values in `wisp/rules.py`.
+
+- **Full** is his food. Tracks and snacks fill it and it drains every day (15 a
+  day, 10 as an Old Fogey). Below 30 he is hangry, below 10 he is fading, and
+  at 0 he dies. Only Full can kill him.
+- **Happy** is how many different people said hi in the last 24 hours. A
+  member's first poke or mention of the UTC day counts and earns them 1 Vault
+  point; later ones that day count for nothing. Only members who can feed Wisp
+  and are not banned earn the credit, though anyone can still poke and chat.
+  Five different people in 24 hours is full. A chat counts toward Wisp learning
+  a member's name, but not toward bond, growth, caretakers, the "fed by" line
+  or the stage-up keepsake. Staying very happy as an Adult (80 or more for
+  seven days) is what makes him a Rockstar.
+- **Care** is rhyme duels and gifts. It starts at 50 when he hatches and drains
+  10 a day. Each rhyme duel that counts as play adds 10 and pays 1 Vault point
+  (at most 5 a day per member), and every gift bought adds 8, kept or not.
+  Below 30 he is lonely and grumpy in what he says and posts once in the House
+  with a picture for his stage. Hangry beats lonely beats happy, and lonely
+  never hurts him: no death, no growth penalty.
+
+The **childhood cold** comes once per life, at a random time between day 1 and
+day 12 while he is a Baby, Child or Teen, so every Wisp who grows up has had it.
+It lasts 48 hours (it carries on if he grows a stage). While sick his Full
+drains 1.5 times as fast, but it never drops below 1, so he cannot die of it;
+he can still be hangry and fading. Each member's daily meal limit goes from 15
+to 30 meal points, room for about one extra song and one extra snack. He posts
+once when he catches it (with his sick picture) and once when he is better, and
+the status card and Poke Wisp panel show his sick picture meanwhile.
 
 ## Setup
 
@@ -130,7 +162,9 @@ the purchase is undone and the points come back.
   favorite snack he picked when he hatched, the expression he uses most and
   the gift collections of this life.
   Anyone can look, banned members included.
-- `/wisp play rhyme` starts a Rhyme Duel with Wisp.
+- `/wisp play rhyme` starts a Rhyme Duel with Wisp. A duel that counts as play
+  (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his Care
+  and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
 its threads). He answers with AI at every stage: the egg wobbles or crackles in
@@ -138,14 +172,16 @@ reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
 Adult on he sometimes chimes in on his own and remembers things people
-tell him. Talking earns nothing: no bond and no points.
+tell him. Talking earns no bond. A member's first mention or poke of the UTC
+day also earns 1 Vault point and counts toward Happy (see His three meters).
 
 Poking: the Poke Wisp button on the status card and on the House's new-egg
 posts pokes him at every stage. The House sees who poked him and his AI
 reaction (a pre-written line if the AI is down), which is usually a giggle,
 now and then a startle or a curious look; a quiet House or the small hours
 (UTC) wake him up, and a flurry of pokes or hunger annoy him. Pokes and
-mentions share one cooldown per member, and a poke earns nothing.
+mentions share one cooldown per member, and only the day's first poke or
+mention earns anything.
 
 Wisp knows his own emojis: when a message to him uses one of his app emojis
 or any emote with "wisp" in its name, his AI is told which of his faces,
@@ -214,6 +250,11 @@ posts text only.
   `pickles`), plus `eating/eat_pickles_love.gif` and
   `eating/eat_pickles_hate.gif` for pickles with a member whose pickle stance he
   knows.
+- `moments/` pictures for his lonely and sick posts: `cry_baby.gif` and
+  `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
+  older) when Care drops below the lonely line, and `sick_baby.png`,
+  `sick_child.png` and `sick_teen.png` for his cold. The sick picture is also
+  on the status card and the Poke Wisp panel while he is sick.
 - `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
   `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full
   life (the egg's picture stands in when it is missing). The status card and
@@ -238,7 +279,7 @@ posts text only.
 App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `gift_<key>` for each gift key,
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
-`wisp_coin`, `wisp_happy`, `wisp_hangry`.
+`wisp_coin`, `wisp_happy`, `wisp_hangry`, `wisp_sad`.
 
 ## Testing
 

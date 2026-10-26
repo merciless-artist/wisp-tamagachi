@@ -1,112 +1,128 @@
 # Changelog
 
-## 2026-10-26 (Myra's status menu)
+## 2026-10-26 (Myra's status menu, three meters and the childhood cold)
 
-- The status card follows Myra's template (`DOCS/specs/status_menu_template.txt`)
-  in her frame, kept exactly as she wrote it. It is still posted in the Status
-  thread and by `/wisp status`, with the same picture and buttons.
-- Living Wisp: `𝐃𝐀𝐘 **{day}**`, then the bars Full 🟦, Happy 🟪 and Care 🟥.
-  A bar is one square per 10% (rounded half up, filled squares only, so 0%
-  shows none) and then `│{percent}%`; the squares follow the shown percent.
-  While he has his cold a line under the DAY line says
-  `・he has a cold・{hours} h left` (hours rounded up).
-- "Fed by {nn} people today" now counts only members who fed him or gave a
-  snack (FEED, SNACK, FREE_SNACK) since UTC midnight, "person" for one. Chats
-  and games no longer count. A new line shows today's ViiBR and Suno tracks.
-- The hints mention Wisp and the House channel (or say "in his House" when
-  none is set) and point to `/wisp snackpack`. The life stage is in bold
-  capitals, such as 𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘.
-- Egg and hatching cards use the same frame without the DAY line: Warmth 🟧
-  and Hatching 🟨 for an egg, Emerging 🟨 while hatching, stage 𝐄𝐆𝐆 or
-  𝐇𝐀𝐓𝐂𝐇𝐈𝐍𝐆, and "Poke the egg".
-- The card no longer shows the life's version number (her template has none).
-- Bar label padding is one table, `LABEL_PADDING` in `wisp/card.py`, to tune
-  from Myra's screenshot: Full 8, Happy 3, Care 6, Warmth 3, Hatching 1,
-  Emerging 1 spaces.
+One feature, built in seven steps. Wisp's old single meter is now three, each
+with its own job, and Myra's status menu shows them.
 
-## 2026-10-26 (the childhood cold)
+### The three meters
 
-- Once per life Wisp catches a cold, like the chicken pox. When he is a
-  living Baby, Child or Teen the life loop rolls when it is due: a random
-  time 1 to 12 days after he hatched (`COLD_EARLIEST`, `COLD_LATEST`). Adult
-  needs 14 days, so every Wisp who grows up has had it. A due cold starts
-  before the growth check on the same tick, so even after days offline he
-  catches it before he can grow to Adult. Adults and older never catch one,
-  and a living young Wisp from before this change gets his cold rolled on
-  his next tick.
-- The cold lasts 48 hours of credited time (`SICK_FOR`); frozen and offline
-  time beyond the usual 15 minutes do not count, and a frozen Wisp never
-  starts one. If he grows a stage while sick, the cold carries on.
-- While sick his Full drains 1.5 times as fast (`SICK_DRAIN_MULTIPLIER`), but
-  the drain never takes it below 1 (`SICK_FULL_FLOOR`), so he cannot die
-  while sick. He can still be hangry and fading, and those posts still come.
-  Normal rules come back when he is better.
+- **Full** is the food meter, renamed from "Care" because Care did not read as
+  food. Same behaviour: tracks and snacks fill it, it drains daily, he is hangry
+  when it is low and dies at 0. The snack confirmation, the Vault and Snack Pack
+  dropdowns and the status card say "full +n" and "full" instead of "care". The
+  database column keeps the name `care` and still holds Full, so nothing is
+  renamed or migrated for it.
+- **Happy** is how many different members chatted with him in the last 24 hours
+  (full at 5). A member's first poke or mention of the UTC day records a new
+  `chat` interaction and gives 1 Vault point (`CHAT_POINTS`); later pokes and
+  mentions that day give nothing. Only members who can feed Wisp and are not
+  banned earn it; everyone else can still talk to him. If the credit fails (a
+  database error) it is reported in the channel and Wisp still replies. A chat
+  counts toward Wisp learning a member's name, but not toward bond, growth,
+  caretakers, the "fed by" line or the stage-up keepsake. Feeding and playing no
+  longer raise Happy. It still drives Rockstar.
+- **Care** is a new meter for rhyme duels and gifts, 0 to 100. It starts at 50
+  when he hatches and drains 10 a day while he is alive (`CARE_*` in
+  `wisp/rules.py`). Each Rhyme Duel that counts as play adds 10, and every gift
+  bought adds 8, whether he keeps it, passes on it or already kept one today,
+  since the points are spent either way. A refused gift adds nothing.
+- Each Rhyme Duel that counts as play (the daily limit of 5, a scored rhyme and
+  the right to feed) also pays 1 Vault point (`PLAY_POINTS`).
+- Below 30 Care he is lonely. Hangry still wins when Full is low too. Lonely only
+  changes how he talks: his AI voice is told he is lonely and grumpy (never
+  blaming anyone), and pokes, chat fallbacks and Baby talk have lonely lines.
+  Every other moment uses its happy lines when he is lonely. It never hurts him:
+  no death, no growth penalty.
+- The first time Care drops below 30 he posts once in the House (again after it
+  climbs back to 30 and drops again), with a picture for his stage picked at
+  random from `LONELY_PICTURES`: Baby `cry_baby.gif` or `grumpy_baby.png`,
+  Child `grumpy.gif`, Teen and older `cry_teen.gif`. A missing picture means a
+  text-only post. A lonely Wisp's track reaction in Mealtime shows `wisp_sad`.
+- New repo counts for the card: `chatters_since`, `feeders_since`,
+  `chatted_today` and `tracks_today`.
+
+### The childhood cold
+
+- Once per life Wisp catches a cold, like the chicken pox. When he is a living
+  Baby, Child or Teen the life loop rolls when it is due: a random time 1 to 12
+  days after he hatched (`COLD_EARLIEST`, `COLD_LATEST`). Adult needs 14 days, so
+  every Wisp who grows up has had it. A due cold starts before the growth check
+  on the same tick, so even after days offline he catches it before he can grow
+  to Adult. Adults and older never catch one, and a living young Wisp from before
+  this change gets his cold rolled on his next tick.
+- The cold lasts 48 hours of credited time (`SICK_FOR`); frozen and offline time
+  beyond the usual 15 minutes do not count, and a frozen Wisp never starts one.
+  If he grows a stage while sick, the cold carries on.
+- While sick his Full drains 1.5 times as fast (`SICK_DRAIN_MULTIPLIER`), but the
+  drain never takes it below 1 (`SICK_FULL_FLOOR`), so he cannot die while sick.
+  He can still be hangry and fading, and those posts still come. Normal rules
+  come back when he is better.
 - While sick each member's daily meal cap is 30 instead of 15
   (`SICK_EXTRA_MEAL_CAP`), room for about one extra song and one extra snack.
-  `meal_grant` now takes the cap; `daily_meal_cap(life)` gives it.
+  `meal_grant` takes the cap and `daily_meal_cap(life)` gives it.
 - He posts once in the House when he catches it (with `sick_baby.png`,
-  `sick_child.png` or `sick_teen.png` from `ASSETS/moments/` for the stage he
-  is in; text only if the file is missing) and once when he is better (with
-  his stage picture). Both have their own canned lines. While sick the status
-  card and the Poke Wisp panel show his sick picture, and his AI voice is
-  sniffly and sneezy. The three sick pictures are now in the repo.
-- Database: three new `lives` columns, `cold_due_at DATETIME NULL`,
-  `cold_left DOUBLE NOT NULL DEFAULT 0` and `had_cold BOOL NOT NULL DEFAULT 0`.
-  Startup adds them to the live table; nothing is renamed or dropped.
+  `sick_child.png` or `sick_teen.png` from `ASSETS/moments/` for the stage he is
+  in; text only if the file is missing) and once when he is better (with his
+  stage picture). Both have their own canned lines. While sick the status card
+  and the Poke Wisp panel show his sick picture, and his AI voice is sniffly and
+  sneezy.
 
-## 2026-10-26 (Care and the lonely mood)
+### The status card
 
-- Wisp has a new Care meter, 0 to 100. It starts at 50 when he hatches and
-  drains 10 a day while he is alive (`CARE_*` in `wisp/rules.py`).
-- Each Rhyme Duel that counts as play adds 10 Care. Every gift bought adds 8
-  Care, whether he keeps it, passes on it or already kept one today, since
-  the points are spent either way. A refused gift adds nothing.
-- Below 30 Care he is lonely. Hangry still wins when Full is low too. Lonely
-  only changes how he talks: his AI voice is told he is lonely and grumpy
-  (never blaming anyone), and pokes, chat fallbacks and Baby talk have
-  lonely lines. Every other moment uses its happy lines when he is lonely.
-  It never hurts him.
-- The first time Care drops below 30 he posts once in the House (again
-  after it climbs back to 30 and drops again), with a picture for his stage
-  picked at random from `LONELY_PICTURES`: Baby `cry_baby.gif` or
-  `grumpy_baby.png`, Child `grumpy.gif`, Teen and older `cry_teen.gif`. A
-  missing picture means a text-only post. The four pictures are now in the
-  repo under `ASSETS/moments/`.
-- A lonely Wisp's track reaction in Mealtime shows `wisp_sad`.
-- Database: two new `lives` columns, `fondness DOUBLE NOT NULL DEFAULT 50`
-  (the Care meter) and `lonely_warned BOOL NOT NULL DEFAULT 0`. Startup adds
-  them to the live table; nothing is renamed or dropped. The old `care`
-  column still holds Full.
+- The card follows Myra's template (`DOCS/specs/status_menu_template.txt`) in her
+  frame, kept exactly as she wrote it. It is still posted in the Status thread
+  and by `/wisp status`, with the same picture and buttons.
+- Living Wisp: `𝐃𝐀𝐘 **{day}**`, then the bars Full 🟦, Happy 🟪 and Care 🟥. A bar
+  is one square per 10% (rounded half up, filled squares only, so 0% shows none)
+  and then `│{percent}%`; the squares follow the shown percent. While he has his
+  cold a line under the DAY line says `・he has a cold・{hours} h left` (hours
+  rounded up).
+- "Fed by {nn} people today" counts only members who fed him or gave a snack
+  (FEED, SNACK, FREE_SNACK) since UTC midnight, "person" for one. Chats and games
+  no longer count. A new line shows today's ViiBR and Suno tracks.
+- The hints mention Wisp and the House channel (or say "in his House" when none
+  is set) and point to `/wisp snackpack`. The life stage is in bold capitals,
+  such as 𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘.
+- Egg and hatching cards use the same frame without the DAY line: Warmth 🟧 and
+  Hatching 🟨 for an egg, Emerging 🟨 while hatching, stage 𝐄𝐆𝐆 or 𝐇𝐀𝐓𝐂𝐇𝐈𝐍𝐆, and
+  "Poke the egg".
+- The card no longer shows the life's version number (her template has none).
+- Bar label padding is one table, `LABEL_PADDING` in `wisp/card.py`, to tune from
+  Myra's screenshot: Full 8, Happy 3, Care 6, Warmth 3, Hatching 1, Emerging 1
+  spaces.
 
-## 2026-10-26 (chat credit and duel points)
-
-- A member's first poke or mention of the UTC day records a new `chat`
-  interaction and gives 1 Vault point (`CHAT_POINTS`). Later pokes and
-  mentions that day give nothing. Only members who can feed Wisp and are not
-  banned earn it; everyone else can still talk to him. If the credit fails
-  (a database error) it is reported in the channel and Wisp still replies.
-- Happy now counts the members who chatted with him in the last 24 hours,
-  not everyone who did anything. Feeding and playing no longer raise it.
-- A chat counts toward Wisp learning a member's name, but not toward bond,
-  growth, caretakers, the "fed by" line or the stage-up keepsake.
-- Each Rhyme Duel that counts as play (the daily limit, a scored rhyme and
-  the right to feed) also pays 1 Vault point (`PLAY_POINTS`).
-- New repo counts for the status menu: `chatters_since`, `feeders_since`,
-  `chatted_today` and `tracks_today` (ViiBR and Suno tracks fed today).
-  No database change: `kind` already fits `chat`.
-
-## 2026-10-26 (new divider)
+### The divider
 
 - Myra's divider `❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰` replaces the old
   `・♪ ────────・──────── ♪・` line in every Wisp post that uses it. The project
   rules now allow Unicode emoji in designed text (the status card and the
   divider); AI replies and canned lines stay emoji free.
 
-## 2026-10-26 (Full)
+### Words members read
 
-- The food meter is now called Full. The snack confirmation, the Vault and
-  Snack Pack dropdowns and the status card say "full +n" and "full" instead of
-  "care". The database column keeps the name `care`, so nothing is migrated.
+- The quick rules post in the Wisp FAQ explains the three meters, the points for
+  first pokes, chats and duels, and the cold with its bigger meal limit. It was
+  already near Discord's 2,000 limit, so some wording is shorter: "takes his
+  place" became "takes over", the Snack Pack and lunchbox pointers share a line
+  under the Vault, the Old Fogey and farewell lines are one line, the talking
+  section keeps what talking earns and who chimes in, and the bond tiers read
+  "Familiar 50". It is counted with `text_length` and still fits at four-digit
+  numbers.
+- The README has a section on the three meters and the cold, the spec page
+  `DOCS/wisp_tamagotchi.html` describes them (Full, Happy, Care, the cold, duel
+  points and the new card), and `DOCS/BuildRulings.md` has the rulings.
+- The FAQ pictures in `ASSETS/faq/` still show the old wording and need
+  re-rendering; the sentences are listed in the task 7 report.
+
+### Database
+
+- Five new `lives` columns, all added to the live table at startup, nothing
+  renamed or dropped: `fondness DOUBLE NOT NULL DEFAULT 50` (the Care meter),
+  `lonely_warned BOOL NOT NULL DEFAULT 0`, `cold_due_at DATETIME NULL`,
+  `cold_left DOUBLE NOT NULL DEFAULT 0` and `had_cold BOOL NOT NULL DEFAULT 0`.
+  The old `care` column still holds Full. The `chat` interaction fits the
+  existing `kind` column.
 
 ## 2026-10-25 (farewell art)
 
