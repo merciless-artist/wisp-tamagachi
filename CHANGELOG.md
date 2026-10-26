@@ -2,8 +2,8 @@
 
 ## 2026-10-25 (Old Fogey sigh)
 
-- When Wisp grows old, the post shows him sighing like he's really tired
-  (`ASSETS/stages/old_fogey.gif`). The status card keeps the still picture.
+- Removed again the same day: Myra is making a better one. The grew-old post
+  uses the still Old Fogey picture until then.
 
 ## 2026-10-25 (Vault and Snack Pack frames)
 
