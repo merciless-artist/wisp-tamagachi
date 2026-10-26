@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 (farewell art)
+
+- When Wisp dies of old age, the farewell post shows his flame burning down
+  until only a coal and his headphones are left. It plays once. The Last
+  Ember posts after it keep the coal picture.
+
 ## 2026-10-25 (Old Fogey sigh)
 
 - Removed again the same day: Myra is making a better one. The grew-old post
