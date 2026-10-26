@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-26 (Myra's status menu)
+
+- The status card follows Myra's template (`DOCS/specs/status_menu_template.txt`)
+  in her frame, kept exactly as she wrote it. It is still posted in the Status
+  thread and by `/wisp status`, with the same picture and buttons.
+- Living Wisp: `𝐃𝐀𝐘 **{day}**`, then the bars Full 🟦, Happy 🟪 and Care 🟥.
+  A bar is one square per 10% (rounded half up, filled squares only, so 0%
+  shows none) and then `│{percent}%`; the squares follow the shown percent.
+  While he has his cold a line under the DAY line says
+  `・he has a cold・{hours} h left` (hours rounded up).
+- "Fed by {nn} people today" now counts only members who fed him or gave a
+  snack (FEED, SNACK, FREE_SNACK) since UTC midnight, "person" for one. Chats
+  and games no longer count. A new line shows today's ViiBR and Suno tracks.
+- The hints mention Wisp and the House channel (or say "in his House" when
+  none is set) and point to `/wisp snackpack`. The life stage is in bold
+  capitals, such as 𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘.
+- Egg and hatching cards use the same frame without the DAY line: Warmth 🟧
+  and Hatching 🟨 for an egg, Emerging 🟨 while hatching, stage 𝐄𝐆𝐆 or
+  𝐇𝐀𝐓𝐂𝐇𝐈𝐍𝐆, and "Poke the egg".
+- The card no longer shows the life's version number (her template has none).
+- Bar label padding is one table, `LABEL_PADDING` in `wisp/card.py`, to tune
+  from Myra's screenshot: Full 8, Happy 3, Care 6, Warmth 3, Hatching 1,
+  Emerging 1 spaces.
+
 ## 2026-10-26 (the childhood cold)
 
 - Once per life Wisp catches a cold, like the chicken pox. When he is a

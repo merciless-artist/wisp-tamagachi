@@ -14,7 +14,7 @@ from cogs.groups import require_guild, wisp
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
-from wisp.card import render_status
+from wisp.card import CardFacts, render_status
 from wisp.life import Life, Phase, add_growth, is_over
 from wisp.lines import Moment
 from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
@@ -39,14 +39,29 @@ CANNOT_FEED: Final = (
 async def status_text(
     bot: "WispBot", guild_id: int, life: Life, now: datetime, happy: int
 ) -> str:
-    """Render the status card for a life that is not over."""
+    """Render the status card for a life that is not over.
+
+    Fed today counts the members who fed Wisp or gave him a snack since UTC
+    midnight; the tracks are those fed on the same UTC day.
+
+    Raises:
+        RuntimeError: Wisp is not logged in, so the card cannot mention him.
+    """
+    wisp_user = bot.user
+    if wisp_user is None:
+        raise RuntimeError("Wisp is not logged in, so his card cannot mention him.")
     today = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    return render_status(
-        life,
-        now,
+    viibr, suno = await bot.activity_log.tracks_today(guild_id, now)
+    settings = await bot.settings.get(guild_id)
+    facts = CardFacts(
         happiness=happy,
-        fed_today=await bot.activity_log.people_since(guild_id, today),
+        fed_today=await bot.activity_log.feeders_since(guild_id, today),
+        viibr_tracks=viibr,
+        suno_tracks=suno,
+        wisp_id=wisp_user.id,
+        house_id=settings.house_channel_id,
     )
+    return render_status(life, now, facts)
 
 
 # ---

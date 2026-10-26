@@ -27,6 +27,7 @@ from wisp.bond import happiness
 from wisp.card import bar
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
+from wisp.links import Track, TrackKind
 from wisp.rules import Stage
 from wisp.text import USER_ERROR
 
@@ -35,6 +36,8 @@ HOUSE_ID = 20
 FIRST_USER = 1
 SECOND_USER = 2
 QUALIFYING_ROLE = 555
+WISP_ID = 5000
+WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 
 # ---
@@ -68,6 +71,7 @@ def bot(
     wisp_bot.lives = LifeRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
+    monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
 
@@ -176,16 +180,53 @@ async def play_on_days(
 
 
 async def test_status_shows_the_card_privately(bot: app.WispBot) -> None:
-    life = await lay(bot)
-    await play_on_days(bot, life, FIRST_USER, [0])
+    await lay(bot)
     interaction = make_interaction(bot)
 
     await run(players.wisp_status, interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     (text,) = followups(interaction)
-    assert text.startswith("♪ WISP v1 ・ BABY")
-    assert "fed today by 1 person" in text
+    assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
+    assert f"tag <@{WISP_ID}> in his House to say hi!!" in text
+
+
+async def test_status_card_counts_todays_feeders_and_tracks(bot: app.WispBot) -> None:
+    await configure(bot)
+    life = await lay(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    log = bot.activity_log
+    for user_id, kind, at in [
+        (FIRST_USER, InteractionKind.FEED, now),
+        (FIRST_USER, InteractionKind.SNACK, now),
+        (SECOND_USER, InteractionKind.FREE_SNACK, midnight),
+        (3, InteractionKind.PLAY, now),
+        (4, InteractionKind.CHAT, now),
+        (5, InteractionKind.FEED, midnight - timedelta(seconds=1)),
+    ]:
+        await log.record_interaction(GUILD_ID, life.id, user_id, kind, 0, 0, at)
+    for index, (track_kind, fed_at) in enumerate(
+        [
+            (TrackKind.VIIBR, now),
+            (TrackKind.SUNO, now),
+            (TrackKind.SUNO, midnight),
+            (TrackKind.VIIBR, midnight - timedelta(seconds=1)),
+        ]
+    ):
+        track = Track(
+            track_kind, f"{track_kind}:{index}", f"https://example.test/{index}"
+        )
+        await log.record_feed(GUILD_ID, life.id, FIRST_USER, track, 1, index, fed_at)
+    interaction = make_interaction(bot)
+
+    await run(players.wisp_status, interaction)
+
+    (text,) = followups(interaction)
+    assert "・Fed by 02 people today・" in text
+    assert "・1 ViiBR track and 2 Suno tracks・" in text
+    assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
 
 
 async def test_status_without_a_life_says_so(bot: app.WispBot) -> None:
@@ -315,7 +356,7 @@ async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
     interaction = make_interaction(bot)
     await run(players.wisp_status, interaction)
     (text,) = followups(interaction)
-    assert f"happiness  {bar(happiness(1))}  {happiness(1)}" in text
+    assert bar(happiness(1), "🟪") in text
 
 
 async def test_chats_older_than_a_day_do_not_make_him_happy(

@@ -33,7 +33,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.bond import happiness
-from wisp.card import bar, render_status
+from wisp.card import CardFacts, bar, render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -52,6 +52,8 @@ VAULT_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
 PANEL_ID = 999
 USER_ID = 1
+WISP_ID = 5000
+WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 FULL_GAP = rules.MAX_CREDITED_GAP
 
@@ -133,6 +135,7 @@ def bot(
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
+    monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -197,6 +200,18 @@ async def current_life(bot: app.WispBot) -> Life:
     return life
 
 
+def card_facts(happy: int, fed: int, viibr: int = 0, suno: int = 0) -> CardFacts:
+    """What the live card shows for a guild configured by `configure`."""
+    return CardFacts(
+        happiness=happy,
+        fed_today=fed,
+        viibr_tracks=viibr,
+        suno_tracks=suno,
+        wisp_id=WISP_ID,
+        house_id=HOUSE_ID,
+    )
+
+
 def house_texts(server: FakeServer) -> list[str]:
     return [call.args[0] for call in server.house.send.await_args_list]
 
@@ -225,7 +240,7 @@ async def test_first_run_lays_egg_v1(
         discord.AllowedMentions.none().to_dict()
     )
     content = server.card_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ WISP v1 ・ EGG")
+    assert "**life stage**・𝐄𝐆𝐆・" in content
 
 
 async def test_unconfigured_guilds_are_skipped_silently(
@@ -365,8 +380,14 @@ async def test_tick_edits_status_message(
 ) -> None:
     await configure(bot)
     life = await lay(bot)
-    await interact(bot, life, NOW - timedelta(hours=2))
+    assert life.id is not None
+    await interact(bot, life, NOW - timedelta(hours=2), InteractionKind.FEED)
     await interact(bot, life, NOW - timedelta(hours=2), InteractionKind.CHAT)
+    for index, kind in enumerate([TrackKind.VIIBR, TrackKind.VIIBR, TrackKind.SUNO]):
+        track = Track(kind, f"{kind}:{index}", f"https://example.test/{index}")
+        await bot.activity_log.record_feed(
+            GUILD_ID, life.id, USER_ID, track, 1, index, NOW - timedelta(hours=1)
+        )
 
     await cog.run_tick(NOW)
 
@@ -377,8 +398,10 @@ async def test_tick_edits_status_message(
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
     assert kwargs["content"] == render_status(
-        after, NOW, happiness=happiness(1), fed_today=1
+        after, NOW, card_facts(happiness(1), 1, viibr=2, suno=1)
     )
+    assert f"<@{WISP_ID}>" in kwargs["content"]
+    assert f"<#{HOUSE_ID}>" in kwargs["content"]
     assert kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
@@ -391,14 +414,17 @@ async def test_fed_today_counts_only_the_current_utc_day(
 ) -> None:
     await configure(bot)
     life = await lay(bot)
-    before_midnight = NOW.replace(hour=0, minute=0) - timedelta(minutes=1)
-    await interact(bot, life, before_midnight, InteractionKind.CHAT)
+    midnight = NOW.replace(hour=0, minute=0)
+    await interact(bot, life, midnight - timedelta(minutes=1), InteractionKind.FEED)
+    await interact(bot, life, midnight, InteractionKind.SNACK, user_id=2)
+    await interact(bot, life, NOW - timedelta(hours=1), InteractionKind.PLAY, 3)
+    await interact(bot, life, NOW - timedelta(hours=1), InteractionKind.CHAT, 4)
 
     await cog.run_tick(NOW)
 
     after = await current_life(bot)
     assert server.card_edit.await_args.kwargs["content"] == render_status(
-        after, NOW, happiness=happiness(1), fed_today=0
+        after, NOW, card_facts(happiness(1), 1)
     )
 
 
@@ -415,7 +441,7 @@ async def test_happy_counts_only_chatters(
     await cog.run_tick(NOW)
 
     content = server.card_edit.await_args.kwargs["content"]
-    assert f"happiness  {bar(happiness(1))}  {happiness(1)}" in content
+    assert bar(happiness(1), "🟪") in content
 
 
 async def test_missing_status_message_is_reposted(
@@ -431,7 +457,7 @@ async def test_missing_status_message_is_reposted(
 
     server.status.send.assert_awaited_once()
     (text,) = server.status.send.await_args.args
-    assert text.startswith("♪ WISP v1 ・ BABY")
+    assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
     assert server.status.send.await_args.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
@@ -750,7 +776,7 @@ async def test_missing_art_never_breaks_the_card(
 
     assert card_pictures(server) == [[]]
     content = server.card_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ WISP v1 ・ TEEN")
+    assert "**life stage**・𝐓𝐄𝐄𝐍・" in content
     assert house_reports(server) == []
     server.status.send.assert_not_awaited()
 
@@ -815,7 +841,7 @@ async def test_death_posts_died_then_new_egg_with_next_version(
     assert mentions_version(died, 1)
     assert mentions_version(laid, 2)
     content = server.card_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ WISP v2 ・ EGG")
+    assert "**life stage**・𝐄𝐆𝐆・" in content
 
 
 async def test_cold_egg_uses_up_version(
@@ -849,7 +875,7 @@ async def test_finished_life_is_replaced_by_next_egg(
     assert mentions_version(laid, 2)
     assert not mentions_version(laid, 1)
     content = server.card_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ WISP v2 ・ EGG")
+    assert "**life stage**・𝐄𝐆𝐆・" in content
 
     await cog.run_tick(NOW + FULL_GAP)
 
@@ -880,7 +906,7 @@ async def test_over_life_at_tick_start_uses_next_life(
     keepsakes = await bot.keepsakes.of(GUILD_ID, USER_ID)
     assert [keepsake.title for keepsake in keepsakes] == ["Wisp v1's Last Ember"]
     content = server.card_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ WISP v2 ・ EGG")
+    assert "**life stage**・𝐄𝐆𝐆・" in content
 
 
 async def test_frozen_guild_does_not_drain(
