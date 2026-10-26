@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-26 (new divider)
+
+- Myra's divider `❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰` replaces the old
+  `・♪ ────────・──────── ♪・` line in every Wisp post that uses it. The project
+  rules now allow Unicode emoji in designed text (the status card and the
+  divider); AI replies and canned lines stay emoji free.
+
 ## 2026-10-26 (Full)
 
 - The food meter is now called Full. The snack confirmation, the Vault and

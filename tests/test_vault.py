@@ -25,6 +25,7 @@ from db.settings import SettingsRepo
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
+from wisp.text import SEPARATOR
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -35,7 +36,6 @@ FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-SEPARATOR = "・♪ ────────・──────── ♪・"
 INTRO = (
     "Snacks and the leaderboard. Shop or open your Snack Pack with the buttons below."
 )
@@ -419,7 +419,7 @@ async def test_leaderboard_uses_bot_style(bot: app.WispBot) -> None:
     assert "・" in text
     assert "♪" in text
     assert SEPARATOR in text
-    assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
+    assert not re.search("[🀀-🿿☀-♩♫-➿️]", text.replace(SEPARATOR, ""))
 
 
 async def test_leaderboard_fits_one_message(

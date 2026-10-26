@@ -90,7 +90,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "♪ Quick rules (current numbers)",
             "Wisp is one little guy for the whole server. Share music and he "
             "grows from an egg into a Rockstar. If nobody feeds him, he fades "
-            "and a new egg takes his place.",
+            "and a new egg takes over.",
             SEPARATOR,
             "Who can feed him",
             "・Active Lounger or higher",

@@ -1,6 +1,6 @@
 import pytest
 
-from wisp.text import USER_ERROR, count, richest, strip_emoji
+from wisp.text import SEPARATOR, USER_ERROR, count, richest, strip_emoji
 
 
 @pytest.mark.parametrize(
@@ -18,6 +18,10 @@ def test_richest_swaps_in_rich_lines_while_they_fit() -> None:
     assert richest(plain, rich, 15) == ["aaaaa", "b", "ccccc"]
     assert richest(plain, rich, 100) == rich
     assert richest(plain, rich, 1) == plain
+
+
+def test_separator_is_myras_divider() -> None:
+    assert SEPARATOR == "❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰"
 
 
 def test_strip_emoji_keeps_dots_and_notes() -> None:
@@ -40,7 +44,7 @@ def test_strip_emoji_removes_the_symbol_blocks(text: str, expected: str) -> None
 
 
 def test_strip_emoji_keeps_the_flair() -> None:
-    assert strip_emoji("・♪ ────────・──────── ♪・ ♫") == "・♪ ────────・──────── ♪・ ♫"
+    assert strip_emoji("・♪ ─ ・ ♪・ ♫") == "・♪ ─ ・ ♪・ ♫"
 
 
 def test_the_member_is_told_where_the_error_is() -> None:

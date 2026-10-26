@@ -32,6 +32,7 @@ from wisp.rules import (
     RHYME_TURN,
     Stage,
 )
+from wisp.text import SEPARATOR
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -40,7 +41,6 @@ OTHER_CHANNEL_ID = 71
 USER_ID = 1
 OTHER_USER_ID = 2
 QUALIFYING_ROLE = 7
-SEPARATOR = "・♪ ────────・──────── ♪・"
 NO_PING = discord.AllowedMentions.none().to_dict()
 
 # ---

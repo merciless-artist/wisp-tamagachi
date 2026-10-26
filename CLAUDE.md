@@ -31,8 +31,10 @@ UTC and a day is a UTC calendar day.
 
 ## Bot text
 
-- No Unicode emoji. Wisp's own app emojis are allowed.
-- Bullet `・`, flair `♪`, separator `・♪ ────────・──────── ♪・`.
+- Unicode emoji are allowed in designed text: the status card and the divider,
+  and anything Myra designs. AI replies and canned lines stay Unicode-emoji
+  free. Wisp's own app emojis are allowed.
+- Bullet `・`, flair `♪`, separator (the divider) `❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰`.
 - No embeds.
 - No direct messages. Wisp ignores DMs and is guild-only.
 - Members use `/wisp` slash commands; staff use `!wisp` text commands, plus

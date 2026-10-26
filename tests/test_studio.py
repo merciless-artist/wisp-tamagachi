@@ -30,7 +30,7 @@ from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import Phase, new_egg
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT
+from wisp.text import MESSAGE_LIMIT, SEPARATOR
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -1535,8 +1535,8 @@ def test_rules_text_uses_bot_style() -> None:
     text = rules_text(rules.MEAL_POINTS)
     assert "・" in text
     assert "♪" in text
-    assert "・♪ ────────・──────── ♪・" in text
-    assert not re.search(EMOJI, text)
+    assert SEPARATOR in text
+    assert not re.search(EMOJI, text.replace(SEPARATOR, ""))
 
 
 def test_rules_text_numbers_come_from_the_rules(

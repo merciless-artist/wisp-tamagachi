@@ -28,7 +28,7 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import MESSAGE_LIMIT
+from wisp.text import MESSAGE_LIMIT, SEPARATOR
 
 GUILD_ID = 100
 OTHER_GUILD_ID = 200
@@ -39,7 +39,6 @@ FIRST = 1
 SECOND = 2
 NOW = datetime(2026, 10, 23, 0, 5, tzinfo=UTC)
 YESTERDAY = date(2026, 10, 22)
-SEPARATOR = "・♪ ────────・──────── ♪・"
 NO_PING = discord.AllowedMentions.none().to_dict()
 
 # ---

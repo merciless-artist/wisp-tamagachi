@@ -53,8 +53,7 @@ def test_alive_card_matches_spec_exactly() -> None:
         "full       ███████░░░  72\n"
         "happiness  █████░░░░░  50\n"
         "fed today by 4 people\n"
-        "poke him, or mention @Wisp in his House\n"
-        "・♪ ────────・──────── ♪・"
+        "poke him, or mention @Wisp in his House\n" + SEPARATOR
     )
     assert render_status(alive_life(), NOW, happiness=50, fed_today=4) == expected
 

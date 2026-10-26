@@ -4,7 +4,7 @@ import re
 from collections.abc import Sequence
 from typing import Final
 
-SEPARATOR: Final = "・♪ ────────・──────── ♪・"
+SEPARATOR: Final = "❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰"
 MESSAGE_LIMIT: Final = 2000
 VAULT_RAIL: Final = "𝄃 "
 PACK_RAIL: Final = "│"

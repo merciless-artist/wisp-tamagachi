@@ -31,7 +31,7 @@ from wisp.gifts import GiftState, Outcome, decide, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
-from wisp.text import USER_ERROR, text_length
+from wisp.text import SEPARATOR, USER_ERROR, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -40,7 +40,6 @@ USER_ID = 1
 OTHER_USER_ID = 2
 NEWCOMER_ID = 3
 QUALIFYING_ROLE = 7
-SEPARATOR = "・♪ ────────・──────── ♪・"
 NO_PING = discord.AllowedMentions.none().to_dict()
 ASSETS = Path(__file__).resolve().parent.parent / "ASSETS"
 KEEP = 0.0
