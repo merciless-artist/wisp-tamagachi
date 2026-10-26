@@ -25,6 +25,8 @@ class Moment(StrEnum):
     HUNGRY = auto()
     FADING = auto()
     LONELY = auto()
+    SICK = auto()
+    RECOVERED = auto()
     DIED = auto()
     NEW_EGG = auto()
     EGG_COLD = auto()
@@ -86,6 +88,8 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.HUNGRY: _NONE,
     Moment.FADING: _NONE,
     Moment.LONELY: _NONE,
+    Moment.SICK: _NONE,
+    Moment.RECOVERED: _NONE,
     Moment.RHYME_START: frozenset({"word"}),
     Moment.RHYME_WISP_STUCK: _NONE,
     Moment.RHYME_PLAYER_STUCK: _NONE,
@@ -456,6 +460,40 @@ _LONELY = (
     "*grumpy crackle* I'm not mad. I'm just a little flame with nobody to play with",
     "the studio feels real big when nobody's hanging out with me",
     "somebody challenge me to a rhyme. I'll even let you win. probably",
+)
+
+# ---
+# The childhood cold
+# ---
+
+_SICK = (
+    "*achoo* uh oh. I think I caught a cold. everything sounds like it's underwater",
+    "my nose is running and my flame is all wobbly. I've got a cold, everybody",
+    "*sniff* I'm sick. I can't even hum without sneezing on the beat",
+    "caught my first cold. my headphones are full of sneezes now. sorry, headphones",
+    "I've got spots and a thermometer in my mouth. the doctor says it's a cold. "
+    "I am the doctor",
+    "feeling hot and cold at the same time. which, for a flame, is a lot",
+    "*achoo* being sick makes me extra hungry. an extra song and a snack would "
+    "really help",
+    "don't worry, it's just a cold. I'll be better in a couple of days. bring soup. "
+    "or songs",
+    "my voice sounds like a kazoo with a stuffy nose. it's a cold. "
+    "I'm being very brave",
+)
+
+_RECOVERED = (
+    "I can breathe through my nose again! the cold is gone and I'm never taking "
+    "air for granted",
+    "no more sneezing. no more spots. I'm all better. "
+    "thanks for the soup. I mean songs",
+    "cold's gone. my flame stopped wobbling. listen, my voice is back: la la LA",
+    "*big clear sniff* nothing. NOTHING. I'm better",
+    "all better! thank you for looking after me while I was sick",
+    "the thermometer says I'm normal. well, normal for a flame. I'm better",
+    "I beat my first cold. put it on a poster. Wisp versus the sniffles, Wisp wins",
+    "my headphones don't smell like sneezes anymore. it's a good day",
+    "I'm better! sorry for sneezing on everybody's tracks",
 )
 
 # ---
@@ -854,6 +892,8 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.HUNGRY, _HUNGRY),
     **_either_mood(Moment.FADING, _FADING),
     **_either_mood(Moment.LONELY, _LONELY),
+    **_either_mood(Moment.SICK, _SICK),
+    **_either_mood(Moment.RECOVERED, _RECOVERED),
     **_either_mood(Moment.DIED, _DIED),
     **_either_mood(Moment.NEW_EGG, _NEW_EGG),
     **_either_mood(Moment.EGG_COLD, _EGG_COLD),

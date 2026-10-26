@@ -10,7 +10,7 @@ import discord
 import pymysql
 
 from cogs.assets import ASSETS_DIR, asset_image
-from cogs.pictures import Picture, art_kwargs, life_image
+from cogs.pictures import Picture, art_kwargs, life_image, sick_image
 from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
@@ -44,7 +44,8 @@ def _image_for(event: Event) -> Path | None:
     """Return the image for an event, or None for text only.
 
     Most events show the first of their pictures that exists; a lonely post
-    picks one at random.
+    picks one at random. Catching his cold shows his stage's sick picture and
+    getting better shows him well again, as his stage's picture.
     """
     stages = ASSETS_DIR / "stages"
     events = ASSETS_DIR / "events"
@@ -52,7 +53,11 @@ def _image_for(event: Event) -> Path | None:
     match event.kind:
         case EventKind.LONELY if event.stage is not None:
             return _lonely_image(event.stage)
-        case EventKind.STAGE_UP | EventKind.GREW_OLD if event.stage is not None:
+        case EventKind.SICK if event.stage is not None:
+            return sick_image(event.stage)
+        case EventKind.STAGE_UP | EventKind.GREW_OLD | EventKind.RECOVERED if (
+            event.stage is not None
+        ):
             candidates = [(stages, event.stage.value)]
         case EventKind.HATCHED:
             candidates = [(stages, _BABY_STAGE), (events, "hatched")]

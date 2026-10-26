@@ -7,7 +7,8 @@ from wisp.life import EventKind, Life, Phase
 from wisp.rules import Stage
 
 # The columns keep their live names: `care` holds Life.full (the food meter)
-# and `fondness` holds Life.care (the care meter).
+# and `fondness` holds Life.care (the care meter). The cold's columns share
+# their fields' names: `cold_due_at`, `cold_left` and `had_cold`.
 _COLUMNS = (
     "version",
     "phase",
@@ -30,6 +31,9 @@ _COLUMNS = (
     "favorite_snack",
     "fondness",
     "lonely_warned",
+    "cold_due_at",
+    "cold_left",
+    "had_cold",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -58,6 +62,9 @@ def _from_row(row: Row) -> Life:
         favorite_snack=row["favorite_snack"],
         care=row["fondness"],
         lonely_warned=bool(row["lonely_warned"]),
+        cold_due_at=from_db_time(row["cold_due_at"]),
+        cold_left=row["cold_left"],
+        had_cold=bool(row["had_cold"]),
     )
 
 
@@ -85,6 +92,9 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.favorite_snack,
         life.care,
         life.lonely_warned,
+        to_db_time(life.cold_due_at),
+        life.cold_left,
+        life.had_cold,
     )
 
 

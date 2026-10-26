@@ -28,7 +28,7 @@ from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
 from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
-from wisp.life import Life, mood
+from wisp.life import Life, is_sick, mood
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.voice import (
@@ -171,6 +171,7 @@ async def _prompt(
         expressions=expressions(bot, life.stage),
         poked=poked,
         own_emojis=emojis,
+        sick=is_sick(life),
     )
 
 
@@ -345,6 +346,7 @@ class Conversation(commands.Cog):
             chat,
             None,
             expressions=expressions(self.bot, life.stage),
+            sick=is_sick(life),
         )
         reply = await ai_reply(self.bot, guild, prompt)
         if reply is None:

@@ -49,7 +49,13 @@ from cogs.players import (
 from db.activity import InteractionKind
 from db.keepsakes import Keepsake
 from db.players import Player
-from wisp.bond import PickleStance, casual_bond_grant, meal_grant, tier_for
+from wisp.bond import (
+    PickleStance,
+    casual_bond_grant,
+    daily_meal_cap,
+    meal_grant,
+    tier_for,
+)
 from wisp.gifts import GiftState
 from wisp.life import Life, Mood, Phase, add_growth, feed, is_over, mood
 from wisp.lines import Moment
@@ -807,7 +813,8 @@ async def _eat(
         raise Refusal(_NOT_HATCHED)
     if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
         raise Refusal(_SINE_USED)
-    full = meal_grant(await log.meal_points_today(guild_id, user_id, now), snack.full)
+    eaten = await log.meal_points_today(guild_id, user_id, now)
+    full = meal_grant(eaten, snack.full, daily_meal_cap(life))
     if full == 0:
         raise Refusal(_FULL)
     if snack == _FREE:

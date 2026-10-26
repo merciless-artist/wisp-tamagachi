@@ -224,6 +224,18 @@ _MOOD_LAYERS: Final = {
     Mood.LONELY: (_LONELY, _BABY_LONELY),
 }
 
+_SICK: Final = (
+    "You have a cold right now, your one childhood cold. You're sniffly and "
+    "sneezy: you sniffle, sneeze (*achoo*) and sound stuffed up, and you're "
+    "extra hungry. You're not scared, you know you'll be better in a couple "
+    "of days."
+)
+
+_BABY_SICK: Final = (
+    "You have a cold right now, so your little noises come out sniffly and "
+    'sneezy, like "*sniff*" or "*achoo*", never swearing.'
+)
+
 _BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
 
 _PICKLE_SIDES: Final = {
@@ -465,13 +477,15 @@ def build_prompt(
     expressions: Sequence[str],
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
+    sick: bool = False,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
     `message` is what `speaker` said to him; None means he is chiming in on his
     own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
     tags are only asked for when there is a speaker with a message.
-    `own_emojis` are the emojis of his that the message used.
+    `own_emojis` are the emojis of his that the message used. While `sick`
+    he has his cold and sounds sniffly and sneezy.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -484,6 +498,8 @@ def build_prompt(
     if (layers := _MOOD_LAYERS.get(mood)) is not None:
         grown, little = layers
         system.append(little if baby else grown)
+    if sick:
+        system.append(_BABY_SICK if baby else _SICK)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))

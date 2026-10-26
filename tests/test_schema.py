@@ -131,12 +131,13 @@ def test_the_care_columns_are_defined_and_added_to_live_tables() -> None:
     definition = schema._DEFINITIONS["lives"]
     defined = {line.split()[0] for line in definition.splitlines() if line.strip()}
     added = schema._ADDED_COLUMNS["lives"]
-    assert {"fondness", "lonely_warned"} <= defined
-    assert added == {
+    care = {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",
     }
-    for column, column_type in added.items():
+    assert set(care) <= defined
+    assert care.items() <= added.items()
+    for column, column_type in care.items():
         assert f"{column} {column_type}," in definition
 
 
@@ -151,6 +152,48 @@ async def test_create_tables_adds_care_to_a_live_lives_table(db: Database) -> No
 
         row = await db.fetchone(f"SELECT fondness, lonely_warned FROM {lives}")
         assert row == {"fondness": 50.0, "lonely_warned": 0}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {lives}")
+        present = {column["Field"] for column in restored}
+        for column, column_type in schema._ADDED_COLUMNS["lives"].items():
+            if column not in present:
+                await db.execute(
+                    f"ALTER TABLE {lives} ADD COLUMN {column} {column_type}"
+                )
+
+
+COLD_COLUMNS = {
+    "cold_due_at": "DATETIME NULL",
+    "cold_left": "DOUBLE NOT NULL DEFAULT 0",
+    "had_cold": "BOOL NOT NULL DEFAULT 0",
+}
+
+
+def test_the_cold_columns_are_defined_and_added_to_live_tables() -> None:
+    definition = schema._DEFINITIONS["lives"]
+    added = schema._ADDED_COLUMNS["lives"]
+    assert COLD_COLUMNS.items() <= added.items()
+    for column, column_type in COLD_COLUMNS.items():
+        assert f"{column} {column_type}," in definition
+
+
+async def test_create_tables_adds_the_cold_to_a_live_lives_table(
+    db: Database,
+) -> None:
+    lives = db.t("lives")
+    await LifeRepo(db).insert(1, new_egg(1, datetime(2026, 10, 26, tzinfo=UTC)))
+    await db.execute(
+        f"ALTER TABLE {lives} "
+        + ", ".join(f"DROP COLUMN {column}" for column in COLD_COLUMNS)
+    )
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT {', '.join(COLD_COLUMNS)} FROM {lives}")
+        assert row == {"cold_due_at": None, "cold_left": 0.0, "had_cold": 0}
+        life = await LifeRepo(db).current(1)
+        assert life is not None
+        assert (life.cold_due_at, life.cold_left, life.had_cold) == (None, 0.0, False)
     finally:
         restored = await db.fetchall(f"SHOW COLUMNS FROM {lives}")
         present = {column["Field"] for column in restored}

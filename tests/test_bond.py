@@ -1,13 +1,26 @@
 """Tests for bond tiers, daily caps, meeting and happiness."""
 
+from datetime import UTC, datetime
+
 import pytest
 
-from wisp.bond import casual_bond_grant, happiness, meal_grant, should_meet, tier_for
+from wisp.bond import (
+    casual_bond_grant,
+    daily_meal_cap,
+    happiness,
+    meal_grant,
+    should_meet,
+    tier_for,
+)
+from wisp.life import Phase, new_egg
 from wisp.rules import (
     DAILY_CASUAL_BOND_CAP,
     DAILY_MEAL_CAP,
     HAPPY_FULL_AT_PEOPLE,
     MEET_AFTER_DAYS,
+    SICK_EXTRA_MEAL_CAP,
+    SICK_FOR,
+    Stage,
 )
 
 
@@ -38,10 +51,27 @@ def test_casual_bond_stops_at_seven() -> None:
 
 def test_meal_grant_stops_at_fifteen() -> None:
     assert DAILY_MEAL_CAP == 15
-    assert meal_grant(0, 5) == 5
-    assert meal_grant(13, 5) == 2
-    assert meal_grant(DAILY_MEAL_CAP, 5) == 0
-    assert meal_grant(DAILY_MEAL_CAP + 3, 1) == 0
+    assert meal_grant(0, 5, DAILY_MEAL_CAP) == 5
+    assert meal_grant(13, 5, DAILY_MEAL_CAP) == 2
+    assert meal_grant(DAILY_MEAL_CAP, 5, DAILY_MEAL_CAP) == 0
+    assert meal_grant(DAILY_MEAL_CAP + 3, 1, DAILY_MEAL_CAP) == 0
+
+
+def test_the_meal_cap_doubles_while_sick() -> None:
+    life = new_egg(1, datetime(2026, 10, 26, tzinfo=UTC))
+    assert daily_meal_cap(None) == daily_meal_cap(life) == DAILY_MEAL_CAP
+    life.phase = Phase.ALIVE
+    life.stage = Stage.CHILD
+    assert daily_meal_cap(life) == DAILY_MEAL_CAP
+    life.cold_left = SICK_FOR.total_seconds()
+
+    cap = daily_meal_cap(life)
+
+    assert SICK_EXTRA_MEAL_CAP == 15
+    assert cap == DAILY_MEAL_CAP + SICK_EXTRA_MEAL_CAP == 30
+    assert meal_grant(DAILY_MEAL_CAP, 5, cap) == 5
+    assert meal_grant(28, 5, cap) == 2
+    assert meal_grant(cap, 5, cap) == 0
 
 
 def test_meets_on_third_distinct_day_only_once() -> None:

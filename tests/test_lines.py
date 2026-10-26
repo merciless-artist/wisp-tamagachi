@@ -46,6 +46,8 @@ ONE_MOOD_MOMENTS = {
     Moment.EGG_POKE,
     Moment.KEEPSAKE_WON,
     Moment.LONELY,
+    Moment.SICK,
+    Moment.RECOVERED,
 }
 LONELY_TALK_MOMENTS = [Moment.POKED, Moment.CHAT_FALLBACK, Moment.BABY_TALK]
 FAREWELL_MOMENTS = [
@@ -126,6 +128,12 @@ def test_the_lonely_moment_has_its_own_lines() -> None:
         for line in written
     }
     assert not set(lines) & others
+
+
+@pytest.mark.parametrize("moment", [Moment.SICK, Moment.RECOVERED])
+def test_the_cold_moments_have_about_eight_lines(moment: Moment) -> None:
+    assert FIELDS[moment] == set()
+    assert len(LINES[(moment, Mood.HAPPY)]) >= 8
 
 
 @pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)

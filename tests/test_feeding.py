@@ -700,6 +700,41 @@ async def test_daily_cap_clamps_then_silences(
     server.mealtime.send.assert_awaited_once()
 
 
+async def test_the_meal_cap_doubles_while_sick(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    now = discord.utils.utcnow()
+    assert ready.id is not None
+    ready.cold_left = rules.SICK_FOR.total_seconds()
+    ready.had_cold = True
+    await bot.lives.save(GUILD_ID, ready)
+    await bot.activity_log.record_interaction(
+        GUILD_ID,
+        ready.id,
+        FIRST_USER,
+        InteractionKind.FEED,
+        0,
+        rules.DAILY_MEAL_CAP,
+        now,
+    )
+
+    for song in range(1, 5):
+        await cog.on_message(
+            message(
+                f"https://viibrmusic.com/songs/{song:08d}-4444-4444-4444-444444444444"
+            )
+        )
+
+    assert (await current_life(bot)).full == 65.0
+    cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
+    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == cap
+    assert server.mealtime.send.await_count == 3
+
+
 async def test_one_feed_per_message(
     cog: Feeding,
     bot: app.WispBot,

@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-26 (the childhood cold)
+
+- Once per life Wisp catches a cold, like the chicken pox. When he is a
+  living Baby, Child or Teen the life loop rolls when it is due: a random
+  time 1 to 12 days after he hatched (`COLD_EARLIEST`, `COLD_LATEST`). Adult
+  needs 14 days, so every Wisp who grows up has had it. A due cold starts
+  before the growth check on the same tick, so even after days offline he
+  catches it before he can grow to Adult. Adults and older never catch one,
+  and a living young Wisp from before this change gets his cold rolled on
+  his next tick.
+- The cold lasts 48 hours of credited time (`SICK_FOR`); frozen and offline
+  time beyond the usual 15 minutes do not count, and a frozen Wisp never
+  starts one. If he grows a stage while sick, the cold carries on.
+- While sick his Full drains 1.5 times as fast (`SICK_DRAIN_MULTIPLIER`), but
+  the drain never takes it below 1 (`SICK_FULL_FLOOR`), so he cannot die
+  while sick. He can still be hangry and fading, and those posts still come.
+  Normal rules come back when he is better.
+- While sick each member's daily meal cap is 30 instead of 15
+  (`SICK_EXTRA_MEAL_CAP`), room for about one extra song and one extra snack.
+  `meal_grant` now takes the cap; `daily_meal_cap(life)` gives it.
+- He posts once in the House when he catches it (with `sick_baby.png`,
+  `sick_child.png` or `sick_teen.png` from `ASSETS/moments/` for the stage he
+  is in; text only if the file is missing) and once when he is better (with
+  his stage picture). Both have their own canned lines. While sick the status
+  card and the Poke Wisp panel show his sick picture, and his AI voice is
+  sniffly and sneezy. The three sick pictures are now in the repo.
+- Database: three new `lives` columns, `cold_due_at DATETIME NULL`,
+  `cold_left DOUBLE NOT NULL DEFAULT 0` and `had_cold BOOL NOT NULL DEFAULT 0`.
+  Startup adds them to the live table; nothing is renamed or dropped.
+
 ## 2026-10-26 (Care and the lonely mood)
 
 - Wisp has a new Care meter, 0 to 100. It starts at 50 when he hatches and

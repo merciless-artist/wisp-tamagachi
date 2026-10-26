@@ -74,6 +74,28 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 }
 
 # ---
+# The childhood cold
+# ---
+
+# Once per life he catches a cold, due a random time between COLD_EARLIEST and
+# COLD_LATEST after hatching. Adult needs 14 days, so the cold comes first.
+COLD_EARLIEST = timedelta(days=1)
+COLD_LATEST = timedelta(days=12)
+# Credited time he stays sick.
+SICK_FOR = timedelta(hours=48)
+# While sick Full drains faster, never drops below SICK_FULL_FLOOR, and each
+# member's daily meal cap has room for SICK_EXTRA_MEAL_CAP more meal points.
+SICK_DRAIN_MULTIPLIER = 1.5
+SICK_FULL_FLOOR = 1.0
+SICK_EXTRA_MEAL_CAP = 15
+# The picture in ASSETS/moments his sick post and his card show, by stage.
+SICK_PICTURES: Final[dict[Stage, str]] = {
+    Stage.BABY: "sick_baby.png",
+    Stage.CHILD: "sick_child.png",
+    Stage.TEEN: "sick_teen.png",
+}
+
+# ---
 # Egg
 # ---
 

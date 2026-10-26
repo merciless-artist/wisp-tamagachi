@@ -1,5 +1,6 @@
 """Tests for the life engine: eggs, fullness, stages and death."""
 
+import random
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -16,8 +17,10 @@ from wisp.life import (
     egg_after,
     feed,
     is_over,
+    is_sick,
     mood,
     new_egg,
+    schedule_cold,
     tick,
 )
 from wisp.rules import (
@@ -25,6 +28,8 @@ from wisp.rules import (
     CARE_MAX,
     CARE_START,
     COAL_EGG_FOOD,
+    COLD_EARLIEST,
+    COLD_LATEST,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
     FAREWELL_AT_DAY,
@@ -38,6 +43,9 @@ from wisp.rules import (
     OLD_FOGEY_FULL_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
     ROCKSTAR_HAPPY_FOR,
+    SICK_DRAIN_MULTIPLIER,
+    SICK_FOR,
+    SICK_FULL_FLOOR,
     STAGE_RULES,
     TICK_EVERY,
     Stage,
@@ -642,3 +650,178 @@ def test_egg_after_nothing_is_fresh() -> None:
     egg = egg_after(None, 1, T0)
     assert (egg.version, egg.phase, egg.egg_food) == (1, Phase.EGG, 0)
     assert not egg.from_coal
+
+
+# ---
+# The childhood cold
+# ---
+
+
+class EdgeRng(random.Random):
+    """An rng whose `uniform` always lands on one end of its range."""
+
+    def __init__(self, *, high: bool) -> None:
+        super().__init__(0)
+        self.high = high
+
+    def uniform(self, a: float, b: float) -> float:
+        return b if self.high else a
+
+
+def due(life: Life, at: datetime) -> Life:
+    """Give `life` a cold that is due at `at`, ticked up to just before it."""
+    life.cold_due_at = at
+    life.last_tick_at = at - TICK_EVERY
+    return life
+
+
+def sick(full: float) -> Life:
+    """Build a Wisp in the middle of his cold."""
+    return alive(full, cold_left=SICK_FOR.total_seconds(), had_cold=True)
+
+
+@pytest.mark.parametrize(
+    ("high", "after"), [(False, COLD_EARLIEST), (True, COLD_LATEST)]
+)
+def test_schedule_cold_lands_between_day_one_and_twelve(
+    high: bool, after: timedelta
+) -> None:
+    life = alive(at=T0 - timedelta(days=2))
+    schedule_cold(life, EdgeRng(high=high))
+    assert life.cold_due_at == T0 - timedelta(days=2) + after
+    assert (COLD_EARLIEST, COLD_LATEST) == (timedelta(days=1), timedelta(days=12))
+    assert COLD_LATEST + SICK_FOR <= timedelta(days=STAGE_RULES[Stage.ADULT][0])
+
+
+def test_a_legacy_child_gets_a_cold_scheduled() -> None:
+    life = alive(stage=Stage.CHILD, at=T0 - timedelta(days=5))
+    assert (life.cold_due_at, life.cold_left, life.had_cold) == (None, 0.0, False)
+    schedule_cold(life, random.Random(7))
+    assert life.cold_due_at is not None
+    assert (
+        T0 - timedelta(days=4)
+        <= life.cold_due_at
+        <= T0 - timedelta(days=5) + COLD_LATEST
+    )
+    assert not is_sick(life)
+
+
+@pytest.mark.parametrize("stage", [Stage.ADULT, Stage.ROCKSTAR, Stage.OLD_FOGEY])
+def test_an_adult_never_catches_a_cold(stage: Stage) -> None:
+    life = alive(full=FULL_MAX, stage=stage, at=T0 - timedelta(days=20))
+    schedule_cold(life, random.Random(1))
+    assert life.cold_due_at is None
+    events = run(life, timedelta(days=3), fed=True, cared=True)
+    assert EventKind.SICK not in kinds(events)
+    assert not is_sick(life)
+
+
+def test_an_egg_gets_no_cold_until_he_hatches() -> None:
+    egg = new_egg(1, T0)
+    schedule_cold(egg, random.Random(1))
+    assert egg.cold_due_at is None
+
+
+def test_schedule_cold_never_twice() -> None:
+    life = alive(at=T0 - timedelta(days=2))
+    schedule_cold(life, EdgeRng(high=False))
+    first = life.cold_due_at
+    schedule_cold(life, EdgeRng(high=True))
+    assert life.cold_due_at == first
+
+    over = alive(had_cold=True)
+    schedule_cold(over, EdgeRng(high=False))
+    assert over.cold_due_at is None
+
+    dead = alive(at=T0 - timedelta(days=2))
+    dead.phase = Phase.DEAD
+    schedule_cold(dead, EdgeRng(high=False))
+    assert dead.cold_due_at is None
+
+
+def test_the_cold_starts_when_due_and_lasts_48_credited_hours() -> None:
+    life = due(alive(full=FULL_MAX, stage=Stage.CHILD), T0 + timedelta(days=2))
+    assert not is_sick(life)
+
+    events = run(life, SICK_FOR - TICK_EVERY, fed=True, cared=True)
+    assert events == [Event(EventKind.SICK, Stage.CHILD)]
+    assert is_sick(life)
+    assert life.had_cold
+    assert life.cold_left == TICK_EVERY.total_seconds()
+
+    assert run(life, TICK_EVERY, fed=True, cared=True) == [
+        Event(EventKind.RECOVERED, Stage.CHILD)
+    ]
+    assert not is_sick(life)
+    assert run(life, timedelta(days=3), fed=True, cared=True) == []
+
+
+def test_a_due_cold_starts_before_growth_in_the_same_tick() -> None:
+    min_age, growth, people = STAGE_RULES[Stage.ADULT]
+    life = alive(
+        full=FULL_MAX,
+        stage=Stage.TEEN,
+        at=T0 - timedelta(days=min_age + 3),
+        growth=growth,
+        cold_due_at=T0 - timedelta(days=4),
+    )
+    back = T0 + timedelta(days=2)
+    events = tick(life, back, frozen=False, happiness=0, caretakers=people)
+    assert events == [
+        Event(EventKind.SICK, Stage.TEEN),
+        Event(EventKind.STAGE_UP, Stage.ADULT),
+    ]
+    assert is_sick(life)
+    assert life.cold_left == (SICK_FOR - MAX_CREDITED_GAP).total_seconds()
+
+
+def test_frozen_time_does_not_count_down_the_cold() -> None:
+    life = sick(full=FULL_MAX)
+    assert run(life, timedelta(days=3), step=MAX_CREDITED_GAP, frozen=True) == []
+    assert life.cold_left == SICK_FOR.total_seconds()
+
+    waiting = due(alive(full=FULL_MAX), T0 + timedelta(hours=1))
+    run(waiting, timedelta(days=1), frozen=True)
+    assert not is_sick(waiting)
+    assert not waiting.had_cold
+    events = run(waiting, TICK_EVERY, fed=True, cared=True)
+    assert events == [Event(EventKind.SICK, Stage.BABY)]
+
+
+def test_sick_drains_full_one_and_a_half_times_as_fast() -> None:
+    assert SICK_DRAIN_MULTIPLIER == 1.5
+    life = sick(full=80.0)
+    run(life, timedelta(days=1), step=MAX_CREDITED_GAP)
+    assert life.full == pytest.approx(80.0 - FULL_DRAIN_PER_DAY * 1.5)
+    assert life.cold_left == timedelta(days=1).total_seconds()
+
+
+def test_he_cannot_die_while_sick() -> None:
+    life = due(alive(full=12.0, care=CARE_MAX), T0 + TICK_EVERY)
+    events: list[Event] = []
+    for _ in range(int(SICK_FOR / TICK_EVERY)):
+        events += run(life, TICK_EVERY)
+        assert life.full >= SICK_FULL_FLOOR == 1.0
+        assert life.phase is Phase.ALIVE
+    assert kinds(events) == [
+        EventKind.SICK,
+        EventKind.HUNGRY,
+        EventKind.FADING,
+        EventKind.RECOVERED,
+    ]
+    assert life.full == SICK_FULL_FLOOR
+
+    now = life.last_tick_at
+    after: list[Event] = []
+    for _ in range(int(timedelta(hours=2) / TICK_EVERY)):
+        now += TICK_EVERY
+        after += tick(life, now, frozen=False, happiness=0, caretakers=0)
+    assert kinds(after) == [EventKind.DIED]
+    assert life.phase is Phase.DEAD
+
+
+def test_the_sick_floor_never_feeds_him() -> None:
+    life = sick(full=0.5)
+    run(life, timedelta(hours=1))
+    assert life.full == 0.5
+    assert life.phase is Phase.ALIVE

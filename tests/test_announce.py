@@ -1140,6 +1140,103 @@ async def test_a_lonely_post_without_its_picture_is_text_only(
     assert "file" not in kwargs
 
 
+SICK_ART = ("sick_baby", "sick_child", "sick_teen")
+
+
+async def event_post(
+    bot: app.WispBot, server: FakeServer, event: Event
+) -> tuple[str, dict[str, Any]]:
+    """Post one event for a living Wisp of the event's stage; return the post."""
+    life = await growing_life(bot)
+    if event.stage is not None:
+        life.stage = life.peak_stage = event.stage
+    await bot.lives.save(GUILD_ID, life)
+    await post_events(bot, GUILD_ID, [event])
+    (post,) = server.house.send.await_args_list
+    return post.args[0], post.kwargs
+
+
+@pytest.mark.parametrize(
+    ("stage", "picture"),
+    [
+        (Stage.BABY, "sick_baby.png"),
+        (Stage.CHILD, "sick_child.png"),
+        (Stage.TEEN, "sick_teen.png"),
+    ],
+)
+async def test_sick_post_shows_his_stage_picture(
+    bot: app.WispBot, server: FakeServer, assets: Path, stage: Stage, picture: str
+) -> None:
+    for name in SICK_ART:
+        add_image(assets, "moments", name)
+
+    text, kwargs = await event_post(bot, server, Event(EventKind.SICK, stage))
+
+    assert said(text, Moment.SICK)
+    assert kwargs["file"].filename == picture
+    assert sends_without_pinging(kwargs)
+
+
+async def test_a_sick_post_without_its_picture_is_text_only(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "moments", "sick_baby")
+
+    text, kwargs = await event_post(bot, server, Event(EventKind.SICK, Stage.TEEN))
+
+    assert said(text, Moment.SICK)
+    assert "file" not in kwargs
+
+
+def test_the_sick_pictures_are_in_the_repo() -> None:
+    moments = Path(announce.__file__).resolve().parent.parent / "ASSETS" / "moments"
+    assert set(rules.SICK_PICTURES) == {Stage.BABY, Stage.CHILD, Stage.TEEN}
+    for name in rules.SICK_PICTURES.values():
+        assert (moments / name).is_file(), name
+
+
+async def test_recovered_post_shows_him_well_again(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "stages", "child")
+    add_image(assets, "moments", "sick_child")
+
+    text, kwargs = await event_post(
+        bot, server, Event(EventKind.RECOVERED, Stage.CHILD)
+    )
+
+    assert said(text, Moment.RECOVERED)
+    assert kwargs["file"].filename == "child.png"
+
+
+@pytest.mark.parametrize(
+    ("stage", "files", "expected"),
+    [
+        (Stage.BABY, ["stages/baby", "moments/sick_baby"], "sick_baby.png"),
+        (Stage.CHILD, ["stages/child", "moments/sick_child"], "sick_child.png"),
+        (Stage.TEEN, ["stages/teen", "moments/sick_teen"], "sick_teen.png"),
+        (Stage.TEEN, ["stages/teen"], "teen.png"),
+        (Stage.ADULT, ["stages/adult", "moments/sick_teen"], "adult.png"),
+    ],
+)
+def test_the_card_picture_is_the_sick_one_while_sick(
+    assets: Path, stage: Stage, files: list[str], expected: str
+) -> None:
+    for path in files:
+        folder, name = path.split("/")
+        add_image(assets, folder, name)
+    life = new_egg(1, discord.utils.utcnow())
+    life.phase = Phase.ALIVE
+    life.stage = stage
+    life.cold_left = rules.SICK_FOR.total_seconds()
+
+    image = life_image(life)
+
+    assert image is not None and image.name == expected
+    life.cold_left = 0.0
+    assert life_image(life) == assets / "stages" / f"{stage.value}.png"
+
+
 async def test_hatched_keeps_the_baby_picture_first(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:

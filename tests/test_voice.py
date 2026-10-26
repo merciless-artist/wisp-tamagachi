@@ -203,6 +203,31 @@ def test_a_lonely_baby_is_clingy_and_never_swears() -> None:
     assert "clingy" not in prompt_for(Stage.BABY, Mood.HAPPY).system
 
 
+@pytest.mark.parametrize("mood", list(Mood))
+def test_sick_reaches_the_prompt(mood: Mood) -> None:
+    def system(stage: Stage, sick: bool) -> str:
+        return build_prompt(
+            stage,
+            mood,
+            speaker(),
+            CONTEXT,
+            "hey wisp",
+            expressions=EXPRESSIONS,
+            sick=sick,
+        ).system
+
+    grown = system(Stage.TEEN, sick=True)
+    assert "You have a cold right now" in grown
+    assert "sniffly" in grown and "sneez" in grown
+    baby = system(Stage.BABY, sick=True)
+    assert "You have a cold right now" in baby and "never swearing" in baby
+    assert "achoo" in baby
+    for stage in (Stage.BABY, Stage.TEEN):
+        healthy = system(stage, sick=False)
+        assert "cold" not in healthy and "sneez" not in healthy
+        assert healthy == prompt_for(stage, mood).system
+
+
 def test_teen_does_not_claim_to_remember_conversations() -> None:
     teen = prompt_for(Stage.TEEN).system
     assert "you remember" not in teen.lower()

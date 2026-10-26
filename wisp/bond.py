@@ -2,12 +2,14 @@
 
 from enum import StrEnum
 
+from wisp.life import Life, is_sick
 from wisp.rules import (
     BOND_TIERS,
     DAILY_CASUAL_BOND_CAP,
     DAILY_MEAL_CAP,
     HAPPY_FULL_AT_PEOPLE,
     MEET_AFTER_DAYS,
+    SICK_EXTRA_MEAL_CAP,
 )
 
 
@@ -32,9 +34,16 @@ def casual_bond_grant(earned_today: int, amount: int) -> int:
     return max(min(amount, DAILY_CASUAL_BOND_CAP - earned_today), 0)
 
 
-def meal_grant(fed_today: int, points: int) -> int:
-    """Meal points that still fit under today's feeding cap."""
-    return max(min(points, DAILY_MEAL_CAP - fed_today), 0)
+def daily_meal_cap(life: Life | None) -> int:
+    """How many meal points each member may feed today; more while he is sick."""
+    if life is not None and is_sick(life):
+        return DAILY_MEAL_CAP + SICK_EXTRA_MEAL_CAP
+    return DAILY_MEAL_CAP
+
+
+def meal_grant(fed_today: int, points: int, cap: int) -> int:
+    """Meal points that still fit under today's feeding cap of `cap`."""
+    return max(min(points, cap - fed_today), 0)
 
 
 def should_meet(distinct_days: int, met: bool) -> bool:

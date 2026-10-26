@@ -376,6 +376,29 @@ async def test_care_round_trips_through_the_fondness_column(db: Database) -> Non
     assert await repo.current(GUILD) == loaded
 
 
+async def test_the_cold_round_trips(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    assert (life.cold_due_at, life.cold_left, life.had_cold) == (None, 0.0, False)
+    life.cold_due_at = NOW + timedelta(days=3, hours=5)
+    life.cold_left = 4321.5
+    life.had_cold = True
+    await repo.save(GUILD, life)
+
+    row = await db.fetchone(
+        f"SELECT cold_due_at, cold_left, had_cold FROM {db.t('lives')} WHERE id = %s",
+        (life.id,),
+    )
+    assert row is not None
+    assert (row["cold_left"], row["had_cold"]) == (4321.5, 1)
+    loaded = await repo.current(GUILD)
+    assert loaded == life
+    loaded.cold_due_at = None
+    loaded.cold_left = 0.0
+    await repo.save(GUILD, loaded)
+    assert await repo.current(GUILD) == loaded
+
+
 async def test_from_coal_round_trips(db: Database) -> None:
     repo = LifeRepo(db)
     coal = new_egg(1, NOW)

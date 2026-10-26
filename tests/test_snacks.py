@@ -998,6 +998,30 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
 
 
+async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
+    life = await lay(bot, full=40.0)
+    assert life.id is not None
+    life.cold_left = rules.SICK_FOR.total_seconds()
+    life.had_cold = True
+    await bot.lives.save(GUILD_ID, life)
+    now = discord.utils.utcnow()
+    await bot.activity_log.record_interaction(
+        GUILD_ID, life.id, USER_ID, InteractionKind.FEED, 0, rules.DAILY_MEAL_CAP, now
+    )
+
+    replies = [reply_text(await eat(bot, "cloudwave")) for _ in range(4)]
+
+    assert replies == [
+        "♪ Wisp ate your Cloud Wave ・ full +5",
+        "♪ Wisp ate your Cloud Wave ・ full +5",
+        "♪ Wisp ate your Cloud Wave ・ full +5",
+        "♪ Wisp is full from you today. Save it for tomorrow.",
+    ]
+    assert (await current_life(bot)).full == 55.0
+    cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
+    assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == cap
+
+
 @pytest.mark.parametrize("key", ["cloudwave", "sinewave"])
 async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
     bot: app.WispBot, server: FakeServer, db: Database, key: str

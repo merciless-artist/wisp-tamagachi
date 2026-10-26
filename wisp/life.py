@@ -1,9 +1,11 @@
-"""Wisp's life: eggs, hatching, fullness, care, stages and death.
+"""Wisp's life: eggs, hatching, fullness, care, his cold, stages and death.
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
-callers pass the current time (timezone-aware UTC) into every call.
+callers pass the current time (timezone-aware UTC) into every call, and the
+one random roll, when his cold is due, takes the caller's rng.
 """
 
+import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
@@ -13,6 +15,8 @@ from wisp.rules import (
     CARE_MAX,
     CARE_START,
     COAL_EGG_FOOD,
+    COLD_EARLIEST,
+    COLD_LATEST,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
     FADING_BELOW,
@@ -28,6 +32,9 @@ from wisp.rules import (
     OLD_FOGEY_FULL_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
     ROCKSTAR_HAPPY_FOR,
+    SICK_DRAIN_MULTIPLIER,
+    SICK_FOR,
+    SICK_FULL_FLOOR,
     STAGE_RULES,
     Stage,
 )
@@ -38,6 +45,7 @@ _NEXT_STAGE = {
     Stage.CHILD: Stage.TEEN,
     Stage.TEEN: Stage.ADULT,
 }
+_COLD_STAGES = frozenset({Stage.BABY, Stage.CHILD, Stage.TEEN})
 
 # ---
 # Types
@@ -76,6 +84,8 @@ class EventKind(StrEnum):
     GREW_OLD = auto()
     FAREWELL = auto()
     LONELY = auto()
+    SICK = auto()
+    RECOVERED = auto()
 
 
 @dataclass(frozen=True)
@@ -94,6 +104,10 @@ class Life:
     hatches; None while he is an egg. `care` is the care meter, filled by
     duels and gifts, and `lonely_warned` whether he has said he is lonely
     since it last dropped below the lonely line.
+
+    His one childhood cold is due at `cold_due_at` (None until it is rolled),
+    `cold_left` is the credited seconds of it still to go, and `had_cold`
+    whether he has caught it, so he never catches it twice.
     """
 
     id: int | None
@@ -118,6 +132,9 @@ class Life:
     favorite_snack: str | None = None
     care: float = CARE_START
     lonely_warned: bool = False
+    cold_due_at: datetime | None = None
+    cold_left: float = 0.0
+    had_cold: bool = False
 
 
 # ---
@@ -168,6 +185,11 @@ def mood(life: Life) -> Mood:
     if life.care < LONELY_BELOW:
         return Mood.LONELY
     return Mood.HAPPY
+
+
+def is_sick(life: Life) -> bool:
+    """Whether he has his cold right now."""
+    return life.cold_left > 0
 
 
 def age_days(life: Life, now: datetime) -> int:
@@ -223,6 +245,47 @@ def _feed_egg(
     life.hatch_started_at = now
     life.hatched_by = feeder_id
     return [Event(EventKind.HATCH_STARTED)]
+
+
+# ---
+# The childhood cold
+# ---
+
+
+def schedule_cold(life: Life, rng: random.Random) -> None:
+    """Roll when a young Wisp's one cold is due, if it is not rolled yet.
+
+    Only a living Baby, Child or Teen who has not had his cold gets one, due
+    between COLD_EARLIEST and COLD_LATEST after he hatched. A due time already
+    past starts the cold on his next tick.
+    """
+    if (
+        life.phase is not Phase.ALIVE
+        or life.stage not in _COLD_STAGES
+        or life.had_cold
+        or life.cold_due_at is not None
+        or life.hatched_at is None
+    ):
+        return
+    offset = rng.uniform(COLD_EARLIEST.total_seconds(), COLD_LATEST.total_seconds())
+    life.cold_due_at = life.hatched_at + timedelta(seconds=offset)
+
+
+def _catch_due_cold(life: Life, now: datetime) -> list[Event]:
+    if life.had_cold or life.cold_due_at is None or now < life.cold_due_at:
+        return []
+    life.had_cold = True
+    life.cold_left = SICK_FOR.total_seconds()
+    return [Event(EventKind.SICK, stage=life.stage)]
+
+
+def _count_down_cold(life: Life, elapsed: timedelta) -> list[Event]:
+    if not is_sick(life):
+        return []
+    life.cold_left = max(life.cold_left - elapsed.total_seconds(), 0.0)
+    if is_sick(life):
+        return []
+    return [Event(EventKind.RECOVERED, stage=life.stage)]
 
 
 # ---
@@ -282,13 +345,14 @@ def _tick_alive(
     happiness: int,
     caretakers: int,
 ) -> list[Event]:
-    drain = (
-        OLD_FOGEY_FULL_DRAIN_PER_DAY
-        if life.stage is Stage.OLD_FOGEY
-        else FULL_DRAIN_PER_DAY
-    )
+    """Advance a living Wisp; a due cold starts before anything else happens.
+
+    While sick he drains faster, but the drain never takes his Full below
+    SICK_FULL_FLOOR, so the cold cannot kill him.
+    """
+    events = _catch_due_cold(life, now)
     days = elapsed.total_seconds() / _DAY_SECONDS
-    life.full = max(life.full - drain * days, 0.0)
+    _drain_full(life, days)
     life.care = max(life.care - CARE_DRAIN_PER_DAY * days, 0.0)
     if life.full == 0:
         _enter(life, Phase.DEAD)
@@ -298,9 +362,23 @@ def _tick_alive(
         _enter(life, Phase.PASSED)
         life.ended_at = now
         return [Event(EventKind.FAREWELL)]
-    events = _warnings(life)
+    events += _count_down_cold(life, elapsed)
+    events += _warnings(life)
     events += _grow(life, now, happiness, caretakers)
     return events
+
+
+def _drain_full(life: Life, days: float) -> None:
+    drain = (
+        OLD_FOGEY_FULL_DRAIN_PER_DAY
+        if life.stage is Stage.OLD_FOGEY
+        else FULL_DRAIN_PER_DAY
+    )
+    floor = 0.0
+    if is_sick(life):
+        drain *= SICK_DRAIN_MULTIPLIER
+        floor = min(life.full, SICK_FULL_FLOOR)
+    life.full = max(life.full - drain * days, floor)
 
 
 def _warnings(life: Life) -> list[Event]:

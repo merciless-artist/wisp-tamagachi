@@ -900,6 +900,64 @@ async def test_frozen_guild_does_not_drain(
 
 
 # ---
+# The childhood cold
+# ---
+
+
+class LowRng(random.Random):
+    """An rng whose `uniform` always lands on the low end of its range."""
+
+    def uniform(self, a: float, b: float) -> float:
+        return a
+
+
+async def legacy_child(bot: app.WispBot) -> Life:
+    """A Child hatched five days ago, saved before colds existed."""
+    life = await lay(bot, full=80.0, stage=Stage.CHILD)
+    life.hatched_at = life.stage_started_at = NOW - timedelta(days=5)
+    await bot.lives.save(GUILD_ID, life)
+    return life
+
+
+async def test_a_legacy_child_catches_his_cold_on_the_next_tick(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    (stage_art.parent / "moments").mkdir()
+    (stage_art.parent / "moments" / "sick_child.png").write_bytes(b"png")
+    await legacy_child(bot)
+    cog.rng = LowRng()
+
+    await cog.run_tick(NOW)
+
+    life = await current_life(bot)
+    assert life.cold_due_at == NOW - timedelta(days=5) + rules.COLD_EARLIEST
+    assert life.had_cold
+    assert life.cold_left == (rules.SICK_FOR - FULL_GAP).total_seconds()
+    sick_lines = set(LINES[(Moment.SICK, Mood.HAPPY)])
+    (post,) = [
+        call for call in server.house.send.await_args_list if call.args[0] in sick_lines
+    ]
+    assert post.kwargs["file"].filename == "sick_child.png"
+    assert card_pictures(server) == [["sick_child.png"]]
+
+
+async def test_a_frozen_child_gets_his_cold_scheduled_but_not_started(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot, frozen=True)
+    await legacy_child(bot)
+    cog.rng = LowRng()
+
+    await cog.run_tick(NOW)
+
+    life = await current_life(bot)
+    assert life.cold_due_at == NOW - timedelta(days=5) + rules.COLD_EARLIEST
+    assert (life.had_cold, life.cold_left) == (False, 0.0)
+    server.house.send.assert_not_awaited()
+
+
+# ---
 # Quiet
 # ---
 

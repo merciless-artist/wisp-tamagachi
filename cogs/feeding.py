@@ -17,7 +17,7 @@ from cogs.staff import StaffContext, guild_of, reply
 from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
 from db.settings import meal_points
-from wisp.bond import meal_grant
+from wisp.bond import daily_meal_cap, meal_grant
 from wisp.life import Event, Mood, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.links import ShareLink, Track, TrackKind, find_track
@@ -120,7 +120,7 @@ class Feeding(commands.Cog):
             if life is None or life.id is None or is_over(life):
                 return None
             eaten = await bot.activity_log.meal_points_today(guild_id, user_id, now)
-            grant = meal_grant(eaten, points)
+            grant = meal_grant(eaten, points, daily_meal_cap(life))
             if grant == 0:
                 return None
             if not await bot.activity_log.record_feed(

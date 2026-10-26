@@ -23,7 +23,7 @@ from cogs.snacks import status_view
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
-from wisp.life import Event, EventKind, Life, Phase, is_over, tick
+from wisp.life import Event, EventKind, Life, Phase, is_over, schedule_cold, tick
 from wisp.lines import Moment
 from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY
 
@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 class LifeLoop(commands.Cog):
     """Ticks every guild's Wisp, announces what happens and keeps the status card.
 
-    `rng` picks his favorite snack when he hatches and his favorite song of
-    each day.
+    `rng` picks his favorite snack when he hatches, his favorite song of
+    each day and when his childhood cold is due.
     """
 
     def __init__(self, bot: "WispBot") -> None:
@@ -122,8 +122,9 @@ class LifeLoop(commands.Cog):
     ) -> list[Event]:
         """Tick a life and save it, even when frozen; return what happened.
 
-        A Wisp who hatches picks his favorite snack, never the free one, or
-        its line would answer every member's daily free snack.
+        A young Wisp's cold is scheduled first, so one already due starts on
+        this tick. A Wisp who hatches picks his favorite snack, never the free
+        one, or its line would answer every member's daily free snack.
         """
         caretakers = 0
         if (
@@ -134,6 +135,7 @@ class LifeLoop(commands.Cog):
             caretakers = await self.bot.activity_log.caretakers(
                 guild_id, life.id, life.stage_started_at
             )
+        schedule_cold(life, self.rng)
         events = tick(life, now, frozen=frozen, happiness=happy, caretakers=caretakers)
         if any(event.kind is EventKind.HATCHED for event in events):
             life.favorite_snack = self.rng.choice(PAID_SNACKS).key

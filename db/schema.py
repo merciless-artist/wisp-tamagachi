@@ -64,6 +64,9 @@ _DEFINITIONS: dict[str, str] = {
         favorite_snack VARCHAR(20) NULL,
         fondness DOUBLE NOT NULL DEFAULT 50,
         lonely_warned BOOL NOT NULL DEFAULT 0,
+        cold_due_at DATETIME NULL,
+        cold_left DOUBLE NOT NULL DEFAULT 0,
+        had_cold BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (id),
         UNIQUE KEY uq_guild_version (guild_id, version)
     """,
@@ -190,6 +193,9 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",
+        "cold_due_at": "DATETIME NULL",
+        "cold_left": "DOUBLE NOT NULL DEFAULT 0",
+        "had_cold": "BOOL NOT NULL DEFAULT 0",
     },
 }
 
