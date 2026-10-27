@@ -38,9 +38,11 @@ STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
 COMMANDS = (
-    "setup, roles, faq, freeze, unfreeze, food, punish, unban, strip, resetname, "
-    "staff"
+    "setup, roles, faq, freeze, unfreeze, song, food, punish, unban, strip, "
+    "resetname, staff"
 )
+SONG_USAGE = "♪ Usage: !wisp song <link> <words...>"
+SONG_LINK = "https://suno.com/s/abc123"
 FOOD_USAGE = (
     "♪ Usage: !wisp food <viibr points> <suno points> " f"(each 0 to {MEAL_POINTS_MAX})"
 )
@@ -702,6 +704,187 @@ async def test_freeze_and_unfreeze(
         "♪ Wisp is frozen. His meters will not drain until you unfreeze him.",
         "♪ Wisp is unfrozen. His meters drain normally again.",
     ]
+
+
+# ---
+# Song
+# ---
+
+
+@pytest.fixture
+def jam_space(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Stand in for the Studio lookup, which test_studio covers.
+
+    The lookup's return value is the Jam Space thread.
+    """
+    thread = MagicMock(spec=discord.Thread)
+    thread.send = AsyncMock()
+    lookup = AsyncMock(return_value=thread)
+    monkeypatch.setattr(studio, "studio_thread", lookup)
+    return lookup
+
+
+async def test_song_posts_the_words_and_link_in_jam_space_and_deletes_the_command(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    words = "new one  is out @everyone <@123>\nlisten, <@&456> `now`"
+    message = server.message(f"!wisp song {SONG_LINK} {words}", boss)
+
+    await say(bot, message)
+
+    jam_space.assert_awaited_once_with(bot, GUILD_ID, "jam_thread_id")
+    thread = jam_space.return_value
+    thread.send.assert_awaited_once_with(f"{words}\n{SONG_LINK}", allowed_mentions=ANY)
+    assert thread.send.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+    message.delete.assert_awaited_once_with()
+    assert server.all_sent() == []
+
+
+@pytest.mark.parametrize("link", ["http://example.com/a", "HTTPS://Example.com/a?b=1"])
+async def test_song_accepts_http_and_https_links(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    jam_space: AsyncMock,
+    link: str,
+) -> None:
+    await say(bot, server.message(f"!wisp song {link} hello", boss))
+
+    jam_space.return_value.send.assert_awaited_once_with(
+        f"hello\n{link}", allowed_mentions=ANY
+    )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        "",
+        SONG_LINK,
+        f"{SONG_LINK}   ",
+        "just some words",
+        "ftp://example.com/a words",
+        "javascript:alert(1) words",
+        "https:// words",
+        "example.com/song words",
+        f"<{SONG_LINK}> words",
+    ],
+)
+async def test_song_without_a_link_or_words_gets_the_usage_line(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    jam_space: AsyncMock,
+    arguments: str,
+) -> None:
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    message = server.message(f"!wisp song {arguments}".rstrip(), boss)
+
+    await say(bot, message)
+
+    assert sent(server.here) == [SONG_USAGE]
+    jam_space.assert_not_awaited()
+    message.delete.assert_not_awaited()
+    bot.report_error.assert_not_awaited()
+
+
+async def test_song_without_a_jam_space_is_reported_where_it_was_used(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message(f"!wisp song {SONG_LINK} hello", boss)
+
+    await say(bot, message)
+
+    assert sent(server.here) == [
+        "Error in !wisp song: StudioError: The Studio forum is not set. "
+        "Run !wisp setup first."
+    ]
+    message.delete.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
+async def test_song_with_an_unreachable_jam_space_posts_nothing(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    jam_space.side_effect = studio.StudioError(
+        "Could not open the Studio thread jam_thread_id."
+    )
+    message = server.message(f"!wisp song {SONG_LINK} hello", boss)
+
+    await say(bot, message)
+
+    assert sent(server.here) == [
+        "Error in !wisp song: StudioError: "
+        "Could not open the Studio thread jam_thread_id."
+    ]
+    message.delete.assert_not_awaited()
+
+
+async def test_song_that_discord_refuses_is_reported_and_keeps_the_command(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    jam_space.return_value.send.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Access"
+    )
+    message = server.message(f"!wisp song {SONG_LINK} hello", boss)
+
+    await say(bot, message)
+
+    (report,) = sent(server.here)
+    assert report.startswith("Error in !wisp song: Forbidden")
+    message.delete.assert_not_awaited()
+
+
+async def test_song_in_the_track_drop_reports_its_error_in_the_house(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message(
+        f"!wisp song {SONG_LINK} hello", boss, channel=server.tracks
+    )
+
+    await say(bot, message)
+
+    server.tracks.send.assert_not_awaited()
+    (report,) = sent(server.house)
+    assert report.startswith("Error in !wisp song: StudioError")
+
+
+async def test_song_ignores_a_failed_delete(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    message = server.message(f"!wisp song {SONG_LINK} hello", boss)
+    message.delete.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await say(bot, message)
+
+    jam_space.return_value.send.assert_awaited_once_with(
+        f"hello\n{SONG_LINK}", allowed_mentions=ANY
+    )
+    message.delete.assert_awaited_once_with()
+    assert server.all_sent() == []
+    bot.report_error.assert_not_awaited()
+
+
+async def test_song_from_a_plain_member_is_ignored_without_a_word(
+    bot: app.WispBot, server: FakeServer, jam_space: AsyncMock
+) -> None:
+    member = server.member(MEMBER_ID)
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    messages = [
+        server.message(f"!wisp song {SONG_LINK} hello", member),
+        server.message("!wisp song", member),
+        server.message("!wisp song nonsense", member),
+    ]
+
+    for message in messages:
+        await say(bot, message)
+
+    jam_space.assert_not_awaited()
+    assert all(message.delete.await_count == 0 for message in messages)
+    assert server.all_sent() == []
+    bot.report_error.assert_not_awaited()
 
 
 async def test_the_eggs_switch_is_gone(

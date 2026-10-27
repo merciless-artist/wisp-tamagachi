@@ -1,11 +1,13 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Annotated, Any, Final
+from urllib.parse import urlsplit
 
 import discord
 from discord import app_commands
@@ -28,7 +30,9 @@ from wisp.text import SEPARATOR, count, framed, item, sub
 if TYPE_CHECKING:
     from app import WispBot
 
+log = logging.getLogger("wisp")
 _NO_PING: Final = discord.AllowedMentions.none()
+_LINK_SCHEMES: Final = frozenset({"http", "https"})
 _ARCHIVE_AFTER_MINUTES: Final = 10080
 _NUMBER_WORDS: Final = (
     "zero",
@@ -781,7 +785,37 @@ async def unfreeze(ctx: StaffContext) -> None:
     await reply(ctx, "♪ Wisp is unfrozen. His meters drain normally again.")
 
 
+def _http_link(argument: str) -> str:
+    """Accept an http(s) URL as typed; anything else is a bad argument."""
+    try:
+        parts = urlsplit(argument)
+    except ValueError as error:
+        raise commands.BadArgument(f"Not a link: {argument}") from error
+    if parts.scheme not in _LINK_SCHEMES or not parts.hostname:
+        raise commands.BadArgument(f"Not an http(s) link: {argument}")
+    return argument
+
+
+@commands.command(name="song", usage="<link> <words...>")
+async def song(
+    ctx: StaffContext, link: Annotated[str, _http_link], *, words: str
+) -> None:
+    """Post staff's words and a song link in Jam Space as if Wisp wrote them.
+
+    Nothing is added to the post, and the link is left to show its player. The
+    command message is deleted afterwards; a failed delete is only logged. A
+    Jam Space that cannot be reached raises, so the error is reported where
+    the command was used and nothing is posted.
+    """
+    thread = await studio_thread(ctx.bot, guild_of(ctx).id, "jam_thread_id")
+    await thread.send(f"{words}\n{link}", allowed_mentions=_NO_PING)
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        log.warning("Could not delete the !wisp song message %d", ctx.message.id)
+
+
 async def setup(bot: "WispBot") -> None:
     """Load the Studio staff commands."""
-    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze):
+    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, song):
         bot.add_command(command)

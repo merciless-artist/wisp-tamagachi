@@ -165,6 +165,13 @@ where the command was used.
 - `!wisp unban @member` lifts a member's ban.
 - `!wisp strip @member <points>` takes leaderboard points from a member.
 - `!wisp resetname @member` makes Wisp forget a member's name.
+- `!wisp song <link> <words...>` makes Wisp post the words and, underneath,
+  the link (http or https) in the Jam Space thread, exactly as typed: no
+  prefix, flair or AI line, no pings, and the link's player still shows.
+  Staff's command message is deleted afterwards (a failed delete is
+  ignored). A missing or bad link or missing words get the usage line; a
+  Jam Space that cannot be reached is reported where the command was used
+  and nothing is posted.
 
 Member commands:
 

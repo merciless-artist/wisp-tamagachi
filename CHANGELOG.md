@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-27 (`!wisp song`)
+
+- New staff command `!wisp song <link> <words...>`: Wisp posts the words, then
+  the link on the line underneath, in the Jam Space thread, exactly as typed
+  (no prefix, flair or AI line, no pings, link previews left on so the player
+  shows). The staff member's command message is deleted afterwards; a failed
+  delete, such as a missing Manage Messages permission, is only logged.
+- The link must be an http(s) URL. A missing or bad link, or no words, gets
+  the usual one-line usage. A Jam Space that is not set up or cannot be
+  reached is reported as `Error in !wisp song: ...` where the command was
+  used, nothing is posted and the command message stays.
+- Tests: the post, the exact text, the deleted command, bad and missing
+  arguments, an unreachable Jam Space, a Discord refusal, a failed delete and
+  a non-staff author.
+
 ## 2026-10-27 (Monster Pox, Hunger and Burrito's post)
 
 - His once-per-life childhood cold is now **Monster Pox** everywhere members
