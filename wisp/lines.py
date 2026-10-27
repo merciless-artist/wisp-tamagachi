@@ -422,12 +422,12 @@ _QUIET_HANGRY = (
     "I've started talking to the mic stand. it's a shit listener",
     "somewhere a finished song is sitting in a downloads folder. and I'm starving",
     "if anyone's still alive in here, I'm in the corner chewing on a cable",
-    "so quiet I can hear my full meter going down",
+    "so quiet I can hear my hunger meter going down",
 )
 
 _HUNGRY = (
     "getting hungry over here. real hungry. someone-post-a-song hungry",
-    "my full meter's in the red and so is my patience",
+    "my hunger meter's in the red and so is my patience",
     "PSA: I'm starving. this is not a bit",
     "uh oh. stomach's making that noise. the flat one",
     "I'd eat a song in any key right now. even a key that doesn't exist",
@@ -463,37 +463,39 @@ _LONELY = (
 )
 
 # ---
-# The childhood cold
+# Monster Pox, his childhood sickness
 # ---
 
 _SICK = (
-    "*achoo* uh oh. I think I caught a cold. everything sounds like it's underwater",
-    "my nose is running and my flame is all wobbly. I've got a cold, everybody",
-    "*sniff* I'm sick. I can't even hum without sneezing on the beat",
-    "caught my first cold. my headphones are full of sneezes now. sorry, headphones",
-    "I've got the sniffles and a thermometer in my mouth. the doctor says it's a cold. "
-    "I am the doctor",
-    "feeling hot and cold at the same time. which, for a flame, is a lot",
-    "*achoo* being sick makes me extra hungry. an extra song and a snack would "
+    "uh oh. I've got spots. little ones, all over my flame. it's Monster Pox, "
+    "everybody",
+    "Monster Pox. I'm spotty, I'm itchy and I've got a fever. which, for a flame, "
+    "is a lot",
+    "I've got spots and a thermometer in my mouth. the doctor says it's Monster "
+    "Pox. I am the doctor",
+    "*scratch scratch* I'm not scratching. you didn't see anything. it's Monster Pox",
+    "I'm so spotty even my headphones look polka dot. I didn't ask for this",
+    "*itch* being sick makes me extra hungry. an extra song and a snack would "
     "really help",
-    "don't worry, it's just a cold. I'll be better in a couple of days. bring soup. "
-    "or songs",
-    "my voice sounds like a kazoo with a stuffy nose. it's a cold. "
-    "I'm being very brave",
+    "don't worry, it's just Monster Pox. I'll be better in a couple of days. "
+    "bring songs. lots of songs",
+    "I tried to hum and it came out itchy. that's how bad the Monster Pox is",
+    "count my spots with me. one, two... okay I lost count. I'm being very brave",
 )
 
 _RECOVERED = (
-    "I can breathe through my nose again! the cold is gone and I'm never taking "
-    "air for granted",
-    "no more sneezing. no more tissues. I'm all better. "
-    "thanks for the soup. I mean songs",
-    "cold's gone. my flame stopped wobbling. listen, my voice is back: la la LA",
-    "*big clear sniff* nothing. NOTHING. I'm better",
+    "my spots are gone! the Monster Pox is over and I'm never taking not itching "
+    "for granted",
+    "no more spots. no more itching. I'm all better. "
+    "thanks for the songs while I was sick",
+    "the fever's gone and my flame stopped wobbling. listen, my voice is back: "
+    "la la LA",
+    "I checked every spot. there are no spots. NO SPOTS. I'm better",
     "all better! thank you for looking after me while I was sick",
     "the thermometer says I'm normal. well, normal for a flame. I'm better",
-    "I beat my first cold. put it on a poster. Wisp versus the sniffles, Wisp wins",
-    "my headphones don't smell like sneezes anymore. it's a good day",
-    "I'm better! sorry for sneezing on everybody's tracks",
+    "I beat Monster Pox. put it on a poster. Wisp versus the spots, Wisp wins",
+    "my headphones aren't polka dot anymore. it's a good day",
+    "I'm better! sorry for scratching on everybody's tracks",
 )
 
 # ---

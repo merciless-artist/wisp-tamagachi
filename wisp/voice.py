@@ -226,15 +226,16 @@ _MOOD_LAYERS: Final = {
 }
 
 _SICK: Final = (
-    "You have a cold right now, your one childhood cold. You're sniffly and "
-    "sneezy: you sniffle, sneeze (*achoo*) and sound stuffed up, and you're "
-    "extra hungry. You're not scared, you know you'll be better in a couple "
-    "of days."
+    "You have Monster Pox right now, your one childhood sickness. You're spotty, "
+    "itchy and a little feverish, with a thermometer in your mouth: you scratch "
+    "at your spots (*scratch scratch*) and you're extra hungry. You're not "
+    "scared, you know you'll be better in a couple of days."
 )
 
 _BABY_SICK: Final = (
-    "You have a cold right now, so your little noises come out sniffly and "
-    'sneezy, like "*sniff*" or "*achoo*", never swearing.'
+    "You have Monster Pox right now, so you're covered in spots and itchy, and "
+    'your little noises come out fussy and scratchy, like "*scratch scratch*" '
+    'or "*itchy whimper*", never swearing.'
 )
 
 _BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
@@ -486,7 +487,7 @@ def build_prompt(
     own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
     tags are only asked for when there is a speaker with a message.
     `own_emojis` are the emojis of his that the message used. While `sick`
-    he has his cold and sounds sniffly and sneezy.
+    he has Monster Pox and sounds spotty and itchy.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.

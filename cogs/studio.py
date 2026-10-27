@@ -23,7 +23,7 @@ from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import SEPARATOR, count
+from wisp.text import SEPARATOR, count, framed, item, sub
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -105,7 +105,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Your meals and snacks count up to {daily_cap} a day",
             "",
             "His meters",
-            "・Full: tracks and snacks. Drains daily; hangry when low, dies at 0",
+            "・Hunger: tracks and snacks. Drains daily; hangry when low, dies at 0",
             f"・Happy: your first poke or chat each day earns {chat_points}. "
             f"{rules.HAPPY_FULL_AT_PEOPLE} people in 24 h fill it; Rockstar "
             "needs it high",
@@ -133,9 +133,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"{rules.FAREWELL_AT_DAY} he passes on, coal after a full life",
             f"・The coal becomes an egg with {rules.COAL_EGG_FOOD} of its "
             f"{egg_meals} fed",
-            f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} each get "
-            "his Last Ember, unless he died of neglect",
-            f"・Once before Adult he gets a {sick_hours}-hour cold: faster drain, "
+            f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
+            "Last Ember, unless he died of neglect",
+            f"・Once before Adult: Monster Pox for {sick_hours} h. Faster drain, "
             f"he can't die, meals count up to {sick_cap} a day",
             "・Be there as he grows to win a keepsake",
             "",
@@ -159,6 +159,16 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
 def rules_post(settings: Settings) -> str:
     """The Wisp FAQ's rules post with the guild's own food values."""
     return rules_text(meal_points(settings))
+
+
+_BURRITO_STARTER: Final = framed(
+    "𝔹𝓊𝓇𝓇𝒾𝓉𝑜",
+    [
+        sub("Burrito is Wisp's fairy god-bot."),
+        item("Ask him anything about how Wisp works, right here."),
+        item("He'll point you to where to look for Wisp's live stats."),
+    ],
+)
 
 
 @dataclass(frozen=True)
@@ -218,6 +228,12 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Loading the FAQ...",
         locked=True,
         image="thumbs/faq.png",
+    ),
+    StudioThread(
+        "burrito_thread_id",
+        "🧚│Burrito, Fairy God-bot",
+        "Burrito, Fairy God-bot",
+        _BURRITO_STARTER,
     ),
 )
 

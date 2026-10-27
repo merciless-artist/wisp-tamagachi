@@ -156,8 +156,8 @@ _Action = Callable[[discord.Interaction], Awaitable[None]]
 # ---
 
 
-def _full_gain(snack: Snack) -> str:
-    return f"full +{snack.full}"
+def _hunger_gain(snack: Snack) -> str:
+    return f"hunger +{snack.full}"
 
 
 def _coins(bot: "WispBot", text: str) -> str:
@@ -400,7 +400,7 @@ async def _vault(
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
-        _option(bot, snack, snack.name, f"{snack.cost} WC ・ {_full_gain(snack)}")
+        _option(bot, snack, snack.name, f"{snack.cost} WC ・ {_hunger_gain(snack)}")
         for snack in _MENU
     ]
     player = await bot.players.get(guild_id, user_id)
@@ -941,7 +941,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
         return
-    text = f"♪ Wisp ate your {snack.name} ・ full +{meal.full}"
+    text = f"♪ Wisp ate your {snack.name} ・ hunger +{meal.full}"
     if meal.full < snack.full:
         text += " (daily meal limit)"
     await interaction.edit_original_response(
@@ -967,14 +967,14 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> Menu | None
     """A menu of what the member can feed Wisp now, or None when nothing."""
     owned = await bot.activity_log.inventory(guild_id, user_id)
     options = [
-        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _full_gain(snack))
+        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _hunger_gain(snack))
         for snack in _MENU
         if snack.key in owned
     ]
     if not await bot.activity_log.free_snack_used_today(
         guild_id, user_id, discord.utils.utcnow()
     ):
-        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _full_gain(_FREE))
+        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _hunger_gain(_FREE))
         options.insert(0, free)
     if not options:
         return None

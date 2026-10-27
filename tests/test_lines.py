@@ -131,9 +131,19 @@ def test_the_lonely_moment_has_its_own_lines() -> None:
 
 
 @pytest.mark.parametrize("moment", [Moment.SICK, Moment.RECOVERED])
-def test_the_cold_moments_have_about_eight_lines(moment: Moment) -> None:
+def test_the_monster_pox_moments_have_about_eight_lines(moment: Moment) -> None:
     assert FIELDS[moment] == set()
     assert len(LINES[(moment, Mood.HAPPY)]) >= 8
+
+
+@pytest.mark.parametrize("moment", [Moment.SICK, Moment.RECOVERED])
+def test_the_monster_pox_lines_are_spotty_not_sneezy(moment: Moment) -> None:
+    lines = [line.lower() for line in LINES[(moment, Mood.HAPPY)]]
+    assert any("monster pox" in line for line in lines)
+    assert any("spots" in line for line in lines)
+    for line in lines:
+        for word in ("cold", "sneez", "sniff", "achoo", "tissue", "nose"):
+            assert word not in line
 
 
 @pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)

@@ -44,9 +44,35 @@ MEALTIME = "🧡 | Mealtime"
 VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
-THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
-THREAD_TITLES = ("Status", "Mealtime", "The ViiBR Vault", "Jam Space", "Wisp FAQ")
-OLD_NAMES = ("Status", "Mealtime", "The ViiBR Vault", "The Jam Space", "How Wisp Works")
+BURRITO = "🧚│Burrito, Fairy God-bot"
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, BURRITO)
+THREAD_TITLES = (
+    "Status",
+    "Mealtime",
+    "The ViiBR Vault",
+    "Jam Space",
+    "Wisp FAQ",
+    "Burrito, Fairy God-bot",
+)
+OLD_NAMES = (
+    "Status",
+    "Mealtime",
+    "The ViiBR Vault",
+    "The Jam Space",
+    "How Wisp Works",
+    "Burrito",
+)
+BURRITO_STARTER = "\n".join(
+    [
+        "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
+        "╔════════════════════╗",
+        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
+        "║𝄡 Ask him anything about how Wisp works, right here.",
+        "║𝄡 He'll point you to where to look for Wisp's live stats.",
+        "╚════════════════════╝",
+        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+    ]
+)
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
     VAULT: "vault.png",
@@ -86,6 +112,7 @@ THREAD_ATTRS = (
     "vault_thread_id",
     "jam_thread_id",
     "rules_thread_id",
+    "burrito_thread_id",
 )
 
 
@@ -438,7 +465,7 @@ def sent_text(ctx: MagicMock) -> str:
 # ---
 
 
-async def test_setup_creates_five_threads_with_the_vault(
+async def test_setup_creates_six_threads_with_the_vault(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     ctx = await run_setup(bot, server)
@@ -458,7 +485,7 @@ async def test_setup_creates_five_threads_with_the_vault(
     assert settings.vault_message_id == server.messages[vault.id].id
     for thread in (status, vault):
         server.messages[thread.id].pin.assert_awaited_once()
-    for name in (MEALTIME, JAM, FAQ):
+    for name in (MEALTIME, JAM, FAQ, BURRITO):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -571,9 +598,46 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all five already exist" in sent_text(ctx)
+    assert "Studio threads: all six already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
+    assert house_posts(server) == []
+
+
+async def test_burritos_post_is_framed_open_and_has_no_picture(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    assert starter.content == BURRITO_STARTER
+    assert text_length(starter.content) <= MESSAGE_LIMIT
+    assert not re.search(EMOJI, starter.content)
+    assert starter.attachments == []
+    burrito.edit.assert_not_awaited()
+    starter.pin.assert_not_awaited()
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.burrito_thread_id == burrito.id
+
+
+async def test_a_studio_from_before_burrito_gets_his_post_without_a_notice(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    old = server.thread_named(BURRITO)
+    del server.threads[old.id]
+    await bot.settings.update(GUILD_ID, burrito_thread_id=None)
+    before = await bot.settings.get(GUILD_ID)
+
+    ctx = await run_setup(bot, server)
+
+    assert server.created_names == [*THREAD_NAMES, BURRITO]
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.burrito_thread_id == server.thread_named(BURRITO).id
+    for attr in THREAD_ATTRS[:-1]:
+        assert getattr(settings, attr) == getattr(before, attr)
+    assert "Created threads: Burrito, Fairy God-bot" in sent_text(ctx)
     assert house_posts(server) == []
 
 
@@ -911,7 +975,14 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
 
     await ensure_studio(bot, GUILD_ID)
 
-    assert server.created_names == ["How Wisp Works", STATUS, MEALTIME, VAULT, JAM]
+    assert server.created_names == [
+        "How Wisp Works",
+        STATUS,
+        MEALTIME,
+        VAULT,
+        JAM,
+        BURRITO,
+    ]
     assert old.name == FAQ
     *sections, rules_post = assert_faq_built(server.live_posts(old))
     settings = await bot.settings.get(GUILD_ID)
@@ -1472,9 +1543,10 @@ def test_rules_text_explains_the_three_meters(
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
-    full, happy, care = section.split("\n")
-    assert full.startswith("・Full: tracks and snacks")
-    assert "hangry" in full and "dies at 0" in full
+    hunger, happy, care = section.split("\n")
+    assert hunger.startswith("・Hunger: tracks and snacks")
+    assert "hangry" in hunger and "dies at 0" in hunger
+    assert "Full" not in text
     assert happy.startswith("・Happy: your first poke or chat each day earns 1 point")
     assert "7 people in 24 h" in happy and "Rockstar" in happy
     assert care.startswith("・Care: rhyme duels (1 point, 3 a day) and gifts")
@@ -1482,7 +1554,7 @@ def test_rules_text_explains_the_three_meters(
     assert "\nWho can feed him and earn points\n" in text
 
 
-def test_rules_text_explains_the_cold_and_the_bigger_meal_limit(
+def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 20)
@@ -1492,11 +1564,12 @@ def test_rules_text_explains_the_cold_and_the_bigger_meal_limit(
     text = rules_text(rules.MEAL_POINTS)
 
     assert "・Your meals and snacks count up to 20 points a day" in text
-    cold = next(line for line in text.split("\n") if "cold" in line)
-    assert "Once before Adult" in cold
-    assert "36-hour cold" in cold
-    assert "he can't die" in cold
-    assert "meals count up to 27 a day" in cold
+    pox = next(line for line in text.split("\n") if "Monster Pox" in line)
+    assert "Once before Adult" in pox
+    assert "Monster Pox for 36 h" in pox
+    assert "he can't die" in pox
+    assert "meals count up to 27 a day" in pox
+    assert "cold" not in text
 
 
 def test_rules_text_does_not_say_talking_earns_no_points() -> None:

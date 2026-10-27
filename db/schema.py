@@ -28,6 +28,7 @@ _DEFINITIONS: dict[str, str] = {
         frozen BOOL NOT NULL DEFAULT 0,
         lay_eggs BOOL NOT NULL DEFAULT 1,
         house_panel_message_id BIGINT NULL,
+        burrito_thread_id BIGINT NULL,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -190,6 +191,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "faq_message_ids": "TEXT NULL",
         "lay_eggs": "BOOL NOT NULL DEFAULT 1",
         "house_panel_message_id": "BIGINT NULL",
+        "burrito_thread_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
     "lives": {

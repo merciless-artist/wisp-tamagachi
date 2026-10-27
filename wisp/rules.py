@@ -74,11 +74,11 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 }
 
 # ---
-# The childhood cold
+# Monster Pox, his childhood sickness (named "cold" in the code)
 # ---
 
-# Once per life he catches a cold, due a random time between COLD_EARLIEST and
-# COLD_LATEST after hatching. Adult needs 14 days, so the cold comes first.
+# Once per life he catches Monster Pox, due a random time between COLD_EARLIEST
+# and COLD_LATEST after hatching. Adult needs 14 days, so it comes first.
 COLD_EARLIEST = timedelta(days=1)
 COLD_LATEST = timedelta(days=12)
 # Credited time he stays sick.

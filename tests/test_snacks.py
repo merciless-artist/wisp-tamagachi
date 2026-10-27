@@ -382,8 +382,8 @@ async def test_vault_is_one_layout_in_the_house_frame(bot: app.WispBot) -> None:
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     assert option_values(select) == [snack.key for snack in paid]
     assert [option.description for option in select.options][:2] == [
-        "3 WC ・ full +5",
-        "3 WC ・ full +5",
+        "3 WC ・ hunger +5",
+        "3 WC ・ hunger +5",
     ]
 
 
@@ -891,6 +891,12 @@ async def test_pressing_feed_lists_inventory_and_the_free_sine(
     labels = {option.value: option.label for option in select.options}
     assert labels["cheese"] == "Cheese x3"
     assert labels["sinewave"] == "Sine Wave (free today)"
+    descriptions = {option.value: option.description for option in select.options}
+    assert descriptions == {
+        snack.key: f"hunger +{snack.full}"
+        for snack in SNACKS
+        if snack.key in ("sinewave", "cloudwave", "cheese")
+    }
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
@@ -1001,7 +1007,7 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 1
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     interaction.response.defer.assert_awaited_once_with()
-    assert reply_text(interaction) == "♪ Wisp ate your Spicy Wave ・ full +8"
+    assert reply_text(interaction) == "♪ Wisp ate your Spicy Wave ・ hunger +8"
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     server.house.send.assert_awaited_once()
 
@@ -1016,7 +1022,7 @@ async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     life = await current_life(bot)
     assert (life.full, life.growth) == (52.0, 1)
-    assert reply_text(first) == "♪ Wisp ate your Sine Wave ・ full +2"
+    assert reply_text(first) == "♪ Wisp ate your Sine Wave ・ hunger +2"
 
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
     _, select = await open_feeding(bot)
@@ -1102,7 +1108,8 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
     life = await current_life(bot)
     assert (life.full, life.growth) == (43.0, 1)
     assert (
-        reply_text(capped) == "♪ Wisp ate your Cloud Wave ・ full +3 (daily meal limit)"
+        reply_text(capped)
+        == "♪ Wisp ate your Cloud Wave ・ hunger +3 (daily meal limit)"
     )
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
@@ -1122,9 +1129,9 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
     replies = [reply_text(await eat(bot, "cloudwave")) for _ in range(4)]
 
     assert replies == [
-        "♪ Wisp ate your Cloud Wave ・ full +5",
-        "♪ Wisp ate your Cloud Wave ・ full +5",
-        "♪ Wisp ate your Cloud Wave ・ full +5",
+        "♪ Wisp ate your Cloud Wave ・ hunger +5",
+        "♪ Wisp ate your Cloud Wave ・ hunger +5",
+        "♪ Wisp ate your Cloud Wave ・ hunger +5",
         "♪ Wisp is full from you today. Save it for tomorrow.",
     ]
     assert (await current_life(bot)).full == 55.0

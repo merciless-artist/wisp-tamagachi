@@ -198,10 +198,11 @@ class Conversation(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         """Remember a line said in Wisp's House, then answer it or maybe chime in.
 
-        Only the House channel itself counts, not its threads. Every line,
-        Wisp's own included, joins the recent chat; bots are never answered and
-        never count as the House stirring. A staff command is not talk: it is
-        not heard, answered or chimed in on.
+        Only the House channel itself counts, not its threads or the Studio's
+        posts, so Burrito's post is left to Burrito. Every line, Wisp's own
+        included, joins the recent chat; bots are never answered and never
+        count as the House stirring. A staff command is not talk: it is not
+        heard, answered or chimed in on.
         """
         received = time.monotonic()
         guild = message.guild

@@ -38,12 +38,13 @@ him in Wisp's House.
 
 ## His three meters
 
-The status card shows three meters, each from 0 to 100, plus a cold line while
-he is sick. All the numbers are starting values in `wisp/rules.py`.
+The status card shows three meters, each from 0 to 100, plus a Monster Pox
+line while he is sick. All the numbers are starting values in `wisp/rules.py`.
 
-- **Full** is his food. Tracks and snacks fill it and it drains every day (15 a
+- **Hunger** is his food (`Life.full` in the code). Like a Tamagotchi, a full
+  bar means well fed. Tracks and snacks fill it and it drains every day (15 a
   day, 10 as an Old Fogey). Below 30 he is hangry, below 10 he is fading, and
-  at 0 he dies. Only Full can kill him.
+  at 0 he dies. Only Hunger can kill him.
 - **Happy** is how many different people said hi in the last 24 hours. A
   member's first poke or mention of the UTC day counts and earns them 1 Vault
   point; later ones that day count for nothing. Only members who can feed Wisp
@@ -59,14 +60,16 @@ he is sick. All the numbers are starting values in `wisp/rules.py`.
   with a picture for his stage. Hangry beats lonely beats happy, and lonely
   never hurts him: no death, no growth penalty.
 
-The **childhood cold** comes once per life, at a random time between day 1 and
-day 12 while he is a Baby, Child or Teen, so every Wisp who grows up has had it.
-It lasts 48 hours (it carries on if he grows a stage). While sick his Full
-drains 1.5 times as fast, but it never drops below 1, so he cannot die of it;
-he can still be hangry and fading. Each member's daily meal limit goes from 15
-to 30 meal points, room for about one extra song and one extra snack. He posts
-once when he catches it (with his sick picture) and once when he is better, and
-the status card and Poke Wisp panel show his sick picture meanwhile.
+**Monster Pox**, his childhood sickness (`is_sick` and the `SICK_*` rules in
+the code), comes once per life, at a random time between day 1 and day 12
+while he is a Baby, Child or Teen, so every Wisp who grows up has had it. He
+is spotty, itchy and feverish. It lasts 48 hours (it carries on if he grows a
+stage). While sick his Hunger meter drains 1.5 times as fast, but it never
+drops below 1, so he cannot die of it; he can still be hangry and fading. Each
+member's daily meal limit goes from 15 to 30 meal points, room for about one
+extra song and one extra snack. He posts once when he catches it (with his
+sick picture) and once when he is better, and the status card and Poke Wisp
+panel show his sick picture meanwhile.
 
 ## Setup
 
@@ -198,7 +201,7 @@ the purchase is undone and the points come back.
   and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
-its threads). He answers with AI at every stage: the egg wobbles or crackles in
+its threads; he never answers in the Studio, so Burrito's post is Burrito's). He answers with AI at every stage: the egg wobbles or crackles in
 reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
@@ -246,7 +249,7 @@ Nobody gets one when nobody was there or the member is banned.
 
 ## Wisp's Studio
 
-The Studio forum holds five threads, named exactly:
+The Studio forum holds six threads, named exactly:
 
 - `☀️ | Status`: the live status card, which shows Wisp's current picture
   (the egg, the coal egg, then his stage).
@@ -256,9 +259,12 @@ The Studio forum holds five threads, named exactly:
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
   linking to one picture per section, and its last post is the quick rules
   with the current numbers.
+- `🧚│Burrito, Fairy God-bot`: Burrito's room. Burrito, a separate bot,
+  answers questions about how Wisp works there; Wisp never talks in it. Its
+  first post is framed in the house style and has no picture.
 
-Each thread's first post carries its picture, which the forum shows as the
-thumbnail. Setup renames a thread whose name differs, adds a missing
+Each thread's first post but Burrito's carries its picture, which the forum
+shows as the thumbnail. Setup renames a thread whose name differs, adds a missing
 thumbnail and fills a Wisp FAQ that has no sections yet, such as an older How
 Wisp Works thread.
 
@@ -284,7 +290,7 @@ posts text only.
 - `moments/` pictures for his lonely and sick posts: `cry_baby.gif` and
   `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
   older) when Care drops below the lonely line, and `sick_baby.png`,
-  `sick_child.png` and `sick_teen.png` for his cold. The sick picture is also
+  `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture is also
   on the status card and the Poke Wisp panel while he is sick.
 - `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
   `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full

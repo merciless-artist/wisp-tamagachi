@@ -498,6 +498,21 @@ async def test_the_lunchbox_is_posted_publicly_where_it_was_asked_for(
     server.house.send.assert_not_awaited()
 
 
+async def test_a_failed_delete_of_the_private_answer_is_ignored(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+    gone = discord.NotFound(MagicMock(status=404), "Unknown Webhook")
+    interaction.delete_original_response.side_effect = gone
+
+    await open_lunchbox(bot, server, interaction)
+
+    interaction.channel.send.assert_awaited_once()
+    interaction.delete_original_response.assert_awaited_once_with()
+    interaction.followup.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
 async def test_a_public_post_that_fails_leaves_the_answer_private(
     bot: app.WispBot, server: FakeServer
 ) -> None:

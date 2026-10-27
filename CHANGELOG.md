@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-27 (Monster Pox, Hunger and Burrito's post)
+
+- His once-per-life childhood cold is now **Monster Pox** everywhere members
+  read it. His SICK and RECOVERED lines and his AI voice while sick are
+  spotty, itchy and feverish with a thermometer instead of sniffly and sneezy,
+  and the spots are back. The rules post, FAQ, spec page, README and build
+  rulings say Monster Pox. Code names (`is_sick`, `cold_*`, `SICK_*`,
+  `Moment.SICK`/`RECOVERED`) are unchanged, and a "cold egg" is still a cold
+  egg.
+- The food meter's member-facing name is **Hunger** (a full bar means well
+  fed): `♪ Wisp ate your Cheese ・ hunger +8`, the Vault and feed menu
+  descriptions (`3 WC ・ hunger +5`), the rules post (`・Hunger: tracks and
+  snacks...`), two hangry lines that named the meter, the FAQ, the spec page
+  and the README. `Life.full` and `FULL_*` keep their names.
+- The rules post's sickness line reads `・Once before Adult: Monster Pox for
+  {h} h. Faster drain, he can't die, meals count up to {n} a day`, and the
+  Last Ember line drops "each". At four-digit numbers it is 1,994 of 2,000.
+  (Run `!wisp faq` to refresh the live post.)
+- Setup keeps a sixth Studio post, `🧚│Burrito, Fairy God-bot`, created when
+  missing and renamed back like the others, its id in the new additive
+  `settings.burrito_thread_id` column. Its first post is the house-style frame
+  titled `𝔹𝓊𝓇𝓇𝒾𝓉𝑜`, saying Burrito is Wisp's fairy god-bot, to ask him
+  anything about how Wisp works right there, and that he points people to
+  Wisp's live stats. Wisp never answers or chimes in there (Burrito, a separate
+  bot, does). Run `!wisp setup` (or `/wispadmin setup`) once to create it.
+- The FAQ page and the spec page show the v2 status card.
+- `/wisp lunchbox`: once the lunchbox is posted, a failure to remove the
+  private "thinking" reply is ignored, so the member is no longer told it did
+  not work.
+
 ## 2026-10-27 (house style v2)
 
 - Myra's house style (`DOCS/specs/2026-10-27-house-style.md`) for the status

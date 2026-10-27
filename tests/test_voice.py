@@ -218,14 +218,18 @@ def test_sick_reaches_the_prompt(mood: Mood) -> None:
         ).system
 
     grown = system(Stage.TEEN, sick=True)
-    assert "You have a cold right now" in grown
-    assert "sniffly" in grown and "sneez" in grown
+    assert "You have Monster Pox right now" in grown
+    for symptom in ("spotty", "itchy", "fever", "thermometer"):
+        assert symptom in grown
     baby = system(Stage.BABY, sick=True)
-    assert "You have a cold right now" in baby and "never swearing" in baby
-    assert "achoo" in baby
+    assert "You have Monster Pox right now" in baby and "never swearing" in baby
+    assert "spots" in baby and "itchy" in baby
+    for sick_prompt in (grown, baby):
+        assert "cold" not in sick_prompt and "sneez" not in sick_prompt
+        assert "sniff" not in sick_prompt
     for stage in (Stage.BABY, Stage.TEEN):
         healthy = system(stage, sick=False)
-        assert "cold" not in healthy and "sneez" not in healthy
+        assert "Monster Pox" not in healthy and "itchy" not in healthy
         assert healthy == prompt_for(stage, mood).system
 
 

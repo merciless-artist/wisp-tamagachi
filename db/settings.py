@@ -19,7 +19,8 @@ class Settings:
     It is frozen, so the copy the repository caches can be shared safely.
     `faq_message_ids` are the Wisp FAQ's section posts, in order; the column
     holds them as a JSON list. `house_panel_message_id` is the pinned Poke
-    Wisp panel in Wisp's House.
+    Wisp panel in Wisp's House. `burrito_thread_id` is Burrito's post in the
+    Studio, where Burrito, a separate bot, answers and Wisp stays quiet.
     """
 
     tracks_channel_id: int | None = None
@@ -38,6 +39,7 @@ class Settings:
     suno_meal_points: int | None = None
     frozen: bool = False
     house_panel_message_id: int | None = None
+    burrito_thread_id: int | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
