@@ -313,9 +313,10 @@ async def maybe_meet(
 
     Call this after every interaction. Once, the member is marked as met, Wisp
     grows a little and says hello in his House with a button to tell him their
-    name. Until they do, he uses their name from the server (`display_name`, or
-    a mention when the caller has none). An egg does not talk, so a member is
-    only met once Wisp has hatched.
+    name. The hello tags and pings that member, so it is not lost in a busy
+    chat. Until they answer, he uses their name from the server
+    (`display_name`, or a mention when the caller has none). An egg does not
+    talk, so a member is only met once Wisp has hatched.
     """
     if (await bot.players.get(guild_id, user_id)).met_at is not None:
         return
@@ -340,7 +341,9 @@ async def maybe_meet(
         Moment.MEET,
         life,
         name=player.name or display_name or f"<@{user_id}>",
+        prefix=f"<@{user_id}> ",
         view=view,
+        ping=user_id,
     )
 
 

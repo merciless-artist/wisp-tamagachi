@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-26 (name ask tags the member)
+
+- When Wisp asks a member what to call him, the post starts with their @tag
+  and pings only them, so it isn't lost in a busy chat.
+
 ## 2026-10-26 (Myra's status menu, three meters and the childhood cold)
 
 One feature, built in seven steps. Wisp's old single meter is now three, each

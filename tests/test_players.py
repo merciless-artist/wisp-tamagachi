@@ -399,10 +399,12 @@ async def test_meet_fires_on_third_distinct_day(
 
     server.house.send.assert_awaited_once()
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).met_at is not None
+    assert server.house.send.await_args.args[0].startswith(f"<@{FIRST_USER}> ")
     kwargs = server.house.send.await_args.kwargs
-    assert kwargs["allowed_mentions"].to_dict() == (
-        discord.AllowedMentions.none().to_dict()
-    )
+    assert kwargs["allowed_mentions"].to_dict() == {
+        "parse": [],
+        "users": [FIRST_USER],
+    }
     (button,) = kwargs["view"].children
     assert isinstance(button, NameButton)
     assert button.item.custom_id == f"wisp:name:{FIRST_USER}"

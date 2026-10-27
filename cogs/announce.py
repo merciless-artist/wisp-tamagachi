@@ -125,10 +125,12 @@ class _House:
         text: str,
         image: Path | None = None,
         view: discord.ui.View | None = None,
+        ping: int | None = None,
     ) -> None:
         """Post a line, with an image or buttons when given.
 
-        A failure is reported.
+        Nobody is pinged unless `ping` names the one member who may be. A
+        failure is reported.
         """
         if self._channel is None:
             return
@@ -137,8 +139,18 @@ class _House:
             extras["file"] = discord.File(image)
         if view is not None:
             extras["view"] = view
+        mentions = (
+            _NO_PING
+            if ping is None
+            else discord.AllowedMentions(
+                everyone=False,
+                roles=False,
+                users=[discord.Object(ping)],
+                replied_user=False,
+            )
+        )
         try:
-            await self._channel.send(text, allowed_mentions=_NO_PING, **extras)
+            await self._channel.send(text, allowed_mentions=mentions, **extras)
         except discord.DiscordException as error:
             await self._bot.report_error(self._guild, "posting to Wisp's House", error)
 
@@ -202,15 +214,21 @@ async def say_in_house(
     prefix: str = "",
     image: Path | None = None,
     view: discord.ui.View | None = None,
+    ping: int | None = None,
 ) -> None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
     `name` fills the line's name when the moment has one, `prefix` goes in front
-    of the line, `image` attaches a file and `view` adds buttons.
-    A missing House channel is reported.
+    of the line, `image` attaches a file, `view` adds buttons and `ping` is the
+    one member the post may ping. A missing House channel is reported.
     """
     await post_in_house(
-        bot, guild_id, prefix + _line(bot, moment, life, name=name), image, view
+        bot,
+        guild_id,
+        prefix + _line(bot, moment, life, name=name),
+        image,
+        view,
+        ping,
     )
 
 
@@ -220,14 +238,16 @@ async def post_in_house(
     text: str,
     image: Path | None = None,
     view: discord.ui.View | None = None,
+    ping: int | None = None,
 ) -> None:
     """Post text in Wisp's House, with an image or buttons when given.
 
-    A missing House channel is reported.
+    Nobody is pinged unless `ping` names the one member who may be. A missing
+    House channel is reported.
     """
     house = _House(bot, guild_id)
     await house.open()
-    await house.say(text, image, view)
+    await house.say(text, image, view, ping)
 
 
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:
