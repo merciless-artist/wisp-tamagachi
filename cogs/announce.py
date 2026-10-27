@@ -25,7 +25,13 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
-_NO_EGG: Final = "♪ No new egg for now. Staff can turn eggs back on with !wisp eggs on."
+_ENDING_OF: Final = {
+    Phase.DEAD: EventKind.DIED,
+    Phase.COLD: EventKind.EGG_COLD,
+    Phase.PASSED: EventKind.FAREWELL,
+}
+BEGIN_ID: Final = "wisp:begin"
+BEGIN_AGAIN: Final = "♪ Do you want to begin again?"
 _BABY_STAGE: Final = "baby"
 _GIVING: Final = "giving a keepsake"
 _STAGE_KEEPSAKES: Final = {
@@ -83,6 +89,15 @@ def _lonely_image(stage: Stage) -> Path | None:
         if (path := moments / name).is_file()
     ]
     return choice(pictures) if pictures else None
+
+
+def ending_image(life: Life) -> Path | None:
+    """The picture of how a life ended, as its ending post showed it.
+
+    None for a life that goes on, or when the picture is missing.
+    """
+    kind = _ENDING_OF.get(life.phase)
+    return None if kind is None else _image_for(Event(kind))
 
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:
@@ -254,10 +269,12 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     """Announce life events in Wisp's House.
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
-    A death, a cold egg or a farewell is followed by the next life, unless the
-    current life is not over, which means the ending is stale. Hatching, each
-    stage up and growing old give a keepsake to the member who was there.
-    A missing House channel is reported once; the next life still comes.
+    A death, a cold egg or a farewell gives any Last Embers and then asks staff
+    whether to begin again; no egg is laid until they press the button. An
+    ending is skipped when the current life is not over, which means it is
+    stale. Hatching, each stage up and growing old give a keepsake to the
+    member who was there. A missing House channel is reported once; the
+    embers are still given.
     """
     if not events:
         return
@@ -274,7 +291,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         if (kind := _milestone(event)) is not None:
             await _give_milestone(bot, guild_id, house, life, kind)
         if event.kind in _ENDINGS:
-            await _next_life(bot, guild_id, house, discord.utils.utcnow(), ending=True)
+            await _ask_to_begin_again(bot, guild_id, house, discord.utils.utcnow())
 
 
 # ---
@@ -344,61 +361,114 @@ class _Embers:
     receivers: tuple[Player, ...]
 
 
-async def next_life(bot: "WispBot", guild_id: int, now: datetime) -> None:
-    """Follow an ended life, or no life at all, with the next egg.
+def begin_button(*, disabled: bool = False) -> "discord.ui.Button[discord.ui.View]":
+    """The Begin again button. Presses reach `BeginButton` by its custom id."""
+    return discord.ui.Button(
+        label="Begin again",
+        style=discord.ButtonStyle.primary,
+        custom_id=BEGIN_ID,
+        disabled=disabled,
+    )
 
-    After a full life its top sharers who are not banned get its Last Ember and
-    the egg is a coal egg; after any other ending, or none, it is a fresh egg.
-    A failure while announcing one member's ember is reported in Wisp's House
-    and the rest still come.
-    Nothing happens while the current life goes on, so calling this twice is
-    safe. Wisp's House hears who got an ember, each with a goodbye from his AI
-    voice, then the new egg. While staff have new eggs turned off, the embers
-    are still given but no egg is laid.
-    Takes `bot.guild_lock`, so it must be called outside it. The goodbyes are
-    written after the lock is released, since AI calls take seconds.
+
+def begin_view(*, disabled: bool = False) -> discord.ui.View:
+    """A view with just the Begin again button, disabled once it has been used."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(begin_button(disabled=disabled))
+    return view
+
+
+async def lay_first_egg(bot: "WispBot", guild_id: int, now: datetime) -> None:
+    """Lay the first egg of a server that has never had a Wisp.
+
+    It is the only egg laid without staff: once any life exists, the one after
+    it waits for Begin again, so nothing happens here then.
+    Takes `bot.guild_lock`, so it must be called outside it.
     """
-    await _next_life(bot, guild_id, _House(bot, guild_id), now, ending=False)
+    async with bot.guild_lock(guild_id):
+        if await bot.lives.current(guild_id) is not None:
+            return
+        egg = await _lay_after(bot, guild_id, None, now)
+    await _announce_egg(bot, _House(bot, guild_id), egg)
 
 
-async def _next_life(
-    bot: "WispBot", guild_id: int, house: _House, now: datetime, *, ending: bool
-) -> None:
-    """Give any Last Embers and lay the next egg, when eggs are on.
+async def begin_again(bot: "WispBot", guild_id: int, now: datetime) -> Life | None:
+    """Lay the next egg after an ended life, when staff press Begin again.
 
-    With eggs off and `ending` set, which is only when the ending itself is
-    announced, the House is told once that no egg is coming.
+    After a full life it is a coal egg, already halfway hatched; after any
+    other ending it is a fresh egg. Last Embers the ended life never gave,
+    because its ending was not announced, are given and announced first.
+    Returns the new egg, or None when a life that is not over is already here
+    (someone pressed first, or the button is stale): then nothing is laid or
+    posted. Takes `bot.guild_lock`, so two presses at once lay one egg; it
+    must be called outside it.
     """
     async with bot.guild_lock(guild_id):
         ended = await bot.lives.current(guild_id)
         if ended is not None and not is_over(ended):
+            return None
+        embers = await _give_last_embers(bot, guild_id, ended, now)
+        egg = await _lay_after(bot, guild_id, ended, now)
+    house = _House(bot, guild_id)
+    await _announce_embers(bot, guild_id, house, embers)
+    await _announce_egg(bot, house, egg)
+    return egg
+
+
+async def _ask_to_begin_again(
+    bot: "WispBot", guild_id: int, house: _House, now: datetime
+) -> None:
+    """Give an ended life's Last Embers, then ask staff whether to begin again.
+
+    Nothing happens while the current life goes on. The goodbyes are written
+    after the lock is released, since AI calls take seconds.
+    """
+    async with bot.guild_lock(guild_id):
+        ended = await bot.lives.current(guild_id)
+        if ended is None or not is_over(ended):
             return
         embers = await _give_last_embers(bot, guild_id, ended, now)
-        egg = None
-        if (await bot.settings.get(guild_id)).lay_eggs:
-            version = await bot.lives.next_version(guild_id)
-            egg = await bot.lives.insert(guild_id, egg_after(ended, version, now))
-    if egg is None and not ending and (embers is None or not embers.receivers):
+    await _announce_embers(bot, guild_id, house, embers)
+    await house.say(BEGIN_AGAIN, view=begin_view())
+
+
+async def _lay_after(
+    bot: "WispBot", guild_id: int, ended: Life | None, now: datetime
+) -> Life:
+    """Store the egg that follows `ended` as the next version; call under the lock."""
+    version = await bot.lives.next_version(guild_id)
+    return await bot.lives.insert(guild_id, egg_after(ended, version, now))
+
+
+async def _announce_embers(
+    bot: "WispBot", guild_id: int, house: _House, embers: _Embers | None
+) -> None:
+    """Tell the House who got the Last Ember, each with a goodbye from his AI voice.
+
+    A failure while announcing one member's ember is reported in Wisp's House
+    and the rest still come.
+    """
+    if embers is None or not embers.receivers:
         return
     await house.open()
-    if embers is not None:
-        guild = bot.get_guild(guild_id)
-        for player in embers.receivers:
-            name = display_name(guild, player)
-            try:
-                notes = await bot.notes.recent(guild_id, player.user_id)
-            except (pymysql.err.Error, OSError) as error:
-                await bot.report_error(guild, _GIVING, error)
-                continue
-            heading = f"♪ {name} gets {embers.ember.title}"
-            goodbye = await _goodbye(bot, guild, embers.life, name, notes)
-            await house.say(
-                f"{heading}\n{goodbye}", keepsake_image(KeepsakeKind.LAST_EMBER)
-            )
-    if egg is None:
-        if ending:
-            await house.say(_NO_EGG)
-        return
+    guild = bot.get_guild(guild_id)
+    for player in embers.receivers:
+        name = display_name(guild, player)
+        try:
+            notes = await bot.notes.recent(guild_id, player.user_id)
+        except (pymysql.err.Error, OSError) as error:
+            await bot.report_error(guild, _GIVING, error)
+            continue
+        heading = f"♪ {name} gets {embers.ember.title}"
+        goodbye = await _goodbye(bot, guild, embers.life, name, notes)
+        await house.say(
+            f"{heading}\n{goodbye}", keepsake_image(KeepsakeKind.LAST_EMBER)
+        )
+
+
+async def _announce_egg(bot: "WispBot", house: _House, egg: Life) -> None:
+    """Post a new egg in the House with its picture and the Poke Wisp button."""
+    await house.open()
     moment = Moment.COAL_EGG if egg.from_coal else Moment.NEW_EGG
     await house.say(_line(bot, moment, egg), life_image(egg), poke_view())
 

@@ -238,14 +238,18 @@ async def test_status_without_a_life_says_so(bot: app.WispBot) -> None:
     assert "no life" in text
 
 
-async def test_status_while_between_lives_says_so(bot: app.WispBot) -> None:
-    await lay(bot, Phase.DEAD)
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
+async def test_status_while_waiting_to_begin_again_says_so(
+    bot: app.WispBot, phase: Phase
+) -> None:
+    await lay(bot, phase)
     interaction = make_interaction(bot)
 
     await run(players.wisp_status, interaction)
 
     (text,) = followups(interaction)
-    assert "no life" in text
+    assert text == players.WAITING
+    assert text == "♪ No Wisp right now. Waiting for staff to begin again."
 
 
 # ---

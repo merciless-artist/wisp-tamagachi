@@ -759,35 +759,7 @@ async def unfreeze(ctx: StaffContext) -> None:
     await reply(ctx, "♪ Wisp is unfrozen. His meters drain normally again.")
 
 
-@commands.command(name="eggs", usage="on|off")
-async def eggs(ctx: StaffContext, state: str) -> None:
-    """Turn laying the next egg on or off, in any case. A living Wisp is not affected.
-
-    Turned back on with no living Wisp, the life loop lays the egg on its next
-    tick. Anything but on or off gets the usage line.
-    """
-    choice = state.lower()
-    if choice not in ("on", "off"):
-        await reply(ctx, usage_line(eggs))
-        return
-    bot = ctx.bot
-    guild_id = guild_of(ctx).id
-    on = choice == "on"
-    await bot.settings.update(guild_id, lay_eggs=on)
-    if not on:
-        text = (
-            "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-            "until you turn eggs back on."
-        )
-    else:
-        life = await bot.lives.current(guild_id)
-        text = "♪ New eggs are on."
-        if life is None or is_over(life):
-            text += " A new egg arrives within a few minutes."
-    await reply(ctx, text)
-
-
 async def setup(bot: "WispBot") -> None:
     """Load the Studio staff commands."""
-    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, eggs):
+    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze):
         bot.add_command(command)

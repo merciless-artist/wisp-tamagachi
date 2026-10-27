@@ -7,6 +7,7 @@ length snowflakes, since the converters only read mentions of those.
 import asyncio
 import importlib
 from collections.abc import AsyncIterator, Iterable
+from dataclasses import fields
 from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock
 
@@ -37,8 +38,8 @@ STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
 COMMANDS = (
-    "setup, roles, faq, freeze, unfreeze, eggs, food, punish, unban, strip, "
-    "resetname, staff"
+    "setup, roles, faq, freeze, unfreeze, food, punish, unban, strip, resetname, "
+    "staff"
 )
 FOOD_USAGE = (
     "♪ Usage: !wisp food <viibr points> <suno points> " f"(each 0 to {MEAL_POINTS_MAX})"
@@ -703,30 +704,16 @@ async def test_freeze_and_unfreeze(
     ]
 
 
-async def test_eggs(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> None:
-    await say(bot, server.message("!wisp eggs off", boss))
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
+async def test_the_eggs_switch_is_gone(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    for content in ("!wisp eggs off", "!wisp eggs on", "!wisp eggs"):
+        await say(bot, server.message(content, boss))
 
-    await say(bot, server.message("!wisp eggs maybe", boss))
-    await say(bot, server.message("!wisp eggs", boss))
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
-
-    await say(bot, server.message("!wisp eggs ON", boss))
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
-    await say(bot, server.message("!wisp eggs Off", boss))
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
-
-    off = (
-        "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-        "until you turn eggs back on."
-    )
-    assert sent(server.here) == [
-        off,
-        "♪ Usage: !wisp eggs on|off",
-        "♪ Usage: !wisp eggs on|off",
-        "♪ New eggs are on. A new egg arrives within a few minutes.",
-        off,
-    ]
+    assert bot.get_command("eggs") is None
+    assert "eggs" not in COMMANDS
+    assert sent(server.here) == [f"♪ Wisp staff commands: {COMMANDS}"] * 3
+    assert "lay_eggs" not in {field.name for field in fields(Settings)}
 
 
 async def test_faq(

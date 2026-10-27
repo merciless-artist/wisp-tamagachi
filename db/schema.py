@@ -181,7 +181,9 @@ _DEFINITIONS: dict[str, str] = {
 
 # Columns added after their table first went live, by table and column name.
 # The live tables hold real data, so every new column is listed here as well as
-# in its definition: startup adds it to a table that lacks it.
+# in its definition: startup adds it to a table that lacks it. Live columns are
+# never dropped, so `settings.lay_eggs`, the old eggs switch, stays defined
+# though nothing reads it any more.
 _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
     "settings": {

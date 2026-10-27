@@ -28,7 +28,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.settings import SettingsRepo
 from wisp import rules
-from wisp.life import Phase, new_egg
+from wisp.life import new_egg
 from wisp.links import TrackKind
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
 
@@ -1327,42 +1327,6 @@ async def test_freeze_sets_flag(bot: app.WispBot, server: FakeServer) -> None:
     assert "unfrozen" in sent_text(ctx).lower()
 
 
-@pytest.mark.parametrize("phase", [None, Phase.DEAD])
-async def test_turning_eggs_off_and_on_with_no_living_wisp(
-    bot: app.WispBot, server: FakeServer, phase: Phase | None
-) -> None:
-    if phase is not None:
-        life = new_egg(1, discord.utils.utcnow())
-        life.phase = phase
-        await bot.lives.insert(GUILD_ID, life)
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "off")
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
-    assert sent_text(ctx) == (
-        "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-        "until you turn eggs back on."
-    )
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "on")
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
-    assert sent_text(ctx) == (
-        "♪ New eggs are on. A new egg arrives within a few minutes."
-    )
-
-
-async def test_turning_eggs_on_while_he_lives_says_only_that(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "on")
-
-    assert sent_text(ctx) == "♪ New eggs are on."
-
-
 # ---
 # Members' slash group
 # ---
@@ -1398,7 +1362,7 @@ async def test_the_studio_commands_join_the_bot(bot: app.WispBot) -> None:
     assert bot.get_command("setup") is studio.setup_studio
     assert bot.get_command("freeze") is studio.freeze
     assert bot.get_command("unfreeze") is studio.unfreeze
-    assert bot.get_command("eggs") is studio.eggs
+    assert bot.get_command("eggs") is None
     assert bot.get_command("faq") is studio.rebuild_faq
     assert bot.get_command("roles") is studio.roles
     assert bot.get_command("roles add") is studio.roles_add

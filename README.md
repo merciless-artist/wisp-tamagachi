@@ -3,9 +3,32 @@
 Wisp is a Discord Tamagotchi for a music community. The whole server shares one
 pet: members feed him by dropping tracks in the track channel and by buying
 snacks from the ViiBR Vault, and he grows from an egg to a rockstar as long as
-he is fed. If he is neglected he dies and a new egg is laid. If he lives a
-full life he grows old, passes on as a lump of coal and the coal becomes the
-next egg. Members can also talk to him in Wisp's House.
+he is fed. If he is neglected he dies. If he lives a full life he grows old
+and passes on as a lump of coal. After every ending Wisp's House asks "Do you
+want to begin again?", and the next egg comes only when staff press **Begin
+again**; after a full life the coal becomes that egg. Members can also talk to
+him in Wisp's House.
+
+## Begin again
+
+- Every ending (a death, a cold egg, an old-age farewell) is announced as
+  before: the ending post and its picture, the Last Embers with their goodbyes,
+  the badge roles taken back and the Vault card refreshed. Then the House posts
+  `♪ Do you want to begin again?` with a **Begin again** button. Nobody is
+  pinged.
+- Only staff (the app owner, Manage Server, or a staff role) can press it;
+  anyone else is told privately that only staff can start a new Wisp.
+- A press lays the next egg the way the automatic path used to: the next
+  version, a coal egg halfway hatched after a full life, the new-egg post with
+  its picture and Poke Wisp button, the status card and the House panel. The
+  question's button is then disabled. A press that finds Wisp already here,
+  from a second staff member or an old question, lays nothing.
+- Until someone presses it there is no Wisp: the status card and `/wisp
+  status` say `♪ No Wisp right now. Waiting for staff to begin again.`, and
+  tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
+  A restart lays nothing and the button still works.
+- A brand-new server still gets its first egg on the first tick after setup,
+  with no button.
 
 ## His three meters
 
@@ -124,10 +147,6 @@ where the command was used.
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
 - `!wisp freeze` and `!wisp unfreeze` pause and resume the draining of his meters.
-- `!wisp eggs on|off` turns new eggs on or off. Off, no egg is laid when
-  Wisp's life ends (the ending, Last Embers and badge roles still happen as
-  usual) and the House says so once; on, the next tick lays the egg. A living
-  Wisp is not affected.
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.

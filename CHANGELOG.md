@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-10-27 (begin again)
+
+- No egg is laid on its own after an ending any more. A death, a cold egg and
+  an old-age farewell are each announced as before (the ending post and
+  picture, the Last Embers and goodbyes, the badge sweep, the Vault card), then
+  Wisp's House asks `♪ Do you want to begin again?` with a persistent **Begin
+  again** button (`wisp:begin`), pinging nobody.
+- Only staff (`is_staff`: the app owner, Manage Server or a staff role) can
+  press it; anyone else hears `♪ Only staff can start a new Wisp.` privately.
+  A press lays the next egg under the guild lock exactly as the automatic path
+  did (next version, coal egg halfway hatched after a full life, the new-egg
+  post with its picture and Poke Wisp button), updates the status card and the
+  House panel at once, disables the question's button and answers
+  `♪ A new egg is on its way.` A press that finds a life that is not over (a
+  second press, two staff at once, an old question) lays nothing and answers
+  `♪ Wisp is already here.` A press also gives any Last Embers an
+  unannounced farewell never gave. Failures are reported where it was pressed.
+- While waiting, the status card says `♪ No Wisp right now. Waiting for staff
+  to begin again.` with the picture of how he ended (its buttons stay and
+  already answer that there is no Wisp), and so does `/wisp status`. The life
+  loop lays nothing for an ended life, also after a restart.
+- A server that has never had a Wisp still gets its first egg from the life
+  loop, with no button.
+- `!wisp eggs on|off` is gone, with its docs and its place in the staff command
+  list. The `settings.lay_eggs` column stays in the live database but is no
+  longer read, and the `Settings.lay_eggs` field is removed.
+
 ## 2026-10-26 (name ask tags the member)
 
 - When Wisp asks a member what to call him, the post starts with their @tag
