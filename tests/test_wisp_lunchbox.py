@@ -192,6 +192,8 @@ def make_interaction(
     interaction.guild_id = GUILD_ID
     interaction.channel = MagicMock(spec=discord.TextChannel)
     interaction.channel.id = LOUNGE_ID
+    interaction.channel.send = AsyncMock()
+    interaction.delete_original_response = AsyncMock()
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.response = MagicMock()
@@ -486,14 +488,29 @@ async def test_the_lunchbox_is_posted_publicly_where_it_was_asked_for(
 ) -> None:
     interaction = await open_lunchbox(bot, server)
 
-    interaction.response.defer.assert_awaited_once_with()
-    call = interaction.followup.send.await_args
-    assert "ephemeral" not in call.kwargs
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert call.kwargs["suppress_embeds"] is True
-    (text,) = call.args
-    assert text == await lunchbox_text(bot, GUILD_ID)
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    post = interaction.channel.send.await_args
+    assert post.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert post.kwargs["suppress_embeds"] is True
+    interaction.delete_original_response.assert_awaited_once_with()
+    interaction.followup.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
+
+
+async def test_a_public_post_that_fails_leaves_the_answer_private(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+    refused = discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+    interaction.channel.send.side_effect = refused
+
+    with pytest.raises(discord.Forbidden):
+        await open_lunchbox(bot, server, interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    interaction.delete_original_response.assert_not_awaited()
+    interaction.followup.send.assert_not_awaited()
 
 
 @pytest.mark.parametrize("in_thread", [False, True])
@@ -511,6 +528,7 @@ async def test_asked_for_in_the_track_drop_it_goes_to_the_house(
     await open_lunchbox(bot, server, interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    interaction.channel.send.assert_not_awaited()
     server.house.send.assert_awaited_once()
     post = server.house.send.await_args
     assert post.args == (await lunchbox_text(bot, GUILD_ID),)
@@ -685,7 +703,7 @@ async def test_a_banned_member_can_still_look(
 
     interaction = await open_lunchbox(bot, server)
 
-    (text,) = interaction.followup.send.await_args.args
+    (text,) = interaction.channel.send.await_args.args
     assert text.startswith(TITLE)
 
 

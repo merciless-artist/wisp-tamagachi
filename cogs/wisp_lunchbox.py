@@ -143,24 +143,23 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
 async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     """Show Wisp's lunchbox in the channel where it was asked for. Anyone may look.
 
-    It pings nobody and its song links show no previews. Asked for where Wisp
-    never posts, such as the track drop, it goes to his House instead and the
-    member is told so privately; with no House it is shown only to them.
+    It pings nobody and its song links show no previews. The interaction is
+    acknowledged privately and the lunchbox posted as a message of its own, so
+    a failure tells only the member; the private acknowledgement is then
+    removed. Asked for where Wisp never posts, such as the track drop, it goes
+    to his House instead and the member is told so privately; with no House it
+    is shown only to them.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
+    await interaction.response.defer(ephemeral=True)
     settings = await bot.settings.get(guild_id)
+    text = await lunchbox_text(bot, guild_id)
     channel = where_of(interaction)
     if channel is not None and may_post_in(channel, settings.tracks_channel_id):
-        await interaction.response.defer()
-        await interaction.followup.send(
-            await lunchbox_text(bot, guild_id),
-            allowed_mentions=_NO_PING,
-            suppress_embeds=True,
-        )
+        await channel.send(text, allowed_mentions=_NO_PING, suppress_embeds=True)
+        await interaction.delete_original_response()
         return
-    await interaction.response.defer(ephemeral=True)
-    text = await lunchbox_text(bot, guild_id)
     house = await bot.house_channel(interaction.guild)
     if house is None:
         await interaction.followup.send(

@@ -10,6 +10,7 @@ from wisp.text import (
     SECTION_BREAK,
     SEPARATOR,
     USER_ERROR,
+    clip,
     count,
     fit,
     framed,
@@ -60,6 +61,22 @@ def test_fit_counts_utf16_units() -> None:
     assert text == "\n".join(["head", clef_line, "tail"])
     assert len(text) < MESSAGE_LIMIT // 2
     assert text_length(text) <= MESSAGE_LIMIT
+
+
+@pytest.mark.parametrize(
+    ("text", "room", "expected"),
+    [
+        ("abc", 2, "ab"),
+        ("abc", 9, "abc"),
+        ("a𝄞b", 2, "a"),
+        ("a𝄞b", 3, "a𝄞"),
+        ("𝄞𝄞", 3, "𝄞"),
+        ("𝄞", 1, ""),
+        ("", 0, ""),
+    ],
+)
+def test_clip_never_splits_a_character(text: str, room: int, expected: str) -> None:
+    assert clip(text, room) == expected
 
 
 def test_fit_keeps_the_tail_and_drops_the_last_optional_lines() -> None:

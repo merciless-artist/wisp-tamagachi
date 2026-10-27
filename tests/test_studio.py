@@ -1517,7 +1517,8 @@ def test_rules_text_explains_gifts_with_numbers_from_the_rules(
 
     section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
     assert "snacks and gifts" in section
-    assert "・Gifts cost 107 points and he might not keep them" in section
+    assert "・Gifts cost 107 WC and he might not keep them" in section
+    assert "・/wisp vault spends WC on snacks and gifts" in section
     assert "109 bond" in section and "113 more" in section
     assert "New Wisps start over" in section
 

@@ -16,7 +16,10 @@ USER_ERROR: Final = "That didn't work. The error is posted in this channel."
 # Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
 # music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and
 # zero-width joiner that build emoji sequences.
-_EMOJI: Final = re.compile("[\U0001f000-\U0001faff⌀-⏿☀-♩♬-➿" "⬀-⯿‼⁉⃣️‍]")
+_EMOJI: Final = re.compile(
+    "[\U0001f000-\U0001faff\u2300-\u23ff\u2600-\u2669\u266c-\u27bf"
+    "\u2b00-\u2bff\u203c\u2049\u20e3\ufe0f\u200d]"
+)
 
 # ---
 # The house style frame
@@ -99,6 +102,20 @@ def text_length(text: str) -> int:
     however Discord counts it.
     """
     return len(text.encode("utf-16-le")) // 2
+
+
+def clip(text: str, room: int) -> str:
+    """The longest start of `text` within `room` UTF-16 units.
+
+    It never ends inside a character, so a character outside the Basic
+    Multilingual Plane is kept whole or left out.
+    """
+    used = 0
+    for index, character in enumerate(text):
+        used += text_length(character)
+        if used > room:
+            return text[:index]
+    return text
 
 
 def fit(head: list[str], optional: list[str], tail: Sequence[str] = ()) -> str:

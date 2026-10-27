@@ -92,8 +92,8 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "One Wisp for the whole server: share music and he grows from an egg "
-            "to a Rockstar. Neglected, he fades; staff start the next egg.",
+            "One Wisp for the server: share music and he grows from egg to "
+            "Rockstar. Neglected, he fades; staff start the next egg.",
             SEPARATOR,
             "Who can feed him and earn points",
             "・Active Lounger or higher who opened /wisp board once",
@@ -119,9 +119,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault spends points on snacks and gifts. The board is its "
+            "・/wisp vault spends WC on snacks and gifts. The board is its "
             "pinned post",
-            f"・Gifts cost {count(rules.GIFT_COST, 'point')} and he might not keep "
+            f"・Gifts cost {rules.GIFT_COST} WC and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
             f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",

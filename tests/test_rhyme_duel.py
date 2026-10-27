@@ -34,7 +34,7 @@ from wisp.rules import (
     RHYME_TURN,
     Stage,
 )
-from wisp.text import SEPARATOR
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -418,7 +418,7 @@ def test_an_over_long_summary_is_still_returned_in_one_message(
 ) -> None:
     summary = rhyme_duel.summary_text(line, reason, ["fire", "choir"], 2)
 
-    assert len(summary) == 2000
+    assert text_length(summary) == MESSAGE_LIMIT
 
 
 def test_an_over_long_reason_is_cut_but_the_score_stays() -> None:
@@ -440,6 +440,29 @@ def test_a_long_chain_still_fits_one_message() -> None:
     assert lines[3].startswith("・... word")
     assert lines[3].endswith(" ・ word398 ・ word399")
     assert lines[4] == "・Score: 9 points"
+
+
+def test_a_chain_of_wide_characters_fits_by_utf16_units() -> None:
+    chain = [SEPARATOR * 2 for _ in range(60)]
+
+    summary = rhyme_duel.summary_text("good game", "Time ran out", chain, 9)
+
+    assert text_length(summary) <= MESSAGE_LIMIT
+    assert len(summary) < MESSAGE_LIMIT // 2 + 100
+    lines = summary.splitlines()
+    assert lines[3].startswith("・... ")
+    assert lines[3].endswith(SEPARATOR * 2)
+    assert lines[4] == "・Score: 9 points"
+
+
+def test_the_last_resort_cut_keeps_wide_characters_whole() -> None:
+    line = SEPARATOR * 100
+
+    summary = rhyme_duel.summary_text(line, None, [], 0)
+
+    assert text_length(summary) == MESSAGE_LIMIT
+    whole, half = divmod(MESSAGE_LIMIT, text_length(SEPARATOR))
+    assert summary == line[: whole * len(SEPARATOR) + half // 2]
 
 
 # ---

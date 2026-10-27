@@ -371,6 +371,8 @@ def _vault_pieces(
         *(_vault_snack(bot, snack, _coins(bot, f"{snack.cost} WC")) for snack in _MENU),
     ]
     badges = [SECTION_BREAK, *badge_section(bot, offers)]
+    # Joined as one text, so the 3 newlines between the text displays are
+    # counted too: a small safety margin on purpose.
     rest = "\n".join([*snacks, *badges, SECTION_BREAK, *BOX_CLOSE])
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]

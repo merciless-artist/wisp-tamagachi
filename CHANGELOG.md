@@ -32,7 +32,7 @@
   `none yet` (`nothing saved yet` for snacks). Each lunchbox song is a day and
   sharer line, then its link; each collection a progress line, then its gifts
   and givers while there is room.
-- `/wisp lunchbox` is public: it answers in the channel where it was used,
+- `/wisp lunchbox` is public: it posts in the channel where it was used,
   pinging nobody and with link previews suppressed. Used where Wisp never
   posts (the track drop, or a channel that cannot be placed) it posts in Wisp's
   House and tells the member privately; with no House it is shown only to
@@ -44,11 +44,17 @@
   expressions and described as the Vault's coin in the AI prompt.
 - CLAUDE.md and README describe the house style, the new divider and the
   public lunchbox.
-- Known: the new divider costs 18 more UTF-16 units than the old one, so the
-  FAQ's quick rules post is now 1,965 of 2,000 at today's numbers and its
-  worst-case guard (`test_rules_text_fits_with_every_number_at_four_digits`,
-  every number at 9999) measures 2,017 and fails. Its wording is left for the
-  Hunger wording pass.
+- The new divider costs 18 more UTF-16 units than the old one, so the FAQ's
+  quick rules are tightened to fit: the intro reads "One Wisp for the server:
+  share music and he grows from egg to Rockstar.", and the Vault lines say WC
+  for spending (`/wisp vault spends WC on snacks and gifts`, `Gifts cost 15
+  WC`). 1,946 of 2,000 at today's numbers; the all-9999 guard fits again.
+  (Run `!wisp faq` to refresh the live post.)
+- Rhyme Duel summaries are measured by `text_length`, and the last-resort cut
+  uses the new `wisp.text.clip`, which never splits a character.
+- `/wisp lunchbox` acknowledges privately and posts the lunchbox as a message
+  of its own in the channel (the private acknowledgement is then removed), so
+  a failure is told only to the member and still reported in the channel.
 
 ## 2026-10-27 (begin again)
 
