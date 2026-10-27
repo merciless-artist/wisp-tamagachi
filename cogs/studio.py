@@ -93,7 +93,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
         [
             "♪ Quick rules (current numbers)",
             "One Wisp for the whole server: share music and he grows from an egg "
-            "to a Rockstar. Neglected, he fades and a new egg takes over.",
+            "to a Rockstar. Neglected, he fades; staff start the next egg.",
             SEPARATOR,
             "Who can feed him and earn points",
             "・Active Lounger or higher who opened /wisp board once",

@@ -533,6 +533,8 @@ async def show_in_thread(
     label: str,
     view: discord.ui.View | None = None,
     image: Path | None = None,
+    *,
+    clear_image: bool = False,
 ) -> None:
     """Keep one pinned message in a Studio thread showing `content`.
 
@@ -547,6 +549,8 @@ async def show_in_thread(
         view: Buttons to show on the message, or None to leave it as it is.
         image: The picture the message shows, or None to leave its picture as
             it is.
+        clear_image: With no `image`, take the message's picture off instead
+            of leaving it.
 
     The stored message is edited. If it is gone, a new one is posted, pinned and
     stored. The picture is uploaded only when it is not the one this process
@@ -563,7 +567,17 @@ async def show_in_thread(
     thread: discord.Thread | None = None
     try:
         thread = await studio_thread(bot, guild_id, thread_attr)
-        await _show(bot, guild_id, thread, message_attr, content, label, view, image)
+        await _show(
+            bot,
+            guild_id,
+            thread,
+            message_attr,
+            content,
+            label,
+            view,
+            image,
+            clear_image and image is None,
+        )
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
@@ -583,10 +597,12 @@ async def _show(
     label: str,
     view: discord.ui.View | None,
     image: Path | None,
+    clear_image: bool,
 ) -> None:
     key = (guild_id, message_attr)
     picture = Picture(bot, guild_id, thread, message_attr, label)
     extras: dict[str, Any] = {} if view is None else {"view": view}
+    cleared: dict[str, Any] = {"attachments": []} if clear_image else {}
     message_id: int | None = getattr(await bot.settings.get(guild_id), message_attr)
     if message_id is not None:
         message = thread.get_partial_message(message_id)
@@ -601,6 +617,7 @@ async def _show(
                     content=content,
                     allowed_mentions=_NO_PING,
                     **extras,
+                    **cleared,
                     **art_kwargs("attachments", art),
                 ),
             )
@@ -609,6 +626,8 @@ async def _show(
         else:
             if attached is not None:
                 bot.shown_images[key] = (message_id, attached)
+            elif clear_image:
+                bot.shown_images.pop(key, None)
             return
     posted, attached = await picture.attach(
         image,

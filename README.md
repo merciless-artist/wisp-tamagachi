@@ -22,11 +22,17 @@ him in Wisp's House.
   version, a coal egg halfway hatched after a full life, the new-egg post with
   its picture and Poke Wisp button, the status card and the House panel. The
   question's button is then disabled. A press that finds Wisp already here,
-  from a second staff member or an old question, lays nothing.
+  from a second staff member or an old question, lays nothing and disables
+  that button too.
 - Until someone presses it there is no Wisp: the status card and `/wisp
   status` say `♪ No Wisp right now. Waiting for staff to begin again.`, and
   tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
-  A restart lays nothing and the button still works.
+  The waiting status card carries its own Begin again button (and no Feed or
+  Poke buttons) with the picture of how he ended, so staff can always begin
+  again even if the House question was never posted or was deleted; the
+  life loop puts it back if the card is gone. A restart lays nothing and every
+  button still works. No favorite song is picked and `!wisp punish` says
+  nothing in his voice while he is gone.
 - A brand-new server still gets its first egg on the first tick after setup,
   with no button.
 
@@ -147,6 +153,9 @@ where the command was used.
   pictures and rules post, posts them fresh and updates the table of
   contents. Run it after the FAQ pictures change in a new release.
 - `!wisp freeze` and `!wisp unfreeze` pause and resume the draining of his meters.
+- `!wisp begin` does what the Begin again button does, for when no button
+  can be pressed: it lays the next egg after an ending, or answers
+  `♪ Wisp is already here.`
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.

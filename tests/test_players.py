@@ -504,7 +504,7 @@ async def test_unnamed_player_shows_display_name(
     await maybe_meet(bot, GUILD_ID, FIRST_USER, display_name="Server Nick")
 
     bot.lines.pick.assert_called_once_with(Moment.MEET, Mood.HAPPY, name="Server Nick")
-    assert server.house.send.await_args.args == ("a meeting line",)
+    assert server.house.send.await_args.args == (f"<@{FIRST_USER}> a meeting line",)
 
 
 async def test_named_player_is_called_by_name(

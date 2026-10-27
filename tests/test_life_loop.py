@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pymysql
 import pytest
+from discord.ext import commands
 
 import app
 from cogs import announce, life_loop, pictures
@@ -23,6 +24,7 @@ from cogs.conversation import PokeButton
 from cogs.life_loop import BeginButton, LifeLoop
 from cogs.players import WAITING
 from cogs.snacks import FeedButton
+from cogs.staff import staff_check
 from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
@@ -849,8 +851,71 @@ async def test_death_posts_died_then_asks_and_lays_no_egg(
     died, question = house_texts(server)
     assert mentions_version(died, 1)
     assert question == BEGIN_AGAIN
-    content = server.card_edit.await_args.kwargs["content"]
-    assert content == WAITING
+    card = server.card_edit.await_args.kwargs
+    assert card["content"] == WAITING
+    assert button_ids(card["view"]) == ["wisp:begin"]
+
+
+async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    await lay(bot, phase=Phase.PASSED, full=0.0)
+
+    await cog.run_tick(NOW)
+
+    server.house.send.assert_not_awaited()
+    waiting = server.card_edit.await_args.kwargs
+    assert waiting["content"] == WAITING
+    (button,) = waiting["view"].children
+    assert isinstance(button, discord.ui.Button)
+    assert (button.label, button.custom_id, button.disabled) == (
+        "Begin again",
+        "wisp:begin",
+        False,
+    )
+    card = question_post()
+
+    pressed = await press_begin(bot, server, staff_member(), card)
+
+    egg = await current_life(bot)
+    assert (egg.version, egg.from_coal) == (2, True)
+    assert private_reply(pressed) == "♪ A new egg is on its way."
+    assert retired(card)
+    shown = server.card_edit.await_args.kwargs
+    assert "**life stage**・𝐄𝐆𝐆・" in shown["content"]
+    assert button_ids(shown["view"]) == ["wisp:feed", "wisp:poke"]
+
+
+async def test_a_waiting_card_without_its_ending_picture_shows_none(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    await lay(bot, full=0.01)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+
+    waiting, still_waiting = server.card_edit.await_args_list
+    for edit in (waiting, still_waiting):
+        assert edit.kwargs["content"] == WAITING
+        assert edit.kwargs["attachments"] == []
+
+
+async def test_no_favorite_song_is_picked_while_waiting(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    dead = await lay(bot, phase=Phase.DEAD, full=0.0)
+    assert dead.id is not None
+    await bot.activity_log.record_feed(
+        GUILD_ID, dead.id, USER_ID, viibr_track(1), 5, 9, NOW - timedelta(days=1)
+    )
+
+    await cog.run_tick(NOW)
+
+    server.mealtime.send.assert_not_awaited()
+    assert await bot.wisp_lunchbox.favorites(GUILD_ID, 10) == []
 
 
 async def test_a_cold_egg_waits_and_the_next_egg_takes_the_next_version(
@@ -896,7 +961,7 @@ async def test_an_ended_life_waits_through_every_tick(
     server.house.send.assert_not_awaited()
     edits = server.card_edit.await_args_list
     assert [edit.kwargs["content"] for edit in edits] == [WAITING] * 3
-    assert all("view" not in edit.kwargs for edit in edits)
+    assert all(button_ids(edit.kwargs["view"]) == ["wisp:begin"] for edit in edits)
     assert card_pictures(server) == [["died.png"], [], ["died.png"]]
     server.vault_edit.assert_awaited()
 
@@ -1356,6 +1421,19 @@ def private_reply(interaction: MagicMock) -> str:
     return str(text)
 
 
+def retired(question: MagicMock) -> bool:
+    """Whether a pressed message was edited, each time only to disable Begin again."""
+    edits = question.edit.await_args_list
+    for edit in edits:
+        (button,) = edit.kwargs["view"].children
+        if not (
+            isinstance(button, discord.ui.Button)
+            and (button.custom_id, button.disabled) == ("wisp:begin", True)
+        ):
+            return False
+    return bool(edits)
+
+
 def button_ids(view: discord.ui.View) -> list[str | None]:
     """The custom ids of a view's buttons, persistent ones included."""
     ids: list[str | None] = []
@@ -1478,7 +1556,8 @@ async def test_two_staff_pressing_at_once_lay_one_egg(
         "♪ A new egg is on its way.",
         "♪ Wisp is already here.",
     ]
-    question.edit.assert_awaited_once()
+    assert question.edit.await_count == 2
+    assert retired(question)
 
 
 async def test_a_second_press_finds_wisp_already_here(
@@ -1494,7 +1573,8 @@ async def test_a_second_press_finds_wisp_already_here(
     assert private_reply(again) == "♪ Wisp is already here."
     assert [life.version for life in await bot.lives.history(GUILD_ID)] == [2, 1]
     assert len(house_texts(server)) == 1
-    question.edit.assert_awaited_once()
+    assert question.edit.await_count == 2
+    assert retired(question)
 
 
 async def test_a_stale_button_while_he_lives_lays_nothing(
@@ -1509,7 +1589,9 @@ async def test_a_stale_button_while_he_lives_lays_nothing(
     assert private_reply(pressed) == "♪ Wisp is already here."
     assert (await current_life(bot)).id == life.id
     server.house.send.assert_not_awaited()
-    question.edit.assert_not_awaited()
+    question.edit.assert_awaited_once()
+    assert retired(question)
+    server.card_edit.assert_not_awaited()
 
 
 async def test_a_question_that_cannot_be_edited_is_reported_and_the_egg_still_comes(
@@ -1562,6 +1644,63 @@ async def test_the_begin_again_button_survives_a_restart(
     pressed = await press_begin(bot, server, staff_member())
 
     assert private_reply(pressed) == "♪ A new egg is on its way."
+
+
+def staff_context(server: FakeServer, bot: app.WispBot) -> MagicMock:
+    """A `!wisp begin` typed by staff in Wisp's House."""
+    ctx = MagicMock(spec=commands.Context)
+    ctx.bot = bot
+    ctx.guild = server.guild
+    ctx.channel = server.house
+    ctx.author = staff_member()
+    return ctx
+
+
+async def test_typing_begin_lays_the_next_egg(
+    bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    await configure(bot)
+    await lay(bot, phase=Phase.PASSED, full=0.0)
+
+    await life_loop.begin(staff_context(server, bot))
+
+    egg = await current_life(bot)
+    assert (egg.version, egg.phase, egg.from_coal) == (2, Phase.EGG, True)
+    laid, answer = house_texts(server)
+    assert laid in {
+        line.format(version="2") for line in LINES[(Moment.COAL_EGG, Mood.HAPPY)]
+    }
+    assert answer == "♪ A new egg is on its way."
+    card = server.card_edit.await_args.kwargs
+    assert button_ids(card["view"]) == ["wisp:feed", "wisp:poke"]
+
+
+async def test_typing_begin_while_he_lives_lays_nothing(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot, full=80.0)
+
+    await life_loop.begin(staff_context(server, bot))
+
+    assert (await current_life(bot)).id == life.id
+    assert house_texts(server) == ["♪ Wisp is already here."]
+    server.card_edit.assert_not_awaited()
+
+
+async def test_begin_is_a_staff_command(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bot, "add_cog", AsyncMock())
+    monkeypatch.setattr(bot, "add_dynamic_items", MagicMock())
+
+    await life_loop.setup(bot)
+
+    assert bot.get_command("begin") is life_loop.begin
+    member = MagicMock(spec=commands.Context, bot=bot, author=make_member())
+    staff = MagicMock(spec=commands.Context, bot=bot, author=staff_member())
+    assert not await staff_check(member)
+    assert await staff_check(staff)
 
 
 async def test_a_restart_between_the_egg_and_the_badges_is_healed_on_the_next_tick(

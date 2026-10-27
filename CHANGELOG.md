@@ -15,12 +15,22 @@
   House panel at once, disables the question's button and answers
   `♪ A new egg is on its way.` A press that finds a life that is not over (a
   second press, two staff at once, an old question) lays nothing and answers
-  `♪ Wisp is already here.` A press also gives any Last Embers an
-  unannounced farewell never gave. Failures are reported where it was pressed.
+  `♪ Wisp is already here.`, disabling that stale button too. A press also
+  gives any Last Embers an unannounced farewell never gave. Failures are
+  reported where it was pressed.
 - While waiting, the status card says `♪ No Wisp right now. Waiting for staff
-  to begin again.` with the picture of how he ended (its buttons stay and
-  already answer that there is no Wisp), and so does `/wisp status`. The life
-  loop lays nothing for an ended life, also after a restart.
+  to begin again.` with the picture of how he ended (no picture when that art
+  is missing) and only the Begin again button, so a question that was never
+  posted or was deleted can never strand the server; `/wisp status` says the
+  same line. The life loop lays nothing for an ended life, also after a
+  restart.
+- `!wisp begin`, a staff command doing the same as the button: lays the next
+  egg after an ending, or answers `♪ Wisp is already here.`
+- While waiting, the life loop picks no favorite song and `!wisp punish` posts
+  nothing in Wisp's voice (the staff answer notes it, as with no life).
+- The quick rules now say "Neglected, he fades; staff start the next egg."
+  (Run `!wisp faq` to refresh the live post.) `show_in_thread` gains
+  `clear_image` to take a card's picture off.
 - A server that has never had a Wisp still gets its first egg from the life
   loop, with no button.
 - `!wisp eggs on|off` is gone, with its docs and its place in the staff command

@@ -40,7 +40,7 @@ from cogs.players import (
     status_text,
 )
 from cogs.snacks import status_view
-from cogs.staff import is_staff
+from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
@@ -141,7 +141,8 @@ class LifeLoop(commands.Cog):
         await show_status_card(bot, guild_id, current, now, happy)
         await refresh_house_panel(bot, guild_id, current)
         await refresh_vault(bot, guild_id)
-        await pick_favorite_song(bot, guild, current, self.rng, now)
+        if not is_over(current):
+            await pick_favorite_song(bot, guild, current, self.rng, now)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
@@ -200,15 +201,15 @@ async def show_status_card(
 
     While he goes on it is his live card, with his current picture and the
     Feed Wisp and Poke Wisp buttons. Once his life is over it says Wisp is
-    waiting for staff to begin again, with the picture of how it ended; its
-    buttons are left as they are, since each one already answers that there
-    is no Wisp.
+    waiting for staff to begin again and carries only the Begin again button,
+    so staff always have one to press even when the House's question was never
+    posted or is gone; it shows the picture of how his life ended, or no
+    picture when that is missing.
     """
-    content: str
-    view: discord.ui.View | None
+    view: discord.ui.View
     image: Path | None
     if is_over(life):
-        content, view, image = WAITING, None, ending_image(life)
+        content, view, image = WAITING, begin_view(), ending_image(life)
     else:
         content = await status_text(bot, guild_id, life, now, happy)
         view, image = status_view(), life_image(life)
@@ -221,6 +222,7 @@ async def show_status_card(
         "status card",
         view,
         image,
+        clear_image=image is None and is_over(life),
     )
 
 
@@ -262,11 +264,12 @@ class BeginButton(
 
 
 async def _begin(interaction: discord.Interaction) -> None:
-    """Lay the next egg for staff, then retire the question and show the egg.
+    """Lay the next egg for staff, retiring the pressed button either way.
 
-    Anyone else is turned away, and a press that finds Wisp already here lays
-    nothing. The answer is private and the egg's status card and House panel
-    are shown at once rather than on the next tick.
+    Anyone else is turned away. A press that finds Wisp already here lays
+    nothing; its button is disabled all the same, since it is stale. The
+    button is retired before the egg is shown, so a press on the waiting
+    status card ends with the egg's own card. The answer is private.
     """
     await interaction.response.defer(ephemeral=True, thinking=True)
     bot = bot_of(interaction)
@@ -277,11 +280,16 @@ async def _begin(interaction: discord.Interaction) -> None:
         return
     now = discord.utils.utcnow()
     egg = await begin_again(bot, guild_id, now)
+    await _retire_question(interaction)
     if egg is None:
         await say_privately(interaction, _ALREADY_HERE)
         return
-    await _retire_question(interaction)
+    await _show_egg(bot, guild_id, egg, now)
     await say_privately(interaction, _ON_ITS_WAY)
+
+
+async def _show_egg(bot: "WispBot", guild_id: int, egg: Life, now: datetime) -> None:
+    """Show a new egg on the status card and House panel now, not on the next tick."""
     happy = await current_happiness(bot, guild_id, now)
     await show_status_card(bot, guild_id, egg, now, happy)
     await refresh_house_panel(bot, guild_id, egg)
@@ -299,7 +307,28 @@ async def _retire_question(interaction: discord.Interaction) -> None:
         )
 
 
+@commands.command(name="begin")
+async def begin(ctx: StaffContext) -> None:
+    """Begin again by typing, for when no Begin again button can be pressed.
+
+    Like the button it lays nothing while Wisp is here. Only staff reach it.
+    """
+    bot = ctx.bot
+    guild_id = guild_of(ctx).id
+    now = discord.utils.utcnow()
+    egg = await begin_again(bot, guild_id, now)
+    if egg is None:
+        await reply(ctx, _ALREADY_HERE)
+        return
+    await _show_egg(bot, guild_id, egg, now)
+    await reply(ctx, _ON_ITS_WAY)
+
+
 async def setup(bot: "WispBot") -> None:
-    """Load the life loop cog and register the Begin again button for restarts."""
+    """Load the life loop cog, its `!wisp begin` and the Begin again button.
+
+    The button is registered so it still works after a restart.
+    """
     await bot.add_cog(LifeLoop(bot))
+    bot.add_command(begin)
     bot.add_dynamic_items(BeginButton)

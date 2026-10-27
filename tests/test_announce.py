@@ -449,6 +449,27 @@ async def test_without_a_picture_the_attachment_is_kept(
     assert "attachments" not in server.board.edit.await_args.kwargs
 
 
+async def test_a_picture_can_be_taken_off_the_card(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    await show_status(bot, image=picture(tmp_path, "egg"))
+    await show_in_thread(
+        bot,
+        GUILD_ID,
+        "status_thread_id",
+        "status_message_id",
+        "waiting",
+        "status card",
+        clear_image=True,
+    )
+    await show_status(bot, image=picture(tmp_path, "egg"))
+
+    first, cleared, again = server.status.edit.await_args_list
+    assert [file.filename for file in first.kwargs["attachments"]] == ["egg.png"]
+    assert cleared.kwargs["attachments"] == []
+    assert [file.filename for file in again.kwargs["attachments"]] == ["egg.png"]
+
+
 # ---
 # Failures
 # ---
