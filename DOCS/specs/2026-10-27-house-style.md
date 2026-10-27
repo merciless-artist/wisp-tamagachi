@@ -298,9 +298,12 @@ House instead. No blank lines (her draft has none).
   with `…`.
 - The artist is the one viibrmusic.com's song page names (its schema.org
   `byArtist`). It is looked up the first time the lunchbox shows that song and
-  kept in `favorites.artist` ("" when the page names none), so each song is
-  asked about once. When the site cannot be reached the link reads
-  `listen ♪` and the lookup is tried again next time.
+  kept in `favorites.artist` ("" when the page names none or is gone: 404 or
+  410), so each song is asked about once. When the site cannot be reached or
+  gives any other answer (5xx, 429, 403, a redirect) the link reads
+  `listen ♪` and the lookup is tried again next time. The name is put on one
+  line (whitespace and line breaks collapse to single spaces) before it is
+  kept and before it is shown.
 - Link previews stay suppressed (`suppress_embeds`).
 - Empty sections: `║𝄡 none yet`. Lists are cut to fit one message as today.
 

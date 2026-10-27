@@ -138,10 +138,13 @@ class SongSite:
 
     artists: dict[str, str] = field(default_factory=dict)
     asked: list[str] = field(default_factory=list)
+    busy: set[str] = field(default_factory=set)
 
     async def page(self, request: web.Request) -> web.Response:
         uuid = request.match_info["uuid"]
         self.asked.append(uuid)
+        if uuid in self.busy:
+            return web.Response(status=503)
         if uuid not in self.artists:
             return web.Response(status=404)
         data = json.dumps(
@@ -826,6 +829,55 @@ async def test_an_unreachable_site_reads_listen_and_is_asked_again(
     assert f"║𝄡 [listen ♪]({track.url})" in text.splitlines()
     (favorite,) = await repo.favorites(GUILD_ID, 10)
     assert favorite.artist is None
+
+
+async def test_a_busy_site_reads_listen_and_the_artist_is_asked_again(
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+) -> None:
+    track = viibr(10)
+    songs.artists[uuid_of(track)] = "Foggy X Music"
+    songs.busy.add(uuid_of(track))
+    await fed(bot, track, on(YESTERDAY))
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    busy = await lunchbox_text(bot, GUILD_ID)
+
+    assert f"║𝄡 [listen ♪]({track.url})" in busy.splitlines()
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist is None
+
+    songs.busy.clear()
+    back = await lunchbox_text(bot, GUILD_ID)
+
+    assert f"║𝄡 [Foggy X Music]({track.url})" in back.splitlines()
+    assert songs.asked == [uuid_of(track), uuid_of(track)]
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist == "Foggy X Music"
+
+
+async def test_an_artist_with_line_breaks_is_kept_and_shown_on_one_line(
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+) -> None:
+    track = viibr(11)
+    songs.artists[uuid_of(track)] = "Foggy" + chr(10) + "  X" + chr(9) + "Music"
+    await fed(bot, track, on(YESTERDAY))
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert f"║𝄡 [Foggy X Music]({track.url})" in text.splitlines()
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist == "Foggy X Music"
+    assert_fits_its_box(text)
+
+
+def test_a_stored_artist_with_line_breaks_is_shown_on_one_line() -> None:
+    url = viibr(1).url
+
+    line = song_link("Foggy" + chr(10) + chr(10) + "X  Music", url)
+
+    assert line == f"║𝄡 [Foggy X Music]({url})"
+    assert song_link(chr(10) + " ", url) == f"║𝄡 [listen ♪]({url})"
 
 
 def test_a_long_artist_is_shortened_to_fit_the_box() -> None:

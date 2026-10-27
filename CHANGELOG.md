@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-27 (lunchbox artist lookup: review fixes)
+
+- Only a 404 or 410 song page now means "no artist" (kept as ""). Any other
+  answer than the page (5xx, 429, 403, a redirect) raises
+  `aiohttp.ClientResponseError` from `ShareLinkResolver.artist`, so the
+  lunchbox shows `listen ♪`, logs a warning and asks again next time instead
+  of keeping "" for good. Share-link resolving (`resolve`) is unchanged; the
+  lunchbox is the only caller of `artist`.
+- An artist name is put on one line (`cogs.share_links.one_line`: every run
+  of whitespace, line breaks included, becomes one space) before it is kept
+  and again when the link is drawn, so it can never break a box line.
+- Tests: `tests/test_share_links.py` (404/410 name none; 500/503/429/403/301
+  raise; names with line breaks) and `tests/test_wisp_lunchbox.py` (a busy
+  site leaves the artist unknown and the next view stores it, on the real
+  database; a stored name with line breaks is drawn on one line).
+
 ## 2026-10-27 (house style v2.1: spacing, matching bars, wrapping)
 
 - Myra's spacing pass (`DOCS/specs/2026-10-27-house-style.md` is updated to

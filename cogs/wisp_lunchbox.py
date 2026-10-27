@@ -14,6 +14,7 @@ from cogs.announce import display_name, say_in_mealtime
 from cogs.channels import may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
+from cogs.share_links import one_line
 from db.lunchbox import Favorite
 from wisp.life import Life, mood
 from wisp.lines import Moment
@@ -114,12 +115,12 @@ async def _artist(bot: "WispBot", guild_id: int, favorite: Favorite) -> str:
 def song_link(artist: str, url: str) -> str:
     """The song's line: a link named for its artist, or "listen ♪" with none.
 
-    The link is never broken across lines, so a name too wide for the box is
-    shortened with "…" until the line fits.
+    The link is never broken across lines: the name is put on one line, and
+    a name too wide for the box is shortened with "…" until the line fits.
     """
-    if not artist:
+    name = one_line(artist).replace("[", "(").replace("]", ")")
+    if not name:
         return item(f"[{_NO_ARTIST}]({url})")
-    name = artist.replace("[", "(").replace("]", ")")
     shown = name
     while True:
         line = item(f"[{discord.utils.escape_markdown(shown)}]({url})")
