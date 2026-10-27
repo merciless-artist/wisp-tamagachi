@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-27 (FAQ banner pictures: one message per question)
+
+- Myra found the page-shaped FAQ pictures shrank in Discord until the text was
+  tiny, so the FAQ now uses 35 banner pictures, one per question, in
+  `ASSETS/faq/` named `{NN}_{section}_{k}.png`. The 11 one-per-section
+  pictures are removed.
+- `cogs.faq.FaqSection.pictures` is a tuple of file names (was one `picture`).
+  The 11 sections and titles are unchanged. `FAQ_PICTURE_COUNT` is the total.
+- `fill_faq` posts every picture as its own message (one file each, so Discord
+  shows each large, not as a grid), in order, with no pings. The first post's
+  table of contents links each section title to that section's first picture;
+  `table_of_contents` takes every picture's message id and raises `ValueError`
+  unless there is one per picture. The 11 links come to about 1,200 characters,
+  well under the 2,000 limit (tested at the largest possible ids).
+- All posted ids are still stored in `settings.faq_message_ids`, even when
+  posting stops part way, and the old stored ids, including the earlier
+  one-per-section posts, are deleted first. Missing pictures still raise
+  `FileNotFoundError` before anything changes.
+- `ensure_studio` rebuilds the FAQ when the stored id count is not 35, so a
+  restart replaces the earlier 11-picture FAQ by itself.
+- No schema change: `faq_message_ids` is `TEXT` (up to 65,535 bytes); 35 ids
+  are about 750 bytes as JSON. A repo test round-trips 500 ids on the real
+  database.
+- Tests: `tests/test_studio.py` (one file per message in order, links to each
+  section's first picture, one-per-section posts deleted on rebuild, partial
+  failure after 19 pictures stored, missing picture, contents length, code and
+  repo pictures agree) and `tests/test_repos.py`. README updated.
+
 ## 2026-10-27 (lunchbox artist lookup: review fixes)
 
 - Only a 404 or 410 song page now means "no artist" (kept as ""). Any other

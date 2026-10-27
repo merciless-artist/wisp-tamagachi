@@ -153,8 +153,8 @@ where the command was used.
   and updates the quick rules post at the end of the Wisp FAQ. Until staff
   set them, the starting values in `wisp/rules.py` apply.
 - `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
-  pictures and rules post, posts them fresh and updates the table of
-  contents. Run it after the FAQ pictures change in a new release.
+  pictures (one per question, or one per section from before) and rules post,
+  posts them fresh and updates the table of contents. Run it after the FAQ pictures change in a new release.
 - `!wisp freeze` and `!wisp unfreeze` pause and resume the draining of his meters.
 - `!wisp begin` does what the Begin again button does, for when no button
   can be pressed: it lays the next egg after an ending, or answers
@@ -275,7 +275,8 @@ The Studio forum holds six threads, named exactly:
 - `🔒| The ViiBR Vault`: the pinned leaderboard and the shop.
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
-  linking to one picture per section, and its last post is the quick rules
+  linking to each section's first picture, then one banner picture per
+  question, each in a message of its own, and its last post is the quick rules
   with the current numbers.
 - `🧚│Burrito, Fairy God-bot`: Burrito's room. Burrito, a separate bot,
   answers questions about how Wisp works there; Wisp never talks in it. Its
@@ -283,8 +284,9 @@ The Studio forum holds six threads, named exactly:
 
 Each thread's first post but Burrito's carries its picture, which the forum
 shows as the thumbnail. Setup renames a thread whose name differs, adds a
-missing thumbnail and fills a Wisp FAQ that has no sections yet, such as an
-older How Wisp Works thread.
+missing thumbnail and fills a Wisp FAQ whose stored pictures are not the
+current set (35), such as an older How Wisp Works thread or the earlier
+one-picture-per-section FAQ.
 
 ## Errors
 
@@ -325,9 +327,13 @@ posts text only.
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
-- `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's
-  section pictures. These are required: without all eleven the FAQ is not
-  built and the error is posted in its thread.
+- `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
+  question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
+  `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,
+  `06_growing_1` to `_4`, `07_talking_1` to `_4`, `08_games_1` and `_2`,
+  `09_ending_1` to `_3`, `10_fair_1` and `_2` (35 in all). These are
+  required: without all of them the FAQ is not built and the error is posted
+  in its thread.
 - `gifts/<key>.gif` or `gifts/<key>.png` (512px) for each gift, attached
   when Wisp keeps it. An animated GIF is used before a PNG.
 - `keepsakes/<kind>.gif` or `.png` for `eggshell`, `first_spark`,

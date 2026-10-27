@@ -1,6 +1,7 @@
 """Tests for the Studio setup and staff commands, run against fake Discord objects."""
 
 import asyncio
+import io
 import re
 from collections.abc import Iterator
 from datetime import timedelta
@@ -15,6 +16,7 @@ from discord.ext import commands
 
 import app
 from cogs import faq, feeding, groups, pictures, studio
+from cogs.assets import ASSETS_DIR as REAL_ASSETS_DIR
 from cogs.speech import POKE_ID
 from cogs.studio import (
     HOUSE_PANEL,
@@ -103,6 +105,44 @@ THUMBNAILS = {
     FAQ: "thumbs/faq.png",
 }
 FAQ_PICTURES = (
+    "00_how_wisp_works_1.png",
+    "01_basics_1.png",
+    "01_basics_2.png",
+    "01_basics_3.png",
+    "01_basics_4.png",
+    "02_feeding_1.png",
+    "02_feeding_2.png",
+    "02_feeding_3.png",
+    "02_feeding_4.png",
+    "03_vault_1.png",
+    "03_vault_2.png",
+    "03_vault_3.png",
+    "03_vault_4.png",
+    "03_vault_5.png",
+    "04_lunchbox_1.png",
+    "04_lunchbox_2.png",
+    "04_lunchbox_3.png",
+    "05_bond_1.png",
+    "05_bond_2.png",
+    "05_bond_3.png",
+    "06_growing_1.png",
+    "06_growing_2.png",
+    "06_growing_3.png",
+    "06_growing_4.png",
+    "07_talking_1.png",
+    "07_talking_2.png",
+    "07_talking_3.png",
+    "07_talking_4.png",
+    "08_games_1.png",
+    "08_games_2.png",
+    "09_ending_1.png",
+    "09_ending_2.png",
+    "09_ending_3.png",
+    "10_fair_1.png",
+    "10_fair_2.png",
+)
+FAQ_SECTION_SIZES = (1, 4, 4, 5, 3, 3, 4, 4, 2, 3, 2)
+OLD_FAQ_PICTURES = (
     "00_how_wisp_works.png",
     "01_the_basics.png",
     "02_feeding_him.png",
@@ -982,11 +1022,18 @@ async def test_concurrent_ensure_creates_each_thread_once(
 # ---
 
 
+def first_pictures(message_ids: tuple[int, ...]) -> list[int]:
+    """The id of each section's first picture, from every picture's id."""
+    assert len(message_ids) == len(FAQ_PICTURES)
+    starts = [sum(FAQ_SECTION_SIZES[:index]) for index in range(len(FAQ_SECTION_SIZES))]
+    return [message_ids[start] for start in starts]
+
+
 def toc_lines(thread_id: int, message_ids: tuple[int, ...] | None) -> list[str]:
     assert message_ids is not None
     return [
         f"# [{title}](<https://discord.com/channels/{GUILD_ID}/{thread_id}/{id_}>)"
-        for title, id_ in zip(FAQ_TITLES, message_ids, strict=True)
+        for title, id_ in zip(FAQ_TITLES, first_pictures(message_ids), strict=True)
     ]
 
 
@@ -997,7 +1044,7 @@ def sends_without_pinging(kwargs: dict[str, Any]) -> bool:
 
 
 def assert_faq_built(posts: list[MagicMock]) -> list[MagicMock]:
-    """Check the posts are the eleven FAQ pictures then the rules post."""
+    """Check the posts are the 35 FAQ pictures, one each, then the rules post."""
     *sections, rules_post = posts
     assert [section.attachments for section in sections] == [
         [name] for name in FAQ_PICTURES
@@ -1121,7 +1168,7 @@ async def test_a_built_faq_is_not_built_again(
 async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_on(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
-    missing = art_dir / "faq" / "05_your_bond.png"
+    missing = art_dir / "faq" / "05_bond_2.png"
     missing.unlink()
 
     ctx = await run_setup(bot, server)
@@ -1129,7 +1176,7 @@ async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_o
     thread = server.thread_named(FAQ)
     (report,) = [post.content for post in thread.posts]
     assert report.startswith("Error in building the Wisp FAQ: FileNotFoundError")
-    assert "05_your_bond.png" in report
+    assert "05_bond_2.png" in report
     assert (await bot.settings.get(GUILD_ID)).faq_message_ids is None
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
     assert house_posts(server) == []
@@ -1155,7 +1202,7 @@ async def test_a_build_that_fails_part_way_keeps_what_it_posted(
             def send(*args: Any, **fields: Any) -> MagicMock:
                 nonlocal sends
                 sends += 1
-                if sends == 3:
+                if sends == 20:
                     raise discord.HTTPException(MagicMock(status=500), "Server Error")
                 posted: MagicMock = post(*args, **fields)
                 return posted
@@ -1168,15 +1215,19 @@ async def test_a_build_that_fails_part_way_keeps_what_it_posted(
     await run_setup(bot, server)
 
     thread = server.thread_named(FAQ)
-    first, second, report = server.live_posts(thread)
+    *posted, report = server.live_posts(thread)
     assert report.content.startswith("Error in building the Wisp FAQ: HTTPException")
+    assert [post.attachments for post in posted] == [
+        [name] for name in FAQ_PICTURES[:19]
+    ]
     settings = await bot.settings.get(GUILD_ID)
-    assert settings.faq_message_ids == (first.id, second.id)
+    assert settings.faq_message_ids == tuple(post.id for post in posted)
+    assert settings.rules_message_id is None
     assert server.messages[thread.id].content == "Loading the FAQ..."
 
     await ensure_studio(bot, GUILD_ID)
 
-    assert server.deleted == [first.id, second.id]
+    assert server.deleted == [post.id for post in posted]
     report_left, *rebuilt = server.live_posts(thread)
     assert report_left is report
     assert_faq_built(rebuilt)
@@ -1227,6 +1278,93 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     assert house_posts(server) == []
 
 
+async def test_every_picture_is_one_file_in_a_message_of_its_own(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    *pictures_posted, rules_post = server.live_posts(server.thread_named(FAQ))
+
+    assert len(pictures_posted) == len(FAQ_PICTURES) == 35
+    for post in pictures_posted:
+        assert "file" in post.sent_kwargs
+        assert "files" not in post.sent_kwargs
+        assert post.content is None
+    assert rules_post.attachments == []
+
+
+async def test_each_table_of_contents_link_opens_its_sections_first_picture(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+
+    links = re.findall(
+        r"\[(.+?)\]\(<https://discord.com/channels/(\d+)/(\d+)/(\d+)>\)",
+        server.messages[thread.id].content,
+    )
+
+    assert [title for title, *_ in links] == list(FAQ_TITLES)
+    assert {(guild, thread_id) for _, guild, thread_id, _ in links} == {
+        (str(GUILD_ID), str(thread.id))
+    }
+    first_files = [
+        server.messages[int(message_id)].attachments for *_, message_id in links
+    ]
+    assert first_files == [
+        [FAQ_PICTURES[sum(FAQ_SECTION_SIZES[:index])]]
+        for index in range(len(FAQ_SECTION_SIZES))
+    ]
+
+
+async def test_one_per_section_posts_from_before_are_deleted_on_the_rebuild(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    old = server.add_thread(FAQ, "Loading the FAQ...")
+    old_posts = [
+        await old.send(file=discord.File(io.BytesIO(b"png"), filename=name))
+        for name in OLD_FAQ_PICTURES
+    ]
+    old_rules = await old.send(rules_text(rules.MEAL_POINTS))
+    await bot.settings.update(
+        GUILD_ID,
+        studio_forum_id=FORUM_ID,
+        rules_thread_id=old.id,
+        rules_message_id=old_rules.id,
+        faq_message_ids=tuple(post.id for post in old_posts),
+    )
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.deleted == [*(post.id for post in old_posts), old_rules.id]
+    *pictures_posted, rules_post = assert_faq_built(server.live_posts(old))
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.faq_message_ids == tuple(post.id for post in pictures_posted)
+    assert settings.rules_message_id == rules_post.id
+    assert server.messages[old.id].content.splitlines() == toc_lines(
+        old.id, settings.faq_message_ids
+    )
+
+
+@pytest.mark.parametrize("count", [0, 11, 34, 36])
+def test_the_table_of_contents_needs_one_id_per_picture(count: int) -> None:
+    with pytest.raises(ValueError, match="35 picture messages"):
+        faq.table_of_contents(GUILD_ID, 1, tuple(range(count)))
+
+
+def test_the_code_lists_the_banner_pictures_and_all_of_them_are_in_the_repo() -> None:
+    listed = [name for section in faq.FAQ_SECTIONS for name in section.pictures]
+
+    assert listed == list(FAQ_PICTURES)
+    assert [len(section.pictures) for section in faq.FAQ_SECTIONS] == list(
+        FAQ_SECTION_SIZES
+    )
+    assert [section.title for section in faq.FAQ_SECTIONS] == list(FAQ_TITLES)
+    assert faq.FAQ_PICTURE_COUNT == len(FAQ_PICTURES)
+    on_disk = sorted(path.name for path in (REAL_ASSETS_DIR / "faq").iterdir())
+    assert on_disk == sorted(FAQ_PICTURES)
+
+
 async def test_faq_command_skips_posts_already_gone_and_never_the_first_post(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -1260,15 +1398,15 @@ async def test_faq_command_without_a_studio_says_how_to_set_it_up(
 
 
 def test_table_of_contents_fits_one_message() -> None:
-    biggest = tuple(10**20 - index for index in range(len(FAQ_TITLES)))
+    biggest = tuple(10**20 - index for index in range(len(FAQ_PICTURES)))
 
     text = faq.table_of_contents(10**20, 10**20, biggest)
 
     assert text.splitlines() == [
         f"# [{title}](<https://discord.com/channels/{10**20}/{10**20}/{id_}>)"
-        for title, id_ in zip(FAQ_TITLES, biggest, strict=True)
+        for title, id_ in zip(FAQ_TITLES, first_pictures(biggest), strict=True)
     ]
-    assert len(text) < MESSAGE_LIMIT
+    assert text_length(text) < MESSAGE_LIMIT
 
 
 # ---
