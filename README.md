@@ -167,9 +167,10 @@ Member commands:
 
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
-- `/wisp vault` is the shop: buy snacks with your points, get a badge, or
-  give Wisp a gift from one of seven collections: pick a collection, then a
-  gift. He might not like it.
+- `/wisp vault` is the shop: buy snacks with your wisp coins (WC, the points
+  you can spend), get a badge, or give Wisp a gift from one of seven
+  collections: pick a collection, then a gift. He might not like it. It is one
+  private Components V2 message with each menu under its section.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks, keepsakes
   like a Last Ember, and every badge you ever wore, with a button to shop
   the Vault.
@@ -188,8 +189,10 @@ the purchase is undone and the points come back.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
-  the gift collections of this life.
-  Anyone can look, banned members included.
+  the gift collections of this life. It is posted publicly where it was asked
+  for, pinging nobody and with no link previews; asked for in the track drop,
+  it is posted in Wisp's House instead (or shown only to the member when there
+  is no House). Anyone can look, banned members included.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his Care
   and pays 1 Vault point.
@@ -307,7 +310,11 @@ posts text only.
 App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `gift_<key>` for each gift key,
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
-`wisp_coin`, `wisp_happy`, `wisp_hangry`, `wisp_sad`.
+`wisp_coin`, `wisp_coin_mini` (prices and balances), `viibr_logo` (the Vault's
+title), the status card's meters `care_full` / `care_left`, `happiness_full` /
+`happiness_left` and `full_full` / `full_left`, `wisp_happy`, `wisp_hangry`,
+`wisp_sad`. The layouts are Myra's house style,
+`DOCS/specs/2026-10-27-house-style.md`.
 
 ## Testing
 

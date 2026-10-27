@@ -23,6 +23,7 @@ from wisp.rules import (
 from wisp.voice import (
     COIN_EMOJI,
     EGG_EXPRESSION,
+    MINI_COIN_EMOJI,
     NO_U_GIF,
     ChatLine,
     Fed,
@@ -647,6 +648,7 @@ APP_EMOJIS = {
     "badge_team_viibr",
     "badge_egg_warmer",
     COIN_EMOJI,
+    MINI_COIN_EMOJI,
 }
 
 
@@ -716,6 +718,10 @@ def note_for(name: str) -> str:
         ("badge_team_viibr", "badge_team_viibr, which is your Team ViiBR badge"),
         ("badge_egg_warmer", "badge_egg_warmer, which is your Egg Warmer badge"),
         (COIN_EMOJI, "wisp_coin, which is the coin members spend in the ViiBR Vault"),
+        (
+            MINI_COIN_EMOJI,
+            "wisp_coin_mini, which is the coin members spend in the ViiBR Vault",
+        ),
         ("WispLove", "WispLove, which is a ViiBR emote of Wisp"),
     ],
 )

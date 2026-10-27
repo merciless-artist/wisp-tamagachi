@@ -12,13 +12,15 @@ from cogs.snacks import vault_view
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
-from wisp.text import SEPARATOR, count, fit
+from wisp.text import BOX_CLOSE, box_open, count, fit, heading, item, sections, sub
 
 if TYPE_CHECKING:
     from app import WispBot
 
+_TITLE: Final = "𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹"
 _INTRO: Final = (
-    "Snacks and the leaderboard. Shop or open your Snack Pack with the buttons below."
+    sub("Snacks and the leaderboard."),
+    item("Shop or open your Snack Pack with the buttons below."),
 )
 
 # ---
@@ -59,7 +61,8 @@ def version_line(life: Life, now: datetime) -> str:
 async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
     """Build the Vault card: two top tens, the top rhymers, then every version.
 
-    The history is trimmed from the oldest end so the text fits one message.
+    The history is trimmed from the oldest end so the text fits one message;
+    the box always closes.
     """
     history = await bot.lives.history(guild_id)
     current_id = history[0].id if history else None
@@ -70,36 +73,35 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
     )
     all_time = await bot.players.top_lifetime(guild_id, LEADERBOARD_SIZE)
     this_life_lines = [
-        f"・{place}. <@{user_id}> ・ {count(points, 'point')}"
+        item(f"{place}. <@{user_id}> ・ {count(points, 'point')}")
         for place, (user_id, points) in enumerate(this_life, start=1)
-    ] or ["・Nobody has fed him yet"]
+    ] or [item("Nobody has fed him yet")]
     all_time_lines = [
-        f"・{place}. <@{player.user_id}> ・ {count(player.lifetime_points, 'point')}"
-        f" ・ {tier_for(player.bond)}"
+        item(
+            f"{place}. <@{player.user_id}> ・ {count(player.lifetime_points, 'point')}"
+            f" ・ {tier_for(player.bond)}"
+        )
         for place, player in enumerate(all_time, start=1)
-    ] or ["・Nobody has points yet"]
+    ] or [item("Nobody has points yet")]
     rhymers = await bot.players.top_rhyme(guild_id, RHYME_LEADERBOARD_SIZE)
     rhyme_lines = [
-        f"・{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
+        item(
+            f"{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
+        )
         for place, player in enumerate(rhymers, start=1)
-    ] or ["・Nobody has dueled him yet"]
+    ] or [item("Nobody has dueled him yet")]
     head = [
-        "♪ The ViiBR Vault",
-        _INTRO,
-        SEPARATOR,
-        "This life",
-        *this_life_lines,
-        SEPARATOR,
-        "All time",
-        *all_time_lines,
-        SEPARATOR,
-        "Rhyme Duel",
-        *rhyme_lines,
-        SEPARATOR,
-        "Versions",
+        *box_open(_TITLE),
+        *sections(
+            _INTRO,
+            [heading("This life"), *this_life_lines],
+            [heading("All time"), *all_time_lines],
+            [heading("Rhyme Duel"), *rhyme_lines],
+            [heading("Versions")],
+        ),
     ]
-    versions = [version_line(life, now) for life in history] or ["・None yet"]
-    return fit(head, versions)
+    versions = [item(version_line(life, now)) for life in history] or [item("None yet")]
+    return fit(head, versions, BOX_CLOSE)
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:

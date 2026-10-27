@@ -22,7 +22,6 @@ from cogs import announce, life_loop, pictures
 from cogs.announce import BEGIN_AGAIN
 from cogs.conversation import PokeButton
 from cogs.life_loop import BeginButton, LifeLoop
-from cogs.players import WAITING
 from cogs.snacks import FeedButton
 from cogs.staff import staff_check
 from cogs.studio import HOUSE_PANEL
@@ -37,7 +36,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.bond import happiness
-from wisp.card import CardFacts, bar, render_status
+from wisp.card import WAITING, CardFacts, bar, render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -408,7 +407,7 @@ async def test_tick_edits_status_message(
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
     assert kwargs["content"] == render_status(
-        after, NOW, card_facts(happiness(1), 1, viibr=2, suno=1)
+        after, NOW, card_facts(happiness(1), 1, viibr=2, suno=1), bot.emoji
     )
     assert f"<@{WISP_ID}>" in kwargs["content"]
     assert f"<#{HOUSE_ID}>" in kwargs["content"]
@@ -434,7 +433,7 @@ async def test_fed_today_counts_only_the_current_utc_day(
 
     after = await current_life(bot)
     assert server.card_edit.await_args.kwargs["content"] == render_status(
-        after, NOW, card_facts(happiness(1), 1)
+        after, NOW, card_facts(happiness(1), 1), bot.emoji
     )
 
 
@@ -451,7 +450,7 @@ async def test_happy_counts_only_chatters(
     await cog.run_tick(NOW)
 
     content = server.card_edit.await_args.kwargs["content"]
-    assert bar(happiness(1), "🟪") in content
+    assert f"║𝄡 Happy   {bar(happiness(1), '', '')}" in content.splitlines()
 
 
 async def test_missing_status_message_is_reposted(
@@ -811,7 +810,7 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
 
     assert order == ["card", "vault"]
     content = server.vault_edit.await_args.kwargs["content"]
-    assert content.startswith("♪ The ViiBR Vault")
+    assert content.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
     assert f"<@{USER_ID}>" in content
 
 

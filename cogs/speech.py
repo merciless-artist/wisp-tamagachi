@@ -19,6 +19,7 @@ from wisp.rules import (
 from wisp.voice import (
     COIN_EMOJI,
     EGG_EXPRESSION,
+    MINI_COIN_EMOJI,
     NAP_EMOJI,
     ChatLine,
     Reply,
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 
 POKE_ID: Final = "wisp:poke"
 _EXPRESSION_PREFIX: Final = "wisp_"
-_NOT_HIS_FACES: Final = frozenset({COIN_EMOJI, EGG_EXPRESSION})
+_NOT_HIS_FACES: Final = frozenset({COIN_EMOJI, MINI_COIN_EMOJI, EGG_EXPRESSION})
 _OUTAGE_STREAK: Final = "ai"
 _CONTEXT: Final = "Wisp's AI voice"
 
@@ -42,7 +43,7 @@ _CONTEXT: Final = "Wisp's AI voice"
 def expressions(bot: "WispBot", stage: Stage) -> list[str]:
     """Names of hatched Wisp's uploaded emojis he can use at `stage`, sorted.
 
-    The coin is not a face, the egg's face is only the egg's and the nap is
+    The coins are not faces, the egg's face is only the egg's and the nap is
     only for the stages that have nap art.
     """
     unavailable = (

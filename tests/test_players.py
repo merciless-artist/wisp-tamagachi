@@ -24,7 +24,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.bond import happiness
-from wisp.card import bar
+from wisp.card import WAITING, bar
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
@@ -224,8 +224,8 @@ async def test_status_card_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
     await run(players.wisp_status, interaction)
 
     (text,) = followups(interaction)
-    assert "・Fed by 02 people today・" in text
-    assert "・1 ViiBR track and 2 Suno tracks・" in text
+    assert "║𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
+    assert "║𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks・♪‿♫ ♪" in text.splitlines()
     assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
 
 
@@ -248,8 +248,8 @@ async def test_status_while_waiting_to_begin_again_says_so(
     await run(players.wisp_status, interaction)
 
     (text,) = followups(interaction)
-    assert text == players.WAITING
-    assert text == "♪ No Wisp right now. Waiting for staff to begin again."
+    assert text == WAITING
+    assert "║𝄡𝄚𝄂 No Wisp right now. Waiting for staff to begin again." in text
 
 
 # ---
@@ -360,7 +360,7 @@ async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
     interaction = make_interaction(bot)
     await run(players.wisp_status, interaction)
     (text,) = followups(interaction)
-    assert bar(happiness(1), "🟪") in text
+    assert f"║𝄡 Happy   {bar(happiness(1), '', '')}" in text.splitlines()
 
 
 async def test_chats_older_than_a_day_do_not_make_him_happy(

@@ -6,6 +6,7 @@ Discord objects are fakes; the repositories are the real ones.
 import random
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -28,18 +29,35 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import MESSAGE_LIMIT, SEPARATOR
+from wisp.text import MESSAGE_LIMIT, SECTION_BREAK, text_length
 
 GUILD_ID = 100
 OTHER_GUILD_ID = 200
 FORUM_ID = 10
 HOUSE_ID = 20
 MEALTIME_ID = 30
+TRACKS_ID = 40
+LOUNGE_ID = 50
 FIRST = 1
 SECOND = 2
 NOW = datetime(2026, 10, 23, 0, 5, tzinfo=UTC)
 YESTERDAY = date(2026, 10, 22)
 NO_PING = discord.AllowedMentions.none().to_dict()
+TITLE = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
+BOX_TOP = "╔════════════════════╗"
+BOX_BOTTOM = "╚════════════════════╝"
+BOTTOM_BAR = "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
+NONE_YET = "║𝄡 none yet"
+SONGS = "║𝄡𝄚𝄂𝄆 **Favorite songs**"
+SNACK = "║𝄡𝄚𝄂𝄆 **Favorite snack**"
+EMOJI = "║𝄡𝄚𝄂𝄆 **Favorite emoji**"
+COLLECTIONS = "║𝄡𝄚𝄂𝄆 **Collections**"
+SPEC_LINES = frozenset(
+    (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
+    .read_bytes()
+    .decode("utf-8")
+    .splitlines()
+)
 
 # ---
 # Fakes
@@ -108,6 +126,7 @@ async def configured(bot: app.WispBot) -> None:
         house_channel_id=HOUSE_ID,
         studio_forum_id=FORUM_ID,
         mealtime_thread_id=MEALTIME_ID,
+        tracks_channel_id=TRACKS_ID,
     )
 
 
@@ -163,10 +182,16 @@ def say(bot: app.WispBot, line: str = "mine now") -> MagicMock:
     return cast(MagicMock, bot.lines.pick)
 
 
-def make_interaction(bot: app.WispBot, user_id: int = FIRST) -> MagicMock:
+def make_interaction(
+    bot: app.WispBot, server: FakeServer, user_id: int = FIRST
+) -> MagicMock:
+    """An interaction in a lounge channel of the server."""
     interaction = MagicMock(spec=discord.Interaction)
     interaction.client = bot
+    interaction.guild = server.guild
     interaction.guild_id = GUILD_ID
+    interaction.channel = MagicMock(spec=discord.TextChannel)
+    interaction.channel.id = LOUNGE_ID
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.response = MagicMock()
@@ -176,15 +201,23 @@ def make_interaction(bot: app.WispBot, user_id: int = FIRST) -> MagicMock:
     return interaction
 
 
-async def open_lunchbox(bot: app.WispBot, user_id: int = FIRST) -> MagicMock:
-    interaction = make_interaction(bot, user_id)
+async def open_lunchbox(
+    bot: app.WispBot, server: FakeServer, interaction: MagicMock | None = None
+) -> MagicMock:
+    interaction = interaction or make_interaction(bot, server)
     command: Any = wisp_lunchbox.wisp_lunchbox
     await command.callback(interaction)
     return interaction
 
 
 def sections(text: str) -> list[list[str]]:
-    return [part.splitlines() for part in text.split(SEPARATOR + "\n")]
+    """The lunchbox's sections inside its frame."""
+    lines = text.splitlines()
+    assert lines[:2] == [TITLE, BOX_TOP]
+    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    return [
+        part.splitlines() for part in "\n".join(lines[2:-2]).split(SECTION_BREAK + "\n")
+    ]
 
 
 # ---
@@ -448,21 +481,88 @@ async def test_no_expressions_recorded_means_none(repo: WispLunchboxRepo) -> Non
 # ---
 
 
-async def test_an_empty_lunchbox_says_nothing_yet(bot: app.WispBot) -> None:
-    interaction = await open_lunchbox(bot)
+async def test_the_lunchbox_is_posted_publicly_where_it_was_asked_for(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = await open_lunchbox(bot, server)
+
+    interaction.response.defer.assert_awaited_once_with()
+    call = interaction.followup.send.await_args
+    assert "ephemeral" not in call.kwargs
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert call.kwargs["suppress_embeds"] is True
+    (text,) = call.args
+    assert text == await lunchbox_text(bot, GUILD_ID)
+    server.house.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+async def test_asked_for_in_the_track_drop_it_goes_to_the_house(
+    bot: app.WispBot, server: FakeServer, in_thread: bool
+) -> None:
+    interaction = make_interaction(bot, server)
+    if in_thread:
+        interaction.channel = MagicMock(spec=discord.Thread)
+        interaction.channel.id = 99
+        interaction.channel.parent_id = TRACKS_ID
+    else:
+        interaction.channel.id = TRACKS_ID
+
+    await open_lunchbox(bot, server, interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    kwargs = interaction.followup.send.await_args.kwargs
-    assert kwargs["ephemeral"] is True
-    assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert kwargs["suppress_embeds"] is True
-    (text,) = interaction.followup.send.await_args.args
+    server.house.send.assert_awaited_once()
+    post = server.house.send.await_args
+    assert post.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert post.kwargs["suppress_embeds"] is True
+    told = interaction.followup.send.await_args
+    assert told.args == (f"♪ Wisp's lunchbox is open in <#{HOUSE_ID}>.",)
+    assert told.kwargs["ephemeral"] is True
+    assert told.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
+async def test_in_the_track_drop_with_no_house_it_is_shown_privately(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, house_channel_id=None)
+    interaction = make_interaction(bot, server)
+    interaction.channel.id = TRACKS_ID
+
+    await open_lunchbox(bot, server, interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    server.house.send.assert_not_awaited()
+    call = interaction.followup.send.await_args
+    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert call.kwargs["suppress_embeds"] is True
+
+
+async def test_a_channel_that_cannot_be_placed_counts_as_the_track_drop(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+    interaction.channel = MagicMock(spec=discord.PartialMessageable)
+
+    await open_lunchbox(bot, server, interaction)
+
+    server.house.send.assert_awaited_once()
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+
+
+async def test_an_empty_lunchbox_says_none_yet(bot: app.WispBot) -> None:
+    text = await lunchbox_text(bot, GUILD_ID)
+
     assert sections(text) == [
-        ["♪ Wisp's lunchbox"],
-        ["Favorite songs", "・Nothing yet"],
-        ["Favorite snack", "・Nothing yet", "Favorite emoji", "・Nothing yet"],
-        ["Collections", "・Nothing yet"],
+        [SONGS, NONE_YET],
+        [SNACK, NONE_YET],
+        [EMOJI, NONE_YET],
+        [COLLECTIONS, NONE_YET],
     ]
+    for line in (TITLE, BOX_TOP, SONGS, SNACK, EMOJI, COLLECTIONS, BOTTOM_BAR):
+        assert line in SPEC_LINES, line
 
 
 async def test_the_lunchbox_shows_songs_snack_and_emoji(
@@ -480,19 +580,16 @@ async def test_the_lunchbox_shows_songs_snack_and_emoji(
     text = await lunchbox_text(bot, GUILD_ID)
 
     assert sections(text) == [
-        ["♪ Wisp's lunchbox"],
         [
-            "Favorite songs",
-            f"・Oct 22 ・ <@{SECOND}> ・ {viibr(2).url}",
-            f"・Oct 2 ・ <@{FIRST}> ・ {viibr(1).url}",
+            SONGS,
+            f"║𝄡𝄚𝄂 Oct 22 ・ <@{SECOND}>",
+            f"║𝄡 {viibr(2).url}",
+            f"║𝄡𝄚𝄂 Oct 2 ・ <@{FIRST}>",
+            f"║𝄡 {viibr(1).url}",
         ],
-        [
-            "Favorite snack",
-            f"・{emoji_text('snack_cheese', 1)} Cheese",
-            "Favorite emoji",
-            f"・{emoji_text('wisp_wink', 2)}",
-        ],
-        ["Collections", "・Nothing yet"],
+        [SNACK, f"║𝄡 {emoji_text('snack_cheese', 1)} Cheese"],
+        [EMOJI, f"║𝄡 {emoji_text('wisp_wink', 2)}"],
+        [COLLECTIONS, NONE_YET],
     ]
 
 
@@ -503,7 +600,7 @@ async def test_the_favorite_snack_reads_without_its_emoji(bot: app.WispBot) -> N
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert "Favorite snack\n・ViiBR Wave\n" in text
+    assert [SNACK, "║𝄡 ViiBR Wave"] in sections(text)
 
 
 async def test_an_egg_has_no_favorite_snack_yet(bot: app.WispBot) -> None:
@@ -511,7 +608,7 @@ async def test_an_egg_has_no_favorite_snack_yet(bot: app.WispBot) -> None:
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert "Favorite snack\n・Nothing yet\n" in text
+    assert [SNACK, NONE_YET] in sections(text)
 
 
 async def test_an_emoji_no_longer_uploaded_gives_way_to_the_next(
@@ -522,17 +619,17 @@ async def test_an_emoji_no_longer_uploaded_gives_way_to_the_next(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert f"Favorite emoji\n・{emoji_text('wisp_happy', 1)}\n" in text
+    assert [EMOJI, f"║𝄡 {emoji_text('wisp_happy', 1)}"] in sections(text)
 
 
-async def test_no_uploaded_emoji_shows_nothing_yet(
+async def test_no_uploaded_emoji_shows_none_yet(
     bot: app.WispBot, repo: WispLunchboxRepo
 ) -> None:
     await repo.record_expressions(GUILD_ID, ["wisp_gone"])
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert "Favorite emoji\n・Nothing yet\n" in text
+    assert [EMOJI, NONE_YET] in sections(text)
 
 
 async def test_the_lunchbox_shows_the_newest_songs_only(
@@ -543,10 +640,11 @@ async def test_the_lunchbox_shows_the_newest_songs_only(
         await fed(bot, viibr(ident), on(day))
         await repo.pick_favorite(GUILD_ID, day, random.Random(), NOW)
 
-    songs = sections(await lunchbox_text(bot, GUILD_ID))[1][1:]
+    songs = sections(await lunchbox_text(bot, GUILD_ID))[0][1:]
 
-    assert len(songs) == rules.FAVORITE_SONGS_SHOWN
-    assert songs[0].startswith("・Oct 22 ・")
+    assert len(songs) == 2 * rules.FAVORITE_SONGS_SHOWN
+    assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
+    assert songs[1].startswith("║𝄡 https://viibrmusic.com/")
     assert len(await repo.favorites(GUILD_ID, 100)) == 12
 
 
@@ -571,20 +669,24 @@ async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert len(text) <= MESSAGE_LIMIT
-    songs = sections(text)[1][1:]
-    assert 0 < len(songs) < rules.FAVORITE_SONGS_SHOWN
-    assert songs[0].startswith("・Oct 22 ・")
-    assert "Favorite emoji\n・Nothing yet\n" in text
+    assert text_length(text) <= MESSAGE_LIMIT
+    songs = sections(text)[0][1:]
+    assert 0 < len(songs) < 2 * rules.FAVORITE_SONGS_SHOWN
+    assert len(songs) % 2 == 0
+    assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
+    assert songs[-1] == f"║𝄡 {long_url}"
+    assert [EMOJI, NONE_YET] in sections(text)
 
 
-async def test_a_banned_member_can_still_look(bot: app.WispBot) -> None:
+async def test_a_banned_member_can_still_look(
+    bot: app.WispBot, server: FakeServer
+) -> None:
     await bot.players.set_offense(GUILD_ID, FIRST, 3, None, True)
 
-    interaction = await open_lunchbox(bot)
+    interaction = await open_lunchbox(bot, server)
 
     (text,) = interaction.followup.send.await_args.args
-    assert text.startswith("♪ Wisp's lunchbox")
+    assert text.startswith(TITLE)
 
 
 # ---

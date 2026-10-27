@@ -34,17 +34,28 @@ from wisp.rules import (
     Gift,
     GiftCollection,
 )
-from wisp.text import VAULT_RAIL, count, richest, text_length, with_emoji
+from wisp.text import (
+    heading,
+    item,
+    note,
+    richest,
+    sub,
+    text_length,
+    with_emoji,
+)
+from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Gifts have to wait until he is."
 _BACK_IN_VAULT: Final = "♪ It's back in the ViiBR Vault."
-_KEPT_TODAY: Final = (
-    f"{VAULT_RAIL}Wisp already picked his treasure today. "
+_GAMBLE: Final = note("ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ")
+_KEPT_TODAY: Final = note(
+    "Wisp already picked his treasure today. "
     "Anything you give him goes back to the Vault."
 )
+_HATCH_FIRST: Final = item("He takes gifts once he has hatched")
 _MOMENTS: Final = {
     Outcome.KEPT: Moment.GIFT_KEPT,
     Outcome.PASSED: Moment.GIFT_PASSED,
@@ -138,16 +149,16 @@ def gift_section(bot: "WispBot", state: GiftState | None, room: int) -> list[str
     lines take at most `room`, counted by `text_length`: a collection shows
     each gift while there is room, else how many are left.
     """
-    price = count(GIFT_COST, "point")
-    heading = f"{VAULT_RAIL}**Gifts**・{price} each・he might not like it"
+    price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{GIFT_COST} WC each")
+    head = [f"{heading('Gifts')}・{price}", _GAMBLE]
     if state is None:
-        return [heading, f"{VAULT_RAIL}He takes gifts once he has hatched"]
-    head = [heading, *([_KEPT_TODAY] if state.kept_today else [])]
+        return [*head, _HATCH_FIRST]
+    if state.kept_today:
+        head.append(_KEPT_TODAY)
 
     def lines(rich: bool) -> list[str]:
         return [
-            f"{VAULT_RAIL}{collection.name}: "
-            + _stock(bot, state, collection, rich=rich)
+            item(f"{collection.name}: {_stock(bot, state, collection, rich=rich)}")
             for collection in GIFT_COLLECTIONS
         ]
 
@@ -186,7 +197,7 @@ def gift_options(
         discord.SelectOption(
             label=gift.title,
             value=gift.key,
-            description=count(GIFT_COST, "point"),
+            description=f"{GIFT_COST} WC",
             emoji=bot.emojis_by_name.get(gift.emoji_name),
         )
         for gift in state.offered_from(collection)
@@ -336,10 +347,11 @@ async def announce_gift(
 def collection_lines(
     bot: "WispBot", kept: Sequence[GiftAttempt], room: int
 ) -> list[str]:
-    """One line per collection this life has kept gifts from, in catalog order.
+    """The lunchbox lines of each collection this life kept gifts from, in order.
 
-    The lines take at most `room` characters: an unfinished collection lists
-    its gifts and givers while there is room, else only its progress.
+    Each collection is one entry of the list, its lines joined. The entries
+    take at most `room`, counted by `text_length`: an unfinished collection
+    lists its gifts and givers while there is room, else only its progress.
     """
     plain: list[str] = []
     rich: list[str] = []
@@ -352,18 +364,21 @@ def collection_lines(
         ]
         if not got:
             continue
-        progress = f"・{collection.name} {len(got)}/{len(collection.gifts)}"
+        progress = f"{collection.name} {len(got)}/{len(collection.gifts)}"
         if len(got) == len(collection.gifts):
-            done = f"{progress} complete ・ finished by <@{got[-1][1]}>"
+            done = sub(f"{progress} complete ・ finished by <@{got[-1][1]}>")
             plain.append(done)
             rich.append(done)
             continue
         items = (
-            f"{with_emoji(bot.emoji(gift.emoji_name), gift.name)} (from <@{user_id}>)"
+            item(
+                f"{with_emoji(bot.emoji(gift.emoji_name), gift.name)} ・ "
+                f"from <@{user_id}>"
+            )
             for gift, user_id in got
         )
-        plain.append(progress)
-        rich.append(f"{progress} ・ {' ・ '.join(items)}")
+        plain.append(sub(progress))
+        rich.append("\n".join([sub(progress), *items]))
     return richest(plain, rich, room)
 
 

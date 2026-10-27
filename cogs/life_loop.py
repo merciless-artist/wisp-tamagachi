@@ -32,7 +32,6 @@ from cogs.groups import require_guild
 from cogs.pictures import life_image
 from cogs.players import (
     EXPECTED_FAILURES,
-    WAITING,
     bot_of,
     current_happiness,
     report_failure,
@@ -44,6 +43,7 @@ from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
+from wisp.card import WAITING
 from wisp.life import Event, EventKind, Life, Phase, is_over, schedule_cold, tick
 from wisp.lines import Moment
 from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY

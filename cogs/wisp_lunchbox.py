@@ -7,18 +7,31 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.announce import display_name, say_in_mealtime
+from cogs.channels import may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, fit, with_emoji
+from wisp.text import (
+    BOX_CLOSE,
+    MESSAGE_LIMIT,
+    SECTION_BREAK,
+    box_open,
+    fit,
+    heading,
+    item,
+    sub,
+    text_length,
+    with_emoji,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
-_NOTHING_YET: Final = "・Nothing yet"
+_NOTHING_YET: Final = item("none yet")
+_TITLE: Final = "𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍"
 
 # ---
 # Favorite songs
@@ -69,21 +82,21 @@ def _favorite_snack(bot: "WispBot", life: Life | None) -> str:
     snack = None if life is None else SNACK_BY_KEY.get(life.favorite_snack or "")
     if snack is None:
         return _NOTHING_YET
-    return f"・{with_emoji(bot.emoji(snack.emoji_name), snack.name)}"
+    return item(with_emoji(bot.emoji(snack.emoji_name), snack.name))
 
 
 async def _favorite_emoji(bot: "WispBot", guild_id: int) -> str:
     """His most used expression that is still uploaded."""
     for name in await bot.wisp_lunchbox.favorite_expressions(guild_id):
         if name in bot.emojis_by_name:
-            return f"・{bot.emoji(name)}"
+            return item(bot.emoji(name))
     return _NOTHING_YET
 
 
 async def _collections(
     bot: "WispBot", guild_id: int, life: Life | None, room: int
 ) -> list[str]:
-    """The gift collections of the current life, `life`, in `room` characters."""
+    """The gift collections of the current life, `life`, within `room`."""
     if life is None or life.id is None:
         return [_NOTHING_YET]
     kept = await bot.gifts.kept(guild_id, life.id)
@@ -91,44 +104,74 @@ async def _collections(
 
 
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
-    """Wisp's lunchbox, trimmed so it fits one message.
+    """Wisp's lunchbox in its frame, trimmed so it fits one message.
 
-    The collections list their gifts in whatever room the songs leave, and
-    the oldest songs go when even their short lines do not fit.
+    Each song is its day and sharer, then its link. The collections list
+    their gifts in whatever room the songs leave, and the oldest songs go
+    when even the collections' short lines do not fit. The box always closes.
     """
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
     life = await bot.lives.current(guild_id)
     songs = [
-        f"・{_short_day(favorite.day)} ・ <@{favorite.user_id}> ・ {favorite.url}"
+        "\n".join(
+            [
+                sub(f"{_short_day(favorite.day)} ・ <@{favorite.user_id}>"),
+                item(favorite.url),
+            ]
+        )
         for favorite in favorites
     ]
-    head = ["♪ Wisp's lunchbox", SEPARATOR, "Favorite songs"]
+    head = [*box_open(_TITLE), heading("Favorite songs")]
     middle = [
         *([] if songs else [_NOTHING_YET]),
-        SEPARATOR,
-        "Favorite snack",
+        SECTION_BREAK,
+        heading("Favorite snack"),
         _favorite_snack(bot, life),
-        "Favorite emoji",
+        SECTION_BREAK,
+        heading("Favorite emoji"),
         await _favorite_emoji(bot, guild_id),
-        SEPARATOR,
-        "Collections",
+        SECTION_BREAK,
+        heading("Collections"),
     ]
-    room = MESSAGE_LIMIT - len("\n".join([*head, *songs, *middle])) - 1
+    framing = "\n".join([*head, *songs, *middle, *BOX_CLOSE])
+    room = MESSAGE_LIMIT - text_length(framing) - 1
     collections = await _collections(bot, guild_id, life, room)
-    return fit(head, songs, [*middle, *collections])
+    return fit(head, songs, [*middle, *collections, *BOX_CLOSE])
 
 
 @wisp.command(name="lunchbox", description="See the things Wisp keeps in his lunchbox.")
 async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show Wisp's lunchbox, only to the member who asked. Anyone may look."""
+    """Show Wisp's lunchbox in the channel where it was asked for. Anyone may look.
+
+    It pings nobody and its song links show no previews. Asked for where Wisp
+    never posts, such as the track drop, it goes to his House instead and the
+    member is told so privately; with no House it is shown only to them.
+    """
     bot = interaction.client
     guild_id = require_guild(interaction)
+    settings = await bot.settings.get(guild_id)
+    channel = where_of(interaction)
+    if channel is not None and may_post_in(channel, settings.tracks_channel_id):
+        await interaction.response.defer()
+        await interaction.followup.send(
+            await lunchbox_text(bot, guild_id),
+            allowed_mentions=_NO_PING,
+            suppress_embeds=True,
+        )
+        return
     await interaction.response.defer(ephemeral=True)
+    text = await lunchbox_text(bot, guild_id)
+    house = await bot.house_channel(interaction.guild)
+    if house is None:
+        await interaction.followup.send(
+            text, ephemeral=True, allowed_mentions=_NO_PING, suppress_embeds=True
+        )
+        return
+    await house.send(text, allowed_mentions=_NO_PING, suppress_embeds=True)
     await interaction.followup.send(
-        await lunchbox_text(bot, guild_id),
+        f"♪ Wisp's lunchbox is open in <#{settings.house_channel_id}>.",
         ephemeral=True,
         allowed_mentions=_NO_PING,
-        suppress_embeds=True,
     )
 
 

@@ -31,17 +31,33 @@ UTC and a day is a UTC calendar day.
 
 ## Bot text
 
-- Unicode emoji are allowed in designed text: the status card and the divider,
-  and anything Myra designs. AI replies and canned lines stay Unicode-emoji
-  free. Wisp's own app emojis are allowed.
-- Bullet `・`, flair `♪`, separator (the divider) `❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰`.
+- Unicode emoji are allowed in designed text: anything Myra designs. AI
+  replies and canned lines stay Unicode-emoji free. Wisp's own app emojis are
+  allowed, always by name through `bot.emoji(...)`.
+- Bullet `・`, flair `♪`, separator (the plain divider, `wisp.text.SEPARATOR`)
+  `𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂`.
+- House style (`DOCS/specs/2026-10-27-house-style.md`) for the status card,
+  the Vault, the Snack Pack, the lunchbox and the leaderboard. Every frame
+  piece comes from `wisp/text.py`; never retype a frame string:
+  - title bar `title_bar(...)` (`𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`), then `BOX_TOP`;
+    closed by `BOX_CLOSE` (`BOX_BOTTOM` and `BOTTOM_BAR`).
+  - `#` `heading(name)` `║𝄡𝄚𝄂𝄆 **Name**`, `##` `sub(text)` `║𝄡𝄚𝄂 text`,
+    `###` `item(text)` `║𝄡 text`, a plain line `note(text)` `║ text`.
+  - Between sections `SECTION_BREAK` `╠═══⇕` (`sections(...)` puts them in);
+    no empty `║` lines.
+- Points members spend are "wisp coins" (WC, with the `wisp_coin_mini` emoji);
+  leaderboard counts stay "points".
+- Length checks use `text_length` (UTF-16 units): the frames are full of
+  characters that count twice.
 - No embeds.
 - No direct messages. Wisp ignores DMs and is guild-only.
 - Members use `/wisp` slash commands; staff use `!wisp` text commands, plus
   `/wispadmin setup` and `/wispadmin faq`.
 - Errors are posted as plain text in the channel where they happened:
   `Error in <context>: <Type>: <message>`.
-- Keep messages under 2,000 characters.
+- Keep messages under 2,000 characters. The Vault is the one Components V2
+  message (a `LayoutView` of text displays with its menus between them, no
+  container): 4,000 characters of text in total, sent with no `content`.
 
 ## Process safety
 

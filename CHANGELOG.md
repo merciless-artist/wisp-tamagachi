@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-10-27 (house style v2)
+
+- Myra's house style (`DOCS/specs/2026-10-27-house-style.md`) for the status
+  card, the Vault, the Snack Pack, the lunchbox and the leaderboard: a title
+  bar (`𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`), the box (`╔`/`╚` with 20 `═`), `#`
+  headings `║𝄡𝄚𝄂𝄆 **Name**`, `##` lines `║𝄡𝄚𝄂 text`, `###` items `║𝄡 text`,
+  `╠═══⇕` between sections and the bottom bar. Every frame piece lives in
+  `wisp/text.py` (`title_bar`, `BOX_TOP`, `BOX_CLOSE`, `heading`, `sub`,
+  `item`, `note`, `sections`, `framed`); the old `VAULT_RAIL`/`PACK_RAIL` and
+  per-module frame strings are gone.
+- Status card: `𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈`, bars Care, Happy, Hunger (Hunger is the Full
+  meter) with the meter app emojis: one `_full` per whole 10% of the shown
+  percent and one `_left` when its last digit is 5 to 9, else a space before
+  `│` (65% is six full and a left; 90% nine full and a space; 0-4% nothing).
+  The egg cards use the same frame (Warmth with the `full_` meter, Hatching and
+  Emerging with the `happiness_` meter). The sick line reads
+  `he has Monster Pox・{n} h left`. The waiting (Begin again) card is the frame
+  with one line, `No Wisp right now. Waiting for staff to begin again.`, on the
+  status card and in `/wisp status`. `render_status` takes the emoji lookup.
+- The Vault is now one Components V2 message (`VaultLayout`, a `LayoutView`
+  with no container): text displays with the snack select under the snacks,
+  the badge select under the badges and the collection and gift selects under
+  the gifts, up to 4,000 characters of text. Myra's snack and badge names and
+  padding, prices in WC with the `wisp_coin_mini` emoji, the balance as
+  `wisp coins: {coin} {n}`, the gamble line under Gifts. Purchase notes say WC
+  (`♪ Bought Cheese for 6 WC.`, `Your WC are back.`) and the select
+  descriptions too. Everything else (private, refusals, the two-step gift
+  select, errors) works as before.
+- Snack Pack, lunchbox and leaderboard in the frame. Empty sections read
+  `none yet` (`nothing saved yet` for snacks). Each lunchbox song is a day and
+  sharer line, then its link; each collection a progress line, then its gifts
+  and givers while there is room.
+- `/wisp lunchbox` is public: it answers in the channel where it was used,
+  pinging nobody and with link previews suppressed. Used where Wisp never
+  posts (the track drop, or a channel that cannot be placed) it posts in Wisp's
+  House and tells the member privately; with no House it is shown only to
+  them.
+- `wisp.text.SEPARATOR` is Myra's plain divider
+  `𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂`. `fit()` and `richest()` measure with
+  `text_length` (UTF-16), as the frames' music symbols count twice.
+- `wisp_coin_mini` is a coin, not one of Wisp's faces: it is left out of his
+  expressions and described as the Vault's coin in the AI prompt.
+- CLAUDE.md and README describe the house style, the new divider and the
+  public lunchbox.
+- Known: the new divider costs 18 more UTF-16 units than the old one, so the
+  FAQ's quick rules post is now 1,965 of 2,000 at today's numbers and its
+  worst-case guard (`test_rules_text_fits_with_every_number_at_four_digits`,
+  every number at 9999) measures 2,017 and fails. Its wording is left for the
+  Hunger wording pass.
+
 ## 2026-10-27 (begin again)
 
 - No egg is laid on its own after an ending any more. A death, a cold egg and

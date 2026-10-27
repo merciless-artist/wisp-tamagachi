@@ -14,7 +14,7 @@ from cogs.groups import require_guild, wisp
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
-from wisp.card import CardFacts, render_status
+from wisp.card import WAITING, CardFacts, render_status
 from wisp.life import Life, Phase, add_growth, is_over
 from wisp.lines import Moment
 from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
@@ -30,7 +30,6 @@ CANNOT_FEED: Final = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
     "can feed Wisp."
 )
-WAITING: Final = "♪ No Wisp right now. Waiting for staff to begin again."
 _NO_LIFE_YET: Final = (
     "♪ Wisp has no life to show right now. A new egg will be laid soon."
 )
@@ -65,7 +64,7 @@ async def status_text(
         wisp_id=wisp_user.id,
         house_id=settings.house_channel_id,
     )
-    return render_status(life, now, facts)
+    return render_status(life, now, facts, bot.emoji)
 
 
 # ---

@@ -38,8 +38,9 @@ from wisp.text import strip_emoji
 NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 # The egg's one face. Hatched stages never use it.
 EGG_EXPRESSION: Final = "wisp_egg"
-# The Vault's points, not one of his faces.
+# The Vault's coins, big and small, not his faces.
 COIN_EMOJI: Final = "wisp_coin"
+MINI_COIN_EMOJI: Final = "wisp_coin_mini"
 # The nap GIF in small, only for the stages that have nap art.
 NAP_EMOJI: Final = "wisp_nap"
 # Reactions whose names do not read as "<name> face".
@@ -434,7 +435,7 @@ def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
         return _SERVER_EMOTE
     kind, _, key = emoji.name.partition("_")
     words = key.replace("_", " ")
-    if emoji.name == COIN_EMOJI:
+    if emoji.name in (COIN_EMOJI, MINI_COIN_EMOJI):
         return "the coin members spend in the ViiBR Vault"
     if emoji.name in _REACTIONS:
         return f"{whose} {_REACTIONS[emoji.name]}"

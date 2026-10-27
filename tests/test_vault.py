@@ -6,6 +6,7 @@ Discord objects are fakes; the repositories are the real ones.
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -25,7 +26,13 @@ from db.settings import SettingsRepo
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import SEPARATOR
+from wisp.text import (
+    BOTTOM_BAR,
+    BOX_BOTTOM,
+    MESSAGE_LIMIT,
+    SECTION_BREAK,
+    text_length,
+)
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -36,8 +43,11 @@ FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-INTRO = (
-    "Snacks and the leaderboard. Shop or open your Snack Pack with the buttons below."
+SPEC_LINES = frozenset(
+    (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
+    .read_bytes()
+    .decode("utf-8")
+    .splitlines()
 )
 
 # ---
@@ -186,12 +196,12 @@ async def test_board_activates_once(bot: app.WispBot) -> None:
     first.response.defer.assert_awaited_once_with(ephemeral=True)
     radar, board = followups(first)
     assert "radar" in radar
-    assert board.startswith("♪ The ViiBR Vault")
+    assert board.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
 
     second = make_interaction(bot)
     await run(vault.wisp_board, second)
     (board_only,) = followups(second)
-    assert board_only.startswith("♪ The ViiBR Vault")
+    assert board_only.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
 
 
@@ -323,10 +333,10 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text.split("\n")[-3:] == [
-        "v3 ・ going strong ・ 12 days ・ Baby",
-        "v2 ・ never hatched",
-        f"v1 ・ went out after 18 days ・ peak Teen ・ hatched by <@{SECOND_USER}>",
+    assert section(text, "Versions") == [
+        "║𝄡 v3 ・ going strong ・ 12 days ・ Baby",
+        "║𝄡 v2 ・ never hatched",
+        f"║𝄡 v1 ・ went out after 18 days ・ peak Teen ・ hatched by <@{SECOND_USER}>",
     ]
 
 
@@ -335,10 +345,34 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
 # ---
 
 
-async def test_leaderboard_heading_is_the_vault(bot: app.WispBot) -> None:
+def section(text: str, name: str) -> list[str]:
+    """The lines under one `#` heading, up to the next break or the box's end."""
+    lines = text.splitlines()
+    start = lines.index(f"║𝄡𝄚𝄂𝄆 **{name}**") + 1
+    end = next(
+        index
+        for index in range(start, len(lines))
+        if lines[index] in (SECTION_BREAK, BOX_BOTTOM)
+    )
+    return lines[start:end]
+
+
+async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text.splitlines()[:3] == ["♪ The ViiBR Vault", INTRO, SEPARATOR]
+    lines = text.splitlines()
+    assert lines[:4] == [
+        "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
+        "╔════════════════════╗",
+        "║𝄡𝄚𝄂 Snacks and the leaderboard.",
+        "║𝄡 Shop or open your Snack Pack with the buttons below.",
+    ]
+    assert lines[-2:] == [
+        "╚════════════════════╝",
+        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+    ]
+    for line in (*lines[:4], *lines[-2:]):
+        assert line in SPEC_LINES, line
 
 
 async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
@@ -352,16 +386,13 @@ async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> Non
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    this_life, all_time, _rhymes, _versions = text.split(SEPARATOR + "\n")[1:]
-    assert this_life.splitlines() == [
-        "This life",
-        f"・1. <@{SECOND_USER}> ・ 5 points",
-        f"・2. <@{FIRST_USER}> ・ 1 point",
+    assert section(text, "This life") == [
+        f"║𝄡 1. <@{SECOND_USER}> ・ 5 points",
+        f"║𝄡 2. <@{FIRST_USER}> ・ 1 point",
     ]
-    assert all_time.splitlines() == [
-        "All time",
-        f"・1. <@{FIRST_USER}> ・ 201 points ・ Friend",
-        f"・2. <@{SECOND_USER}> ・ 5 points ・ New face",
+    assert section(text, "All time") == [
+        f"║𝄡 1. <@{FIRST_USER}> ・ 201 points ・ Friend",
+        f"║𝄡 2. <@{SECOND_USER}> ・ 5 points ・ New face",
     ]
 
 
@@ -373,16 +404,14 @@ async def test_leaderboard_shows_top_rhyme_scores(bot: app.WispBot) -> None:
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    _this_life, _all_time, rhymes, versions = text.split(SEPARATOR + "\n")[1:]
-    assert rhymes.splitlines() == [
-        "Rhyme Duel",
-        "・1. <@15> ・ 15 points",
-        "・2. <@11> ・ 12 points",
-        "・3. <@13> ・ 9 points",
-        "・4. <@12> ・ 7 points",
-        "・5. <@10> ・ 4 points",
+    assert section(text, "Rhyme Duel") == [
+        "║𝄡 1. <@15> ・ 15 points",
+        "║𝄡 2. <@11> ・ 12 points",
+        "║𝄡 3. <@13> ・ 9 points",
+        "║𝄡 4. <@12> ・ 7 points",
+        "║𝄡 5. <@10> ・ 4 points",
     ]
-    assert versions.startswith("Versions\nv1 ・ going strong")
+    assert section(text, "Versions")[0].startswith("║𝄡 v1 ・ going strong")
 
 
 async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
@@ -390,36 +419,34 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
 ) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text == "\n".join(
-        [
-            "♪ The ViiBR Vault",
-            INTRO,
-            SEPARATOR,
-            "This life",
-            "・Nobody has fed him yet",
-            SEPARATOR,
-            "All time",
-            "・Nobody has points yet",
-            SEPARATOR,
-            "Rhyme Duel",
-            "・Nobody has dueled him yet",
-            SEPARATOR,
-            "Versions",
-            "・None yet",
-        ]
-    )
+    assert text.splitlines()[2:] == [
+        "║𝄡𝄚𝄂 Snacks and the leaderboard.",
+        "║𝄡 Shop or open your Snack Pack with the buttons below.",
+        SECTION_BREAK,
+        "║𝄡𝄚𝄂𝄆 **This life**",
+        "║𝄡 Nobody has fed him yet",
+        SECTION_BREAK,
+        "║𝄡𝄚𝄂𝄆 **All time**",
+        "║𝄡 Nobody has points yet",
+        SECTION_BREAK,
+        "║𝄡𝄚𝄂𝄆 **Rhyme Duel**",
+        "║𝄡 Nobody has dueled him yet",
+        SECTION_BREAK,
+        "║𝄡𝄚𝄂𝄆 **Versions**",
+        "║𝄡 None yet",
+        BOX_BOTTOM,
+        BOTTOM_BAR,
+    ]
 
 
-async def test_leaderboard_uses_bot_style(bot: app.WispBot) -> None:
+async def test_leaderboard_uses_no_unicode_emoji(bot: app.WispBot) -> None:
     life = await lay(bot)
     await feed_points(bot, life, FIRST_USER, 3, "cccc")
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert "・" in text
-    assert "♪" in text
-    assert SEPARATOR in text
-    assert not re.search("[🀀-🿿☀-♩♫-➿️]", text.replace(SEPARATOR, ""))
+    assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
 
 
 async def test_leaderboard_fits_one_message(
@@ -448,14 +475,15 @@ async def test_leaderboard_fits_one_message(
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert len(text) <= 2000
+    assert text_length(text) <= MESSAGE_LIMIT
     lines = text.splitlines()
-    assert sum(line.startswith("・") and ". <@" in line for line in lines) == 25
-    version_lines = [line for line in lines if re.match(r"v\d+ ・", line)]
+    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    assert sum(line.startswith("║𝄡 ") and ". <@" in line for line in lines) == 25
+    version_lines = section(text, "Versions")
     assert 0 < len(version_lines) < len(history)
-    assert version_lines[0].startswith("v61 ・ going strong")
-    assert version_lines[1].startswith("v60 ・")
-    expected = [f"v{n} ・" for n in range(61, 61 - len(version_lines), -1)]
+    assert version_lines[0].startswith("║𝄡 v61 ・ going strong")
+    assert version_lines[1].startswith("║𝄡 v60 ・")
+    expected = [f"║𝄡 v{n} ・" for n in range(61, 61 - len(version_lines), -1)]
     assert [line[: len(prefix)] for line, prefix in zip(version_lines, expected)] == (
         expected
     )
@@ -477,8 +505,8 @@ async def test_refresh_vault_edits_the_pinned_message(
 
     server.vault.get_partial_message.assert_called_once_with(VAULT_MESSAGE_ID)
     kwargs = server.vault_edit.await_args.kwargs
-    assert kwargs["content"].startswith("♪ The ViiBR Vault")
-    assert "v1 ・ going strong" in kwargs["content"]
+    assert kwargs["content"].startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
+    assert "║𝄡 v1 ・ going strong" in kwargs["content"]
     assert kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )

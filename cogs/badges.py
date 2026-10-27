@@ -19,7 +19,8 @@ from db.badges import OwnedBadge
 from wisp.bond import tier_for
 from wisp.life import is_over
 from wisp.rules import BADGE_BY_KEY, BADGES, Badge, badge_name
-from wisp.text import PACK_RAIL, VAULT_RAIL, count
+from wisp.text import heading, item, with_emoji
+from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -37,6 +38,13 @@ _NO_ICONS: Final = (
 OWNED: Final = "owned"
 COMING_SOON: Final = "coming soon"
 BETWEEN_WISPS: Final = "with the next Wisp"
+# Spaces after each badge's name in the Vault, tuned by Myra so the │ line up.
+_VAULT_PADDING: Final[dict[str, int]] = {
+    "pickle_diplomat": 2,
+    "flame_keeper": 7,
+    "team_viibr": 14,
+    "bandmate": 14,
+}
 
 # ---
 # Roles in the server
@@ -266,15 +274,16 @@ async def badge_offers(
 
 
 def badge_section(bot: "WispBot", offers: list[Offer]) -> list[str]:
-    """The Vault's Badges lines: each badge's emoji, price and any reason.
+    """The Vault's Badges lines: each badge's name, emoji, price and any reason.
 
-    A badge whose emoji is not uploaded shows its name instead.
+    A badge whose emoji is not uploaded shows only its name.
     """
-    lines = [f"{VAULT_RAIL}**Badges**"]
+    lines = [heading("Badges")]
     for offer in offers:
         badge = offer.badge
-        icon = bot.emoji(badge.emoji_name) or badge.name
-        line = f"{VAULT_RAIL}{icon}・{count(badge.cost, 'point')}"
+        name = badge.name.lower() + " " * _VAULT_PADDING.get(badge.key, 1)
+        price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{badge.cost} WC")
+        line = item(f"{name}│{bot.emoji(badge.emoji_name)}・{price}")
         lines.append(line if offer.reason is None else f"{line}・{offer.reason}")
     return lines
 
@@ -285,9 +294,7 @@ def badge_options(bot: "WispBot", offers: list[Offer]) -> list[discord.SelectOpt
         discord.SelectOption(
             label=offer.badge.name,
             value=offer.badge.key,
-            description=(
-                f"{count(offer.badge.cost, 'point')} ・ bond +{offer.badge.bond}"
-            ),
+            description=f"{offer.badge.cost} WC ・ bond +{offer.badge.bond}",
             emoji=bot.emojis_by_name.get(offer.badge.emoji_name),
         )
         for offer in offers
@@ -308,9 +315,11 @@ def badge_pack_lines(bot: "WispBot", owned: list[OwnedBadge]) -> list[str]:
     its stored key.
     """
     return [
-        f"{PACK_RAIL}Wisp v{item.version}'s "
-        + (bot.emoji(f"badge_{item.badge}") or badge_name(item.badge))
-        for item in owned
+        item(
+            f"Wisp v{badge.version}'s "
+            + (bot.emoji(f"badge_{badge.badge}") or badge_name(badge.badge))
+        )
+        for badge in owned
     ]
 
 
@@ -340,10 +349,10 @@ async def sweep_badges(bot: "WispBot", guild_id: int, now: datetime) -> None:
         return
     role_ids = await bot.badges.role_ids(guild_id)
     grouped: dict[tuple[int, int, int], set[str]] = {}
-    for item in pending:
-        grouped.setdefault((item.user_id, item.life_id, item.version), set()).add(
-            item.badge
-        )
+    for purchase in pending:
+        grouped.setdefault(
+            (purchase.user_id, purchase.life_id, purchase.version), set()
+        ).add(purchase.badge)
     failed = False
     for (user_id, life_id, version), keys in grouped.items():
         roles = {

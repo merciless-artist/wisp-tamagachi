@@ -1013,7 +1013,15 @@ async def test_context_keeps_only_the_latest_lines(
 def test_expressions_are_wisp_faces_without_the_coin_or_the_egg(
     bot: app.WispBot,
 ) -> None:
-    give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_egg", "wisp_happy")
+    give_emojis(
+        bot,
+        "wisp_sad",
+        "snack_cheese",
+        "wisp_coin",
+        "wisp_coin_mini",
+        "wisp_egg",
+        "wisp_happy",
+    )
 
     assert expressions(bot, Stage.TEEN) == ["wisp_happy", "wisp_sad"]
 
