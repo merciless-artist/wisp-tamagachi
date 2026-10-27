@@ -24,6 +24,7 @@ from db.database import Database
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
+from db.magazines import MagazineRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from tests.layout import layout_order, layout_selects, layout_text
@@ -141,6 +142,7 @@ def bot(
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
     wisp_bot.badges = BadgeRepo(db)
+    wisp_bot.magazines = MagazineRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
 

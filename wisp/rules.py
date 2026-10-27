@@ -468,6 +468,33 @@ def badge_name(key: str) -> str:
 
 
 # ---
+# Magazines
+# ---
+
+
+@dataclass(frozen=True)
+class Magazine:
+    """A magazine cover sold in the ViiBR Vault while Wisp is a Rockstar.
+
+    A member can buy each one once per Wisp life and keeps it for good. Its
+    picture is `{key}_cover.jpg` in the assets' mags folder.
+    """
+
+    key: str
+    name: str
+
+
+MAGAZINE_COST = 100
+MAGAZINES: tuple[Magazine, ...] = (
+    Magazine("viibrations", "VIIBRATIONS cover"),
+    Magazine("musicnscience", "Music & Science cover"),
+)
+MAGAZINE_BY_KEY: dict[str, Magazine] = {
+    magazine.key: magazine for magazine in MAGAZINES
+}
+
+
+# ---
 # AI voice
 # ---
 

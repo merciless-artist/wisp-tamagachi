@@ -178,6 +178,15 @@ _DEFINITIONS: dict[str, str] = {
         PRIMARY KEY (guild_id, user_id, badge, life_id),
         INDEX idx_guild_removed (guild_id, removed_at)
     """,
+    "magazines": """
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        magazine VARCHAR(20) NOT NULL,
+        life_id BIGINT NOT NULL,
+        version INT NOT NULL,
+        bought_at DATETIME NOT NULL,
+        PRIMARY KEY (guild_id, user_id, magazine, life_id)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

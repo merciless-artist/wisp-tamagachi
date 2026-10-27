@@ -182,8 +182,18 @@ Member commands:
   collections: pick a collection, then a gift. He might not like it. It is one
   private Components V2 message with each menu under its section.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks, keepsakes
-  like a Last Ember, and every badge you ever wore, with a button to shop
-  the Vault.
+  like a Last Ember, every badge you ever wore and any magazine covers you
+  bought, with a button to shop the Vault.
+
+Magazines: while the living Wisp is a Rockstar, the Vault has a Magazines
+section selling two covers, the VIIBRATIONS cover and the Music & Science
+cover, at 100 wisp coins each (`MAGAZINE_COST` and `MAGAZINES` in
+`wisp/rules.py`), with its own menu under it. Each can be bought once per
+member per Wisp life, recorded in the `magazines` table. The buyer gets the
+cover's picture in a private message and keeps the cover in their Snack Pack
+forever (`Wisp v3's VIIBRATIONS cover`). At any other stage, or once he is
+Old Fogey, the section is gone, and a menu left open from before answers
+`♪ The magazines are gone from the shelf.`
 
 Badges: the Vault sells four badge roles (Pickle Diplomat at 25 points,
 Flame Keeper at 100, Team ViiBR and Bandmate at 250; Bandmate only for
@@ -310,6 +320,9 @@ posts text only.
 - `badges/<key>.png` for each badge key (`pickle_diplomat`,
   `flame_keeper`, `team_viibr`, `bandmate`), the badge role icons, and the
   app emojis `badge_<key>` for the Vault and Snack Pack.
+- `mags/viibrations_cover.jpg` and `mags/musicnscience_cover.jpg`, the
+  magazine covers sent to their buyers (posting copies, 1200px tall, of the
+  full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
 - `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's

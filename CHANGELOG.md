@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-10-27 (Rockstar magazines)
+
+- While the living Wisp is a **Rockstar**, the Vault shows a `# **Magazines**`
+  section between Badges and Gifts: `VIIBRATIONS cover・{mini} 100 WC` and
+  `Music & Science cover・{mini} 100 WC`, `・owned` once bought this life, and a
+  "Get a magazine" menu under it with the covers the member can still buy. At
+  every other stage (and between Wisps) the section and menu are absent.
+- Buying spends 100 WC (`MAGAZINE_COST`), with the usual refusals: banned,
+  can't feed, short of WC (Wisp's not-enough-points line), or already owned
+  this life (`♪ You already have the VIIBRATIONS cover for Wisp v1.`). A menu
+  left open after he stops being a Rockstar answers
+  `♪ The magazines are gone from the shelf.` and nothing is spent. A purchase
+  refreshes the Vault under `♪ You got the {name}.` and sends the cover's
+  picture to the buyer only (ephemeral). A picture that cannot be sent is
+  reported as `Error in sending the {name} picture (the purchase went
+  through): ...`; the purchase stands.
+- Purchases are stored in the new `magazines` table (member, magazine, life,
+  version, time; one per member per magazine per life), created by
+  `create_tables` beside the live tables.
+- The Snack Pack has a `# **Magazines**` section after Badges, only when the
+  member owns a cover: `Wisp v3's VIIBRATIONS cover`, every life, newest
+  first, cut to fit like keepsakes (at most a quarter of the room).
+- Art: posting copies `ASSETS/mags/viibrations_cover.jpg` and
+  `ASSETS/mags/musicnscience_cover.jpg` (927x1200, JPEG q88, about 230-250 KB)
+  made from the 3477x4500 originals, which are committed alongside.
+- FAQ: a "What are the magazines?" Q&A in the Vault and Snack Pack section
+  (the section picture needs re-rendering).
+- Tests: `tests/test_magazines.py` (section only for a living Rockstar, the
+  purchase, the private picture, the refusals, the next life, the Snack Pack
+  across lives, the fullest Vault and Snack Pack) and a schema test for the
+  new table on a live database.
+
 ## 2026-10-27 (`!wisp song`)
 
 - New staff command `!wisp song <link> <words...>`: Wisp posts the words, then

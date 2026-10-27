@@ -34,6 +34,14 @@ from cogs.gifts import (
     todays_gifts,
 )
 from cogs.groups import require_guild, wisp
+from cogs.magazines import (
+    cover_art,
+    magazine_options,
+    magazine_pack_lines,
+    magazine_section,
+    magazines_owned,
+    on_the_shelf,
+)
 from cogs.players import (
     CANNOT_FEED,
     EXPECTED_FAILURES,
@@ -65,12 +73,15 @@ from wisp.rules import (
     COLLECTION_BY_KEY,
     FANCY_SNACK_COST,
     GIFT_BY_KEY,
+    MAGAZINE_BY_KEY,
+    MAGAZINE_COST,
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
     Badge,
     Gift,
     GiftCollection,
+    Magazine,
     Snack,
 )
 from wisp.text import (
@@ -106,6 +117,7 @@ _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
 _BADGE_NOT_READY: Final = (
     "♪ That badge isn't ready yet. Staff can set it up with !wisp setup."
 )
+_SHELF_EMPTY: Final = "♪ The magazines are gone from the shelf."
 _NONE_YET: Final = item("none yet")
 _NOTHING_SAVED: Final = item("nothing saved yet")
 _LOGO_EMOJI: Final = "viibr_logo"
@@ -149,6 +161,7 @@ _SnackChoice = Callable[[discord.Interaction, Snack], Awaitable[None]]
 _GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
 _CollectionChoice = Callable[[discord.Interaction, GiftCollection], Awaitable[None]]
 _BadgeChoice = Callable[[discord.Interaction, Badge], Awaitable[None]]
+_MagazineChoice = Callable[[discord.Interaction, Magazine], Awaitable[None]]
 _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
@@ -274,6 +287,20 @@ class BadgeSelect(discord.ui.Select[Any]):
         await self._on_choice(interaction, BADGE_BY_KEY[self.values[0]])
 
 
+class MagazineSelect(discord.ui.Select[Any]):
+    """The Vault's select of magazines the member can buy now; hands one on."""
+
+    def __init__(
+        self, options: list[discord.SelectOption], on_choice: _MagazineChoice
+    ) -> None:
+        super().__init__(placeholder="Get a magazine", options=options)
+        self._on_choice = on_choice
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Pass the chosen magazine on."""
+        await self._on_choice(interaction, MAGAZINE_BY_KEY[self.values[0]])
+
+
 class Menu(discord.ui.View):
     """An ephemeral menu of selects; a failure is reported as `context`."""
 
@@ -332,10 +359,11 @@ class VaultLayout(discord.ui.LayoutView):
 
 @dataclass(frozen=True)
 class _VaultMenus:
-    """The Vault's selects: snacks, then any badge, collection and gift menus."""
+    """The Vault's selects: snacks, then any badges, magazines, collections, gifts."""
 
     snacks: discord.ui.Select[Any]
     badges: discord.ui.Select[Any] | None
+    magazines: discord.ui.Select[Any] | None
     collections: discord.ui.Select[Any] | None
     gifts: discord.ui.Select[Any] | None
 
@@ -350,14 +378,16 @@ def _vault_pieces(
     bot: "WispBot",
     balance: int,
     offers: list[Offer],
+    magazines: set[str] | None,
     gifts: GiftState | None,
     note: str | None,
     menus: _VaultMenus,
 ) -> list[_VaultPiece]:
     """The Vault's text in pieces, each followed by its menus.
 
-    An optional note comes before the frame. The Gifts take whatever room the
-    rest leaves of the layout's text limit.
+    An optional note comes before the frame. The Magazines are there only when
+    `magazines`, the covers the member owns this life, is not None. The Gifts
+    take whatever room the rest leaves of the layout's text limit.
     """
     logo = bot.emoji(_LOGO_EMOJI)
     title = " ".join(word for word in (_VAULT_TITLE[0], logo, _VAULT_TITLE[1]) if word)
@@ -371,14 +401,19 @@ def _vault_pieces(
         *(_vault_snack(bot, snack, _coins(bot, f"{snack.cost} WC")) for snack in _MENU),
     ]
     badges = [SECTION_BREAK, *badge_section(bot, offers)]
-    # Joined as one text, so the 3 newlines between the text displays are
+    covers = (
+        [] if magazines is None else [SECTION_BREAK, *magazine_section(bot, magazines)]
+    )
+    # Joined as one text, so the newlines between the text displays are
     # counted too: a small safety margin on purpose.
-    rest = "\n".join([*snacks, *badges, SECTION_BREAK, *BOX_CLOSE])
+    rest = "\n".join([*snacks, *badges, *covers, SECTION_BREAK, *BOX_CLOSE])
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
+    cover_menus = [] if menus.magazines is None else [menus.magazines]
     return [
         _VaultPiece(snacks, [menus.snacks]),
         _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
+        *([_VaultPiece(covers, cover_menus)] if covers else []),
         _VaultPiece([SECTION_BREAK, *gift_section(bot, gifts, room)], gift_menus),
         _VaultPiece(BOX_CLOSE),
     ]
@@ -394,9 +429,10 @@ async def _vault(
     """The Vault, after an optional note, with its menus between its sections.
 
     The snack select follows the snacks, the badge select the badges when the
-    member can get a badge now, and the collection select the gifts when a
-    gift can be given today. With a picked `collection` that can still be
-    given from, that collection's gift select follows it.
+    member can get a badge now, the magazine select the magazines while Wisp
+    is a Rockstar and the member lacks a cover, and the collection select the
+    gifts when a gift can be given today. With a picked `collection` that can
+    still be given from, that collection's gift select follows it.
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
@@ -406,11 +442,18 @@ async def _vault(
     player = await bot.players.get(guild_id, user_id)
     offers = await badge_offers(bot, guild_id, user_id, player.bond)
     badge_choices = badge_options(bot, offers)
+    magazines = await magazines_owned(bot, guild_id, user_id)
+    magazine_choices = [] if magazines is None else magazine_options(magazines)
     collection_choices = collection_options(bot, gifts)
     gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
     menus = _VaultMenus(
         snacks=SnackSelect(snack_options, "Buy a snack", _buy),
         badges=BadgeSelect(badge_choices, _get_badge) if badge_choices else None,
+        magazines=(
+            MagazineSelect(magazine_choices, _get_magazine)
+            if magazine_choices
+            else None
+        ),
         collections=(
             CollectionSelect(collection_choices, _pick_collection)
             if collection_choices
@@ -418,7 +461,9 @@ async def _vault(
         ),
         gifts=GiftSelect(gift_choices, _give) if gift_choices else None,
     )
-    return VaultLayout(_vault_pieces(bot, player.balance, offers, gifts, note, menus))
+    return VaultLayout(
+        _vault_pieces(bot, player.balance, offers, magazines, gifts, note, menus)
+    )
 
 
 async def _confirm(
@@ -465,11 +510,14 @@ def _pack_keepsake(bot: "WispBot", keepsake: Keepsake) -> str:
 
 
 async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
-    """The member's Snack Pack frame: balance, snacks, keepsakes and badges.
+    """The member's Snack Pack frame: balance, snacks, keepsakes, badges and any
+    magazines.
 
-    Keepsakes and badges are listed newest life first. When they do not all
-    fit in one message, each is cut short with how many more there are: the
-    badges get at most half the room, and any the keepsakes leave over.
+    Keepsakes, badges and magazines are listed newest life first; the
+    Magazines section is there only when the member has bought one. When they
+    do not all fit in one message, each is cut short with how many more there
+    are: the magazines get at most a quarter of the room, the badges at most
+    half of the rest, and each any room the ones before leave over.
     """
     player = await bot.players.get(guild_id, user_id)
     owned = await bot.activity_log.inventory(guild_id, user_id)
@@ -502,14 +550,23 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     badges = badge_pack_lines(bot, await bot.badges.of(guild_id, user_id)) or [
         _NONE_YET
     ]
+    covers = magazine_pack_lines(await bot.magazines.of(guild_id, user_id))
     between = [SECTION_BREAK, heading("Badges")]
+    shelf = [SECTION_BREAK, heading("Magazines")] if covers else []
     tail = BOX_CLOSE
-    framing = "\n".join([*head, *between, *tail])
+    framing = "\n".join([*head, *between, *shelf, *tail])
     room = MESSAGE_LIMIT - text_length(framing) - 3
-    badge_room = min(text_length("\n".join(badges)), room // 2)
-    kept = _shown(keepsakes, room - badge_room)
-    worn = _shown(badges, room - text_length("\n".join(kept)))
-    return "\n".join([*head, *kept, *between, *worn, *tail])
+    cover_room = min(_length(covers), room // 4)
+    badge_room = min(_length(badges), (room - cover_room) // 2)
+    kept = _shown(keepsakes, room - badge_room - cover_room)
+    worn = _shown(badges, room - _length(kept) - cover_room)
+    read = _shown(covers, room - _length(kept) - _length(worn))
+    return "\n".join([*head, *kept, *between, *worn, *shelf, *read, *tail])
+
+
+def _length(lines: list[str]) -> int:
+    """How long `lines` are joined one per line, counted by `text_length`."""
+    return text_length("\n".join(lines))
 
 
 def _shown(lines: list[str], room: int) -> list[str]:
@@ -517,11 +574,11 @@ def _shown(lines: list[str], room: int) -> list[str]:
 
     The room is counted by `text_length`.
     """
-    if text_length("\n".join(lines)) <= room:
+    if _length(lines) <= room:
         return lines
     for shown in range(len(lines) - 1, -1, -1):
         cut = [*lines[:shown], item(f"and {len(lines) - shown} more")]
-        if text_length("\n".join(cut)) <= room:
+        if _length(cut) <= room:
             return cut
     return [item(f"and {len(lines)} more")]
 
@@ -662,6 +719,76 @@ async def _return_badge(
     await bot.players.refund(guild_id, user_id, badge.cost)
     await bot.badges.forget(guild_id, user_id, badge.key, life.id)
     await bot.players.add_bond(guild_id, user_id, -badge.bond)
+
+
+async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) -> None:
+    """Spend the member's points on a magazine cover, then send them its picture.
+
+    The purchase is made under the guild lock. The Vault is shown again under
+    the result, or under the reason it was refused; the picture follows only
+    to the buyer. A picture that cannot be sent is reported where it happened,
+    and the purchase stands.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    await interaction.response.defer()
+    try:
+        async with bot.guild_lock(guild_id):
+            await _take_magazine(
+                bot, guild_id, interaction.user, magazine, discord.utils.utcnow()
+            )
+    except Refusal as refusal:
+        await _confirm(interaction, str(refusal), "showing a refused magazine")
+        return
+    await _confirm(
+        interaction,
+        f"♪ You got the {magazine.name}.",
+        "confirming a magazine (the purchase went through)",
+    )
+    try:
+        await interaction.followup.send(
+            file=discord.File(cover_art(magazine)), ephemeral=True
+        )
+    except (discord.HTTPException, OSError) as error:
+        await report_failure(
+            interaction,
+            f"sending the {magazine.name} picture (the purchase went through)",
+            error,
+        )
+
+
+async def _take_magazine(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    magazine: Magazine,
+    now: datetime,
+) -> None:
+    """Sell the member a magazine for the current life. Call this under the guild lock.
+
+    Raises:
+        Refusal: The member is banned or cannot feed Wisp, Wisp is not a living
+            Rockstar, the member already has this cover this life or is short
+            of points. Nothing is spent then.
+    """
+    player = await check_member(bot, guild_id, member, now)
+    life = await bot.lives.current(guild_id)
+    if life is None or life.id is None or not on_the_shelf(life):
+        raise Refusal(_SHELF_EMPTY)
+    if magazine.key in await bot.magazines.owned(guild_id, member.id, life.id):
+        raise Refusal(_already_own(magazine, life))
+    if not await bot.players.spend(guild_id, member.id, MAGAZINE_COST):
+        name = player.name or member.display_name
+        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+    if not await bot.magazines.record(
+        guild_id, member.id, magazine.key, life.id, life.version, now
+    ):
+        await bot.players.refund(guild_id, member.id, MAGAZINE_COST)
+        raise Refusal(_already_own(magazine, life))
+
+
+def _already_own(magazine: Magazine, life: Life) -> str:
+    return f"♪ You already have the {magazine.name} for Wisp v{life.version}."
 
 
 async def _pick_collection(

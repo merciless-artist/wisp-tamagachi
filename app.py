@@ -32,6 +32,7 @@ from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
+from db.magazines import MagazineRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
@@ -140,6 +141,7 @@ class WispBot(commands.Bot):
         self.wisp_lunchbox = WispLunchboxRepo(self.db)
         self.gifts = GiftRepo(self.db)
         self.badges = BadgeRepo(self.db)
+        self.magazines = MagazineRepo(self.db)
         self.ai = chain_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
