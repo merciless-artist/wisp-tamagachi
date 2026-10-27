@@ -127,6 +127,25 @@ async def test_create_tables_adds_the_house_panel_to_a_live_settings_table(
             )
 
 
+async def test_create_tables_adds_burritos_post_to_a_live_settings_table(
+    db: Database,
+) -> None:
+    settings = db.t("settings")
+    await db.execute(f"INSERT INTO {settings} (guild_id) VALUES (1)")
+    await db.execute(f"ALTER TABLE {settings} DROP COLUMN burrito_thread_id")
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT burrito_thread_id FROM {settings}")
+        assert row == {"burrito_thread_id": None}
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {settings}")
+        if "burrito_thread_id" not in {column["Field"] for column in restored}:
+            await db.execute(
+                f"ALTER TABLE {settings} ADD COLUMN burrito_thread_id BIGINT NULL"
+            )
+
+
 def test_the_care_columns_are_defined_and_added_to_live_tables() -> None:
     definition = schema._DEFINITIONS["lives"]
     defined = {line.split()[0] for line in definition.splitlines() if line.strip()}

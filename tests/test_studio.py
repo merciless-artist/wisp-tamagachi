@@ -494,7 +494,8 @@ async def test_setup_creates_six_threads_with_the_vault(
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
 
     text = sent_text(ctx)
-    assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
+    quoted = ", ".join(f'"{title}"' for title in THREAD_TITLES)
+    assert f"Created threads: {quoted}" in text
     assert "・Badge roles created: Pickle Diplomat, Flame Keeper" in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
@@ -637,7 +638,7 @@ async def test_a_studio_from_before_burrito_gets_his_post_without_a_notice(
     assert settings.burrito_thread_id == server.thread_named(BURRITO).id
     for attr in THREAD_ATTRS[:-1]:
         assert getattr(settings, attr) == getattr(before, attr)
-    assert "Created threads: Burrito, Fairy God-bot" in sent_text(ctx)
+    assert 'Created threads: "Burrito, Fairy God-bot"' in sent_text(ctx)
     assert house_posts(server) == []
 
 
@@ -657,9 +658,24 @@ async def test_setup_recreates_deleted_thread(
     assert settings.status_thread_id == before.status_thread_id
     assert settings.status_message_id == before.status_message_id
     (post,) = house_posts(server)
-    assert post.args == ("Wisp's Studio: recreated Mealtime.",)
+    assert post.args == ('Wisp\'s Studio: recreated "Mealtime".',)
     assert post.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
+    )
+
+
+async def test_recreated_threads_are_named_one_by_one_in_the_house(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    for name in (MEALTIME, BURRITO):
+        del server.threads[server.thread_named(name).id]
+
+    await ensure_studio(bot, GUILD_ID)
+
+    (post,) = house_posts(server)
+    assert post.args == (
+        'Wisp\'s Studio: recreated "Mealtime", "Burrito, Fairy God-bot".',
     )
 
 

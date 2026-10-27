@@ -25,6 +25,12 @@
   anything about how Wisp works right there, and that he points people to
   Wisp's live stats. Wisp never answers or chimes in there (Burrito, a separate
   bot, does). Run `!wisp setup` (or `/wispadmin setup`) once to create it.
+- The House notice for recreated Studio posts and setup's "Created threads"
+  line quote each name (`recreated "Mealtime", "Burrito, Fairy God-bot".`),
+  so a name with a comma reads as one post.
+- Tests: the feeding tests for endings now check the Begin again flow (the
+  ending is announced, staff are asked, no egg is laid), setup expects six
+  Studio posts, and the schema adds `burrito_thread_id` to a live table.
 - The FAQ page and the spec page show the v2 status card.
 - `/wisp lunchbox`: once the lunchbox is posted, a failure to remove the
   private "thinking" reply is ignored, so the member is no longer told it did

@@ -201,7 +201,8 @@ the purchase is undone and the points come back.
   and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
-its threads; he never answers in the Studio, so Burrito's post is Burrito's). He answers with AI at every stage: the egg wobbles or crackles in
+its threads). He never answers in the Studio, so Burrito's post is left to
+Burrito. He answers with AI at every stage: the egg wobbles or crackles in
 reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
@@ -264,9 +265,9 @@ The Studio forum holds six threads, named exactly:
   first post is framed in the house style and has no picture.
 
 Each thread's first post but Burrito's carries its picture, which the forum
-shows as the thumbnail. Setup renames a thread whose name differs, adds a missing
-thumbnail and fills a Wisp FAQ that has no sections yet, such as an older How
-Wisp Works thread.
+shows as the thumbnail. Setup renames a thread whose name differs, adds a
+missing thumbnail and fills a Wisp FAQ that has no sections yet, such as an
+older How Wisp Works thread.
 
 ## Errors
 
@@ -290,8 +291,8 @@ posts text only.
 - `moments/` pictures for his lonely and sick posts: `cry_baby.gif` and
   `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
   older) when Care drops below the lonely line, and `sick_baby.png`,
-  `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture is also
-  on the status card and the Poke Wisp panel while he is sick.
+  `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture
+  is also on the status card and the Poke Wisp panel while he is sick.
 - `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
   `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full
   life (the egg's picture stands in when it is missing). The status card and

@@ -423,13 +423,19 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     return settings
 
 
+def _thread_list(titles: list[str]) -> str:
+    """Thread titles, each in quotes, so a title with a comma reads as one."""
+    return ", ".join(f'"{title}"' for title in titles)
+
+
 async def _announce(bot: "WispBot", guild: discord.Guild, names: list[str]) -> None:
     house = await bot.house_channel(guild)
     if house is None:
         return
     try:
         await house.send(
-            f"Wisp's Studio: recreated {', '.join(names)}.", allowed_mentions=_NO_PING
+            f"Wisp's Studio: recreated {_thread_list(names)}.",
+            allowed_mentions=_NO_PING,
         )
     except discord.HTTPException as error:
         await bot.report_error(guild, "announcing recreated Studio threads", error)
@@ -626,7 +632,7 @@ async def set_up(
         if getattr(before, spec.attr) != getattr(after, spec.attr)
     ]
     threads = (
-        f"Created threads: {', '.join(created)}"
+        f"Created threads: {_thread_list(created)}"
         if created
         else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )

@@ -20,10 +20,9 @@ from discord.ext import commands
 
 import app
 from cogs import announce, feeding, pictures
-from cogs.announce import post_events
+from cogs.announce import BEGIN_AGAIN, BEGIN_ID, post_events
 from cogs.feeding import Feeding
 from cogs.share_links import ShareLinkResolver
-from cogs.speech import POKE_ID
 from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -1117,7 +1116,17 @@ async def test_hatched_image_falls_back_between_folders(
     assert server.house.send.await_args.kwargs["file"].filename == f"{name}.png"
 
 
-async def test_death_announces_and_lays_the_next_egg(
+def asks_to_begin_again(post: Any) -> bool:
+    """Whether a House post is the Begin again question with its one button."""
+    view = post.kwargs.get("view")
+    return (
+        post.args == (BEGIN_AGAIN,)
+        and view is not None
+        and [item.custom_id for item in view.children] == [BEGIN_ID]
+    )
+
+
+async def test_death_is_announced_then_staff_are_asked_and_no_egg_is_laid(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     await configure(bot)
@@ -1127,21 +1136,20 @@ async def test_death_announces_and_lays_the_next_egg(
 
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
-    egg = await current_life(bot)
-    assert (egg.version, egg.phase) == (2, Phase.EGG)
+    after = await current_life(bot)
+    assert (after.version, after.phase) == (1, Phase.DEAD)
     assert server.house.send.await_count == 2
-    died, new_egg_post = server.house.send.await_args_list
+    died, question = server.house.send.await_args_list
     assert died.kwargs["file"].filename == "died.png"
     assert mentions_version(died.args[0], 1)
-    assert mentions_version(new_egg_post.args[0], 2)
-    sent = dict(new_egg_post.kwargs)
-    view = sent.pop("view")
-    assert [item.custom_id for item in view.children] == [POKE_ID]
+    assert asks_to_begin_again(question)
+    sent = dict(question.kwargs)
+    sent.pop("view")
     assert sends_without_pinging(sent)
     assert "file" not in sent
 
 
-async def test_cold_egg_lays_the_next_egg(
+async def test_a_cold_egg_is_announced_then_staff_are_asked_and_no_egg_is_laid(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     await configure(bot)
@@ -1149,11 +1157,13 @@ async def test_cold_egg_lays_the_next_egg(
 
     await post_events(bot, GUILD_ID, [Event(EventKind.EGG_COLD)])
 
-    assert (await current_life(bot)).version == 2
+    after = await current_life(bot)
+    assert (after.version, after.phase) == (1, Phase.COLD)
     assert server.house.send.await_count == 2
+    assert asks_to_begin_again(server.house.send.await_args_list[1])
 
 
-async def test_repeated_death_event_lays_only_one_egg(
+async def test_a_repeated_death_event_asks_again_and_never_lays_an_egg(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     await configure(bot)
@@ -1162,7 +1172,12 @@ async def test_repeated_death_event_lays_only_one_egg(
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
-    assert (await current_life(bot)).version == 2
+    after = await current_life(bot)
+    assert (after.version, after.phase) == (1, Phase.DEAD)
+    questions = [
+        post for post in server.house.send.await_args_list if asks_to_begin_again(post)
+    ]
+    assert len(questions) == 2
 
 
 @pytest.mark.parametrize("kind", [EventKind.DIED, EventKind.EGG_COLD])
@@ -1177,7 +1192,7 @@ async def test_stale_ending_is_not_announced(
     assert (await current_life(bot)).version == 1
 
 
-async def test_missing_house_channel_is_logged_once_and_egg_still_laid(
+async def test_a_missing_house_is_logged_once_and_no_egg_is_laid(
     bot: app.WispBot,
     server: FakeServer,
     assets: Path,
@@ -1190,12 +1205,13 @@ async def test_missing_house_channel_is_logged_once_and_egg_still_laid(
     with caplog.at_level(logging.ERROR, logger="wisp"):
         await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
-    assert (await current_life(bot)).version == 2
+    after = await current_life(bot)
+    assert (after.version, after.phase) == (1, Phase.DEAD)
     server.house.send.assert_not_awaited()
     assert caplog.text.count("Error in posting to Wisp's House") == 1
 
 
-async def test_failed_house_post_is_reported_and_egg_still_laid(
+async def test_failed_house_posts_are_reported_and_no_egg_is_laid(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     await configure(bot)
@@ -1206,10 +1222,13 @@ async def test_failed_house_post_is_reported_and_egg_still_laid(
 
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
 
-    assert (await current_life(bot)).version == 2
-    assert server.house.send.await_count == 4
-    (report,) = server.house.send.await_args_list[1].args
-    assert report.startswith("Error in posting to Wisp's House: Forbidden")
+    after = await current_life(bot)
+    assert (after.version, after.phase) == (1, Phase.DEAD)
+    posts = server.house.send.await_args_list
+    assert len(posts) == 4
+    for report in posts[1::2]:
+        assert report.args[0].startswith("Error in posting to Wisp's House: Forbidden")
+    assert asks_to_begin_again(posts[2])
 
 
 async def test_no_events_posts_nothing(

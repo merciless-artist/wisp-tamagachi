@@ -576,7 +576,7 @@ async def test_setup(
         f"・Wisp's House: <#{HOUSE_ID}>\n"
         f"・Wisp's Studio: <#{STUDIO_ID}>\n"
         f"・Track drop: <#{TRACKS_ID}>\n"
-        "・Studio threads: all five already exist\n"
+        "・Studio threads: all six already exist\n"
         "・Badge roles: all 2 ready"
     ]
 
