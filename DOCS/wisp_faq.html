@@ -1,0 +1,462 @@
+<title>Wisp FAQ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column with a jump list, Q&A blocks grouped by topic, tables where the answer is a set of numbers. Dark-first: Wisp's neon on night. */
+:root {
+  --bg: #120d18;
+  --surface: #1c1524;
+  --surface-2: #261c31;
+  --line: #3a2c47;
+  --fg: #f3ecf7;
+  --muted: #b8a8c6;
+  --ember: #ff8a3d;
+  --magenta: #ff4fa3;
+  --violet: #a77bff;
+  --code-bg: #2a1f36;
+  --display: "Fredoka", "Trebuchet MS", "Segoe UI", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #fbf7fd; --surface: #ffffff; --surface-2: #f4ecf8; --line: #e2d4ea;
+    --fg: #23182c; --muted: #6a5978; --ember: #c2560f; --magenta: #c21f72;
+    --violet: #6d3fd6; --code-bg: #f1e7f6; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #fbf7fd; --surface: #ffffff; --surface-2: #f4ecf8; --line: #e2d4ea;
+  --fg: #23182c; --muted: #6a5978; --ember: #c2560f; --magenta: #c21f72;
+  --violet: #6d3fd6; --code-bg: #f1e7f6; color-scheme: light;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 1.0625rem/1.6 var(--body);
+}
+.page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding-block: 2.5rem 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 2.75rem;
+}
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.1rem); font-weight: 700; }
+h1 .flame {
+  background: linear-gradient(95deg, var(--ember), var(--magenta) 55%, var(--violet));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+h2 { font-size: 1.55rem; font-weight: 600; display: flex; gap: .5rem; align-items: baseline; }
+h2 .note { color: var(--magenta); font-size: 1.1rem; }
+h3 { font-size: 1.12rem; font-weight: 600; color: var(--fg); }
+p { margin: 0; }
+a { color: var(--violet); }
+code, .cmd {
+  font-family: var(--mono); font-size: .88em; background: var(--code-bg);
+  padding: .1em .38em; border-radius: 4px; white-space: nowrap;
+}
+
+header { display: grid; gap: .9rem; }
+.lede { color: var(--muted); max-width: 38rem; }
+
+nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+nav a {
+  display: inline-block; padding: .3rem .75rem; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--fg); text-decoration: none; font-size: .92rem; background: var(--surface);
+}
+nav a:hover, nav a:focus-visible { border-color: var(--magenta); outline: none; }
+
+section { display: grid; gap: 1.4rem; scroll-margin-top: 1rem; }
+.qa { display: grid; gap: .45rem; padding-left: 1rem; border-left: 2px solid var(--line); }
+.qa ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .25rem; }
+.qa li::marker { content: "☆  "; color: var(--ember); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--display); font-weight: 600; color: var(--muted); font-size: .85rem; letter-spacing: .03em; background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.num { white-space: nowrap; }
+
+.card {
+  font-family: var(--mono); font-size: .9rem; line-height: 1.5; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1.1rem; overflow-x: auto; white-space: pre; margin: 0;
+}
+.later { color: var(--muted); font-size: .95rem; }
+footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); padding-top: 1.2rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  nav a { transition: border-color .15s ease; }
+}
+</style>
+
+<main class="page">
+  <header>
+    <h1>How <span class="flame">Wisp</span> works</h1>
+    <p class="lede">Wisp is VIIBR's mascot: a little flame sound-spirit in headphones. There's one Wisp for the whole server, and everyone raises him together by sharing music. Feed him and he grows from an egg into a Rockstar. Nobody feeds him and he fades out, and a new egg takes his place.</p>
+    <nav aria-label="Topics">
+      <ul>
+        <li><a href="#basics">The basics</a></li>
+        <li><a href="#feeding">Feeding him</a></li>
+        <li><a href="#vault">Vault and Snack Pack</a></li>
+        <li><a href="#lunchbox">His lunchbox and gifts</a></li>
+        <li><a href="#bond">Your bond</a></li>
+        <li><a href="#growing">Growing up</a></li>
+        <li><a href="#talking">Talking to him</a></li>
+        <li><a href="#games">Games</a></li>
+        <li><a href="#ending">End of life</a></li>
+        <li><a href="#fair">Fair play</a></li>
+        <li><a href="#staff">For staff</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section id="basics" aria-labelledby="h-basics">
+    <h2 id="h-basics"><span class="note">♪</span>The basics</h2>
+    <div class="qa">
+      <h3>Where does Wisp live?</h3>
+      <p>In a category with two channels:</p>
+      <ul>
+        <li><strong>Wisp's House</strong> is a text channel. You hang out with him there, and his big moments happen there: hatching, growing up, warnings and goodbyes.</li>
+        <li><strong>Wisp's Studio</strong> is a forum with five posts: <em>Status</em> (his live card), <em>Mealtime</em> (every track that fed him), <em>The ViiBR Vault</em> (shop and leaderboard), <em>Jam Space</em> and <em>Wisp FAQ</em>.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>How do I check on him?</h3>
+      <p><span class="cmd">/wisp status</span> shows his card, privately, just to you. The same card stays pinned in the Status post, kept up to date:</p>
+      <pre class="card">▐▀▀▀▀▀▀▀▀▀▀ 🔸❱━ Wisp Stats ━❰🔸▀▀▀▀▀▀▀▀▀▀▀▌
+▐━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰
+▐▀━━・・𝐃𝐀𝐘 <strong>9</strong>・♫ ♪. ♫‿♪
+▐
+▐・Full        🟦🟦🟦🟦🟦🟦🟦│72%
+▐・Happy   🟪🟪🟪🟪🟪🟪│60%
+▐・Care      🟥🟥🟥🟥🟥│50%
+▐
+▐▄━━❰・Fed by 04 people today・♬‿♩. ♪
+▐━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰
+▐▀━━❰・3 ViiBR tracks and 2 Suno tracks・♪‿♫ ♪
+▐
+▐・Poke him or tag @Wisp in #wisp-house to say hi!!
+▐・check your snackpack with /wisp snackpack
+▐・check the ViiBR Vault to buy treats and toys for Wisp!
+▐
+▐▄━━❰・・<strong>life stage</strong>・𝐓𝐄𝐄𝐍・♪‿♪ ♫.
+▐━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰
+▐
+▐▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▌</pre>
+    </div>
+    <div class="qa">
+      <h3>What do Full, Happy and Care mean?</h3>
+      <ul>
+        <li><strong>Full</strong> is his food. Tracks and snacks fill it, and it drains 15 a day. Below 30 he gets hangry, and if it hits zero, he dies.</li>
+        <li><strong>Happy</strong> counts how many <em>different</em> people said hi in the last 24 hours. Your first poke or chat of the day counts and earns you 1 point. Five people is full Happy. It's about how many show up, not how much one person does.</li>
+        <li><strong>Care</strong> is rhyme duels and gifts. It starts at 50 and drains 10 a day. Below 30 he gets lonely and grumpy, but it never hurts him.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>How do I join in?</h3>
+      <p>Open <span class="cmd">/wisp board</span> once. That puts you on his radar. You also need to be <strong>Active Lounger (level 5)</strong> or higher to feed him.</p>
+    </div>
+  </section>
+
+  <section id="feeding" aria-labelledby="h-feeding">
+    <h2 id="h-feeding"><span class="note">♪</span>Feeding him</h2>
+    <div class="qa">
+      <h3>How do I feed Wisp?</h3>
+      <p>Post your tracks in the track drop like you always do. Wisp never posts or reacts there. He picks up the track, eats it, and forwards it to his Mealtime post with your name and his reaction.</p>
+    </div>
+    <div class="qa">
+      <h3>Which tracks count, and how much?</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Track</th><th scope="col">Meal points</th><th scope="col">Leaderboard points</th><th scope="col">Builds your bond</th></tr></thead>
+          <tbody>
+            <tr><td>viibrmusic.com track</td><td class="num">5</td><td class="num">5</td><td>Yes, +10</td></tr>
+            <tr><td>Suno track</td><td class="num">1</td><td class="num">1</td><td>No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="later">These are starting values. Staff can change them.</p>
+    </div>
+    <div class="qa">
+      <h3>Is there a limit?</h3>
+      <ul>
+        <li>Each person can give him up to <strong>15 meal points a day</strong>. That's three viibrmusic.com tracks (30 while he has his cold). One person can't keep him alive alone.</li>
+        <li>A link only feeds him <strong>once, ever</strong>. Reposting doesn't count.</li>
+        <li>Only the first track link in a message counts.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>Why didn't my track feed him?</h3>
+      <p>He stays quiet when a post doesn't qualify. Usually it's one of these:</p>
+      <ul>
+        <li>You haven't opened <span class="cmd">/wisp board</span> yet.</li>
+        <li>You're not at Active Lounger yet.</li>
+        <li>You hit today's limit.</li>
+        <li>The link was already used.</li>
+        <li>It's not a real Suno or viibrmusic.com track page.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="vault" aria-labelledby="h-vault">
+    <h2 id="h-vault"><span class="note">♪</span>The ViiBR Vault and your Snack Pack</h2>
+    <div class="qa">
+      <h3>What's the difference?</h3>
+      <ul>
+        <li><strong>The ViiBR Vault</strong> is Wisp's shop: snacks, gifts and the leaderboard. Open it with <span class="cmd">/wisp vault</span> or the <em>Shop the Vault</em> button.</li>
+        <li><strong>Your Snack Pack</strong> is yours. <span class="cmd">/wisp snackpack</span> shows your points, the snacks you've saved, any keepsakes Wisp has given you and your badges.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>What do snacks cost?</h3>
+      <p>You pay with the points you earn from sharing tracks, your first poke or chat of the day, and rhyme duels. Spending never lowers your spot on the leaderboard, because your rank counts everything you've ever earned.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Snack</th><th scope="col">Cost</th><th scope="col">Full</th><th scope="col">How he takes it</th></tr></thead>
+          <tbody>
+            <tr><td>Sine Wave</td><td class="num">Free, once a day</td><td class="num">+2</td><td>Comfort food</td></tr>
+            <tr><td>Cloud Wave</td><td class="num">3</td><td class="num">+5</td><td>Fluffy, happy</td></tr>
+            <tr><td>Jelly Wave</td><td class="num">3</td><td class="num">+5</td><td>Wobbly, giggly</td></tr>
+            <tr><td>Juice Wave</td><td class="num">3</td><td class="num">+5</td><td>He's fire, it's water. He fizzles a little.</td></tr>
+            <tr><td>Spicy Wave</td><td class="num">5</td><td class="num">+8</td><td>Spicy. He wants more.</td></tr>
+            <tr><td>Cheese</td><td class="num">6</td><td class="num">+8</td><td>Loves it, no notes</td></tr>
+            <tr><td>Pickles</td><td class="num">6</td><td class="num">+8</td><td>Depends on you (see below)</td></tr>
+            <tr><td>Glitter Wave</td><td class="num">8</td><td class="num">+12</td><td>Very pleased with himself</td></tr>
+            <tr><td>ViiBR Wave</td><td class="num">10</td><td class="num">+15</td><td>His favorite</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="qa">
+      <h3>How do I give him a snack?</h3>
+      <p>Buy it in the Vault, then press <strong>Feed Wisp</strong> on his status card and pick it from the menu. He eats it on screen in his House. Snacks count toward your 15-a-day limit (30 while he has his cold). If you're at the limit, he politely declines, and you keep the snack for tomorrow.</p>
+    </div>
+    <div class="qa">
+      <h3>What's the deal with pickles?</h3>
+      <p>Wisp is a pickle contrarian. Until he knows where you stand, he dodges the question. Once you tell him, in chat, whether you love or hate pickles, he takes the opposite side and commits to it completely, every time you feed him one.</p>
+    </div>
+  </section>
+
+  <section id="lunchbox" aria-labelledby="h-lunchbox">
+    <h2 id="h-lunchbox"><span class="note">♪</span>Wisp's lunchbox and gifts</h2>
+    <div class="qa">
+      <h3>What's in Wisp's lunchbox?</h3>
+      <p>The things he loves. <span class="cmd">/wisp lunchbox</span> shows:</p>
+      <ul>
+        <li><strong>Favorite songs:</strong> once a day he picks one viibrmusic.com track he ate and tucks it away. He announces it in Mealtime.</li>
+        <li><strong>Favorite snack:</strong> every Wisp picks his own when he hatches. Feed it to him and he loses his mind a little.</li>
+        <li><strong>Favorite emoji:</strong> the expression he uses most when he talks.</li>
+        <li><strong>His collections:</strong> the gifts he decided to keep, and who gave them.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>How do gifts work?</h3>
+      <p>The Vault sells seven collections: <strong>Lunchbox Liners</strong>, <strong>Alien Dolls</strong>, <strong>Books</strong>, <strong>Affirmation Cards</strong>, <strong>Tamagotchis</strong>, <strong>Tetris</strong> and <strong>Jewels</strong>. A gift costs 15 points, and it's a gamble: he likes about one gift in three. Every gift you buy fills his Care by 8, whether he keeps it or not.</p>
+      <ul>
+        <li><strong>He likes it:</strong> it goes into his lunchbox with your name on it, and it's gone from the Vault. You get +5 bond.</li>
+        <li><strong>He doesn't:</strong> it goes back to the Vault. Your points are spent either way.</li>
+        <li><strong>Finish a collection:</strong> whoever gives the last missing item of a set gets +25 bond.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>Are there limits?</h3>
+      <ul>
+        <li>Each collection can only be bought from once a day, by anyone.</li>
+        <li>He keeps at most one gift a day. Once he has, the Vault tells you, and anything else you give him that day goes back.</li>
+        <li>Every new Wisp starts with an empty lunchbox, and the Vault restocks everything.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="bond" aria-labelledby="h-bond">
+    <h2 id="h-bond"><span class="note">♪</span>Your bond with Wisp</h2>
+    <div class="qa">
+      <h3>When does Wisp learn my name?</h3>
+      <p>Once you've fed him, snacked him, played with him or said hi on <strong>three different days</strong>, he notices you and asks what to call you. Names can be up to 24 characters. Skip it and he uses your server name. Anything you did before that still counts toward your bond.</p>
+    </div>
+    <div class="qa">
+      <h3>How does the bond grow?</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">What you do</th><th scope="col">Bond</th></tr></thead>
+          <tbody>
+            <tr><td>Share a viibrmusic.com track</td><td class="num">+10</td></tr>
+            <tr><td>Play a game with him</td><td class="num">+3</td></tr>
+            <tr><td>Give him a snack</td><td class="num">+1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Games and snacks add at most 7 bond a day, so sharing ViiBR music is the fastest way in. Showing up every day still gets you there.</p>
+    </div>
+    <div class="qa">
+      <h3>What are the tiers?</h3>
+      <p><strong>New face</strong> from the start, <strong>Familiar</strong> at 50, <strong>Friend</strong> at 150, <strong>Bandmate</strong> at 400. Bonds carry over when a Wisp dies. Every new Wisp already knows his bandmates.</p>
+    </div>
+  </section>
+
+  <section id="growing" aria-labelledby="h-growing">
+    <h2 id="h-growing"><span class="note">♪</span>Growing up</h2>
+    <div class="qa">
+      <h3>How does an egg hatch?</h3>
+      <p>Each new egg has a version number, like <em>Wisp v4</em>. It hatches on the same tracks he eats. It needs 30 meal points within 48 hours, or it goes cold, and that version number is used up for good. Once it starts cracking it can't fail: about 5 hours later, he's out.</p>
+    </div>
+    <div class="qa">
+      <h3>When does he move to the next stage?</h3>
+      <p>Food keeps him alive, but growing takes more than food. Growth points come from snacks (+1 to +3), games (+2) and bond moments like learning someone's name (+5). <em>Caretakers</em> are the different people who looked after him during that stage.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Stage</th><th scope="col">When</th></tr></thead>
+          <tbody>
+            <tr><td>Baby</td><td>From hatching</td></tr>
+            <tr><td>Child</td><td>Day 3+, 20 growth, 3 caretakers</td></tr>
+            <tr><td>Teen</td><td>Day 7+, 60 growth, 5 caretakers</td></tr>
+            <tr><td>Adult</td><td>Day 14+, 150 growth, 8 caretakers</td></tr>
+            <tr><td>Rockstar</td><td>An Adult who stays at 80+ Happy for 7 days straight</td></tr>
+            <tr><td>Old Fogey</td><td>Around day 45, from Adult or Rockstar</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>If he reaches the day but not the rest, he just stays put until the server catches up. He's a late bloomer, and nothing bad happens.</p>
+    </div>
+    <div class="qa">
+      <h3>What if he gets hungry?</h3>
+      <p>Below 30 Full he gets <strong>hangry</strong>. He's still sweet underneath, but with a rough edge, and he swears about the situation (never at a person, never about anyone's music). Below 10 he starts fading. He warns the House both times. Below 30 Care he gets lonely and grumpy instead, but that never hurts him.</p>
+    </div>
+    <div class="qa">
+      <h3>Does he get sick?</h3>
+      <p>Once in his life, while he's a Baby, Child or Teen, Wisp catches a cold that lasts 2 days. He gets hungrier (Full drains faster), but he can't die from it, and everyone can give him up to <strong>30 meal points a day</strong> instead of 15. He tells the House when he catches it and when he's better.</p>
+    </div>
+  </section>
+
+  <section id="talking" aria-labelledby="h-talking">
+    <h2 id="h-talking"><span class="note">♪</span>Talking to him</h2>
+    <div class="qa">
+      <h3>Can I talk to Wisp?</h3>
+      <p>Yes. Mention him or reply to one of his messages in <strong>Wisp's House</strong>. He doesn't answer in other channels or in threads. He learns to talk as he grows:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Stage</th><th scope="col">How he talks</th></tr></thead>
+          <tbody>
+            <tr><td>Egg</td><td>A wobble or a crackle</td></tr>
+            <tr><td>Baby</td><td>Baby noises and single words</td></tr>
+            <tr><td>Child</td><td>Short, excitable, gets things a bit wrong. No swearing yet.</td></tr>
+            <tr><td>Teen</td><td>Full personality: sassy, teases friends, knows the regulars</td></tr>
+            <tr><td>Adult</td><td>Remembers things you tell him, and sometimes joins the chat on his own</td></tr>
+            <tr><td>Rockstar</td><td>Everything, maximum energy</td></tr>
+            <tr><td>Old Fogey</td><td>Slow and wise-ish, with old-timer life lessons</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="qa">
+      <h3>Why didn't he answer?</h3>
+      <ul>
+        <li>He answers each person at most once every 15 seconds.</li>
+        <li>He only answers in Wisp's House, and only when you mention him or reply to him.</li>
+        <li>If his AI is down, he says a pre-written line instead, and the error is posted in the House.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>Does talking earn me anything?</h3>
+      <p>Your first poke or mention of the day earns 1 point and counts toward Happy (if you can feed him). It adds no bond or growth. After that it's just for fun.</p>
+    </div>
+    <div class="qa">
+      <h3>What's he like?</h3>
+      <p>Super cute, super sweet, and he compliments everyone. Compliment him and you might get his <em>no u</em>. It's an adult server, so he swears casually when it fits, but never for shock and never every line. He teases friends, and if someone's actually upset he drops it and apologizes.</p>
+    </div>
+  </section>
+
+  <section id="games" aria-labelledby="h-games">
+    <h2 id="h-games"><span class="note">♪</span>Games</h2>
+    <div class="qa">
+      <h3>How does Rhyme Duel work?</h3>
+      <p><span class="cmd">/wisp play rhyme</span> opens a short thread off his House, one player at a time.</p>
+      <ul>
+        <li>Wisp says a word, and you have 15 seconds to rhyme it. Then he rhymes back. No repeats.</li>
+        <li>A perfect rhyme is 2 points. A slant rhyme (same vowel sound, different ending, like <em>fire</em> and <em>mine</em>) is 1.</li>
+        <li>He gets better as he grows. A Baby runs out of rhymes fast; a Rockstar is almost unbeatable.</li>
+      </ul>
+    </div>
+    <div class="qa">
+      <h3>Who can play?</h3>
+      <p>Anyone. Your best score always goes on the leaderboard. A duel only counts as playing with him (Care, bond, growth and 1 point) if you're a qualifying member and you landed at least one rhyme, up to 5 duels a day.</p>
+    </div>
+  </section>
+
+  <section id="ending" aria-labelledby="h-ending">
+    <h2 id="h-ending"><span class="note">♪</span>The end of a life</h2>
+    <div class="qa">
+      <h3>Can Wisp die?</h3>
+      <p>Yes, if Full hits zero. He can't die while he has his cold. He goes out, and a new egg is laid with the next version number. The leaderboard keeps the whole history, for example <em>"v3 went out after 18 days, v4 never hatched, v5 is going strong."</em></p>
+    </div>
+    <div class="qa">
+      <h3>What happens when he gets old?</h3>
+      <p>Around day 45 he becomes an <strong>Old Fogey</strong>: slower, chill, draining only 10 Full a day, and full of life lessons. Around day 60 he has a celebrated goodbye. He lived a full life, shrivels into a lump of coal, and the coal becomes the next egg, already halfway hatched.</p>
+    </div>
+    <div class="qa">
+      <h3>What's a Last Ember?</h3>
+      <p>When Wisp dies of old age, the <strong>top three sharers</strong> of that life each get his Last Ember (like "Wisp v3's Last Ember") in their Snack Pack, plus a personal goodbye from him. It only happens for a full life, never when he goes out from neglect.</p>
+    </div>
+  </section>
+
+  <section id="fair" aria-labelledby="h-fair">
+    <h2 id="h-fair"><span class="note">♪</span>Fair play</h2>
+    <div class="qa">
+      <h3>Can someone hurt Wisp on purpose?</h3>
+      <p>No. Everything a member can do helps him. The only thing that kills him is the whole server not showing up, and anyone can save him at any moment by sharing music.</p>
+    </div>
+    <div class="qa">
+      <h3>What gets someone in trouble?</h3>
+      <p>Fake links, farming points with junk tracks, or a gross name. Staff can strip points, reset names, and ban members from Wisp:</p>
+      <ul>
+        <li>First time: a shaming picture and 1 day banned.</li>
+        <li>Second time: 1 week.</li>
+        <li>Third time: permanent.</li>
+      </ul>
+      <p>Staff can lift any ban.</p>
+    </div>
+  </section>
+
+  <section id="staff" aria-labelledby="h-staff">
+    <h2 id="h-staff"><span class="note">♪</span>For staff</h2>
+    <div class="qa">
+      <h3>What commands do staff have?</h3>
+      <p>All staff commands need the Manage Server permission.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>/wispadmin setup</code></td><td>Sets his House, Studio forum and track drop, and builds the Studio posts</td></tr>
+            <tr><td><code>/wispadmin roles add</code> · <code>remove</code> · <code>list</code></td><td>The level roles that can feed him</td></tr>
+            <tr><td><code>/wispadmin food</code></td><td>Changes how many meal points a viibrmusic.com or Suno track is worth</td></tr>
+            <tr><td><code>/wispadmin freeze</code> · <code>unfreeze</code></td><td>Pauses his care draining (holidays, outages)</td></tr>
+            <tr><td><code>/wispadmin punish</code> · <code>unban</code></td><td>The ban ladder</td></tr>
+            <tr><td><code>/wispadmin strip</code></td><td>Takes points from someone</td></tr>
+            <tr><td><code>/wispadmin resetname</code></td><td>Clears the name Wisp calls someone, so they can choose again</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="qa">
+      <h3>Where do errors show up?</h3>
+      <p>Right where they happen, as plain text, such as <code>Error in /wisp vault: Forbidden: Missing Permissions</code>. Errors that don't belong to any one channel, like his background loop, show up in Wisp's House. He never posts anything in the track drop.</p>
+    </div>
+    <div class="qa">
+      <h3>Does Wisp ever DM people?</h3>
+      <p>Never. He ignores DMs, his commands only work in the server, and private replies are messages only you can see.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>Coming after launch:</strong> friendship songs and song listens for Bandmates, Jam Space features, and badges. All numbers here are starting values and can be tuned.</p>
+  </footer>
+</main>

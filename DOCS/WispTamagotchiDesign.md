@@ -3,6 +3,11 @@
 *For Foggy & Angel to refine. Drafted 2026-10-13. Numbers marked "starting value"
 get tuned after a week of real data.*
 
+*Meters note, 2026-10-26: this first draft describes two meters (Care and
+Happiness). Wisp now has three, Full, Happy and Care, plus a childhood cold. The
+current description is `wisp_tamagotchi.html` and
+`specs/2026-10-26-status-menu-and-three-meters-design.md`.*
+
 ---
 
 ## The idea

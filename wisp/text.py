@@ -1,0 +1,72 @@
+"""Small text pieces shared by Wisp's posts."""
+
+import re
+from collections.abc import Sequence
+from typing import Final
+
+SEPARATOR: Final = "❱❱━━━━━━━━━━━━━━━━━━━━━━━━━━❰❰"
+MESSAGE_LIMIT: Final = 2000
+VAULT_RAIL: Final = "𝄃 "
+PACK_RAIL: Final = "│"
+USER_ERROR: Final = "That didn't work. The error is posted in this channel."
+
+# Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
+# music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and
+# zero-width joiner that build emoji sequences.
+_EMOJI: Final = re.compile(
+    "[\U0001f000-\U0001faff\u2300-\u23ff\u2600-\u2669\u266c-\u27bf"
+    "\u2b00-\u2bff\u203c\u2049\u20e3\ufe0f\u200d]"
+)
+
+
+def with_emoji(emoji: str, text: str) -> str:
+    """`text` after its emoji and a space, or alone when there is no emoji."""
+    return f"{emoji} {text}" if emoji else text
+
+
+def text_length(text: str) -> int:
+    """The length of `text` counted in UTF-16 units, as JavaScript counts it.
+
+    Characters outside the Basic Multilingual Plane, such as the Vault frame's
+    music symbols, count twice, so a text this fits never runs over Discord's
+    limit however Discord counts it.
+    """
+    return len(text.encode("utf-16-le")) // 2
+
+
+def fit(head: list[str], optional: list[str], tail: Sequence[str] = ()) -> str:
+    """Join `head`, as many whole `optional` lines as fit in one message, and `tail`.
+
+    Optional lines are taken in order, so the ones to drop first go last.
+    """
+    lines = head
+    for line in optional:
+        if len("\n".join([*lines, line, *tail])) > MESSAGE_LIMIT:
+            break
+        lines = [*lines, line]
+    return "\n".join([*lines, *tail])
+
+
+def richest(plain: Sequence[str], rich: Sequence[str], room: int) -> list[str]:
+    """`plain`, with each line swapped for its `rich` form while all still fit.
+
+    Lines are tried in order, and a swap is kept only when the joined lines
+    stay within `room`, counted by `len`. The plain lines are kept
+    even when they do not fit.
+    """
+    lines = list(plain)
+    for index, line in enumerate(rich):
+        tried = [*lines[:index], line, *lines[index + 1 :]]
+        if len("\n".join(tried)) <= room:
+            lines = tried
+    return lines
+
+
+def count(amount: int, noun: str) -> str:
+    """`amount` with `noun`, pluralised with an "s" unless the amount is one."""
+    return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"
+
+
+def strip_emoji(text: str) -> str:
+    """Remove Unicode emoji, keeping the ♪ and ♫ flair and every other character."""
+    return _EMOJI.sub("", text)

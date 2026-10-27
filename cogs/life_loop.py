@@ -1,0 +1,188 @@
+"""The life loop: time passes for Wisp, events are announced and his card stays live."""
+
+import asyncio
+import random
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+import discord
+import pymysql
+from discord.ext import commands, tasks
+
+from cogs.announce import (
+    next_life,
+    post_events,
+    say_in_house,
+    show_in_thread,
+)
+from cogs.assets import nap_image
+from cogs.badges import sweep_badges
+from cogs.pictures import life_image
+from cogs.players import current_happiness, status_text
+from cogs.snacks import status_view
+from cogs.studio import refresh_house_panel
+from cogs.vault import refresh_vault
+from cogs.wisp_lunchbox import pick_favorite_song
+from wisp.life import Event, EventKind, Life, Phase, is_over, schedule_cold, tick
+from wisp.lines import Moment
+from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY
+
+if TYPE_CHECKING:
+    from app import WispBot
+
+# ---
+# Loop
+# ---
+
+
+class LifeLoop(commands.Cog):
+    """Ticks every guild's Wisp, announces what happens and keeps the status card.
+
+    `rng` picks his favorite snack when he hatches, his favorite song of
+    each day and when his childhood cold is due.
+    """
+
+    def __init__(self, bot: "WispBot") -> None:
+        self.bot = bot
+        self.rng = random.Random()
+        self._quiet_announced: set[int] = set()
+
+    async def cog_load(self) -> None:
+        """Start ticking."""
+        self.tick_loop.start()
+
+    async def cog_unload(self) -> None:
+        """Stop ticking."""
+        self.tick_loop.cancel()
+
+    @tasks.loop(seconds=TICK_EVERY.total_seconds())
+    async def tick_loop(self) -> None:
+        await self.run_tick(discord.utils.utcnow())
+
+    @tick_loop.before_loop
+    async def _before_tick_loop(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @tick_loop.error
+    async def _on_tick_loop_error(self, error: BaseException) -> None:
+        await self.bot.report_error_everywhere("life loop", error)
+        await asyncio.sleep(TICK_EVERY.total_seconds())
+        self.tick_loop.restart()
+
+    async def run_tick(self, now: datetime) -> None:
+        """Advance every guild to `now`, one failing guild never stopping the rest.
+
+        Guilds without a House channel or a Status thread, and guilds the bot
+        can no longer see, are skipped. A database or Discord failure in one
+        guild is reported with that guild.
+        """
+        for guild_id in await self.bot.settings.guilds():
+            try:
+                await self._tick_guild(guild_id, now)
+            except (pymysql.err.Error, discord.HTTPException) as error:
+                await self.bot.report_error(
+                    self.bot.get_guild(guild_id), "life loop", error
+                )
+
+    # ---
+    # One guild
+    # ---
+
+    async def _tick_guild(self, guild_id: int, now: datetime) -> None:
+        bot = self.bot
+        settings = await bot.settings.get(guild_id)
+        if settings.house_channel_id is None or settings.status_thread_id is None:
+            return
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return
+        frozen = settings.frozen
+        happy = await current_happiness(bot, guild_id, now)
+        events: list[Event] | None = None
+        async with bot.guild_lock(guild_id):
+            life = await bot.lives.current(guild_id)
+            if life is not None and not is_over(life):
+                events = await self._advance(guild_id, life, now, frozen, happy)
+        if events is None:
+            await next_life(bot, guild_id, now)
+        else:
+            await post_events(bot, guild_id, events)
+        await sweep_badges(bot, guild_id, now)
+        current = await bot.lives.current(guild_id)
+        if current is None:
+            return
+        await self._speak_if_quiet(guild_id, current, frozen, now)
+        await self._update_card(guild_id, current, now, happy)
+        await refresh_house_panel(bot, guild_id, current)
+        await refresh_vault(bot, guild_id)
+        await pick_favorite_song(bot, guild, current, self.rng, now)
+
+    async def _advance(
+        self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
+    ) -> list[Event]:
+        """Tick a life and save it, even when frozen; return what happened.
+
+        A young Wisp's cold is scheduled first, so one already due starts on
+        this tick. A Wisp who hatches picks his favorite snack, never the free
+        one, or its line would answer every member's daily free snack.
+        """
+        caretakers = 0
+        if (
+            life.phase is Phase.ALIVE
+            and life.id is not None
+            and life.stage_started_at is not None
+        ):
+            caretakers = await self.bot.activity_log.caretakers(
+                guild_id, life.id, life.stage_started_at
+            )
+        schedule_cold(life, self.rng)
+        events = tick(life, now, frozen=frozen, happiness=happy, caretakers=caretakers)
+        if any(event.kind is EventKind.HATCHED for event in events):
+            life.favorite_snack = self.rng.choice(PAID_SNACKS).key
+        await self.bot.lives.save(guild_id, life)
+        return events
+
+    # ---
+    # Quiet
+    # ---
+
+    async def _speak_if_quiet(
+        self, guild_id: int, life: Life, frozen: bool, now: datetime
+    ) -> None:
+        """Say one quiet line per stretch of no interaction; speak again after one."""
+        people = await self.bot.activity_log.people_since(guild_id, now - QUIET_AFTER)
+        if people:
+            self._quiet_announced.discard(guild_id)
+            return
+        if frozen or life.phase is not Phase.ALIVE or guild_id in self._quiet_announced:
+            return
+        self._quiet_announced.add(guild_id)
+        await say_in_house(
+            self.bot, guild_id, Moment.QUIET, life, image=nap_image(life.stage)
+        )
+
+    # ---
+    # Status card
+    # ---
+
+    async def _update_card(
+        self, guild_id: int, life: Life, now: datetime, happy: int
+    ) -> None:
+        """Show the live status card, with his current picture, in the Status thread."""
+        if is_over(life):
+            return
+        await show_in_thread(
+            self.bot,
+            guild_id,
+            "status_thread_id",
+            "status_message_id",
+            await status_text(self.bot, guild_id, life, now, happy),
+            "status card",
+            status_view(),
+            life_image(life),
+        )
+
+
+async def setup(bot: "WispBot") -> None:
+    """Load the life loop cog."""
+    await bot.add_cog(LifeLoop(bot))

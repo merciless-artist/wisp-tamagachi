@@ -1,0 +1,205 @@
+"""Feeding: tracks shared in the track drop feed Wisp and are forwarded to Mealtime.
+
+Staff set how many meal points each kind of track is worth with !wisp food.
+"""
+
+from datetime import datetime
+from typing import TYPE_CHECKING, Final
+
+import aiohttp
+import discord
+from discord.ext import commands
+
+from cogs.announce import post_events, say_in_mealtime, show_in_thread
+from cogs.channels import in_channel
+from cogs.players import can_feed, maybe_meet
+from cogs.staff import StaffContext, guild_of, reply
+from cogs.studio import TRACK_LABELS, rules_post
+from db.activity import InteractionKind
+from db.settings import meal_points
+from wisp.bond import daily_meal_cap, meal_grant
+from wisp.life import Event, Mood, feed, is_over, mood
+from wisp.lines import Moment
+from wisp.links import ShareLink, Track, TrackKind, find_track
+from wisp.rules import BOND_PER_VIIBR_TRACK, MEAL_POINTS_MAX
+from wisp.text import count
+
+if TYPE_CHECKING:
+    from app import WispBot
+
+_NO_PING: Final = discord.AllowedMentions.none()
+_MOOD_EMOJIS: Final = {
+    Mood.HAPPY: "wisp_happy",
+    Mood.HANGRY: "wisp_hangry",
+    Mood.LONELY: "wisp_sad",
+}
+
+# ---
+# Listener
+# ---
+
+
+class Feeding(commands.Cog):
+    """Turns tracks posted by qualifying members into meals for Wisp."""
+
+    def __init__(self, bot: "WispBot") -> None:
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Feed Wisp from a new message in the track drop, if it qualifies.
+
+        Only the first valid track link in a message counts, each track counts
+        once ever, and the post itself is never reacted to, edited or replied to.
+        A viibrmusic.com share link counts as the song it names, which the site
+        is asked for once the member qualifies, outside the guild lock.
+        Anything that does not qualify is ignored without a word.
+        """
+        guild = message.guild
+        author = message.author
+        if guild is None or author.bot or not isinstance(author, discord.Member):
+            return
+        found = find_track(message.content)
+        if found is None:
+            return
+        settings = await self.bot.settings.get(guild.id)
+        if not in_channel(message.channel, settings.tracks_channel_id):
+            return
+        if not await can_feed(self.bot, guild.id, author):
+            return
+        now = discord.utils.utcnow()
+        player = await self.bot.players.get(guild.id, author.id)
+        if player.is_banned(now):
+            return
+        track = (
+            await self._resolve(guild, found) if isinstance(found, ShareLink) else found
+        )
+        if track is None:
+            return
+        points = meal_points(settings)[track.kind]
+        fed = await self._feed(guild.id, author.id, track, points, message.id, now)
+        if fed is None:
+            return
+        events, feeling = fed
+        name = player.name or author.display_name
+        await self._forward(guild, author, track, name, feeling)
+        await post_events(self.bot, guild.id, events)
+        await maybe_meet(
+            self.bot, guild.id, author.id, display_name=author.display_name
+        )
+
+    async def _resolve(self, guild: discord.Guild, link: ShareLink) -> Track | None:
+        """The song a share link names, or None when it names none.
+
+        When viibrmusic.com cannot be reached the link is not fed, and the error
+        goes to Wisp's House, since he never posts in the track drop.
+        """
+        try:
+            return await self.bot.share_links.resolve(link)
+        except (aiohttp.ClientError, TimeoutError) as error:
+            await self.bot.report_error(
+                guild, "checking a viibrmusic.com share link", error
+            )
+            return None
+
+    async def _feed(
+        self,
+        guild_id: int,
+        user_id: int,
+        track: Track,
+        points: int,
+        message_id: int,
+        now: datetime,
+    ) -> tuple[list[Event], Mood] | None:
+        """Record a feed worth `points` and apply it; None when nothing was fed."""
+        bot = self.bot
+        async with bot.guild_lock(guild_id):
+            if (await bot.players.get(guild_id, user_id)).is_banned(now):
+                return None
+            life = await bot.lives.current(guild_id)
+            if life is None or life.id is None or is_over(life):
+                return None
+            eaten = await bot.activity_log.meal_points_today(guild_id, user_id, now)
+            grant = meal_grant(eaten, points, daily_meal_cap(life))
+            if grant == 0:
+                return None
+            if not await bot.activity_log.record_feed(
+                guild_id, life.id, user_id, track, grant, message_id, now
+            ):
+                return None
+            bond = BOND_PER_VIIBR_TRACK if track.kind is TrackKind.VIIBR else 0
+            await bot.activity_log.record_interaction(
+                guild_id, life.id, user_id, InteractionKind.FEED, bond, grant, now
+            )
+            await bot.players.add_points(guild_id, user_id, grant)
+            if bond:
+                await bot.players.add_bond(guild_id, user_id, bond)
+            events = feed(life, grant, user_id, now)
+            await bot.lives.save(guild_id, life)
+            return events, mood(life)
+
+    async def _forward(
+        self,
+        guild: discord.Guild,
+        author: discord.Member,
+        track: Track,
+        name: str,
+        feeling: Mood,
+    ) -> None:
+        """Post the track and Wisp's reaction in Mealtime.
+
+        A failure is posted in Mealtime, or in Wisp's House when Mealtime cannot
+        be reached.
+        """
+        reaction = self.bot.lines.pick(Moment.TRACK_FED, feeling, name=name)
+        emoji = self.bot.emoji(_MOOD_EMOJIS[feeling])
+        text = (
+            f"♪ {author.mention} fed Wisp ・ {track.url}\n"
+            f"{f'{emoji} ' if emoji else ''}{reaction}"
+        )
+        await say_in_mealtime(self.bot, guild, text, "forwarding a track to Mealtime")
+
+
+# ---
+# Food values
+# ---
+
+
+async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
+    """Bring the Wisp FAQ's rules post up to date with the guild's food values."""
+    await show_in_thread(
+        bot,
+        guild_id,
+        "rules_thread_id",
+        "rules_message_id",
+        rules_post(await bot.settings.get(guild_id)),
+        "Wisp FAQ rules post",
+    )
+
+
+@commands.command(
+    name="food",
+    usage=f"<viibr points> <suno points> (each 0 to {MEAL_POINTS_MAX})",
+)
+async def set_food(
+    ctx: StaffContext,
+    viibr: commands.Range[int, 0, MEAL_POINTS_MAX],
+    suno: commands.Range[int, 0, MEAL_POINTS_MAX],
+) -> None:
+    """Save both food values and update the Wisp FAQ's rules post to match."""
+    bot = ctx.bot
+    guild_id = guild_of(ctx).id
+    await bot.settings.update(guild_id, viibr_meal_points=viibr, suno_meal_points=suno)
+    await refresh_rules(bot, guild_id)
+    await reply(
+        ctx,
+        f"♪ Food values: {TRACK_LABELS[TrackKind.VIIBR]} "
+        f"{count(viibr, 'meal point')}, {TRACK_LABELS[TrackKind.SUNO]} "
+        f"{count(suno, 'meal point')}.",
+    )
+
+
+async def setup(bot: "WispBot") -> None:
+    """Load the feeding cog and the food command."""
+    await bot.add_cog(Feeding(bot))
+    bot.add_command(set_food)
