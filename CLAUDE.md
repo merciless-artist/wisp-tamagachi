@@ -36,15 +36,22 @@ UTC and a day is a UTC calendar day.
   allowed, always by name through `bot.emoji(...)`.
 - Bullet `・`, flair `♪`, separator (the plain divider, `wisp.text.SEPARATOR`)
   `𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂`.
-- House style (`DOCS/specs/2026-10-27-house-style.md`) for the status card,
-  the Vault, the Snack Pack, the lunchbox and the leaderboard. Every frame
-  piece comes from `wisp/text.py`; never retype a frame string:
-  - title bar `title_bar(...)` (`𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`), then `BOX_TOP`;
-    closed by `BOX_CLOSE` (`BOX_BOTTOM` and `BOTTOM_BAR`).
+- House style v2.1 (`DOCS/specs/2026-10-27-house-style.md`) for the status
+  card, the Vault, the Snack Pack, the lunchbox, the leaderboard and Burrito's
+  post. Every frame piece comes from `wisp/text.py`; never retype a frame
+  string:
+  - `box_open(title, width)` (title bar `𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`, box top)
+    and `box_close(title, width)` (box bottom, and the bottom bar `bars(...)`
+    sizes to look as wide as the title bar); `framed(...)` does both.
+  - Box top and bottom have the same number of `═`: the layout's width (22 by
+    default; status card 25, Vault 24). Nothing may look wider than the box:
+    `visual_width` estimates it and `wrap`/`wrapped` break long lines into
+    `║ ` continuation rows.
   - `#` `heading(name)` `║𝄡𝄚𝄂𝄆 **Name**`, `##` `sub(text)` `║𝄡𝄚𝄂 text`,
     `###` `item(text)` `║𝄡 text`, a plain line `note(text)` `║ text`.
-  - Between sections `SECTION_BREAK` `╠═══⇕` (`sections(...)` puts them in);
-    no empty `║` lines.
+  - Between sections `SECTION_BREAK` `╠═══⇕` (`sections(...)` puts them in).
+    A lone `BLANK` (`║`) line goes exactly where Myra's draft has one and
+    nowhere else.
 - Points members spend are "wisp coins" (WC, with the `wisp_coin_mini` emoji);
   leaderboard counts stay "points".
 - Length checks use `text_length` (UTF-16 units): the frames are full of

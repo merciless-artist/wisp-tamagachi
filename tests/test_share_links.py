@@ -11,7 +11,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
-from cogs.share_links import ShareLinkResolver
+from cogs.share_links import ShareLinkResolver, artist_on_page
 from wisp.links import ShareLink, Track, TrackKind
 
 SONG = "bcd66fde-26f8-475a-b2f0-2e648f1204fb"
@@ -202,3 +202,114 @@ async def test_a_closed_resolver_opens_no_new_session(sites: Sites) -> None:
     gc.collect()
 
     assert sites.apex.requests == [("/s/bDBmywB5", "WispBot/1.0")]
+
+
+# ---
+# Artists
+# ---
+
+ARTIST_PAGE = (
+    "<html><head>"
+    '<script type="application/ld+json">{"@context":"https://schema.org",'
+    '"@type":"MusicRecording","name":"Ablaze | The Altar",'
+    '"byArtist":{"@type":"Person","name":"Foggy X Music"}}</script>'
+    "</head></html>"
+)
+
+
+@dataclass
+class SongPages:
+    """viibrmusic.com's song pages, served locally, and what was asked of them."""
+
+    pages: dict[str, tuple[int, str]]
+    requests: list[str] = field(default_factory=list)
+
+    async def handle(self, request: web.Request) -> web.Response:
+        uuid = request.match_info["uuid"]
+        self.requests.append(request.path)
+        status, text = self.pages.get(uuid, (404, "not here"))
+        return web.Response(status=status, text=text, content_type="text/html")
+
+
+@pytest.fixture
+async def song_pages() -> AsyncIterator[tuple[SongPages, ShareLinkResolver]]:
+    pages = SongPages(
+        {
+            SONG: (200, ARTIST_PAGE),
+            OTHER_SONG: (200, "<html>no data</html>"),
+        }
+    )
+    application = web.Application()
+    application.router.add_get("/songs/{uuid}", pages.handle)
+    server = TestServer(application)
+    await server.start_server()
+    resolver = ShareLinkResolver(origins={"viibrmusic.com": str(server.make_url("/"))})
+    try:
+        yield pages, resolver
+    finally:
+        await resolver.close()
+        await server.close()
+
+
+async def test_a_songs_artist_is_read_from_its_page(
+    song_pages: tuple[SongPages, ShareLinkResolver],
+) -> None:
+    pages, resolver = song_pages
+
+    assert await resolver.artist(f"viibr:{SONG}") == "Foggy X Music"
+    assert pages.requests == [f"/songs/{SONG}"]
+
+
+async def test_a_page_without_an_artist_or_a_missing_page_names_none(
+    song_pages: tuple[SongPages, ShareLinkResolver],
+) -> None:
+    pages, resolver = song_pages
+
+    assert await resolver.artist(f"viibr:{OTHER_SONG}") is None
+    assert await resolver.artist("viibr:00000000-0000-0000-0000-000000000000") is None
+    assert len(pages.requests) == 2
+
+
+@pytest.mark.parametrize("key", [f"suno:{SONG}", "viibr:bDBmywB5", "viibr:", ""])
+async def test_a_key_that_is_not_a_viibr_song_asks_nothing(
+    song_pages: tuple[SongPages, ShareLinkResolver], key: str
+) -> None:
+    pages, resolver = song_pages
+
+    assert await resolver.artist(key) is None
+    assert pages.requests == []
+
+
+async def test_an_unreachable_site_raises_for_an_artist(closed_port: str) -> None:
+    resolver = ShareLinkResolver(origins={"viibrmusic.com": closed_port})
+    try:
+        with pytest.raises(aiohttp.ClientError):
+            await resolver.artist(f"viibr:{SONG}")
+    finally:
+        await resolver.close()
+
+
+@pytest.mark.parametrize(
+    ("page", "artist"),
+    [
+        (ARTIST_PAGE, "Foggy X Music"),
+        (
+            '<script type="application/ld+json">{"byArtist":{"name":"  A  "}}</script>',
+            "A",
+        ),
+        ('<script type="application/ld+json">not json</script>', None),
+        ('<script type="application/ld+json">["a list"]</script>', None),
+        ('<script type="application/ld+json">{"byArtist":"just text"}</script>', None),
+        ('<script type="application/ld+json">{"byArtist":{"name":" "}}</script>', None),
+        (
+            '<script type="application/ld+json">{"@type":"WebSite"}</script>'
+            '<script type="application/ld+json">{"byArtist":{"name":"B"}}</script>',
+            "B",
+        ),
+        ("<html></html>", None),
+    ],
+)
+def test_artist_on_page_reads_the_schema_org_artist(
+    page: str, artist: str | None
+) -> None:
+    assert artist_on_page(page) == artist

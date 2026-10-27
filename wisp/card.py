@@ -17,34 +17,25 @@ from wisp.rules import (
     FULL_MAX,
     HATCHING_TIME,
 )
-from wisp.text import SUB_MARK, count, framed, item, sections, sub
+from wisp.text import BLANK, RAIL, SUB_MARK, count, framed, item, sections, sub
 
 # ---
 # Layout
 # ---
 
 STATUS_TITLE: Final = "𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈"
+# Wide enough for a full bar's line: ten meter emojis, then │100%.
+STATUS_WIDTH: Final = 25
 WAITING: Final = framed(
-    STATUS_TITLE, [sub("No Wisp right now. Waiting for staff to begin again.")]
+    STATUS_TITLE,
+    [BLANK, sub("No Wisp right now. Waiting for staff to begin again."), BLANK],
+    STATUS_WIDTH,
 )
 
 _PERCENT_PER_PIECE: Final = 10
 _LEFT_FROM: Final = 5
 _MATH_BOLD_A: Final = 0x1D400
 _HOUR: Final = timedelta(hours=1).total_seconds()
-
-# Spaces after each bar label, so the bars of one card start in the same
-# column in Discord's proportional font. Myra tuned Care 6, Happy 3 and
-# Hunger 1 by eye; on the egg cards the longest label gets one space, like
-# Hunger does.
-LABEL_PADDING: Final[dict[str, int]] = {
-    "Care": 6,
-    "Happy": 3,
-    "Hunger": 1,
-    "Warmth": 3,
-    "Hatching": 1,
-    "Emerging": 1,
-}
 
 Emoji = Callable[[str], str]
 
@@ -100,13 +91,13 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         warmth = 100 - _share(life.phase_seconds, EGG_WARMTH.total_seconds())
         hatching = _share(life.egg_food, EGG_FOOD_NEEDED)
         bars = [
-            _bar_line("Warmth", warmth, HUNGER, emoji),
-            _bar_line("Hatching", hatching, HAPPY, emoji),
+            *_meter("Warmth", warmth, HUNGER, emoji),
+            *_meter("Hatching", hatching, HAPPY, emoji),
         ]
         return _card([], bars, "the egg", "EGG", facts)
     if life.phase is Phase.HATCHING:
         emerging = _share(life.phase_seconds, HATCHING_TIME.total_seconds())
-        bars = [_bar_line("Emerging", emerging, HAPPY, emoji)]
+        bars = _meter("Emerging", emerging, HAPPY, emoji)
         return _card([], bars, "the egg", "HATCHING", facts)
     if life.phase is Phase.ALIVE:
         heading = [f"{SUB_MARK}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
@@ -114,9 +105,9 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
             hours = math.ceil(life.cold_left / _HOUR)
             heading.append(sub(f"he has Monster Pox・{hours} h left"))
         bars = [
-            _bar_line("Care", life.care / CARE_MAX * 100, CARE, emoji),
-            _bar_line("Happy", facts.happiness, HAPPY, emoji),
-            _bar_line("Hunger", life.full / FULL_MAX * 100, HUNGER, emoji),
+            *_meter("Care", life.care / CARE_MAX * 100, CARE, emoji),
+            *_meter("Happy", facts.happiness, HAPPY, emoji),
+            *_meter("Hunger", life.full / FULL_MAX * 100, HUNGER, emoji),
         ]
         return _card(heading, bars, "him", life.stage.label.upper(), facts)
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")
@@ -125,7 +116,11 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
 def _card(
     heading: list[str], bars: list[str], poke: str, stage: str, facts: CardFacts
 ) -> str:
-    """Myra's frame around the heading, the bars and the facts."""
+    """Myra's frame around the heading, the bars and the facts.
+
+    The blank lines are where her draft has them: after the box top, at the
+    end of each section and before the box closes.
+    """
     people = "person" if facts.fed_today == 1 else "people"
     tracks = (
         f"{count(facts.viibr_tracks, 'ViiBR track')} and "
@@ -133,20 +128,23 @@ def _card(
     )
     house = "his House" if facts.house_id is None else f"<#{facts.house_id}>"
     body = sections(
-        *([heading] if heading else []),
-        bars,
+        *([[BLANK, *heading, BLANK]] if heading else []),
+        [*([] if heading else [BLANK]), *bars, BLANK],
         [
             sub(f"Fed by {facts.fed_today:02d} {people} today・♬‿♩. ♪"),
+            BLANK,
             sub(f"{tracks}・♪‿♫ ♪"),
+            BLANK,
         ],
         [
             item(f"Poke {poke} or tag <@{facts.wisp_id}> in {house} to say hi!!"),
             item("check your snackpack with /wisp snackpack"),
             item("check the ViiBR Vault to buy treats and toys for Wisp!"),
+            BLANK,
         ],
-        [f"{SUB_MARK}・・**life stage**・{_bold(stage)}・♪‿♪ ♫."],
+        [f"{SUB_MARK}・・**life stage**・{_bold(stage)}・♪‿♪ ♫.", BLANK],
     )
-    return framed(STATUS_TITLE, body)
+    return framed(STATUS_TITLE, body, STATUS_WIDTH)
 
 
 # ---
@@ -176,9 +174,9 @@ def _bold(text: str) -> str:
     )
 
 
-def _bar_line(label: str, value: float, meter: Meter, emoji: Emoji) -> str:
-    padded = label + " " * LABEL_PADDING[label]
-    return item(padded + bar(value, emoji(meter.full), emoji(meter.left)))
+def _meter(label: str, value: float, meter: Meter, emoji: Emoji) -> list[str]:
+    """The label's line, then the bar on its own line under it."""
+    return [item(label), RAIL + bar(value, emoji(meter.full), emoji(meter.left))]
 
 
 def _share(part: float, whole: float) -> float:

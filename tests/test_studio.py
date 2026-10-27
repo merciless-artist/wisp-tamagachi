@@ -30,7 +30,14 @@ from db.settings import SettingsRepo
 from wisp import rules
 from wisp.life import new_egg
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SEPARATOR,
+    WIDTHS,
+    box_room,
+    text_length,
+    visual_width,
+)
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -62,7 +69,23 @@ OLD_NAMES = (
     "How Wisp Works",
     "Burrito",
 )
+# Myra's Burrito post, byte for byte (house style v2.1).
 BURRITO_STARTER = "\n".join(
+    [
+        "𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+        "╔══════════════════════╗",
+        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
+        "║",
+        "║𝄡 Ask him anything about how",
+        "║ Wisp works, right here.",
+        "║",
+        "║𝄡 He'll point you to where to look",
+        "║ for Wisp's live stats.",
+        "╚══════════════════════╝",
+        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+    ]
+)
+OLD_BURRITO_STARTER = "\n".join(
     [
         "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
         "╔════════════════════╗",
@@ -106,6 +129,7 @@ FAQ_TITLES = (
     "Fair Play",
 )
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
+NO_PING = discord.AllowedMentions.none().to_dict()
 THREAD_ATTRS = (
     "status_thread_id",
     "mealtime_thread_id",
@@ -618,8 +642,77 @@ async def test_burritos_post_is_framed_open_and_has_no_picture(
     assert starter.attachments == []
     burrito.edit.assert_not_awaited()
     starter.pin.assert_not_awaited()
+    starter.edit.assert_not_awaited()
     settings = await bot.settings.get(GUILD_ID)
     assert settings.burrito_thread_id == burrito.id
+
+
+def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
+    lines = BURRITO_STARTER.split("\n")
+
+    assert lines[1].count("═") == lines[-2].count("═") == 22
+    assert all(visual_width(line) <= box_room(22) for line in lines[2:-2])
+    assert abs(visual_width(lines[0]) - visual_width(lines[-1])) <= (
+        WIDTHS["staff"] / 2
+    )
+
+
+async def test_setup_brings_an_old_burrito_post_up_to_date(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    starter.content = OLD_BURRITO_STARTER
+    others = {
+        name: server.messages[server.thread_named(name).id].content
+        for name in THREAD_NAMES[:-1]
+    }
+
+    await run_setup(bot, server)
+
+    assert starter.content == BURRITO_STARTER
+    starter.edit.assert_awaited_once()
+    assert starter.edit.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert server.created_names == list(THREAD_NAMES)
+    for name, content in others.items():
+        assert server.messages[server.thread_named(name).id].content == content
+
+    await run_setup(bot, server)
+
+    starter.edit.assert_awaited_once()
+
+
+async def test_a_burrito_post_that_is_gone_is_left_alone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    del server.messages[burrito.id]
+
+    await run_setup(bot, server)
+
+    burrito.send.assert_not_awaited()
+    assert server.created_names == list(THREAD_NAMES)
+
+
+async def test_a_failed_burrito_update_is_posted_in_his_thread(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    starter.content = OLD_BURRITO_STARTER
+    starter.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await run_setup(bot, server)
+
+    (line,) = burrito.send.await_args.args
+    assert line.startswith(
+        "Error in updating the first post of Burrito, Fairy God-bot: Forbidden"
+    )
 
 
 async def test_a_studio_from_before_burrito_gets_his_post_without_a_notice(

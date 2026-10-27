@@ -35,6 +35,7 @@ from wisp.rules import (
     GiftCollection,
 )
 from wisp.text import (
+    BOX_WIDTH,
     heading,
     item,
     note,
@@ -42,6 +43,8 @@ from wisp.text import (
     sub,
     text_length,
     with_emoji,
+    wrap,
+    wrapped,
 )
 from wisp.voice import MINI_COIN_EMOJI
 
@@ -142,23 +145,30 @@ def _stock(
     return " ".join(_label(bot, gift) for gift in in_stock)
 
 
-def gift_section(bot: "WispBot", state: GiftState | None, room: int) -> list[str]:
+def gift_section(
+    bot: "WispBot", state: GiftState | None, room: int, width: int = BOX_WIDTH
+) -> list[str]:
     """The Vault's Gifts lines: each collection's stock, or why it is shut.
 
     Once he has kept a gift today, a line says so before anyone pays. The
-    lines take at most `room`, counted by `text_length`: a collection shows
-    each gift while there is room, else how many are left.
+    lines are wrapped to a box `width` wide and take at most `room`, counted
+    by `text_length`: a collection shows each gift while there is room, else
+    how many are left.
     """
     price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{GIFT_COST} WC each")
     head = [f"{heading('Gifts')}・{price}", _GAMBLE]
     if state is None:
-        return [*head, _HATCH_FIRST]
+        return wrapped([*head, _HATCH_FIRST], width)
     if state.kept_today:
         head.append(_KEPT_TODAY)
+    head = wrapped(head, width)
 
     def lines(rich: bool) -> list[str]:
         return [
-            item(f"{collection.name}: {_stock(bot, state, collection, rich=rich)}")
+            wrap(
+                item(f"{collection.name}: {_stock(bot, state, collection, rich=rich)}"),
+                width,
+            )
             for collection in GIFT_COLLECTIONS
         ]
 
@@ -366,7 +376,7 @@ def collection_lines(
             continue
         progress = f"{collection.name} {len(got)}/{len(collection.gifts)}"
         if len(got) == len(collection.gifts):
-            done = sub(f"{progress} complete ・ finished by <@{got[-1][1]}>")
+            done = wrap(sub(f"{progress} complete ・ finished by <@{got[-1][1]}>"))
             plain.append(done)
             rich.append(done)
             continue
@@ -377,8 +387,8 @@ def collection_lines(
             )
             for gift, user_id in got
         )
-        plain.append(sub(progress))
-        rich.append("\n".join([sub(progress), *items]))
+        plain.append(wrap(sub(progress)))
+        rich.append(wrap("\n".join([sub(progress), *items])))
     return richest(plain, rich, room)
 
 

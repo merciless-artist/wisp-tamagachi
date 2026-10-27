@@ -85,17 +85,19 @@ from wisp.rules import (
     Snack,
 )
 from wisp.text import (
-    BOX_CLOSE,
+    BLANK,
     LAYOUT_TEXT_LIMIT,
     MESSAGE_LIMIT,
     SECTION_BREAK,
     SUB_MARK,
+    box_close,
     box_open,
     heading,
     item,
     sub,
     text_length,
     with_emoji,
+    wrapped,
 )
 from wisp.voice import COIN_EMOJI, MINI_COIN_EMOJI
 
@@ -123,6 +125,8 @@ _NOTHING_SAVED: Final = item("nothing saved yet")
 _LOGO_EMOJI: Final = "viibr_logo"
 _VAULT_TITLE: Final = ("𝕍𝒾𝒾𝔹ℝ", "𝕍𝒶𝓊𝓁𝓉")
 _PACK_TITLE: Final = "𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀"
+# Wide enough for the widest badge row, from its name and padding to its price.
+VAULT_WIDTH: Final = 24
 _VAULT_CONTEXT: Final = "the ViiBR Vault menu"
 # Spaces after each snack's name in the Vault, tuned by Myra so the │ line up.
 _VAULT_PADDING: Final[dict[str, int]] = {
@@ -387,26 +391,41 @@ def _vault_pieces(
 
     An optional note comes before the frame. The Magazines are there only when
     `magazines`, the covers the member owns this life, is not None. The Gifts
-    take whatever room the rest leaves of the layout's text limit.
+    take whatever room the rest leaves of the layout's text limit. Blank lines
+    follow the box top and the snacks, as in Myra's draft, and every line is
+    wrapped to fit the box.
     """
     logo = bot.emoji(_LOGO_EMOJI)
     title = " ".join(word for word in (_VAULT_TITLE[0], logo, _VAULT_TITLE[1]) if word)
+    close = box_close(title, VAULT_WIDTH)
     snacks = [
         *([note] if note else []),
-        *box_open(title),
-        sub(f"wisp coins: {with_emoji(bot.emoji(COIN_EMOJI), str(balance))}"),
-        SECTION_BREAK,
-        heading("Snacks"),
-        _vault_snack(bot, _FREE, "free once a day"),
-        *(_vault_snack(bot, snack, _coins(bot, f"{snack.cost} WC")) for snack in _MENU),
+        *box_open(title, VAULT_WIDTH),
+        *wrapped(
+            [
+                BLANK,
+                sub(f"wisp coins: {with_emoji(bot.emoji(COIN_EMOJI), str(balance))}"),
+                SECTION_BREAK,
+                heading("Snacks"),
+                _vault_snack(bot, _FREE, "free once a day"),
+                *(
+                    _vault_snack(bot, snack, _coins(bot, f"{snack.cost} WC"))
+                    for snack in _MENU
+                ),
+                BLANK,
+            ],
+            VAULT_WIDTH,
+        ),
     ]
-    badges = [SECTION_BREAK, *badge_section(bot, offers)]
+    badges = wrapped([SECTION_BREAK, *badge_section(bot, offers)], VAULT_WIDTH)
     covers = (
-        [] if magazines is None else [SECTION_BREAK, *magazine_section(bot, magazines)]
+        []
+        if magazines is None
+        else wrapped([SECTION_BREAK, *magazine_section(bot, magazines)], VAULT_WIDTH)
     )
     # Joined as one text, so the newlines between the text displays are
     # counted too: a small safety margin on purpose.
-    rest = "\n".join([*snacks, *badges, *covers, SECTION_BREAK, *BOX_CLOSE])
+    rest = "\n".join([*snacks, *badges, *covers, SECTION_BREAK, *close])
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
     cover_menus = [] if menus.magazines is None else [menus.magazines]
@@ -414,8 +433,10 @@ def _vault_pieces(
         _VaultPiece(snacks, [menus.snacks]),
         _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
         *([_VaultPiece(covers, cover_menus)] if covers else []),
-        _VaultPiece([SECTION_BREAK, *gift_section(bot, gifts, room)], gift_menus),
-        _VaultPiece(BOX_CLOSE),
+        _VaultPiece(
+            [SECTION_BREAK, *gift_section(bot, gifts, room, VAULT_WIDTH)], gift_menus
+        ),
+        _VaultPiece(close),
     ]
 
 
@@ -517,7 +538,8 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     Magazines section is there only when the member has bought one. When they
     do not all fit in one message, each is cut short with how many more there
     are: the magazines get at most a quarter of the room, the badges at most
-    half of the rest, and each any room the ones before leave over.
+    half of the rest, and each any room the ones before leave over. Every
+    line is wrapped to fit the box.
     """
     player = await bot.players.get(guild_id, user_id)
     owned = await bot.activity_log.inventory(guild_id, user_id)
@@ -534,26 +556,30 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     balance = _coins(bot, f"{player.balance} WC (wisp coins)")
     head = [
         *box_open(_PACK_TITLE),
-        sub(f"<@{user_id}> snack pack"),
-        f"{SUB_MARK}・{balance}",
-        SECTION_BREAK,
-        heading("Snacks"),
-        *(snacks or [_NOTHING_SAVED]),
-        SECTION_BREAK,
-        heading("Keepsakes"),
+        *wrapped(
+            [
+                sub(f"<@{user_id}> snack pack"),
+                f"{SUB_MARK}・{balance}",
+                SECTION_BREAK,
+                heading("Snacks"),
+                *(snacks or [_NOTHING_SAVED]),
+                SECTION_BREAK,
+                heading("Keepsakes"),
+            ]
+        ),
     ]
     held = await bot.keepsakes.of(guild_id, user_id)
     newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
-    keepsakes = [_pack_keepsake(bot, keepsake) for keepsake in newest_life_first] or [
+    keepsakes = wrapped(
+        [_pack_keepsake(bot, keepsake) for keepsake in newest_life_first]
+    ) or [_NONE_YET]
+    badges = wrapped(badge_pack_lines(bot, await bot.badges.of(guild_id, user_id))) or [
         _NONE_YET
     ]
-    badges = badge_pack_lines(bot, await bot.badges.of(guild_id, user_id)) or [
-        _NONE_YET
-    ]
-    covers = magazine_pack_lines(await bot.magazines.of(guild_id, user_id))
+    covers = wrapped(magazine_pack_lines(await bot.magazines.of(guild_id, user_id)))
     between = [SECTION_BREAK, heading("Badges")]
     shelf = [SECTION_BREAK, heading("Magazines")] if covers else []
-    tail = BOX_CLOSE
+    tail = box_close(_PACK_TITLE)
     framing = "\n".join([*head, *between, *shelf, *tail])
     room = MESSAGE_LIMIT - text_length(framing) - 3
     cover_room = min(_length(covers), room // 4)

@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-10-27 (house style v2.1: spacing, matching bars, wrapping)
+
+- Myra's spacing pass (`DOCS/specs/2026-10-27-house-style.md` is updated to
+  v2.1). Presentation only; every behaviour stays.
+- Burrito's post is her text byte for byte (blank lines, 6 `𝄚` each side, a
+  22-`═` box, two wrapped lines), and `!wisp setup` now edits an existing
+  Burrito starter whose text differs (`StudioThread.current_content`). A
+  starter that is gone is left alone; a failed edit is posted in the thread
+  as `Error in updating the first post of Burrito, Fairy God-bot: ...`.
+- `wisp.text.visual_width` estimates how wide a line looks in Discord from
+  one table (`WIDTHS`), calibrated on her Burrito post (a 22-`═` box holds
+  every line and breaks where she broke them; 6 `𝄚` around its title match a
+  20-`𝄚` bottom bar) and on her Vault padding (a space is about 0.22 em). A
+  custom emoji counts 1.375 em and a mention 6 em.
+- `wisp.text.bars(title)` gives the title bar and a bottom bar sized to look
+  as wide; every layout's box top and bottom have the same number of `═`.
+  Widths: status card (and waiting card) 25 (a full bar line: 10 meter
+  emojis and `│100%`), Vault 24 (the widest badge row), Snack Pack,
+  lunchbox, leaderboard and Burrito 22.
+- `wisp.text.wrap` breaks every line wider than its box at word boundaries
+  into `║ ` continuation rows: at single spaces, between emoji (a line of only
+  emoji wraps between them) and before a `・`, which then leads the next row
+  (never ends one). A full row breaks before its last `・` part so each part
+  keeps together (`║ ・ peak Teen` / `║ ・ hatched by @someone`), and a
+  badge's reason moves down whole (`║ ・Bandmates only`); never inside Myra's
+  padding, bold text or a masked link.
+- Blank `║` lines are back exactly where her drafts have them: the status
+  card (after the box top, after the DAY section, after the meters, after the
+  fed and the tracks lines, after the hints, before the box close; the
+  waiting card the same), the Vault (after the box top and after the snack
+  rows) and the leaderboard (after the intro sentence and its wrapped lines,
+  after each list). The Snack Pack and lunchbox drafts have none.
+- Status card meters: each bar moves down onto its own line under its label
+  (`║𝄡 Care`, then `║{bar}│65%`), nothing else in the block changes, and the
+  three meters follow each other with no blank line. The label padding is
+  gone with the bar (`wisp.card.LABEL_PADDING` removed).
+- Lunchbox song links are masked links named for the song's artist
+  (`║𝄡 [Foggy X Music](url)`), or `[listen ♪](url)` when unknown (Myra: "just
+  do the artist"). Never broken across lines; a long artist is shortened with
+  `…` to fit the box; markdown in the name is escaped.
+- The artist comes from the song page's schema.org `byArtist`
+  (`ShareLinkResolver.artist`, `cogs.share_links.artist_on_page`). Small
+  calls, made here: it is looked up lazily, the first time the lunchbox shows
+  a song (all shown songs at once), not when the favorite is picked, so the
+  daily tick never waits on viibrmusic.com and each song is asked about once.
+  The result is kept in the new column `favorites.artist` (added on startup;
+  NULL = not looked up yet, "" = the page names none). When the site cannot
+  be reached, the link reads `listen ♪`, a warning is logged (no channel
+  post: the lunchbox itself worked) and the lookup is tried again next time.
+- Tests: `tests/test_text.py` (widths, calibration, bars for every layout
+  title, wrapping rules), `tests/test_card.py`, `tests/test_studio.py`
+  (Burrito's exact text, setup updating the old starter, a missing starter,
+  a failed edit), `tests/test_vault.py`, `tests/test_snacks.py`,
+  `tests/test_badges.py`, `tests/test_gifts.py`, `tests/test_magazines.py`,
+  `tests/test_wisp_lunchbox.py` (artist links against a local song-page
+  server) and `tests/test_share_links.py`; `tests/layout.py` gains
+  `assert_fits_its_box` for the fullest layouts.
+
 ## 2026-10-27 (Rockstar magazines)
 
 - While the living Wisp is a **Rockstar**, the Vault shows a `# **Magazines**`

@@ -12,7 +12,19 @@ from cogs.snacks import vault_view
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
-from wisp.text import BOX_CLOSE, box_open, count, fit, heading, item, sections, sub
+from wisp.text import (
+    BLANK,
+    box_close,
+    box_open,
+    count,
+    fit,
+    heading,
+    item,
+    sections,
+    sub,
+    wrap,
+    wrapped,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -20,7 +32,9 @@ if TYPE_CHECKING:
 _TITLE: Final = "𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹"
 _INTRO: Final = (
     sub("Snacks and the leaderboard."),
+    BLANK,
     item("Shop or open your Snack Pack with the buttons below."),
+    BLANK,
 )
 
 # ---
@@ -62,7 +76,8 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
     """Build the Vault card: two top tens, the top rhymers, then every version.
 
     The history is trimmed from the oldest end so the text fits one message;
-    the box always closes.
+    the box always closes. Each list ends with a blank line, as in Myra's
+    draft, and every line is wrapped to fit the box.
     """
     history = await bot.lives.history(guild_id)
     current_id = history[0].id if history else None
@@ -92,16 +107,20 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
     ] or [item("Nobody has dueled him yet")]
     head = [
         *box_open(_TITLE),
-        *sections(
-            _INTRO,
-            [heading("This life"), *this_life_lines],
-            [heading("All time"), *all_time_lines],
-            [heading("Rhyme Duel"), *rhyme_lines],
-            [heading("Versions")],
+        *wrapped(
+            sections(
+                _INTRO,
+                [heading("This life"), *this_life_lines, BLANK],
+                [heading("All time"), *all_time_lines, BLANK],
+                [heading("Rhyme Duel"), *rhyme_lines, BLANK],
+                [heading("Versions")],
+            )
         ),
     ]
-    versions = [item(version_line(life, now)) for life in history] or [item("None yet")]
-    return fit(head, versions, BOX_CLOSE)
+    versions = [wrap(item(version_line(life, now))) for life in history] or [
+        item("None yet")
+    ]
+    return fit(head, versions, [BLANK, *box_close(_TITLE)])
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:

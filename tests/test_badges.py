@@ -27,12 +27,17 @@ from db.lives import LifeRepo
 from db.magazines import MagazineRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
-from tests.layout import layout_order, layout_selects, layout_text
+from tests.layout import (
+    assert_fits_its_box,
+    layout_order,
+    layout_selects,
+    layout_text,
+)
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, GIFT_BY_KEY, SNACKS, Stage
 from wisp.text import (
-    BOX_BOTTOM,
+    BLANK,
     LAYOUT_TEXT_LIMIT,
     MESSAGE_LIMIT,
     SECTION_BREAK,
@@ -267,7 +272,7 @@ def vault_section(text: str, heading: str) -> list[str]:
     end = next(
         index
         for index in range(start, len(lines))
-        if lines[index] in (SECTION_BREAK, BOX_BOTTOM)
+        if lines[index] in (SECTION_BREAK, BLANK) or lines[index].startswith("╚")
     )
     return lines[start:end]
 
@@ -533,7 +538,8 @@ async def test_the_vault_lists_every_badge_with_its_price(
         "║𝄡 pickle diplomat  │・25 WC",
         "║𝄡 flame keeper       │・100 WC",
         "║𝄡 team viibr              │<:badge_team_viibr:1>・250 WC",
-        "║𝄡 bandmate              │・250 WC・Bandmates only",
+        "║𝄡 bandmate              │・250 WC",
+        "║ ・Bandmates only",
     ]
     select = badge_select(selects)
     assert select is not None
@@ -582,7 +588,7 @@ async def test_badges_without_a_role_cannot_be_bought_yet(
 
     text, selects = await open_vault(bot, server)
 
-    assert "║𝄡 team viibr              │・250 WC・coming soon" in text.splitlines()
+    assert "║𝄡 team viibr              │・250 WC\n║ ・coming soon" in text
     assert badge_select(selects) is None
 
 
@@ -647,6 +653,7 @@ async def test_the_fullest_vault_stays_within_the_layout_text_limit(
     text, selects = await open_vault(bot, server)
 
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_box(text)
     assert all(len(select.options) <= 25 for select in selects)
     assert len(selects) <= 4
     for gift in GIFT_BY_KEY.values():
@@ -1166,7 +1173,7 @@ async def test_a_snack_pack_without_badges_says_so(
     text = await snack_pack(bot, server)
 
     assert vault_section(text, "Badges") == ["║𝄡 none yet"]
-    assert text.splitlines()[-2] == BOX_BOTTOM
+    assert text.splitlines()[-2].startswith("╚")
 
 
 async def test_the_fullest_snack_pack_still_fits_one_message(
@@ -1191,9 +1198,10 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
     text = await snack_pack(bot, server)
 
     assert text_length(text) <= MESSAGE_LIMIT
+    assert_fits_its_box(text)
     keepsakes = vault_section(text, "Keepsakes")
     badge_lines = vault_section(text, "Badges")
-    assert text.splitlines()[-2] == BOX_BOTTOM
+    assert text.splitlines()[-2].startswith("╚")
     assert keepsakes[-1].startswith("║𝄡 and ") and keepsakes[-1].endswith(" more")
     assert badge_lines[-1].startswith("║𝄡 and ") and badge_lines[-1].endswith(" more")
     assert len(keepsakes) > 2 and len(badge_lines) > 2

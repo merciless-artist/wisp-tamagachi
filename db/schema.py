@@ -142,6 +142,7 @@ _DEFINITIONS: dict[str, str] = {
         track_key VARCHAR(80) NOT NULL,
         url VARCHAR(255) NOT NULL,
         picked_at DATETIME NOT NULL,
+        artist VARCHAR(100) NULL,
         PRIMARY KEY (guild_id, day)
     """,
     "expression_uses": """
@@ -203,6 +204,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "burrito_thread_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
+    "favorites": {"artist": "VARCHAR(100) NULL"},
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",

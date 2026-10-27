@@ -3,8 +3,10 @@
 Discord objects are fakes; the repositories are the real ones.
 """
 
+import json
 import random
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -12,11 +14,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from discord import app_commands
 
 import app
 from cogs import groups, wisp_lunchbox
-from cogs.wisp_lunchbox import lunchbox_text, pick_favorite_song
+from cogs.share_links import ShareLinkResolver
+from cogs.wisp_lunchbox import lunchbox_text, pick_favorite_song, song_link
 from db.activity import ActivityRepo
 from db.database import Database
 from db.gifts import GiftRepo
@@ -24,12 +29,20 @@ from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from tests.layout import assert_fits_its_box
 from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import MESSAGE_LIMIT, SECTION_BREAK, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SECTION_BREAK,
+    bars,
+    box_room,
+    text_length,
+    visual_width,
+)
 
 GUILD_ID = 100
 OTHER_GUILD_ID = 200
@@ -44,9 +57,9 @@ NOW = datetime(2026, 10, 23, 0, 5, tzinfo=UTC)
 YESTERDAY = date(2026, 10, 22)
 NO_PING = discord.AllowedMentions.none().to_dict()
 TITLE = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
-BOX_TOP = "╔════════════════════╗"
-BOX_BOTTOM = "╚════════════════════╝"
-BOTTOM_BAR = "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
+BOX_TOP = "╔══════════════════════╗"
+BOX_BOTTOM = "╚══════════════════════╝"
+BOTTOM_BAR = bars("𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍")[1]
 NONE_YET = "║𝄡 none yet"
 SONGS = "║𝄡𝄚𝄂𝄆 **Favorite songs**"
 SNACK = "║𝄡𝄚𝄂𝄆 **Favorite snack**"
@@ -119,6 +132,45 @@ def repo(db: Database) -> WispLunchboxRepo:
     return WispLunchboxRepo(db)
 
 
+@dataclass
+class SongSite:
+    """A stand-in for viibrmusic.com's song pages that records what it was asked."""
+
+    artists: dict[str, str] = field(default_factory=dict)
+    asked: list[str] = field(default_factory=list)
+
+    async def page(self, request: web.Request) -> web.Response:
+        uuid = request.match_info["uuid"]
+        self.asked.append(uuid)
+        if uuid not in self.artists:
+            return web.Response(status=404)
+        data = json.dumps(
+            {"@type": "MusicRecording", "byArtist": {"name": self.artists[uuid]}}
+        )
+        return web.Response(
+            text=f'<html><script type="application/ld+json">{data}</script></html>',
+            content_type="text/html",
+        )
+
+
+@pytest.fixture(autouse=True)
+async def songs(bot: app.WispBot) -> AsyncIterator[SongSite]:
+    """viibrmusic.com's song pages, served locally for the bot's resolver."""
+    site = SongSite()
+    application = web.Application()
+    application.router.add_get("/songs/{uuid}", site.page)
+    server = TestServer(application)
+    await server.start_server()
+    bot.share_links = ShareLinkResolver(
+        origins={"viibrmusic.com": str(server.make_url("/"))}
+    )
+    try:
+        yield site
+    finally:
+        await bot.share_links.close()
+        await server.close()
+
+
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
     await bot.settings.update(
@@ -135,6 +187,10 @@ def viibr(ident: int) -> Track:
     return Track(
         TrackKind.VIIBR, f"viibr:{uuid}", f"https://viibrmusic.com/songs/{uuid}"
     )
+
+
+def uuid_of(track: Track) -> str:
+    return track.key.removeprefix("viibr:")
 
 
 def suno(ident: int) -> Track:
@@ -599,8 +655,9 @@ async def test_an_empty_lunchbox_says_none_yet(bot: app.WispBot) -> None:
 
 
 async def test_the_lunchbox_shows_songs_snack_and_emoji(
-    bot: app.WispBot, repo: WispLunchboxRepo
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
 ) -> None:
+    songs.artists[uuid_of(viibr(2))] = "Foggy X Music"
     for ident, day in enumerate([date(2026, 10, 2), date(2026, 10, 22)], start=1):
         await fed(bot, viibr(ident), on(day), user_id=ident)
         await repo.pick_favorite(GUILD_ID, day, random.Random(), NOW)
@@ -616,9 +673,9 @@ async def test_the_lunchbox_shows_songs_snack_and_emoji(
         [
             SONGS,
             f"║𝄡𝄚𝄂 Oct 22 ・ <@{SECOND}>",
-            f"║𝄡 {viibr(2).url}",
+            f"║𝄡 [Foggy X Music]({viibr(2).url})",
             f"║𝄡𝄚𝄂 Oct 2 ・ <@{FIRST}>",
-            f"║𝄡 {viibr(1).url}",
+            f"║𝄡 [listen ♪]({viibr(1).url})",
         ],
         [SNACK, f"║𝄡 {emoji_text('snack_cheese', 1)} Cheese"],
         [EMOJI, f"║𝄡 {emoji_text('wisp_wink', 2)}"],
@@ -677,7 +734,7 @@ async def test_the_lunchbox_shows_the_newest_songs_only(
 
     assert len(songs) == 2 * rules.FAVORITE_SONGS_SHOWN
     assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
-    assert songs[1].startswith("║𝄡 https://viibrmusic.com/")
+    assert songs[1].startswith("║𝄡 [listen ♪](https://viibrmusic.com/")
     assert len(await repo.favorites(GUILD_ID, 100)) == 12
 
 
@@ -707,8 +764,104 @@ async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
     assert 0 < len(songs) < 2 * rules.FAVORITE_SONGS_SHOWN
     assert len(songs) % 2 == 0
     assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
-    assert songs[-1] == f"║𝄡 {long_url}"
+    assert songs[-1] == f"║𝄡 [listen ♪]({long_url})"
     assert [EMOJI, NONE_YET] in sections(text)
+    assert_fits_its_box(text)
+
+
+# ---
+# Song links
+# ---
+
+
+async def test_a_songs_artist_is_asked_once_and_kept(
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+) -> None:
+    track = viibr(7)
+    songs.artists[uuid_of(track)] = "Foggy X Music"
+    await fed(bot, track, on(YESTERDAY))
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    first = await lunchbox_text(bot, GUILD_ID)
+    second = await lunchbox_text(bot, GUILD_ID)
+
+    assert first == second
+    assert f"║𝄡 [Foggy X Music]({track.url})" in first.splitlines()
+    assert songs.asked == [uuid_of(track)]
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist == "Foggy X Music"
+
+
+async def test_a_song_page_with_no_artist_is_kept_as_none_known(
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+) -> None:
+    track = viibr(8)
+    await fed(bot, track, on(YESTERDAY))
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    await lunchbox_text(bot, GUILD_ID)
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert f"║𝄡 [listen ♪]({track.url})" in text.splitlines()
+    assert songs.asked == [uuid_of(track)]
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist == ""
+
+
+async def test_an_unreachable_site_reads_listen_and_is_asked_again(
+    bot: app.WispBot, repo: WispLunchboxRepo
+) -> None:
+    gone = TestServer(web.Application())
+    await gone.start_server()
+    origin = str(gone.make_url("/"))
+    await gone.close()
+    await bot.share_links.close()
+    bot.share_links = ShareLinkResolver(origins={"viibrmusic.com": origin})
+    track = viibr(9)
+    await fed(bot, track, on(YESTERDAY))
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert f"║𝄡 [listen ♪]({track.url})" in text.splitlines()
+    (favorite,) = await repo.favorites(GUILD_ID, 10)
+    assert favorite.artist is None
+
+
+def test_a_long_artist_is_shortened_to_fit_the_box() -> None:
+    url = viibr(1).url
+
+    line = song_link("The Extraordinarily Long Named Artist Collective", url)
+
+    assert line.startswith("║𝄡 [The Extraordinarily")
+    assert line.endswith(f"…]({url})")
+    assert visual_width(line) <= box_room()
+    assert "\n" not in line
+
+
+def test_an_artists_markdown_is_escaped() -> None:
+    url = viibr(1).url
+
+    assert song_link("a_b*c [x]", url) == f"║𝄡 [a\\_b\\*c (x)]({url})"
+
+
+def test_no_artist_reads_listen() -> None:
+    assert song_link("", viibr(1).url) == f"║𝄡 [listen ♪]({viibr(1).url})"
+
+
+async def test_the_fullest_lunchbox_stays_in_its_box(
+    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+) -> None:
+    days = [YESTERDAY - timedelta(days=offset) for offset in range(12)]
+    for ident, day in enumerate(days, start=1):
+        songs.artists[uuid_of(viibr(ident))] = "W" * 40
+        await fed(bot, viibr(ident), on(day), user_id=10**17 + ident)
+        await repo.pick_favorite(GUILD_ID, day, random.Random(), NOW)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert text_length(text) <= MESSAGE_LIMIT
+    assert_fits_its_box(text)
 
 
 async def test_a_banned_member_can_still_look(

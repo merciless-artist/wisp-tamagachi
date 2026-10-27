@@ -1,36 +1,46 @@
 """Wisp's own lunchbox: favorite songs, snack and emoji, and gift collections."""
 
+import asyncio
 import contextlib
+import logging
 import random
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
+import aiohttp
 import discord
 
 from cogs.announce import display_name, say_in_mealtime
 from cogs.channels import may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
+from db.lunchbox import Favorite
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
 from wisp.text import (
-    BOX_CLOSE,
     MESSAGE_LIMIT,
     SECTION_BREAK,
+    box_close,
     box_open,
+    box_room,
     fit,
     heading,
     item,
     sub,
     text_length,
+    visual_width,
     with_emoji,
+    wrap,
 )
 
 if TYPE_CHECKING:
     from app import WispBot
 
+log = logging.getLogger("wisp")
 _NO_PING: Final = discord.AllowedMentions.none()
+_NO_ARTIST: Final = "listen ♪"
+_CUT: Final = "…"
 _NOTHING_YET: Final = item("none yet")
 _TITLE: Final = "𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍"
 
@@ -79,6 +89,46 @@ def _short_day(day: date) -> str:
     return f"{day:%b} {day.day}"
 
 
+async def _artist(bot: "WispBot", guild_id: int, favorite: Favorite) -> str:
+    """The favorite song's artist, or "" when none is known.
+
+    An artist not looked up yet is asked of viibrmusic.com once and kept, ""
+    included. When the site cannot be reached it is asked again next time.
+    """
+    if favorite.artist is not None:
+        return favorite.artist
+    try:
+        artist = await bot.share_links.artist(favorite.track_key) or ""
+    except (aiohttp.ClientError, TimeoutError) as error:
+        log.warning(
+            "Could not look up the artist of %s: %s: %s",
+            favorite.url,
+            type(error).__name__,
+            error,
+        )
+        return ""
+    await bot.wisp_lunchbox.set_artist(guild_id, favorite.day, artist)
+    return artist
+
+
+def song_link(artist: str, url: str) -> str:
+    """The song's line: a link named for its artist, or "listen ♪" with none.
+
+    The link is never broken across lines, so a name too wide for the box is
+    shortened with "…" until the line fits.
+    """
+    if not artist:
+        return item(f"[{_NO_ARTIST}]({url})")
+    name = artist.replace("[", "(").replace("]", ")")
+    shown = name
+    while True:
+        line = item(f"[{discord.utils.escape_markdown(shown)}]({url})")
+        if visual_width(line) <= box_room() or len(name) <= 1:
+            return line
+        name = name[:-1].rstrip()
+        shown = name + _CUT
+
+
 def _favorite_snack(bot: "WispBot", life: Life | None) -> str:
     snack = None if life is None else SNACK_BY_KEY.get(life.favorite_snack or "")
     if snack is None:
@@ -107,20 +157,24 @@ async def _collections(
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     """Wisp's lunchbox in its frame, trimmed so it fits one message.
 
-    Each song is its day and sharer, then its link. The collections list
-    their gifts in whatever room the songs leave, and the oldest songs go
-    when even the collections' short lines do not fit. The box always closes.
+    Each song is its day and sharer, then a link named for its artist. The
+    collections list their gifts in whatever room the songs leave, and the
+    oldest songs go when even the collections' short lines do not fit. The
+    box always closes, and every line is wrapped to fit it.
     """
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
     life = await bot.lives.current(guild_id)
+    artists = await asyncio.gather(
+        *(_artist(bot, guild_id, favorite) for favorite in favorites)
+    )
     songs = [
         "\n".join(
             [
-                sub(f"{_short_day(favorite.day)} ・ <@{favorite.user_id}>"),
-                item(favorite.url),
+                wrap(sub(f"{_short_day(favorite.day)} ・ <@{favorite.user_id}>")),
+                song_link(artist, favorite.url),
             ]
         )
-        for favorite in favorites
+        for favorite, artist in zip(favorites, artists, strict=True)
     ]
     head = [*box_open(_TITLE), heading("Favorite songs")]
     middle = [
@@ -134,10 +188,11 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         SECTION_BREAK,
         heading("Collections"),
     ]
-    framing = "\n".join([*head, *songs, *middle, *BOX_CLOSE])
+    close = box_close(_TITLE)
+    framing = "\n".join([*head, *songs, *middle, *close])
     room = MESSAGE_LIMIT - text_length(framing) - 1
     collections = await _collections(bot, guild_id, life, room)
-    return fit(head, songs, [*middle, *collections, *BOX_CLOSE])
+    return fit(head, songs, [*middle, *collections, *close])
 
 
 @wisp.command(name="lunchbox", description="See the things Wisp keeps in his lunchbox.")

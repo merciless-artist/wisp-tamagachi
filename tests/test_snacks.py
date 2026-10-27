@@ -36,17 +36,24 @@ from db.lives import LifeRepo
 from db.magazines import MagazineRepo
 from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
-from tests.layout import layout_order, layout_selects, layout_text
+from tests.layout import (
+    assert_fits_its_box,
+    layout_order,
+    layout_selects,
+    layout_text,
+)
 from wisp import rules
 from wisp.bond import PickleStance
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import SNACKS, Stage
 from wisp.text import (
+    BLANK,
     LAYOUT_TEXT_LIMIT,
     MESSAGE_LIMIT,
     SECTION_BREAK,
     USER_ERROR,
+    bars,
     text_length,
 )
 
@@ -70,9 +77,12 @@ SPEC_LINES = frozenset(
 )
 VAULT_TOP = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
 PACK_TOP = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
-BOX_TOP = "╔════════════════════╗"
-BOX_BOTTOM = "╚════════════════════╝"
-BOTTOM_BAR = "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
+BOX_TOP = "╔══════════════════════╗"
+BOX_BOTTOM = "╚══════════════════════╝"
+PACK_BAR = bars("𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀")[1]
+VAULT_BOX_TOP = "╔════════════════════════╗"
+VAULT_BOX_BOTTOM = "╚════════════════════════╝"
+VAULT_BAR = bars("𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉")[1]
 # Myra's snack names with her padding before the │, from the spec.
 VAULT_NAMES = {
     "sinewave": "sinewave    ",
@@ -334,7 +344,8 @@ def pack_sections(text: str) -> list[list[str]]:
     """A Snack Pack's sections inside its frame: head, snacks, keepsakes, badges."""
     lines = text.splitlines()
     assert lines[:2] == [PACK_TOP, BOX_TOP]
-    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    assert lines[-2:] == [BOX_BOTTOM, PACK_BAR]
+    assert_fits_its_box(text)
     return [
         section.splitlines()
         for section in "\n".join(lines[2:-2]).split(SECTION_BREAK + "\n")
@@ -361,9 +372,10 @@ async def test_vault_is_one_layout_in_the_house_frame(bot: app.WispBot) -> None:
     lines = text.splitlines()
     mini = emoji_text("wisp_coin_mini", 4)
     paid = [snack for snack in SNACKS if snack.cost > 0]
-    assert lines[:16] == [
+    assert lines[:18] == [
         VAULT_TOP,
-        BOX_TOP,
+        VAULT_BOX_TOP,
+        BLANK,
         f"║𝄡𝄚𝄂 wisp coins: {emoji_text('wisp_coin')} 12",
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **Snacks**",
@@ -376,10 +388,12 @@ async def test_vault_is_one_layout_in_the_house_frame(bot: app.WispBot) -> None:
             )
             for snack in paid
         ),
+        BLANK,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **Badges**",
     ]
-    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    assert lines[-2:] == [VAULT_BOX_BOTTOM, VAULT_BAR]
+    assert_fits_its_box(text)
     assert "x2" not in text
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     assert option_values(select) == [snack.key for snack in paid]
@@ -395,9 +409,15 @@ async def test_the_vaults_fixed_lines_are_copied_from_the_spec(
     interaction, _ = await open_vault(bot)
 
     lines = vault_text(interaction).splitlines()
-    for line in (BOX_TOP, SECTION_BREAK, "║𝄡𝄚𝄂𝄆 **Snacks**", BOX_BOTTOM, BOTTOM_BAR):
+    for line in (
+        VAULT_BOX_TOP,
+        SECTION_BREAK,
+        "║𝄡𝄚𝄂𝄆 **Snacks**",
+        VAULT_BOX_BOTTOM,
+    ):
         assert line in SPEC_LINES, line
         assert line in lines, line
+    assert VAULT_BAR in lines
     for name, padded in VAULT_NAMES.items():
         assert any(line.startswith(f"║𝄡 {padded}│") for line in SPEC_LINES), name
 
@@ -421,10 +441,11 @@ async def test_the_vaults_menus_sit_between_its_sections(bot: app.WispBot) -> No
         for child in view.children
         if isinstance(child, discord.ui.TextDisplay)
     )
-    assert snacks_part.splitlines()[-1].startswith("║𝄡 viibrwave   │")
+    assert snacks_part.splitlines()[-2].startswith("║𝄡 viibrwave   │")
+    assert snacks_part.splitlines()[-1] == BLANK
     assert badges_part.splitlines()[:2] == [SECTION_BREAK, "║𝄡𝄚𝄂𝄆 **Badges**"]
     assert gifts_part.splitlines()[:2] == [SECTION_BREAK, "║𝄡𝄚𝄂𝄆 **Gifts**・15 WC each"]
-    assert closing.splitlines() == [BOX_BOTTOM, BOTTOM_BAR]
+    assert closing.splitlines() == [VAULT_BOX_BOTTOM, VAULT_BAR]
 
 
 async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
@@ -433,8 +454,8 @@ async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
     interaction = await buy(bot, "cheese")
 
     lines = reply_text(interaction).splitlines()
-    assert lines[:3] == ["♪ Bought Cheese for 6 WC.", VAULT_TOP, BOX_TOP]
-    assert lines[3] == "║𝄡𝄚𝄂 wisp coins: 4"
+    assert lines[:4] == ["♪ Bought Cheese for 6 WC.", VAULT_TOP, VAULT_BOX_TOP, BLANK]
+    assert lines[4] == "║𝄡𝄚𝄂 wisp coins: 4"
 
 
 async def test_vault_title_shows_the_viibr_logo_when_uploaded(
@@ -458,6 +479,7 @@ async def test_vault_without_emojis_stays_tidy(bot: app.WispBot) -> None:
     assert vault_snack("cheese", "", "6 WC") in text.splitlines()
     assert "<:" not in text
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_box(text)
 
 
 # ---
@@ -579,6 +601,7 @@ async def test_a_long_keepsake_list_is_cut_to_one_message(bot: app.WispBot) -> N
 
     text = interaction.followup.send.await_args.args[0]
     assert text_length(text) <= MESSAGE_LIMIT
+    assert_fits_its_box(text)
     keepsakes = pack_sections(text)[2]
     shown = keepsakes[1:-1]
     assert keepsakes[0] == "║𝄡𝄚𝄂𝄆 **Keepsakes**"
@@ -658,9 +681,10 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert vault_text(interaction).splitlines()[:3] == [
+    assert vault_text(interaction).splitlines()[:4] == [
         VAULT_TOP,
-        BOX_TOP,
+        VAULT_BOX_TOP,
+        BLANK,
         "║𝄡𝄚𝄂 wisp coins: 12",
     ]
 

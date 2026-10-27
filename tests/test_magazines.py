@@ -24,12 +24,18 @@ from db.lives import LifeRepo
 from db.magazines import MagazineRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
-from tests.layout import layout_order, layout_selects, layout_text
+from tests.layout import (
+    assert_fits_its_box,
+    entries,
+    layout_order,
+    layout_selects,
+    layout_text,
+)
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import BADGES, GIFT_BY_KEY, MAGAZINES, SNACKS, Stage
 from wisp.text import (
-    BOX_BOTTOM,
+    BLANK,
     LAYOUT_TEXT_LIMIT,
     MESSAGE_LIMIT,
     SECTION_BREAK,
@@ -175,15 +181,16 @@ def shown(interaction: MagicMock) -> str:
 
 
 def section(text: str, heading: str) -> list[str]:
-    """The lines under a `#` heading, up to the next break."""
+    """The entries under a `#` heading, up to the next break, each wrapped
+    entry's rows joined."""
     lines = text.splitlines()
     start = lines.index(f"║𝄡𝄚𝄂𝄆 **{heading}**") + 1
     end = next(
         index
         for index in range(start, len(lines))
-        if lines[index] in (SECTION_BREAK, BOX_BOTTOM)
+        if lines[index] in (SECTION_BREAK, BLANK) or lines[index].startswith("╚")
     )
-    return lines[start:end]
+    return entries(lines[start:end])
 
 
 def sent_files(interaction: MagicMock) -> list[discord.File]:
@@ -254,7 +261,7 @@ async def test_a_rockstar_vault_sells_both_covers_with_a_select_under_them(
 
     assert section(text, "Magazines") == [
         "║𝄡 VIIBRATIONS cover・<:wisp_coin_mini:1> 100 WC",
-        "║𝄡 Music & Science cover・<:wisp_coin_mini:1> 100 WC",
+        "║𝄡 Music & Science cover\n║ ・<:wisp_coin_mini:1> 100 WC",
     ]
     lines = text.splitlines()
     assert lines.index("║𝄡𝄚𝄂𝄆 **Badges**") < lines.index("║𝄡𝄚𝄂𝄆 **Magazines**")
@@ -310,6 +317,7 @@ async def test_the_fullest_rockstar_vault_stays_within_the_layout_text_limit(
     view, text, selects = await open_vault(bot, guild)
 
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_box(text)
     assert "Get a badge" in layout_order(view)
     assert magazine_select(selects) is not None
     for gift in GIFT_BY_KEY.values():
@@ -335,7 +343,7 @@ async def test_buying_a_cover_spends_records_and_sends_the_picture_privately(
     text = shown(interaction)
     assert text.splitlines()[0] == "♪ You got the VIIBRATIONS cover."
     assert section(text, "Magazines") == [
-        "║𝄡 VIIBRATIONS cover・100 WC・owned",
+        "║𝄡 VIIBRATIONS cover・100 WC\n║ ・owned",
         "║𝄡 Music & Science cover・100 WC",
     ]
     (call,) = interaction.followup.send.await_args_list
@@ -549,7 +557,7 @@ async def test_the_snack_pack_keeps_every_cover_from_every_life_newest_first(
     ]
     lines = text.splitlines()
     assert lines.index("║𝄡𝄚𝄂𝄆 **Badges**") < lines.index("║𝄡𝄚𝄂𝄆 **Magazines**")
-    assert lines[-2] == BOX_BOTTOM
+    assert lines[-2].startswith("╚")
 
 
 async def test_a_snack_pack_without_magazines_has_no_magazines_section(
@@ -586,9 +594,10 @@ async def test_the_fullest_snack_pack_with_magazines_still_fits_one_message(
     text = await snack_pack(bot, guild)
 
     assert text_length(text) <= MESSAGE_LIMIT
-    assert text.splitlines()[-2] == BOX_BOTTOM
+    assert_fits_its_box(text)
+    assert text.splitlines()[-2].startswith("╚")
     for heading in ("Keepsakes", "Badges", "Magazines"):
         lines = section(text, heading)
         assert len(lines) > 2, heading
         assert lines[-1].startswith("║𝄡 and ") and lines[-1].endswith(" more")
-    assert section(text, "Magazines")[0] == "║𝄡 Wisp v1029's Music & Science cover"
+    assert section(text, "Magazines")[0] == ("║𝄡 Wisp v1029's Music & Science\n║ cover")

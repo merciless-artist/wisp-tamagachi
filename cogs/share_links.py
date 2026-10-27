@@ -1,22 +1,44 @@
-"""Resolving viibrmusic.com share links to the songs they name."""
+"""Asking viibrmusic.com about songs: which song a share link names, and who
+made a song."""
 
+import json
+import re
 from collections.abc import Mapping
 from datetime import timedelta
+from http import HTTPStatus
 from typing import Final
 
 import aiohttp
 from yarl import URL
 
-from wisp.links import ShareLink, Track, TrackKind, whole_link
+from wisp.links import ShareLink, Track, TrackKind, song_page, whole_link
 from wisp.rules import VIIBR_RESOLVE_TIMEOUT
 
 _APEX: Final = "viibrmusic.com"
 _WWW: Final = "www.viibrmusic.com"
 _USER_AGENT: Final = "WispBot/1.0"
+# The song page's schema.org description, which names the song's artist.
+_LINKED_DATA: Final = re.compile(
+    r'<script type="application/ld\+json">(.*?)</script>', re.DOTALL
+)
+
+
+def artist_on_page(page: str) -> str | None:
+    """The artist a song page's schema.org data names, or None when it names none."""
+    for found in _LINKED_DATA.finditer(page):
+        try:
+            data = json.loads(found[1])
+        except ValueError:
+            continue
+        by = data.get("byArtist") if isinstance(data, dict) else None
+        name = by.get("name") if isinstance(by, dict) else None
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    return None
 
 
 class ShareLinkResolver:
-    """Asks viibrmusic.com which song a share link names.
+    """Asks viibrmusic.com which song a share link names, and who made a song.
 
     The site answers a share link with a redirect to the song's page, or 404
     for a code it does not know. Redirects are read, not followed, apart from
@@ -56,6 +78,27 @@ class ShareLinkResolver:
         if isinstance(target, Track) and target.kind is TrackKind.VIIBR:
             return link.as_track(target)
         return None
+
+    async def artist(self, track_key: str) -> str | None:
+        """The artist of the song with `track_key`, as its viibrmusic.com page
+        names it.
+
+        None when the key is not a viibrmusic.com song's, or its page is
+        missing or names no artist. The page is not followed anywhere else.
+
+        Raises:
+            aiohttp.ClientError: viibrmusic.com could not be reached.
+            TimeoutError: viibrmusic.com did not answer in time.
+        """
+        page = song_page(track_key)
+        if page is None:
+            return None
+        async with self._open().get(
+            self._address(page), allow_redirects=False
+        ) as response:
+            if response.status != HTTPStatus.OK:
+                return None
+            return artist_on_page(await response.text(errors="replace"))
 
     async def close(self) -> None:
         """Close the HTTP session if one is open, and open no other."""

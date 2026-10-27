@@ -23,14 +23,15 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from tests.layout import assert_fits_its_box, entries
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
 from wisp.text import (
-    BOTTOM_BAR,
-    BOX_BOTTOM,
+    BLANK,
     MESSAGE_LIMIT,
     SECTION_BREAK,
+    bars,
     text_length,
 )
 
@@ -43,6 +44,15 @@ FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
+BOX_BOTTOM = "╚══════════════════════╝"
+BOTTOM_BAR = bars("𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")[1]
+INTRO = [
+    "║𝄡𝄚𝄂 Snacks and the leaderboard.",
+    BLANK,
+    "║𝄡 Shop or open your Snack Pack",
+    "║ with the buttons below.",
+    BLANK,
+]
 SPEC_LINES = frozenset(
     (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
     .read_bytes()
@@ -334,9 +344,10 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert section(text, "Versions") == [
-        "║𝄡 v3 ・ going strong ・ 12 days ・ Baby",
+        "║𝄡 v3 ・ going strong ・ 12 days\n║ ・ Baby",
         "║𝄡 v2 ・ never hatched",
-        f"║𝄡 v1 ・ went out after 18 days ・ peak Teen ・ hatched by <@{SECOND_USER}>",
+        "║𝄡 v1 ・ went out after 18 days\n║ ・ peak Teen"
+        f"\n║ ・ hatched by <@{SECOND_USER}>",
     ]
 
 
@@ -346,33 +357,25 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
 
 
 def section(text: str, name: str) -> list[str]:
-    """The lines under one `#` heading, up to the next break or the box's end."""
+    """The entries under one `#` heading, up to the blank line that ends it."""
     lines = text.splitlines()
     start = lines.index(f"║𝄡𝄚𝄂𝄆 **{name}**") + 1
-    end = next(
-        index
-        for index in range(start, len(lines))
-        if lines[index] in (SECTION_BREAK, BOX_BOTTOM)
-    )
-    return lines[start:end]
+    return entries(lines[start : lines.index(BLANK, start)])
 
 
 async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     lines = text.splitlines()
-    assert lines[:4] == [
+    assert lines[:7] == [
         "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
-        "╔════════════════════╗",
-        "║𝄡𝄚𝄂 Snacks and the leaderboard.",
-        "║𝄡 Shop or open your Snack Pack with the buttons below.",
+        "╔══════════════════════╗",
+        *INTRO,
     ]
-    assert lines[-2:] == [
-        "╚════════════════════╝",
-        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
-    ]
-    for line in (*lines[:4], *lines[-2:]):
+    assert lines[-3:] == [BLANK, BOX_BOTTOM, BOTTOM_BAR]
+    for line in (*lines[:3], *lines[-2:]):
         assert line in SPEC_LINES, line
+    assert_fits_its_box(text)
 
 
 async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
@@ -391,8 +394,8 @@ async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> Non
         f"║𝄡 2. <@{FIRST_USER}> ・ 1 point",
     ]
     assert section(text, "All time") == [
-        f"║𝄡 1. <@{FIRST_USER}> ・ 201 points ・ Friend",
-        f"║𝄡 2. <@{SECOND_USER}> ・ 5 points ・ New face",
+        f"║𝄡 1. <@{FIRST_USER}> ・ 201 points\n║ ・ Friend",
+        f"║𝄡 2. <@{SECOND_USER}> ・ 5 points\n║ ・ New face",
     ]
 
 
@@ -420,20 +423,23 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert text.splitlines()[2:] == [
-        "║𝄡𝄚𝄂 Snacks and the leaderboard.",
-        "║𝄡 Shop or open your Snack Pack with the buttons below.",
+        *INTRO,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **This life**",
         "║𝄡 Nobody has fed him yet",
+        BLANK,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **All time**",
         "║𝄡 Nobody has points yet",
+        BLANK,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **Rhyme Duel**",
         "║𝄡 Nobody has dueled him yet",
+        BLANK,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **Versions**",
         "║𝄡 None yet",
+        BLANK,
         BOX_BOTTOM,
         BOTTOM_BAR,
     ]
@@ -477,7 +483,8 @@ async def test_leaderboard_fits_one_message(
 
     assert text_length(text) <= MESSAGE_LIMIT
     lines = text.splitlines()
-    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    assert lines[-3:] == [BLANK, BOX_BOTTOM, BOTTOM_BAR]
+    assert_fits_its_box(text)
     assert sum(line.startswith("║𝄡 ") and ". <@" in line for line in lines) == 25
     version_lines = section(text, "Versions")
     assert 0 < len(version_lines) < len(history)
