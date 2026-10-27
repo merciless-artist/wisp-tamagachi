@@ -1,0 +1,21 @@
+Myra's house style pieces, copied exactly as she sent them (2026-10-26).
+Emoji shown as :name: are Discord emoji (🔸 = :small_orange_diamond:; meter pieces are Wisp's app emojis).
+
+# Status card (Wisp Stats)
+top:
+𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂
+╔:small_orange_diamond:═════════════════════╗
+bottom:
+╚:small_orange_diamond:═════════════════════╝
+𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂
+body (from her example): rail ║, items ║𝄡, sub-headings ║𝄡𝄚𝄂
+bars: :care_full: / :care_left:, :happiness_full: / :happiness_left:, :full_full: / :full_left: (one _full per 10%, _left for an extra 5%)
+
+# ViiBR Vault title
+𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂𝄆  𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂
+
+# Dividers
+titled:
+𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄆 whatever words if needed 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂
+plain:
+𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂
