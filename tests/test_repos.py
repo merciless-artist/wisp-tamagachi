@@ -75,6 +75,15 @@ async def test_faq_message_ids_round_trip(db: Database) -> None:
     assert (await SettingsRepo(db).get(GUILD)).faq_message_ids is None
 
 
+async def test_a_long_faq_id_list_round_trips(db: Database) -> None:
+    repo = SettingsRepo(db)
+    ids = tuple(1_234_567_890_123_456_789 + number for number in range(500))
+
+    await repo.update(GUILD, faq_message_ids=ids)
+
+    assert (await SettingsRepo(db).get(GUILD)).faq_message_ids == ids
+
+
 @pytest.mark.parametrize("stored", ["not json", "5", "null", '["a"]', "{}x"])
 async def test_unreadable_faq_message_ids_read_as_none_and_are_logged(
     db: Database, caplog: pytest.LogCaptureFixture, stored: str

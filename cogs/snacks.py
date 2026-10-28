@@ -1,7 +1,7 @@
 """The ViiBR Vault, Snack Packs and the Feed button: snacks and gifts for Wisp."""
 
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +34,14 @@ from cogs.gifts import (
     todays_gifts,
 )
 from cogs.groups import require_guild, wisp
+from cogs.magazines import (
+    cover_art,
+    magazine_options,
+    magazine_pack_lines,
+    magazine_section,
+    magazines_owned,
+    on_the_shelf,
+)
 from cogs.players import (
     CANNOT_FEED,
     EXPECTED_FAILURES,
@@ -65,23 +73,33 @@ from wisp.rules import (
     COLLECTION_BY_KEY,
     FANCY_SNACK_COST,
     GIFT_BY_KEY,
+    MAGAZINE_BY_KEY,
+    MAGAZINE_COST,
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
     Badge,
     Gift,
     GiftCollection,
+    Magazine,
     Snack,
 )
 from wisp.text import (
+    BLANK,
+    LAYOUT_TEXT_LIMIT,
     MESSAGE_LIMIT,
-    PACK_RAIL,
-    VAULT_RAIL,
-    count,
+    SECTION_BREAK,
+    SUB_MARK,
+    box_close,
+    box_open,
+    heading,
+    item,
+    sub,
     text_length,
     with_emoji,
+    wrapped,
 )
-from wisp.voice import COIN_EMOJI
+from wisp.voice import COIN_EMOJI, MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -101,13 +119,27 @@ _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
 _BADGE_NOT_READY: Final = (
     "♪ That badge isn't ready yet. Staff can set it up with !wisp setup."
 )
-_NONE_YET: Final = f"{PACK_RAIL} None yet"
+_SHELF_EMPTY: Final = "♪ The magazines are gone from the shelf."
+_NONE_YET: Final = item("none yet")
+_NOTHING_SAVED: Final = item("nothing saved yet")
 _LOGO_EMOJI: Final = "viibr_logo"
-_VAULT_EDGE: Final = "𝄃𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
-_VAULT_BOTTOM: Final = "╚══════════════════╝"
-_PACK_TOP: Final = "┌─────────────────┓"
-_PACK_DIVIDER: Final = "├─────────────────•"
-_PACK_BOTTOM: Final = "└─────────────────┛"
+_VAULT_TITLE: Final = ("𝕍𝒾𝒾𝔹ℝ", "𝕍𝒶𝓊𝓁𝓉")
+_PACK_TITLE: Final = "𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀"
+# Wide enough for the widest badge row, from its name and padding to its price.
+VAULT_WIDTH: Final = 24
+_VAULT_CONTEXT: Final = "the ViiBR Vault menu"
+# Spaces after each snack's name in the Vault, tuned by Myra so the │ line up.
+_VAULT_PADDING: Final[dict[str, int]] = {
+    "sinewave": 4,
+    "cloudwave": 1,
+    "jellywave": 4,
+    "juicewave": 3,
+    "spicywave": 2,
+    "cheese": 8,
+    "pickles": 8,
+    "glitterwave": 0,
+    "viibrwave": 3,
+}
 _ROLE_REASON: Final = "Bought in the ViiBR Vault"
 _ROLE_FAILURES: Final = (
     discord.HTTPException,
@@ -133,6 +165,7 @@ _SnackChoice = Callable[[discord.Interaction, Snack], Awaitable[None]]
 _GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
 _CollectionChoice = Callable[[discord.Interaction, GiftCollection], Awaitable[None]]
 _BadgeChoice = Callable[[discord.Interaction, Badge], Awaitable[None]]
+_MagazineChoice = Callable[[discord.Interaction, Magazine], Awaitable[None]]
 _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
@@ -140,13 +173,13 @@ _Action = Callable[[discord.Interaction], Awaitable[None]]
 # ---
 
 
-def _full_gain(snack: Snack) -> str:
-    return f"full +{snack.full}"
+def _hunger_gain(snack: Snack) -> str:
+    return f"hunger +{snack.full}"
 
 
-def _icon(bot: "WispBot", snack: Snack) -> str:
-    """The snack's emoji, or its name when the emoji is not uploaded."""
-    return bot.emoji(snack.emoji_name) or snack.name
+def _coins(bot: "WispBot", text: str) -> str:
+    """`text` after the small wisp coin, when it is uploaded."""
+    return with_emoji(bot.emoji(MINI_COIN_EMOJI), text)
 
 
 def _option(
@@ -199,7 +232,7 @@ async def _press(
         await report_failure(interaction, context, error)
 
 
-class SnackSelect(discord.ui.Select["Menu"]):
+class SnackSelect(discord.ui.Select[Any]):
     """A select of snacks that hands the chosen one to its handler."""
 
     def __init__(
@@ -216,7 +249,7 @@ class SnackSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, SNACK_BY_KEY[self.values[0]])
 
 
-class CollectionSelect(discord.ui.Select["Menu"]):
+class CollectionSelect(discord.ui.Select[Any]):
     """The Vault's select of gift collections; hands the chosen one on."""
 
     def __init__(
@@ -230,7 +263,7 @@ class CollectionSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, COLLECTION_BY_KEY[self.values[0]])
 
 
-class GiftSelect(discord.ui.Select["Menu"]):
+class GiftSelect(discord.ui.Select[Any]):
     """The Vault's select of one collection's gifts; hands the chosen one on."""
 
     def __init__(
@@ -244,7 +277,7 @@ class GiftSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, GIFT_BY_KEY[self.values[0]])
 
 
-class BadgeSelect(discord.ui.Select["Menu"]):
+class BadgeSelect(discord.ui.Select[Any]):
     """The Vault's select of badges the member can get now; hands one on."""
 
     def __init__(
@@ -258,10 +291,24 @@ class BadgeSelect(discord.ui.Select["Menu"]):
         await self._on_choice(interaction, BADGE_BY_KEY[self.values[0]])
 
 
+class MagazineSelect(discord.ui.Select[Any]):
+    """The Vault's select of magazines the member can buy now; hands one on."""
+
+    def __init__(
+        self, options: list[discord.SelectOption], on_choice: _MagazineChoice
+    ) -> None:
+        super().__init__(placeholder="Get a magazine", options=options)
+        self._on_choice = on_choice
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Pass the chosen magazine on."""
+        await self._on_choice(interaction, MAGAZINE_BY_KEY[self.values[0]])
+
+
 class Menu(discord.ui.View):
     """An ephemeral menu of selects; a failure is reported as `context`."""
 
-    def __init__(self, context: str, *selects: discord.ui.Select["Menu"]) -> None:
+    def __init__(self, context: str, *selects: discord.ui.Select[Any]) -> None:
         super().__init__()
         self._context = context
         for select in selects:
@@ -282,35 +329,115 @@ class Menu(discord.ui.View):
 # ---
 
 
-def _vault_text(
+@dataclass(frozen=True)
+class _VaultPiece:
+    """A run of the Vault's lines and the menus shown under it."""
+
+    lines: Sequence[str]
+    selects: Sequence[discord.ui.Select[Any]] = ()
+
+
+class VaultLayout(discord.ui.LayoutView):
+    """The Vault as one Components V2 message, with no container around it.
+
+    Each piece's lines are one text display, followed by an action row for each
+    of its menus. A failure is reported as the ViiBR Vault menu.
+    """
+
+    def __init__(self, pieces: Sequence[_VaultPiece]) -> None:
+        super().__init__()
+        for piece in pieces:
+            self.add_item(discord.ui.TextDisplay("\n".join(piece.lines)))
+            for select in piece.selects:
+                self.add_item(discord.ui.ActionRow(select))
+
+    async def on_error(
+        self,
+        interaction: discord.Interaction,
+        error: Exception,
+        item: discord.ui.Item[Any],
+    ) -> None:
+        """Report a failure and tell the member."""
+        await report_failure(interaction, _VAULT_CONTEXT, error)
+
+
+@dataclass(frozen=True)
+class _VaultMenus:
+    """The Vault's selects: snacks, then any badges, magazines, collections, gifts."""
+
+    snacks: discord.ui.Select[Any]
+    badges: discord.ui.Select[Any] | None
+    magazines: discord.ui.Select[Any] | None
+    collections: discord.ui.Select[Any] | None
+    gifts: discord.ui.Select[Any] | None
+
+
+def _vault_snack(bot: "WispBot", snack: Snack, price: str) -> str:
+    """A Vault line: the snack's name, its emoji when uploaded, then `price`."""
+    name = snack.key + " " * _VAULT_PADDING.get(snack.key, 1)
+    return item(f"{name}│{bot.emoji(snack.emoji_name)}・{price}")
+
+
+def _vault_pieces(
     bot: "WispBot",
     balance: int,
     offers: list[Offer],
+    magazines: set[str] | None,
     gifts: GiftState | None,
     note: str | None,
-) -> str:
-    """The balance, then the Vault frame of snacks, badges and gifts.
+    menus: _VaultMenus,
+) -> list[_VaultPiece]:
+    """The Vault's text in pieces, each followed by its menus.
 
-    An optional note comes first. Inside the frame each item is its emoji and
-    price. The Gifts take whatever room the rest of one message leaves.
+    An optional note comes before the frame. The Magazines are there only when
+    `magazines`, the covers the member owns this life, is not None. The Gifts
+    take whatever room the rest leaves of the layout's text limit. Blank lines
+    follow the box top and the snacks, as in Myra's draft, and every line is
+    wrapped to fit the box.
     """
-    logo = with_emoji(bot.emoji(_LOGO_EMOJI), "𝐕𝐀𝐔𝐋𝐓")
-    head = [
+    logo = bot.emoji(_LOGO_EMOJI)
+    title = " ".join(word for word in (_VAULT_TITLE[0], logo, _VAULT_TITLE[1]) if word)
+    close = box_close(title, VAULT_WIDTH)
+    snacks = [
         *([note] if note else []),
-        f"♪ You have {with_emoji(bot.emoji(COIN_EMOJI), count(balance, 'point'))}",
-        _VAULT_EDGE,
-        f"╔══ 𝆕 𝐕𝐢𝐢𝐁𝐑 {logo} 𝆕. ══╗",
-        f"{VAULT_RAIL}**Snacks**",
-        f"{VAULT_RAIL}{_icon(bot, _FREE)}・free once a day",
-        *(
-            f"{VAULT_RAIL}{_icon(bot, snack)}・{count(snack.cost, 'point')}"
-            for snack in _MENU
+        *box_open(title, VAULT_WIDTH),
+        *wrapped(
+            [
+                BLANK,
+                sub(f"wisp coins: {with_emoji(bot.emoji(COIN_EMOJI), str(balance))}"),
+                SECTION_BREAK,
+                heading("Snacks"),
+                _vault_snack(bot, _FREE, "free once a day"),
+                *(
+                    _vault_snack(bot, snack, _coins(bot, f"{snack.cost} WC"))
+                    for snack in _MENU
+                ),
+                BLANK,
+            ],
+            VAULT_WIDTH,
         ),
-        *badge_section(bot, offers),
     ]
-    tail = [_VAULT_BOTTOM, _VAULT_EDGE]
-    room = MESSAGE_LIMIT - text_length("\n".join([*head, *tail])) - 2
-    return "\n".join([*head, *gift_section(bot, gifts, room), *tail])
+    badges = wrapped([SECTION_BREAK, *badge_section(bot, offers)], VAULT_WIDTH)
+    covers = (
+        []
+        if magazines is None
+        else wrapped([SECTION_BREAK, *magazine_section(bot, magazines)], VAULT_WIDTH)
+    )
+    # Joined as one text, so the newlines between the text displays are
+    # counted too: a small safety margin on purpose.
+    rest = "\n".join([*snacks, *badges, *covers, SECTION_BREAK, *close])
+    room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
+    gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
+    cover_menus = [] if menus.magazines is None else [menus.magazines]
+    return [
+        _VaultPiece(snacks, [menus.snacks]),
+        _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
+        *([_VaultPiece(covers, cover_menus)] if covers else []),
+        _VaultPiece(
+            [SECTION_BREAK, *gift_section(bot, gifts, room, VAULT_WIDTH)], gift_menus
+        ),
+        _VaultPiece(close),
+    ]
 
 
 async def _vault(
@@ -319,39 +446,45 @@ async def _vault(
     user_id: int,
     note: str | None = None,
     collection: GiftCollection | None = None,
-) -> tuple[str, Menu]:
-    """The Vault's text, after an optional note, and its menu.
+) -> VaultLayout:
+    """The Vault, after an optional note, with its menus between its sections.
 
-    The menu has the snack select, the badge select when the member can get
-    a badge now, and the collection select when a gift can be given today.
-    With a picked `collection` that can still be given from, it also has that
-    collection's gift select.
+    The snack select follows the snacks, the badge select the badges when the
+    member can get a badge now, the magazine select the magazines while Wisp
+    is a Rockstar and the member lacks a cover, and the collection select the
+    gifts when a gift can be given today. With a picked `collection` that can
+    still be given from, that collection's gift select follows it.
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
-        _option(
-            bot,
-            snack,
-            snack.name,
-            f"{count(snack.cost, 'point')} ・ {_full_gain(snack)}",
-        )
+        _option(bot, snack, snack.name, f"{snack.cost} WC ・ {_hunger_gain(snack)}")
         for snack in _MENU
-    ]
-    selects: list[discord.ui.Select[Menu]] = [
-        SnackSelect(snack_options, "Buy a snack", _buy)
     ]
     player = await bot.players.get(guild_id, user_id)
     offers = await badge_offers(bot, guild_id, user_id, player.bond)
-    if badge_choices := badge_options(bot, offers):
-        selects.append(BadgeSelect(badge_choices, _get_badge))
-    if collection_choices := collection_options(bot, gifts):
-        selects.append(CollectionSelect(collection_choices, _pick_collection))
-    if collection is not None and (
-        gift_choices := gift_options(bot, gifts, collection)
-    ):
-        selects.append(GiftSelect(gift_choices, _give))
-    text = _vault_text(bot, player.balance, offers, gifts, note)
-    return text, Menu("the ViiBR Vault menu", *selects)
+    badge_choices = badge_options(bot, offers)
+    magazines = await magazines_owned(bot, guild_id, user_id)
+    magazine_choices = [] if magazines is None else magazine_options(magazines)
+    collection_choices = collection_options(bot, gifts)
+    gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
+    menus = _VaultMenus(
+        snacks=SnackSelect(snack_options, "Buy a snack", _buy),
+        badges=BadgeSelect(badge_choices, _get_badge) if badge_choices else None,
+        magazines=(
+            MagazineSelect(magazine_choices, _get_magazine)
+            if magazine_choices
+            else None
+        ),
+        collections=(
+            CollectionSelect(collection_choices, _pick_collection)
+            if collection_choices
+            else None
+        ),
+        gifts=GiftSelect(gift_choices, _give) if gift_choices else None,
+    )
+    return VaultLayout(
+        _vault_pieces(bot, player.balance, offers, magazines, gifts, note, menus)
+    )
 
 
 async def _confirm(
@@ -371,12 +504,10 @@ async def _confirm(
     """
     bot = bot_of(interaction)
     try:
-        text, menu = await _vault(
+        vault = await _vault(
             bot, require_guild(interaction), interaction.user.id, note, collection
         )
-        await interaction.edit_original_response(
-            content=text, view=menu, allowed_mentions=_NO_PING
-        )
+        await interaction.edit_original_response(view=vault, allowed_mentions=_NO_PING)
     except EXPECTED_FAILURES as error:
         if tell_member:
             await report_failure(interaction, context, error)
@@ -389,22 +520,26 @@ async def _confirm(
 def _pack_snack(bot: "WispBot", snack: Snack, extra: str) -> str:
     """A Snack Pack line: the snack's key, its emoji when uploaded, then `extra`."""
     parts = (snack.key, bot.emoji(snack.emoji_name), extra)
-    return PACK_RAIL + " ".join(part for part in parts if part)
+    return item(" ".join(part for part in parts if part))
 
 
 def _pack_keepsake(bot: "WispBot", keepsake: Keepsake) -> str:
     """A Snack Pack line: "Wisp v3's" and the keepsake's emoji, else its title."""
     emoji = bot.emoji(f"keepsake_{keepsake.kind.value}")
     title = f"Wisp v{keepsake.version}'s {emoji}" if emoji else keepsake.title
-    return PACK_RAIL + title
+    return item(title)
 
 
 async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
-    """The member's Snack Pack frame: balance, snacks, keepsakes and badges.
+    """The member's Snack Pack frame: balance, snacks, keepsakes, badges and any
+    magazines.
 
-    Keepsakes and badges are listed newest life first. When they do not all
-    fit in one message, each is cut short with how many more there are: the
-    badges get at most half the room, and any the keepsakes leave over.
+    Keepsakes, badges and magazines are listed newest life first; the
+    Magazines section is there only when the member has bought one. When they
+    do not all fit in one message, each is cut short with how many more there
+    are: the magazines get at most a quarter of the room, the badges at most
+    half of the rest, and each any room the ones before leave over. Every
+    line is wrapped to fit the box.
     """
     player = await bot.players.get(guild_id, user_id)
     owned = await bot.activity_log.inventory(guild_id, user_id)
@@ -418,33 +553,46 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     ]
     if free_left:
         snacks.append(_pack_snack(bot, _FREE, "free today"))
-    balance = with_emoji(bot.emoji(COIN_EMOJI), count(player.balance, "point"))
+    balance = _coins(bot, f"{player.balance} WC (wisp coins)")
     head = [
-        _PACK_TOP,
-        f"{PACK_RAIL}<@{user_id}> snack pack",
-        f"{PACK_RAIL}{balance}",
-        _PACK_DIVIDER,
-        f"{PACK_RAIL}**Snacks**",
-        *(snacks or [f"{PACK_RAIL} Nothing saved yet"]),
-        _PACK_DIVIDER,
-        f"{PACK_RAIL}**Keepsakes**",
+        *box_open(_PACK_TITLE),
+        *wrapped(
+            [
+                sub(f"<@{user_id}> snack pack"),
+                f"{SUB_MARK}・{balance}",
+                SECTION_BREAK,
+                heading("Snacks"),
+                *(snacks or [_NOTHING_SAVED]),
+                SECTION_BREAK,
+                heading("Keepsakes"),
+            ]
+        ),
     ]
     held = await bot.keepsakes.of(guild_id, user_id)
     newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
-    keepsakes = [_pack_keepsake(bot, keepsake) for keepsake in newest_life_first] or [
+    keepsakes = wrapped(
+        [_pack_keepsake(bot, keepsake) for keepsake in newest_life_first]
+    ) or [_NONE_YET]
+    badges = wrapped(badge_pack_lines(bot, await bot.badges.of(guild_id, user_id))) or [
         _NONE_YET
     ]
-    badges = badge_pack_lines(bot, await bot.badges.of(guild_id, user_id)) or [
-        _NONE_YET
-    ]
-    between = [_PACK_DIVIDER, f"{PACK_RAIL}**Badges**"]
-    tail = [_PACK_BOTTOM]
-    framing = "\n".join([*head, *between, *tail])
+    covers = wrapped(magazine_pack_lines(await bot.magazines.of(guild_id, user_id)))
+    between = [SECTION_BREAK, heading("Badges")]
+    shelf = [SECTION_BREAK, heading("Magazines")] if covers else []
+    tail = box_close(_PACK_TITLE)
+    framing = "\n".join([*head, *between, *shelf, *tail])
     room = MESSAGE_LIMIT - text_length(framing) - 3
-    badge_room = min(text_length("\n".join(badges)), room // 2)
-    kept = _shown(keepsakes, room - badge_room)
-    worn = _shown(badges, room - text_length("\n".join(kept)))
-    return "\n".join([*head, *kept, *between, *worn, *tail])
+    cover_room = min(_length(covers), room // 4)
+    badge_room = min(_length(badges), (room - cover_room) // 2)
+    kept = _shown(keepsakes, room - badge_room - cover_room)
+    worn = _shown(badges, room - _length(kept) - cover_room)
+    read = _shown(covers, room - _length(kept) - _length(worn))
+    return "\n".join([*head, *kept, *between, *worn, *shelf, *read, *tail])
+
+
+def _length(lines: list[str]) -> int:
+    """How long `lines` are joined one per line, counted by `text_length`."""
+    return text_length("\n".join(lines))
 
 
 def _shown(lines: list[str], room: int) -> list[str]:
@@ -452,13 +600,13 @@ def _shown(lines: list[str], room: int) -> list[str]:
 
     The room is counted by `text_length`.
     """
-    if text_length("\n".join(lines)) <= room:
+    if _length(lines) <= room:
         return lines
     for shown in range(len(lines) - 1, -1, -1):
-        cut = [*lines[:shown], f"{PACK_RAIL} and {len(lines) - shown} more"]
-        if text_length("\n".join(cut)) <= room:
+        cut = [*lines[:shown], item(f"and {len(lines) - shown} more")]
+        if _length(cut) <= room:
             return cut
-    return [f"{PACK_RAIL} and {len(lines)} more"]
+    return [item(f"and {len(lines)} more")]
 
 
 async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
@@ -486,7 +634,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
         await _confirm(
             interaction,
-            f"♪ Bought {snack.name} for {count(snack.cost, 'point')}.",
+            f"♪ Bought {snack.name} for {snack.cost} WC.",
             "confirming a snack purchase (the purchase went through)",
         )
 
@@ -532,7 +680,7 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
         )
         await _confirm(
             interaction,
-            f"♪ Your {badge.name} badge didn't go through. Your points are back.",
+            f"♪ Your {badge.name} badge didn't go through. Your WC are back.",
             "showing a badge that did not go through",
         )
         return
@@ -599,6 +747,76 @@ async def _return_badge(
     await bot.players.add_bond(guild_id, user_id, -badge.bond)
 
 
+async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) -> None:
+    """Spend the member's points on a magazine cover, then send them its picture.
+
+    The purchase is made under the guild lock. The Vault is shown again under
+    the result, or under the reason it was refused; the picture follows only
+    to the buyer. A picture that cannot be sent is reported where it happened,
+    and the purchase stands.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    await interaction.response.defer()
+    try:
+        async with bot.guild_lock(guild_id):
+            await _take_magazine(
+                bot, guild_id, interaction.user, magazine, discord.utils.utcnow()
+            )
+    except Refusal as refusal:
+        await _confirm(interaction, str(refusal), "showing a refused magazine")
+        return
+    await _confirm(
+        interaction,
+        f"♪ You got the {magazine.name}.",
+        "confirming a magazine (the purchase went through)",
+    )
+    try:
+        await interaction.followup.send(
+            file=discord.File(cover_art(magazine)), ephemeral=True
+        )
+    except (discord.HTTPException, OSError) as error:
+        await report_failure(
+            interaction,
+            f"sending the {magazine.name} picture (the purchase went through)",
+            error,
+        )
+
+
+async def _take_magazine(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    magazine: Magazine,
+    now: datetime,
+) -> None:
+    """Sell the member a magazine for the current life. Call this under the guild lock.
+
+    Raises:
+        Refusal: The member is banned or cannot feed Wisp, Wisp is not a living
+            Rockstar, the member already has this cover this life or is short
+            of points. Nothing is spent then.
+    """
+    player = await check_member(bot, guild_id, member, now)
+    life = await bot.lives.current(guild_id)
+    if life is None or life.id is None or not on_the_shelf(life):
+        raise Refusal(_SHELF_EMPTY)
+    if magazine.key in await bot.magazines.owned(guild_id, member.id, life.id):
+        raise Refusal(_already_own(magazine, life))
+    if not await bot.players.spend(guild_id, member.id, MAGAZINE_COST):
+        name = player.name or member.display_name
+        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+    if not await bot.magazines.record(
+        guild_id, member.id, magazine.key, life.id, life.version, now
+    ):
+        await bot.players.refund(guild_id, member.id, MAGAZINE_COST)
+        raise Refusal(_already_own(magazine, life))
+
+
+def _already_own(magazine: Magazine, life: Life) -> str:
+    return f"♪ You already have the {magazine.name} for Wisp v{life.version}."
+
+
 async def _pick_collection(
     interaction: discord.Interaction, collection: GiftCollection
 ) -> None:
@@ -660,14 +878,14 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
 
 
 async def _open_vault(interaction: discord.Interaction) -> None:
-    """Show the Snack Box and the Gifts with selects to buy, only to the member."""
+    """Show the Vault with its menus to buy from, only to the member."""
     if not await _admit(interaction):
         return
-    text, menu = await _vault(
+    vault = await _vault(
         bot_of(interaction), require_guild(interaction), interaction.user.id
     )
     await interaction.followup.send(
-        text, view=menu, ephemeral=True, allowed_mentions=_NO_PING
+        view=vault, ephemeral=True, allowed_mentions=_NO_PING
     )
 
 
@@ -876,7 +1094,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
         return
-    text = f"♪ Wisp ate your {snack.name} ・ full +{meal.full}"
+    text = f"♪ Wisp ate your {snack.name} ・ hunger +{meal.full}"
     if meal.full < snack.full:
         text += " (daily meal limit)"
     await interaction.edit_original_response(
@@ -902,14 +1120,14 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> Menu | None
     """A menu of what the member can feed Wisp now, or None when nothing."""
     owned = await bot.activity_log.inventory(guild_id, user_id)
     options = [
-        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _full_gain(snack))
+        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _hunger_gain(snack))
         for snack in _MENU
         if snack.key in owned
     ]
     if not await bot.activity_log.free_snack_used_today(
         guild_id, user_id, discord.utils.utcnow()
     ):
-        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _full_gain(_FREE))
+        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _hunger_gain(_FREE))
         options.insert(0, free)
     if not options:
         return None

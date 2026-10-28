@@ -98,6 +98,15 @@ _PATTERNS: tuple[
 )
 
 
+def song_page(track_key: str) -> str | None:
+    """The viibrmusic.com page of the song with `track_key`, or None for any
+    other key, such as a Suno track's."""
+    kind, _, ident = track_key.partition(":")
+    if kind != TrackKind.VIIBR or not re.fullmatch(_UUID, ident):
+        return None
+    return f"https://viibrmusic.com/songs/{ident}"
+
+
 def find_track(text: str) -> Track | ShareLink | None:
     """Return the first valid track or share link in ``text``, or None.
 

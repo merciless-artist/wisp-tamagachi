@@ -1,4 +1,4 @@
-"""Tests for the status card text, checked against Myra's template."""
+"""Tests for the status card text, checked against Myra's house style."""
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -6,17 +6,32 @@ from pathlib import Path
 
 import pytest
 
-from wisp.card import LABEL_PADDING, CardFacts, bar, render_status
+from wisp.card import (
+    STATUS_TITLE,
+    STATUS_WIDTH,
+    WAITING,
+    CardFacts,
+    bar,
+    render_status,
+)
 from wisp.life import Life, Phase, new_egg
 from wisp.rules import EGG_FOOD_NEEDED, EGG_WARMTH, HATCHING_TIME, Stage
-from wisp.text import MESSAGE_LIMIT, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    WIDTHS,
+    bars,
+    box_room,
+    text_length,
+    visual_width,
+    wrap,
+)
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
-TEMPLATE = (
-    (Path(__file__).parent.parent / "DOCS" / "specs" / "status_menu_template.txt")
+SPEC_LINES = frozenset(
+    (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
     .read_bytes()
     .decode("utf-8")
-    .split("\n")
+    .splitlines()
 )
 WISP_ID = 1560213420068966441
 HOUSE_ID = 1563693152882262026
@@ -28,68 +43,122 @@ FACTS = CardFacts(
     wisp_id=WISP_ID,
     house_id=HOUSE_ID,
 )
+TOP = ["𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈 𝄇𝄡𝄚𝄚𝄚𝄚𝄂", "╔═════════════════════════╗"]
+BOTTOM = ["╚═════════════════════════╝", "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂"]
+BREAK = "╠═══⇕"
+BLANK = "║"
+DAY = "║𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪"
+FED = "║𝄡𝄚𝄂 Fed by 03 people today・♬‿♩. ♪"
+TRACKS = ["║𝄡𝄚𝄂 6 ViiBR tracks and 2 Suno tracks", "║ ・♪‿♫ ♪"]
+POKE = [f"║𝄡 Poke him or tag <@{WISP_ID}> in", f"║ <#{HOUSE_ID}> to say hi!!"]
+HINTS = [
+    "║𝄡 check your snackpack with /wisp",
+    "║ snackpack",
+    "║𝄡 check the ViiBR Vault to buy treats",
+    "║ and toys for Wisp!",
+]
 
-# ---
-# Myra's template
-# ---
 
-# Her template's lines, by what they are.
-TOP, TITLE_RULE, DAY, GAP_ABOVE_BARS, CARE, HAPPY, HUNGER = TEMPLATE[:7]
-POKE, SNACKPACK = TEMPLATE[12:14]
-STAGE = TEMPLATE[16]
+def stage_line(bold: str) -> str:
+    return f"║𝄡𝄚𝄂・・**life stage**・{bold}・♪‿♪ ♫."
 
 
-def padded(label: str) -> str:
-    return label + " " * LABEL_PADDING[label]
+def emoji(name: str) -> str:
+    return f"<:{name}:9>"
 
 
-def template_card(
-    *, day: list[str], bars: list[str], poke: str = POKE, stage: str = STAGE
-) -> list[str]:
-    """Her template with the day line, bars, poke hint and stage swapped in.
+def no_emoji(_name: str) -> str:
+    return ""
 
-    The snackpack hint always names `/wisp snackpack`, as agreed with Myra.
-    """
-    snackpack = SNACKPACK.replace("with /snackpack", "with /wisp snackpack")
-    return [
-        TOP,
-        TITLE_RULE,
-        *day,
-        GAP_ABOVE_BARS,
-        *bars,
-        *TEMPLATE[7:12],
-        poke,
-        snackpack,
-        *TEMPLATE[14:16],
-        stage,
-        *TEMPLATE[17:],
-    ]
+
+def pieces(name: str, count: int) -> str:
+    return emoji(name) * count
 
 
 def alive_life(**fields: object) -> Life:
     life = new_egg(3, NOW - timedelta(days=4))
     life.phase = Phase.ALIVE
     life.stage = life.peak_stage = Stage.BABY
-    life.full = 50.0
-    life.care = 60.0
+    life.full = 55.0
+    life.care = 65.0
     life.hatched_at = NOW - timedelta(days=1, hours=3)
     for name, value in fields.items():
         setattr(life, name, value)
     return life
 
 
-def test_the_template_is_read_as_myra_wrote_it() -> None:
-    assert len(TEMPLATE) == 20
-    assert HUNGER == "▐・Hunger " + "🟦" * 5 + "│50%"
-    assert DAY.startswith("▐▀━━・・𝐃𝐀𝐘 **1**・")
+def meters(card: str) -> list[str]:
+    """The card's meter lines: from the first label to the blank line after."""
+    lines = card.split("\n")
+    start = lines.index(BREAK) + 1 if lines[3].startswith("║𝄡𝄚𝄂") else 3
+    return lines[start : lines.index(BLANK, start)]
 
 
-def test_a_living_baby_matches_myras_template() -> None:
-    full = HUNGER.replace("Hunger ", padded("Full"))
+# ---
+# The whole card
+# ---
 
-    card = render_status(alive_life(), NOW, FACTS)
 
-    assert card.split("\n") == template_card(day=[DAY], bars=[full, HAPPY, CARE])
+def test_a_living_baby_matches_the_house_style() -> None:
+    card = render_status(alive_life(), NOW, FACTS, emoji)
+
+    assert card.split("\n") == [
+        *TOP,
+        BLANK,
+        DAY,
+        BLANK,
+        BREAK,
+        "║𝄡 Care",
+        f"║{pieces('care_full', 6)}{emoji('care_left')}│65%",
+        "║𝄡 Happy",
+        f"║{pieces('happiness_full', 9)} │90%",
+        "║𝄡 Hunger",
+        f"║{pieces('full_full', 5)}{emoji('full_left')}│55%",
+        BLANK,
+        BREAK,
+        FED,
+        BLANK,
+        *TRACKS,
+        BLANK,
+        BREAK,
+        *POKE,
+        *HINTS,
+        BLANK,
+        BREAK,
+        stage_line("𝐁𝐀𝐁𝐘"),
+        BLANK,
+        *BOTTOM,
+    ]
+
+
+def test_the_frame_lines_are_copied_from_the_spec() -> None:
+    card = render_status(alive_life(), NOW, FACTS, emoji)
+
+    lines = card.split("\n")
+    for line in (*TOP, BREAK, *BOTTOM):
+        assert line in SPEC_LINES, line
+        assert line in lines, line
+    assert STATUS_TITLE == "𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈"
+    assert (TOP[0], BOTTOM[1]) == bars(STATUS_TITLE)
+
+
+def test_the_box_is_as_wide_as_a_full_bar() -> None:
+    full_bar = "║" + emoji("full_full") * 10 + "│100%"
+
+    assert visual_width(full_bar) <= box_room(STATUS_WIDTH)
+    assert visual_width(full_bar) > box_room(STATUS_WIDTH - 1)
+    assert TOP[1] == "╔" + "═" * STATUS_WIDTH + "╗"
+
+
+def test_the_waiting_card_has_only_its_line_in_the_frame() -> None:
+    assert WAITING.split("\n") == [
+        *TOP,
+        BLANK,
+        "║𝄡𝄚𝄂 No Wisp right now. Waiting for",
+        "║ staff to begin again.",
+        BLANK,
+        *BOTTOM,
+    ]
 
 
 # ---
@@ -98,34 +167,83 @@ def test_a_living_baby_matches_myras_template() -> None:
 
 
 @pytest.mark.parametrize(
-    ("value", "squares", "percent"),
+    ("value", "full", "left", "percent"),
     [
-        (0, 0, 0),
-        (4, 0, 4),
-        (5, 1, 5),
-        (44.5, 5, 45),
-        (45, 5, 45),
-        (72, 7, 72),
-        (74.9, 8, 75),
-        (75, 8, 75),
-        (100, 10, 100),
-        (-5, 0, 0),
-        (140, 10, 100),
+        (0, 0, False, 0),
+        (4, 0, False, 4),
+        (4.4, 0, False, 4),
+        (4.5, 0, True, 5),
+        (5, 0, True, 5),
+        (44.5, 4, True, 45),
+        (55, 5, True, 55),
+        (65, 6, True, 65),
+        (69, 6, True, 69),
+        (72, 7, False, 72),
+        (90, 9, False, 90),
+        (94.9, 9, True, 95),
+        (100, 10, False, 100),
+        (-5, 0, False, 0),
+        (140, 10, False, 100),
     ],
 )
-def test_bars_are_one_square_per_ten_percent(
-    value: float, squares: int, percent: int
+def test_bars_are_a_full_piece_per_ten_and_a_left_piece_for_five(
+    value: float, full: int, left: bool, percent: int
 ) -> None:
-    assert bar(value, "🟦") == "🟦" * squares + f"│{percent}%"
+    end = "L" if left else " "
+
+    assert bar(value, "F", "L") == "F" * full + end + f"│{percent}%"
 
 
-def test_the_bars_are_full_happy_then_care_in_their_colours() -> None:
-    card = render_status(alive_life(full=100.0, care=0.0), NOW, FACTS)
+def test_65_percent_is_six_full_and_a_left() -> None:
+    assert bar(65, "F", "L") == "FFFFFFL│65%"
 
-    assert card.split("\n")[4:7] == [
-        "▐・" + padded("Full") + "🟦" * 10 + "│100%",
-        "▐・" + padded("Happy") + "🟪" * 9 + "│90%",
-        "▐・" + padded("Care") + "│0%",
+
+def test_90_percent_is_nine_full_and_a_space() -> None:
+    assert bar(90, "F", "L") == "FFFFFFFFF │90%"
+
+
+@pytest.mark.parametrize("value", [0, 1, 4])
+def test_under_5_percent_shows_no_pieces(value: float) -> None:
+    assert bar(value, "F", "L") == f" │{value}%"
+
+
+def test_a_left_piece_not_uploaded_leaves_the_space() -> None:
+    assert bar(65, "F", "") == "FFFFFF │65%"
+
+
+def test_each_bar_is_on_its_own_line_under_its_label() -> None:
+    card = render_status(alive_life(), NOW, FACTS, emoji)
+
+    labels = meters(card)[::2]
+    bar_lines = meters(card)[1::2]
+    assert labels == ["║𝄡 Care", "║𝄡 Happy", "║𝄡 Hunger"]
+    assert all(line.startswith("║<:") for line in bar_lines)
+
+
+def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
+    card = render_status(alive_life(), NOW, FACTS, no_emoji)
+
+    assert meters(card) == [
+        "║𝄡 Care",
+        "║ │65%",
+        "║𝄡 Happy",
+        "║ │90%",
+        "║𝄡 Hunger",
+        "║ │55%",
+    ]
+    assert "<:" not in card
+
+
+def test_the_bars_are_care_happy_then_hunger_in_their_meters() -> None:
+    card = render_status(alive_life(full=100.0, care=0.0), NOW, FACTS, emoji)
+
+    assert meters(card) == [
+        "║𝄡 Care",
+        "║ │0%",
+        "║𝄡 Happy",
+        f"║{pieces('happiness_full', 9)} │90%",
+        "║𝄡 Hunger",
+        f"║{pieces('full_full', 10)} │100%",
     ]
 
 
@@ -139,9 +257,9 @@ def test_the_bars_are_full_happy_then_care_in_their_colours() -> None:
     [(0, "00 people"), (1, "01 person"), (3, "03 people"), (12, "12 people")],
 )
 def test_fed_by_is_two_digits_and_singular_for_one(fed: int, words: str) -> None:
-    card = render_status(alive_life(), NOW, replace(FACTS, fed_today=fed))
+    card = render_status(alive_life(), NOW, replace(FACTS, fed_today=fed), emoji)
 
-    assert f"▐▄━━❰・Fed by {words} today・♬‿♩. ♪\n" in card
+    assert wrap(f"║𝄡𝄚𝄂 Fed by {words} today・♬‿♩. ♪", STATUS_WIDTH) in card
 
 
 @pytest.mark.parametrize(
@@ -155,9 +273,9 @@ def test_fed_by_is_two_digits_and_singular_for_one(fed: int, words: str) -> None
 def test_tracks_line_is_singular_for_one(viibr: int, suno: int, words: str) -> None:
     facts = replace(FACTS, viibr_tracks=viibr, suno_tracks=suno)
 
-    card = render_status(alive_life(), NOW, facts)
+    card = render_status(alive_life(), NOW, facts, emoji)
 
-    assert f"▐▀━━❰・{words}・♪‿♫ ♪\n" in card
+    assert wrap(f"║𝄡𝄚𝄂 {words}・♪‿♫ ♪", STATUS_WIDTH) in card
 
 
 @pytest.mark.parametrize(
@@ -172,24 +290,24 @@ def test_tracks_line_is_singular_for_one(viibr: int, suno: int, words: str) -> N
     ],
 )
 def test_stage_is_in_bold_letters(stage: Stage, bold: str) -> None:
-    card = render_status(alive_life(stage=stage), NOW, FACTS)
+    card = render_status(alive_life(stage=stage), NOW, FACTS, emoji)
 
-    assert f"▐▄━━❰・・**life stage**・{bold}・♪‿♪ ♫.\n" in card
+    assert wrap(stage_line(bold), STATUS_WIDTH) in card
 
 
 def test_day_counts_whole_days_since_hatching() -> None:
     life = alive_life(hatched_at=NOW - timedelta(days=12, hours=23))
 
-    card = render_status(life, NOW, FACTS)
+    card = render_status(life, NOW, FACTS, emoji)
 
     assert DAY.replace("**1**", "**12**") in card.split("\n")
 
 
 def test_no_house_channel_says_his_house() -> None:
-    card = render_status(alive_life(), NOW, replace(FACTS, house_id=None))
+    card = render_status(alive_life(), NOW, replace(FACTS, house_id=None), emoji)
 
-    expected = f"▐・Poke him or tag <@{WISP_ID}> in his House to say hi!!"
-    assert expected in card.split("\n")
+    expected = f"║𝄡 Poke him or tag <@{WISP_ID}> in his House to say hi!!"
+    assert wrap(expected, STATUS_WIDTH) in card
     assert "<#" not in card
 
 
@@ -202,25 +320,40 @@ def test_egg_and_hatching_cards_use_the_frame() -> None:
     egg = new_egg(4, NOW)
     egg.phase_seconds = EGG_WARMTH.total_seconds() / 4
     egg.egg_food = EGG_FOOD_NEEDED // 2
-    poke = POKE.replace("Poke him", "Poke the egg")
-    egg_bars = [
-        "▐・" + padded("Warmth") + "🟧" * 8 + "│75%",
-        "▐・" + padded("Hatching") + "🟨" * 5 + "│50%",
-    ]
-    egg_stage = STAGE.replace("𝐁𝐀𝐁𝐘", "𝐄𝐆𝐆")
+    poke = wrap(
+        f"║𝄡 Poke the egg or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!",
+        STATUS_WIDTH,
+    ).split("\n")
+    tail = [BLANK, BREAK, FED, BLANK, *TRACKS, BLANK, BREAK, *poke, *HINTS, BLANK]
 
-    assert render_status(egg, NOW, FACTS).split("\n") == template_card(
-        day=[], bars=egg_bars, poke=poke, stage=egg_stage
-    )
+    assert render_status(egg, NOW, FACTS, emoji).split("\n") == [
+        *TOP,
+        BLANK,
+        "║𝄡 Warmth",
+        f"║{pieces('full_full', 7)}{emoji('full_left')}│75%",
+        "║𝄡 Hatching",
+        f"║{pieces('happiness_full', 5)} │50%",
+        *tail,
+        BREAK,
+        stage_line("𝐄𝐆𝐆"),
+        BLANK,
+        *BOTTOM,
+    ]
 
     egg.phase = Phase.HATCHING
     egg.phase_seconds = HATCHING_TIME.total_seconds() / 5
-    hatching_bars = ["▐・" + padded("Emerging") + "🟨" * 2 + "│20%"]
-    hatching_stage = STAGE.replace("𝐁𝐀𝐁𝐘", "𝐇𝐀𝐓𝐂𝐇𝐈𝐍𝐆")
 
-    assert render_status(egg, NOW, FACTS).split("\n") == template_card(
-        day=[], bars=hatching_bars, poke=poke, stage=hatching_stage
-    )
+    assert render_status(egg, NOW, FACTS, emoji).split("\n") == [
+        *TOP,
+        BLANK,
+        "║𝄡 Emerging",
+        f"║{pieces('happiness_full', 2)} │20%",
+        *tail,
+        BREAK,
+        *wrap(stage_line("𝐇𝐀𝐓𝐂𝐇𝐈𝐍𝐆"), STATUS_WIDTH).split("\n"),
+        BLANK,
+        *BOTTOM,
+    ]
 
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
@@ -228,11 +361,11 @@ def test_finished_lives_are_not_rendered(phase: Phase) -> None:
     life = new_egg(4, NOW)
     life.phase = phase
     with pytest.raises(ValueError, match="finished"):
-        render_status(life, NOW, FACTS)
+        render_status(life, NOW, FACTS, emoji)
 
 
 # ---
-# The cold
+# Sickness
 # ---
 
 
@@ -241,15 +374,20 @@ def test_finished_lives_are_not_rendered(phase: Phase) -> None:
     [(48 * 3600, 48), (47 * 3600 + 1, 48), (3600, 1), (1, 1)],
 )
 def test_a_sick_card_says_hours_left(cold_left: float, hours: int) -> None:
-    card = render_status(alive_life(cold_left=cold_left), NOW, FACTS)
+    card = render_status(alive_life(cold_left=cold_left), NOW, FACTS, emoji)
 
     lines = card.split("\n")
-    assert lines[2:4] == [DAY, f"▐・he has a cold・{hours} h left"]
-    assert lines[4] == GAP_ABOVE_BARS
+    assert lines[2:7] == [
+        BLANK,
+        DAY,
+        f"║𝄡𝄚𝄂 he has Monster Pox・{hours} h left",
+        BLANK,
+        BREAK,
+    ]
 
 
-def test_a_well_wisp_has_no_cold_line() -> None:
-    assert "cold" not in render_status(alive_life(), NOW, FACTS)
+def test_a_well_wisp_has_no_sick_line() -> None:
+    assert "Monster Pox" not in render_status(alive_life(), NOW, FACTS, emoji)
 
 
 # ---
@@ -257,7 +395,7 @@ def test_a_well_wisp_has_no_cold_line() -> None:
 # ---
 
 
-def test_the_fullest_card_fits_one_message() -> None:
+def fullest_card() -> str:
     life = alive_life(
         stage=Stage.OLD_FOGEY,
         full=100.0,
@@ -273,8 +411,36 @@ def test_the_fullest_card_fits_one_message() -> None:
         wisp_id=2**64 - 1,
         house_id=2**64 - 1,
     )
+    return render_status(life, NOW, facts, lambda name: f"<a:{name}:{2**64 - 1}>")
 
-    card = render_status(life, NOW, facts)
 
-    assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "he has a cold" in card
+def test_the_fullest_card_fits_one_message() -> None:
+    card = fullest_card()
+
+    assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "Monster Pox" in card
+    assert card.count("_full:") == 30
     assert text_length(card) <= MESSAGE_LIMIT
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.ALIVE])
+def test_no_line_passes_the_box(phase: Phase) -> None:
+    if phase is Phase.ALIVE:
+        card = fullest_card()
+    else:
+        egg = new_egg(4, NOW)
+        egg.phase = phase
+        egg.egg_food = EGG_FOOD_NEEDED
+        card = render_status(egg, NOW, FACTS, emoji)
+
+    inside = card.split("\n")[2:-2]
+    assert all(visual_width(line) <= box_room(STATUS_WIDTH) for line in inside)
+    assert all(
+        visual_width(line) <= box_room(STATUS_WIDTH)
+        for line in WAITING.split("\n")[2:-2]
+    )
+
+
+def test_the_bars_look_as_wide_as_each_other() -> None:
+    top, bottom = fullest_card().split("\n")[0], fullest_card().split("\n")[-1]
+
+    assert abs(visual_width(top) - visual_width(bottom)) <= WIDTHS["staff"] / 2

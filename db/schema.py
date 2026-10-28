@@ -28,6 +28,7 @@ _DEFINITIONS: dict[str, str] = {
         frozen BOOL NOT NULL DEFAULT 0,
         lay_eggs BOOL NOT NULL DEFAULT 1,
         house_panel_message_id BIGINT NULL,
+        burrito_thread_id BIGINT NULL,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -141,6 +142,7 @@ _DEFINITIONS: dict[str, str] = {
         track_key VARCHAR(80) NOT NULL,
         url VARCHAR(255) NOT NULL,
         picked_at DATETIME NOT NULL,
+        artist VARCHAR(100) NULL,
         PRIMARY KEY (guild_id, day)
     """,
     "expression_uses": """
@@ -177,19 +179,32 @@ _DEFINITIONS: dict[str, str] = {
         PRIMARY KEY (guild_id, user_id, badge, life_id),
         INDEX idx_guild_removed (guild_id, removed_at)
     """,
+    "magazines": """
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        magazine VARCHAR(20) NOT NULL,
+        life_id BIGINT NOT NULL,
+        version INT NOT NULL,
+        bought_at DATETIME NOT NULL,
+        PRIMARY KEY (guild_id, user_id, magazine, life_id)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.
 # The live tables hold real data, so every new column is listed here as well as
-# in its definition: startup adds it to a table that lacks it.
+# in its definition: startup adds it to a table that lacks it. Live columns are
+# never dropped, so `settings.lay_eggs`, the old eggs switch, stays defined
+# though nothing reads it any more.
 _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
     "settings": {
         "faq_message_ids": "TEXT NULL",
         "lay_eggs": "BOOL NOT NULL DEFAULT 1",
         "house_panel_message_id": "BIGINT NULL",
+        "burrito_thread_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
+    "favorites": {"artist": "VARCHAR(100) NULL"},
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",

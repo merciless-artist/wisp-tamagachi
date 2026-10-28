@@ -23,7 +23,7 @@ from wisp.rules import (
     RHYME_THREAD_ARCHIVE_MINUTES,
     RHYME_TURN,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, clip, count, text_length
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -107,7 +107,8 @@ def summary_text(line: str, reason: str | None, chain: list[str], points: int) -
 
     The oldest words are left out of the chain when it would not fit one message.
     If it still does not fit, the reason is cut short, and as a last resort the
-    message itself.
+    message itself. The message is measured by `text_length` and never cut
+    inside a character.
     """
     reasons = [f"・{reason}"] if reason else []
     score_line = f"・Score: {count(points, 'point')}"
@@ -116,15 +117,16 @@ def summary_text(line: str, reason: str | None, chain: list[str], points: int) -
         trimmed = "... " if len(shown) < len(chain) else ""
         chain_line = f"・{trimmed}{' ・ '.join(shown)}"
         text = "\n".join([line, SEPARATOR, *reasons, chain_line, score_line])
-        overflow = len(text) - MESSAGE_LIMIT
+        overflow = text_length(text) - MESSAGE_LIMIT
         if overflow <= 0:
             return text
+        kept = text_length(reasons[0]) - overflow - len(_CUT) if reasons else 0
         if shown:
             shown = shown[1:]
-        elif reasons and len(reasons[0]) > overflow + len(_CUT):
-            reasons = [reasons[0][: -(overflow + len(_CUT))] + _CUT]
+        elif kept > 0:
+            reasons = [clip(reasons[0], kept) + _CUT]
         else:
-            return text[:MESSAGE_LIMIT]
+            return clip(text, MESSAGE_LIMIT)
 
 
 # ---

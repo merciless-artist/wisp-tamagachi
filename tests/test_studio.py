@@ -1,6 +1,7 @@
 """Tests for the Studio setup and staff commands, run against fake Discord objects."""
 
 import asyncio
+import io
 import re
 from collections.abc import Iterator
 from datetime import timedelta
@@ -15,6 +16,7 @@ from discord.ext import commands
 
 import app
 from cogs import faq, feeding, groups, pictures, studio
+from cogs.assets import ASSETS_DIR as REAL_ASSETS_DIR
 from cogs.speech import POKE_ID
 from cogs.studio import (
     HOUSE_PANEL,
@@ -28,9 +30,16 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.settings import SettingsRepo
 from wisp import rules
-from wisp.life import Phase, new_egg
+from wisp.life import new_egg
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SEPARATOR,
+    WIDTHS,
+    box_room,
+    text_length,
+    visual_width,
+)
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -44,9 +53,51 @@ MEALTIME = "🧡 | Mealtime"
 VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
-THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
-THREAD_TITLES = ("Status", "Mealtime", "The ViiBR Vault", "Jam Space", "Wisp FAQ")
-OLD_NAMES = ("Status", "Mealtime", "The ViiBR Vault", "The Jam Space", "How Wisp Works")
+BURRITO = "🧚│Burrito, Fairy God-bot"
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, BURRITO)
+THREAD_TITLES = (
+    "Status",
+    "Mealtime",
+    "The ViiBR Vault",
+    "Jam Space",
+    "Wisp FAQ",
+    "Burrito, Fairy God-bot",
+)
+OLD_NAMES = (
+    "Status",
+    "Mealtime",
+    "The ViiBR Vault",
+    "The Jam Space",
+    "How Wisp Works",
+    "Burrito",
+)
+# Myra's Burrito post, byte for byte (house style v2.1).
+BURRITO_STARTER = "\n".join(
+    [
+        "𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+        "╔══════════════════════╗",
+        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
+        "║",
+        "║𝄡 Ask him anything about how",
+        "║ Wisp works, right here.",
+        "║",
+        "║𝄡 He'll point you to where to look",
+        "║ for Wisp's live stats.",
+        "╚══════════════════════╝",
+        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+    ]
+)
+OLD_BURRITO_STARTER = "\n".join(
+    [
+        "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
+        "╔════════════════════╗",
+        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
+        "║𝄡 Ask him anything about how Wisp works, right here.",
+        "║𝄡 He'll point you to where to look for Wisp's live stats.",
+        "╚════════════════════╝",
+        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
+    ]
+)
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
     VAULT: "vault.png",
@@ -54,6 +105,44 @@ THUMBNAILS = {
     FAQ: "thumbs/faq.png",
 }
 FAQ_PICTURES = (
+    "00_how_wisp_works_1.png",
+    "01_basics_1.png",
+    "01_basics_2.png",
+    "01_basics_3.png",
+    "01_basics_4.png",
+    "02_feeding_1.png",
+    "02_feeding_2.png",
+    "02_feeding_3.png",
+    "02_feeding_4.png",
+    "03_vault_1.png",
+    "03_vault_2.png",
+    "03_vault_3.png",
+    "03_vault_4.png",
+    "03_vault_5.png",
+    "04_lunchbox_1.png",
+    "04_lunchbox_2.png",
+    "04_lunchbox_3.png",
+    "05_bond_1.png",
+    "05_bond_2.png",
+    "05_bond_3.png",
+    "06_growing_1.png",
+    "06_growing_2.png",
+    "06_growing_3.png",
+    "06_growing_4.png",
+    "07_talking_1.png",
+    "07_talking_2.png",
+    "07_talking_3.png",
+    "07_talking_4.png",
+    "08_games_1.png",
+    "08_games_2.png",
+    "09_ending_1.png",
+    "09_ending_2.png",
+    "09_ending_3.png",
+    "10_fair_1.png",
+    "10_fair_2.png",
+)
+FAQ_SECTION_SIZES = (1, 4, 4, 5, 3, 3, 4, 4, 2, 3, 2)
+OLD_FAQ_PICTURES = (
     "00_how_wisp_works.png",
     "01_the_basics.png",
     "02_feeding_him.png",
@@ -80,12 +169,14 @@ FAQ_TITLES = (
     "Fair Play",
 )
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
+NO_PING = discord.AllowedMentions.none().to_dict()
 THREAD_ATTRS = (
     "status_thread_id",
     "mealtime_thread_id",
     "vault_thread_id",
     "jam_thread_id",
     "rules_thread_id",
+    "burrito_thread_id",
 )
 
 
@@ -438,7 +529,7 @@ def sent_text(ctx: MagicMock) -> str:
 # ---
 
 
-async def test_setup_creates_five_threads_with_the_vault(
+async def test_setup_creates_six_threads_with_the_vault(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     ctx = await run_setup(bot, server)
@@ -458,7 +549,7 @@ async def test_setup_creates_five_threads_with_the_vault(
     assert settings.vault_message_id == server.messages[vault.id].id
     for thread in (status, vault):
         server.messages[thread.id].pin.assert_awaited_once()
-    for name in (MEALTIME, JAM, FAQ):
+    for name in (MEALTIME, JAM, FAQ, BURRITO):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -467,7 +558,8 @@ async def test_setup_creates_five_threads_with_the_vault(
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
 
     text = sent_text(ctx)
-    assert f"Created threads: {', '.join(THREAD_TITLES)}" in text
+    quoted = ", ".join(f'"{title}"' for title in THREAD_TITLES)
+    assert f"Created threads: {quoted}" in text
     assert "・Badge roles created: Pickle Diplomat, Flame Keeper" in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
@@ -571,9 +663,115 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all five already exist" in sent_text(ctx)
+    assert "Studio threads: all six already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
+    assert house_posts(server) == []
+
+
+async def test_burritos_post_is_framed_open_and_has_no_picture(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    assert starter.content == BURRITO_STARTER
+    assert text_length(starter.content) <= MESSAGE_LIMIT
+    assert not re.search(EMOJI, starter.content)
+    assert starter.attachments == []
+    burrito.edit.assert_not_awaited()
+    starter.pin.assert_not_awaited()
+    starter.edit.assert_not_awaited()
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.burrito_thread_id == burrito.id
+
+
+def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
+    lines = BURRITO_STARTER.split("\n")
+
+    assert lines[1].count("═") == lines[-2].count("═") == 22
+    assert all(visual_width(line) <= box_room(22) for line in lines[2:-2])
+    assert abs(visual_width(lines[0]) - visual_width(lines[-1])) <= (
+        WIDTHS["staff"] / 2
+    )
+
+
+async def test_setup_brings_an_old_burrito_post_up_to_date(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    starter.content = OLD_BURRITO_STARTER
+    others = {
+        name: server.messages[server.thread_named(name).id].content
+        for name in THREAD_NAMES[:-1]
+    }
+
+    await run_setup(bot, server)
+
+    assert starter.content == BURRITO_STARTER
+    starter.edit.assert_awaited_once()
+    assert starter.edit.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert server.created_names == list(THREAD_NAMES)
+    for name, content in others.items():
+        assert server.messages[server.thread_named(name).id].content == content
+
+    await run_setup(bot, server)
+
+    starter.edit.assert_awaited_once()
+
+
+async def test_a_burrito_post_that_is_gone_is_left_alone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    del server.messages[burrito.id]
+
+    await run_setup(bot, server)
+
+    burrito.send.assert_not_awaited()
+    assert server.created_names == list(THREAD_NAMES)
+
+
+async def test_a_failed_burrito_update_is_posted_in_his_thread(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    burrito = server.thread_named(BURRITO)
+    starter = server.messages[burrito.id]
+    starter.content = OLD_BURRITO_STARTER
+    starter.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await run_setup(bot, server)
+
+    (line,) = burrito.send.await_args.args
+    assert line.startswith(
+        "Error in updating the first post of Burrito, Fairy God-bot: Forbidden"
+    )
+
+
+async def test_a_studio_from_before_burrito_gets_his_post_without_a_notice(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    old = server.thread_named(BURRITO)
+    del server.threads[old.id]
+    await bot.settings.update(GUILD_ID, burrito_thread_id=None)
+    before = await bot.settings.get(GUILD_ID)
+
+    ctx = await run_setup(bot, server)
+
+    assert server.created_names == [*THREAD_NAMES, BURRITO]
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.burrito_thread_id == server.thread_named(BURRITO).id
+    for attr in THREAD_ATTRS[:-1]:
+        assert getattr(settings, attr) == getattr(before, attr)
+    assert 'Created threads: "Burrito, Fairy God-bot"' in sent_text(ctx)
     assert house_posts(server) == []
 
 
@@ -593,9 +791,24 @@ async def test_setup_recreates_deleted_thread(
     assert settings.status_thread_id == before.status_thread_id
     assert settings.status_message_id == before.status_message_id
     (post,) = house_posts(server)
-    assert post.args == ("Wisp's Studio: recreated Mealtime.",)
+    assert post.args == ('Wisp\'s Studio: recreated "Mealtime".',)
     assert post.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
+    )
+
+
+async def test_recreated_threads_are_named_one_by_one_in_the_house(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    for name in (MEALTIME, BURRITO):
+        del server.threads[server.thread_named(name).id]
+
+    await ensure_studio(bot, GUILD_ID)
+
+    (post,) = house_posts(server)
+    assert post.args == (
+        'Wisp\'s Studio: recreated "Mealtime", "Burrito, Fairy God-bot".',
     )
 
 
@@ -809,11 +1022,18 @@ async def test_concurrent_ensure_creates_each_thread_once(
 # ---
 
 
+def first_pictures(message_ids: tuple[int, ...]) -> list[int]:
+    """The id of each section's first picture, from every picture's id."""
+    assert len(message_ids) == len(FAQ_PICTURES)
+    starts = [sum(FAQ_SECTION_SIZES[:index]) for index in range(len(FAQ_SECTION_SIZES))]
+    return [message_ids[start] for start in starts]
+
+
 def toc_lines(thread_id: int, message_ids: tuple[int, ...] | None) -> list[str]:
     assert message_ids is not None
     return [
         f"# [{title}](<https://discord.com/channels/{GUILD_ID}/{thread_id}/{id_}>)"
-        for title, id_ in zip(FAQ_TITLES, message_ids, strict=True)
+        for title, id_ in zip(FAQ_TITLES, first_pictures(message_ids), strict=True)
     ]
 
 
@@ -824,7 +1044,7 @@ def sends_without_pinging(kwargs: dict[str, Any]) -> bool:
 
 
 def assert_faq_built(posts: list[MagicMock]) -> list[MagicMock]:
-    """Check the posts are the eleven FAQ pictures then the rules post."""
+    """Check the posts are the 35 FAQ pictures, one each, then the rules post."""
     *sections, rules_post = posts
     assert [section.attachments for section in sections] == [
         [name] for name in FAQ_PICTURES
@@ -911,7 +1131,14 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
 
     await ensure_studio(bot, GUILD_ID)
 
-    assert server.created_names == ["How Wisp Works", STATUS, MEALTIME, VAULT, JAM]
+    assert server.created_names == [
+        "How Wisp Works",
+        STATUS,
+        MEALTIME,
+        VAULT,
+        JAM,
+        BURRITO,
+    ]
     assert old.name == FAQ
     *sections, rules_post = assert_faq_built(server.live_posts(old))
     settings = await bot.settings.get(GUILD_ID)
@@ -941,7 +1168,7 @@ async def test_a_built_faq_is_not_built_again(
 async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_on(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
-    missing = art_dir / "faq" / "05_your_bond.png"
+    missing = art_dir / "faq" / "05_bond_2.png"
     missing.unlink()
 
     ctx = await run_setup(bot, server)
@@ -949,7 +1176,7 @@ async def test_missing_faq_pictures_are_posted_in_the_thread_and_setup_carries_o
     thread = server.thread_named(FAQ)
     (report,) = [post.content for post in thread.posts]
     assert report.startswith("Error in building the Wisp FAQ: FileNotFoundError")
-    assert "05_your_bond.png" in report
+    assert "05_bond_2.png" in report
     assert (await bot.settings.get(GUILD_ID)).faq_message_ids is None
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
     assert house_posts(server) == []
@@ -975,7 +1202,7 @@ async def test_a_build_that_fails_part_way_keeps_what_it_posted(
             def send(*args: Any, **fields: Any) -> MagicMock:
                 nonlocal sends
                 sends += 1
-                if sends == 3:
+                if sends == 20:
                     raise discord.HTTPException(MagicMock(status=500), "Server Error")
                 posted: MagicMock = post(*args, **fields)
                 return posted
@@ -988,15 +1215,19 @@ async def test_a_build_that_fails_part_way_keeps_what_it_posted(
     await run_setup(bot, server)
 
     thread = server.thread_named(FAQ)
-    first, second, report = server.live_posts(thread)
+    *posted, report = server.live_posts(thread)
     assert report.content.startswith("Error in building the Wisp FAQ: HTTPException")
+    assert [post.attachments for post in posted] == [
+        [name] for name in FAQ_PICTURES[:19]
+    ]
     settings = await bot.settings.get(GUILD_ID)
-    assert settings.faq_message_ids == (first.id, second.id)
+    assert settings.faq_message_ids == tuple(post.id for post in posted)
+    assert settings.rules_message_id is None
     assert server.messages[thread.id].content == "Loading the FAQ..."
 
     await ensure_studio(bot, GUILD_ID)
 
-    assert server.deleted == [first.id, second.id]
+    assert server.deleted == [post.id for post in posted]
     report_left, *rebuilt = server.live_posts(thread)
     assert report_left is report
     assert_faq_built(rebuilt)
@@ -1047,6 +1278,93 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     assert house_posts(server) == []
 
 
+async def test_every_picture_is_one_file_in_a_message_of_its_own(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    *pictures_posted, rules_post = server.live_posts(server.thread_named(FAQ))
+
+    assert len(pictures_posted) == len(FAQ_PICTURES) == 35
+    for post in pictures_posted:
+        assert "file" in post.sent_kwargs
+        assert "files" not in post.sent_kwargs
+        assert post.content is None
+    assert rules_post.attachments == []
+
+
+async def test_each_table_of_contents_link_opens_its_sections_first_picture(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    thread = server.thread_named(FAQ)
+
+    links = re.findall(
+        r"\[(.+?)\]\(<https://discord.com/channels/(\d+)/(\d+)/(\d+)>\)",
+        server.messages[thread.id].content,
+    )
+
+    assert [title for title, *_ in links] == list(FAQ_TITLES)
+    assert {(guild, thread_id) for _, guild, thread_id, _ in links} == {
+        (str(GUILD_ID), str(thread.id))
+    }
+    first_files = [
+        server.messages[int(message_id)].attachments for *_, message_id in links
+    ]
+    assert first_files == [
+        [FAQ_PICTURES[sum(FAQ_SECTION_SIZES[:index])]]
+        for index in range(len(FAQ_SECTION_SIZES))
+    ]
+
+
+async def test_one_per_section_posts_from_before_are_deleted_on_the_rebuild(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    old = server.add_thread(FAQ, "Loading the FAQ...")
+    old_posts = [
+        await old.send(file=discord.File(io.BytesIO(b"png"), filename=name))
+        for name in OLD_FAQ_PICTURES
+    ]
+    old_rules = await old.send(rules_text(rules.MEAL_POINTS))
+    await bot.settings.update(
+        GUILD_ID,
+        studio_forum_id=FORUM_ID,
+        rules_thread_id=old.id,
+        rules_message_id=old_rules.id,
+        faq_message_ids=tuple(post.id for post in old_posts),
+    )
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert server.deleted == [*(post.id for post in old_posts), old_rules.id]
+    *pictures_posted, rules_post = assert_faq_built(server.live_posts(old))
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.faq_message_ids == tuple(post.id for post in pictures_posted)
+    assert settings.rules_message_id == rules_post.id
+    assert server.messages[old.id].content.splitlines() == toc_lines(
+        old.id, settings.faq_message_ids
+    )
+
+
+@pytest.mark.parametrize("count", [0, 11, 34, 36])
+def test_the_table_of_contents_needs_one_id_per_picture(count: int) -> None:
+    with pytest.raises(ValueError, match="35 picture messages"):
+        faq.table_of_contents(GUILD_ID, 1, tuple(range(count)))
+
+
+def test_the_code_lists_the_banner_pictures_and_all_of_them_are_in_the_repo() -> None:
+    listed = [name for section in faq.FAQ_SECTIONS for name in section.pictures]
+
+    assert listed == list(FAQ_PICTURES)
+    assert [len(section.pictures) for section in faq.FAQ_SECTIONS] == list(
+        FAQ_SECTION_SIZES
+    )
+    assert [section.title for section in faq.FAQ_SECTIONS] == list(FAQ_TITLES)
+    assert faq.FAQ_PICTURE_COUNT == len(FAQ_PICTURES)
+    on_disk = sorted(path.name for path in (REAL_ASSETS_DIR / "faq").iterdir())
+    assert on_disk == sorted(FAQ_PICTURES)
+
+
 async def test_faq_command_skips_posts_already_gone_and_never_the_first_post(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -1080,15 +1398,15 @@ async def test_faq_command_without_a_studio_says_how_to_set_it_up(
 
 
 def test_table_of_contents_fits_one_message() -> None:
-    biggest = tuple(10**20 - index for index in range(len(FAQ_TITLES)))
+    biggest = tuple(10**20 - index for index in range(len(FAQ_PICTURES)))
 
     text = faq.table_of_contents(10**20, 10**20, biggest)
 
     assert text.splitlines() == [
         f"# [{title}](<https://discord.com/channels/{10**20}/{10**20}/{id_}>)"
-        for title, id_ in zip(FAQ_TITLES, biggest, strict=True)
+        for title, id_ in zip(FAQ_TITLES, first_pictures(biggest), strict=True)
     ]
-    assert len(text) < MESSAGE_LIMIT
+    assert text_length(text) < MESSAGE_LIMIT
 
 
 # ---
@@ -1327,42 +1645,6 @@ async def test_freeze_sets_flag(bot: app.WispBot, server: FakeServer) -> None:
     assert "unfrozen" in sent_text(ctx).lower()
 
 
-@pytest.mark.parametrize("phase", [None, Phase.DEAD])
-async def test_turning_eggs_off_and_on_with_no_living_wisp(
-    bot: app.WispBot, server: FakeServer, phase: Phase | None
-) -> None:
-    if phase is not None:
-        life = new_egg(1, discord.utils.utcnow())
-        life.phase = phase
-        await bot.lives.insert(GUILD_ID, life)
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "off")
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is False
-    assert sent_text(ctx) == (
-        "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-        "until you turn eggs back on."
-    )
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "on")
-    assert (await bot.settings.get(GUILD_ID)).lay_eggs is True
-    assert sent_text(ctx) == (
-        "♪ New eggs are on. A new egg arrives within a few minutes."
-    )
-
-
-async def test_turning_eggs_on_while_he_lives_says_only_that(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
-
-    ctx = make_ctx(server, bot)
-    await invoke(studio.eggs, ctx, "on")
-
-    assert sent_text(ctx) == "♪ New eggs are on."
-
-
 # ---
 # Members' slash group
 # ---
@@ -1398,7 +1680,7 @@ async def test_the_studio_commands_join_the_bot(bot: app.WispBot) -> None:
     assert bot.get_command("setup") is studio.setup_studio
     assert bot.get_command("freeze") is studio.freeze
     assert bot.get_command("unfreeze") is studio.unfreeze
-    assert bot.get_command("eggs") is studio.eggs
+    assert bot.get_command("eggs") is None
     assert bot.get_command("faq") is studio.rebuild_faq
     assert bot.get_command("roles") is studio.roles
     assert bot.get_command("roles add") is studio.roles_add
@@ -1508,9 +1790,10 @@ def test_rules_text_explains_the_three_meters(
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
-    full, happy, care = section.split("\n")
-    assert full.startswith("・Full: tracks and snacks")
-    assert "hangry" in full and "dies at 0" in full
+    hunger, happy, care = section.split("\n")
+    assert hunger.startswith("・Hunger: tracks and snacks")
+    assert "hangry" in hunger and "dies at 0" in hunger
+    assert "Full" not in text
     assert happy.startswith("・Happy: your first poke or chat each day earns 1 point")
     assert "7 people in 24 h" in happy and "Rockstar" in happy
     assert care.startswith("・Care: rhyme duels (1 point, 3 a day) and gifts")
@@ -1518,7 +1801,7 @@ def test_rules_text_explains_the_three_meters(
     assert "\nWho can feed him and earn points\n" in text
 
 
-def test_rules_text_explains_the_cold_and_the_bigger_meal_limit(
+def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 20)
@@ -1528,11 +1811,12 @@ def test_rules_text_explains_the_cold_and_the_bigger_meal_limit(
     text = rules_text(rules.MEAL_POINTS)
 
     assert "・Your meals and snacks count up to 20 points a day" in text
-    cold = next(line for line in text.split("\n") if "cold" in line)
-    assert "Once before Adult" in cold
-    assert "36-hour cold" in cold
-    assert "he can't die" in cold
-    assert "meals count up to 27 a day" in cold
+    pox = next(line for line in text.split("\n") if "Monster Pox" in line)
+    assert "Once before Adult" in pox
+    assert "Monster Pox for 36 h" in pox
+    assert "he can't die" in pox
+    assert "meals count up to 27 a day" in pox
+    assert "cold" not in text
 
 
 def test_rules_text_does_not_say_talking_earns_no_points() -> None:
@@ -1553,7 +1837,8 @@ def test_rules_text_explains_gifts_with_numbers_from_the_rules(
 
     section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
     assert "snacks and gifts" in section
-    assert "・Gifts cost 107 points and he might not keep them" in section
+    assert "・Gifts cost 107 WC and he might not keep them" in section
+    assert "・/wisp vault spends WC on snacks and gifts" in section
     assert "109 bond" in section and "113 more" in section
     assert "New Wisps start over" in section
 

@@ -136,7 +136,8 @@ stuck, how it felt. Accepts mp3 uploads, public Suno links, viibrmusic.com links
 ## Death, eggs and versions
 
 ☆ Care hits zero → Wisp dies. He posts warnings on the way down (hungry, then fading).
-☆ A new egg appears right away, labeled with the next version: **Wisp v4**.
+☆ Wisp's House asks "Do you want to begin again?" When staff press **Begin again**,
+  a new egg appears, labeled with the next version: **Wisp v4**.
 ☆ The egg has to be hatched with music the same way Wisp eats. It has a warmth timer
   (starting value: 48 hours). If the server doesn't bring enough music in time, the
   egg goes cold and **that version number is used up**. History stays honest:

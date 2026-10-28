@@ -11,6 +11,7 @@ from discord.ext import commands
 from cogs.announce import say_in_house
 from cogs.assets import ASSETS_DIR
 from cogs.staff import StaffContext, guild_of, reply
+from wisp.life import is_over
 from wisp.lines import Moment
 from wisp.rules import BAN_LADDER
 from wisp.text import count
@@ -65,8 +66,9 @@ async def punish(
 ) -> None:
     """Give the member their next offense and the ban that goes with it.
 
-    Wisp announces the ban in his House without the reason. The reason goes in
-    the public answer, with the staff member who gave it.
+    Wisp announces the ban in his House without the reason, unless there is
+    no living Wisp to say it. The reason goes in the public answer, with the
+    staff member who gave it.
     """
     bot = ctx.bot
     guild_id = guild_of(ctx).id
@@ -85,7 +87,7 @@ async def punish(
         )
     notes = []
     life = await bot.lives.current(guild_id)
-    if life is None:
+    if life is None or is_over(life):
         notes.append("Wisp has no life right now, so nothing was posted in his House.")
     else:
         await say_in_house(

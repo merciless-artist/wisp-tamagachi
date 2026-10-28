@@ -24,12 +24,25 @@ from db.database import Database
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
+from db.magazines import MagazineRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from tests.layout import (
+    assert_fits_its_box,
+    layout_order,
+    layout_selects,
+    layout_text,
+)
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
-from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, SNACKS, Stage
-from wisp.text import MESSAGE_LIMIT, text_length
+from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, GIFT_BY_KEY, SNACKS, Stage
+from wisp.text import (
+    BLANK,
+    LAYOUT_TEXT_LIMIT,
+    MESSAGE_LIMIT,
+    SECTION_BREAK,
+    text_length,
+)
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -39,8 +52,6 @@ USER_ID = 1
 OTHER_USER_ID = 2
 LEFT_USER_ID = 3
 QUALIFYING_ROLE = 7
-DIVIDER = "├─────────────────•"
-PACK_BOTTOM = "└─────────────────┛"
 NO_PING = discord.AllowedMentions.none().to_dict()
 CANNOT_FEED = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
@@ -136,6 +147,7 @@ def bot(
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
     wisp_bot.badges = BadgeRepo(db)
+    wisp_bot.magazines = MagazineRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
 
@@ -221,8 +233,8 @@ async def open_vault(
     interaction = make_interaction(bot, server, user_id)
     command: Any = snacks.wisp_vault
     await command.callback(interaction)
-    call = interaction.followup.send.await_args
-    return call.args[0], list(call.kwargs["view"].children)
+    view = interaction.followup.send.await_args.kwargs["view"]
+    return layout_text(view), layout_selects(view)
 
 
 def badge_select(
@@ -249,7 +261,20 @@ def shown_note(interaction: MagicMock) -> str:
     """The first line of the Vault as the interaction last showed it."""
     call = interaction.edit_original_response.await_args
     assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    return str(call.kwargs["content"]).splitlines()[0]
+    assert "content" not in call.kwargs
+    return layout_text(call.kwargs["view"]).splitlines()[0]
+
+
+def vault_section(text: str, heading: str) -> list[str]:
+    """The Vault's lines under a `#` heading, up to the next break."""
+    lines = text.splitlines()
+    start = lines.index(f"║𝄡𝄚𝄂𝄆 **{heading}**") + 1
+    end = next(
+        index
+        for index in range(start, len(lines))
+        if lines[index] in (SECTION_BREAK, BLANK) or lines[index].startswith("╚")
+    )
+    return lines[start:end]
 
 
 def house_posts(server: FakeServer) -> list[str]:
@@ -509,13 +534,12 @@ async def test_the_vault_lists_every_badge_with_its_price(
 
     text, selects = await open_vault(bot, server)
 
-    badges = text.split("\n𝄃 **Badges**\n", 1)[1]
-    section = badges.split("\n𝄃 **Gifts**", 1)[0].splitlines()
-    assert section == [
-        "𝄃 Pickle Diplomat・25 points",
-        "𝄃 Flame Keeper・100 points",
-        "𝄃 <:badge_team_viibr:1>・250 points",
-        "𝄃 Bandmate・250 points・Bandmates only",
+    assert vault_section(text, "Badges") == [
+        "║𝄡 pickle diplomat  │・25 WC",
+        "║𝄡 flame keeper       │・100 WC",
+        "║𝄡 team viibr              │<:badge_team_viibr:1>・250 WC",
+        "║𝄡 bandmate              │・250 WC",
+        "║ ・Bandmates only",
     ]
     select = badge_select(selects)
     assert select is not None
@@ -550,7 +574,7 @@ async def test_owned_badges_are_marked_and_left_out_of_the_select(
 
     text, selects = await open_vault(bot, server)
 
-    assert "𝄃 Pickle Diplomat・25 points・owned" in text
+    assert "║𝄡 pickle diplomat  │・25 WC・owned" in text.splitlines()
     select = badge_select(selects)
     assert select is not None
     assert "pickle_diplomat" not in [option.value for option in select.options]
@@ -564,25 +588,76 @@ async def test_badges_without_a_role_cannot_be_bought_yet(
 
     text, selects = await open_vault(bot, server)
 
-    assert "𝄃 Team ViiBR・250 points・coming soon" in text
+    assert "║𝄡 team viibr              │・250 WC\n║ ・coming soon" in text
     assert badge_select(selects) is None
 
 
-async def test_the_vault_still_fits_one_message_with_badges(
+async def test_the_badge_lines_show_the_mini_coin_and_badge_emojis(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
     await set_up_roles(bot, server)
-    names = [badge.emoji_name for badge in BADGES]
-    snack_names = [snack.emoji_name for snack in SNACKS]
-    give_emojis(bot, "wisp_coin", *names, *snack_names)
+    give_emojis(bot, "wisp_coin_mini", "badge_pickle_diplomat")
+
+    text, _ = await open_vault(bot, server)
+
+    assert vault_section(text, "Badges")[0] == (
+        "║𝄡 pickle diplomat  │<:badge_pickle_diplomat:2>・<:wisp_coin_mini:1> 25 WC"
+    )
+
+
+async def test_the_badge_select_sits_under_the_badges(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    interaction = make_interaction(bot, server)
+    command: Any = snacks.wisp_vault
+
+    await command.callback(interaction)
+
+    view = interaction.followup.send.await_args.kwargs["view"]
+    assert layout_order(view) == [
+        "text",
+        "Buy a snack",
+        "text",
+        "Get a badge",
+        "text",
+        "Pick a collection",
+        "text",
+    ]
+
+
+async def test_the_fullest_vault_stays_within_the_layout_text_limit(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await set_up_roles(bot, server)
+    names = [
+        "wisp_coin",
+        "wisp_coin_mini",
+        "viibr_logo",
+        *(badge.emoji_name for badge in BADGES),
+        *(snack.emoji_name for snack in SNACKS),
+        *(gift.emoji_name for gift in GIFT_BY_KEY.values()),
+    ]
+    bot.emojis_by_name = {
+        name: cast(
+            discord.Emoji,
+            discord.PartialEmoji(name=name, id=2**64 - 1 - index, animated=True),
+        )
+        for index, name in enumerate(names)
+    }
     await rich(bot, points=10**9)
 
     text, selects = await open_vault(bot, server)
 
-    assert len(text) <= MESSAGE_LIMIT
+    assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_box(text)
     assert all(len(select.options) <= 25 for select in selects)
-    assert len(selects) <= 5
+    assert len(selects) <= 4
+    for gift in GIFT_BY_KEY.values():
+        assert f"<a:{gift.emoji_name}:" in text, gift.key
 
 
 # ---
@@ -777,7 +852,7 @@ async def test_a_role_that_cannot_be_given_refunds_everything(
     assert life.id is not None
     assert await bot.badges.owned(GUILD_ID, USER_ID, life.id) == set()
     assert shown_note(interaction) == (
-        "♪ Your Team ViiBR badge didn't go through. Your points are back."
+        "♪ Your Team ViiBR badge didn't go through. Your WC are back."
     )
     (report,) = [call.args[0] for call in interaction.channel.send.await_args_list]
     assert report.startswith("Error in giving the Team ViiBR badge role: Forbidden")
@@ -803,7 +878,7 @@ async def test_a_network_failure_giving_the_role_refunds_everything(
     assert life.id is not None
     assert await bot.badges.owned(GUILD_ID, USER_ID, life.id) == set()
     assert shown_note(interaction) == (
-        "♪ Your Team ViiBR badge didn't go through. Your points are back."
+        "♪ Your Team ViiBR badge didn't go through. Your WC are back."
     )
     (report,) = [call.args[0] for call in interaction.channel.send.await_args_list]
     assert report.startswith(
@@ -1085,13 +1160,10 @@ async def test_the_snack_pack_lists_every_badge_ever_bought_retired_too(
 
     text = await snack_pack(bot, server)
 
-    badge_part = text.split(DIVIDER + "\n")[3].splitlines()
-    assert badge_part == [
-        "│**Badges**",
-        "│Wisp v3's ViiBR Roadie",
-        "│Wisp v2's <:badge_team_viibr:1>",
-        "│Wisp v1's Egg Warmer",
-        PACK_BOTTOM,
+    assert vault_section(text, "Badges") == [
+        "║𝄡 Wisp v3's ViiBR Roadie",
+        "║𝄡 Wisp v2's <:badge_team_viibr:1>",
+        "║𝄡 Wisp v1's Egg Warmer",
     ]
 
 
@@ -1100,11 +1172,8 @@ async def test_a_snack_pack_without_badges_says_so(
 ) -> None:
     text = await snack_pack(bot, server)
 
-    assert text.split(DIVIDER + "\n")[3].splitlines() == [
-        "│**Badges**",
-        "│ None yet",
-        PACK_BOTTOM,
-    ]
+    assert vault_section(text, "Badges") == ["║𝄡 none yet"]
+    assert text.splitlines()[-2].startswith("╚")
 
 
 async def test_the_fullest_snack_pack_still_fits_one_message(
@@ -1129,11 +1198,11 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
     text = await snack_pack(bot, server)
 
     assert text_length(text) <= MESSAGE_LIMIT
-    sections = text.split(DIVIDER + "\n")
-    keepsakes = sections[2].splitlines()
-    *badge_lines, bottom = sections[3].splitlines()
-    assert bottom == PACK_BOTTOM
-    assert keepsakes[-1].startswith("│ and ") and keepsakes[-1].endswith(" more")
-    assert badge_lines[-1].startswith("│ and ") and badge_lines[-1].endswith(" more")
-    assert len(keepsakes) > 3 and len(badge_lines) > 3
-    assert badge_lines[1] == "│Wisp v1029's <:badge_bandmate:5>"
+    assert_fits_its_box(text)
+    keepsakes = vault_section(text, "Keepsakes")
+    badge_lines = vault_section(text, "Badges")
+    assert text.splitlines()[-2].startswith("╚")
+    assert keepsakes[-1].startswith("║𝄡 and ") and keepsakes[-1].endswith(" more")
+    assert badge_lines[-1].startswith("║𝄡 and ") and badge_lines[-1].endswith(" more")
+    assert len(keepsakes) > 2 and len(badge_lines) > 2
+    assert badge_lines[0] == "║𝄡 Wisp v1029's <:badge_bandmate:5>"

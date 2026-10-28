@@ -47,6 +47,8 @@ GUILD_ID = 100
 HOUSE_ID = 20
 OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
+STUDIO_ID = 23
+BURRITO_THREAD_ID = 24
 WISP_ID = 999
 WISP_ROLE_ID = 998
 QUALIFYING_ROLE = 997
@@ -427,6 +429,38 @@ async def test_messages_outside_the_house_are_ignored(
     (prompt,) = prompts(ai)
     assert "elsewhere" not in prompt.user
     assert "duel thread" not in prompt.user
+
+
+async def test_wisp_stays_quiet_in_burritos_post(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    await bot.settings.update(
+        GUILD_ID, studio_forum_id=STUDIO_ID, burrito_thread_id=BURRITO_THREAD_ID
+    )
+    burrito = MagicMock(spec=discord.Thread)
+    burrito.id = BURRITO_THREAD_ID
+    burrito.parent_id = STUDIO_ID
+    burrito.send = AsyncMock()
+    cog.rng = FixedRandom(0.0)
+    asked = message(
+        f"<@{WISP_ID}> how do I feed you?", channel=burrito, mentions=[WISP]
+    )
+    chatter = message("how does Wisp grow up?", channel=burrito)
+
+    await cog.on_message(asked)
+    await cog.on_message(chatter)
+
+    ai.assert_not_awaited()
+    asked.reply.assert_not_awaited()
+    chatter.reply.assert_not_awaited()
+    burrito.send.assert_not_awaited()
+
+    await cog.on_message(message.to_wisp("you there?"))
+
+    (prompt,) = prompts(ai)
+    assert "feed you" not in prompt.user
+    assert "grow up" not in prompt.user
 
 
 @pytest.mark.parametrize(("phase", "stage", "moment"), YOUNG)
@@ -1013,7 +1047,15 @@ async def test_context_keeps_only_the_latest_lines(
 def test_expressions_are_wisp_faces_without_the_coin_or_the_egg(
     bot: app.WispBot,
 ) -> None:
-    give_emojis(bot, "wisp_sad", "snack_cheese", "wisp_coin", "wisp_egg", "wisp_happy")
+    give_emojis(
+        bot,
+        "wisp_sad",
+        "snack_cheese",
+        "wisp_coin",
+        "wisp_coin_mini",
+        "wisp_egg",
+        "wisp_happy",
+    )
 
     assert expressions(bot, Stage.TEEN) == ["wisp_happy", "wisp_sad"]
 

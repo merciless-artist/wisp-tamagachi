@@ -74,11 +74,11 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 }
 
 # ---
-# The childhood cold
+# Monster Pox, his childhood sickness (named "cold" in the code)
 # ---
 
-# Once per life he catches a cold, due a random time between COLD_EARLIEST and
-# COLD_LATEST after hatching. Adult needs 14 days, so the cold comes first.
+# Once per life he catches Monster Pox, due a random time between COLD_EARLIEST
+# and COLD_LATEST after hatching. Adult needs 14 days, so it comes first.
 COLD_EARLIEST = timedelta(days=1)
 COLD_LATEST = timedelta(days=12)
 # Credited time he stays sick.
@@ -465,6 +465,33 @@ def badge_name(key: str) -> str:
     if badge is not None:
         return badge.name
     return RETIRED_BADGE_NAMES.get(key) or key.replace("_", " ").title()
+
+
+# ---
+# Magazines
+# ---
+
+
+@dataclass(frozen=True)
+class Magazine:
+    """A magazine cover sold in the ViiBR Vault while Wisp is a Rockstar.
+
+    A member can buy each one once per Wisp life and keeps it for good. Its
+    picture is `{key}_cover.jpg` in the assets' mags folder.
+    """
+
+    key: str
+    name: str
+
+
+MAGAZINE_COST = 100
+MAGAZINES: tuple[Magazine, ...] = (
+    Magazine("viibrations", "VIIBRATIONS cover"),
+    Magazine("musicnscience", "Music & Science cover"),
+)
+MAGAZINE_BY_KEY: dict[str, Magazine] = {
+    magazine.key: magazine for magazine in MAGAZINES
+}
 
 
 # ---

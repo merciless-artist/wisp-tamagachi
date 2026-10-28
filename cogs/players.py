@@ -14,7 +14,7 @@ from cogs.groups import require_guild, wisp
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
-from wisp.card import CardFacts, render_status
+from wisp.card import WAITING, CardFacts, render_status
 from wisp.life import Life, Phase, add_growth, is_over
 from wisp.lines import Moment
 from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
@@ -29,6 +29,9 @@ NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
 CANNOT_FEED: Final = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
     "can feed Wisp."
+)
+_NO_LIFE_YET: Final = (
+    "♪ Wisp has no life to show right now. A new egg will be laid soon."
 )
 
 # ---
@@ -61,7 +64,7 @@ async def status_text(
         wisp_id=wisp_user.id,
         house_id=settings.house_channel_id,
     )
-    return render_status(life, now, facts)
+    return render_status(life, now, facts, bot.emoji)
 
 
 # ---
@@ -354,14 +357,20 @@ async def maybe_meet(
 
 @wisp.command(name="status", description="See how Wisp is doing.")
 async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show Wisp's status card, only to the member who asked."""
+    """Show Wisp's status card, only to the member who asked.
+
+    Before a server's first egg it says one is coming; after an ending it says
+    Wisp is waiting for staff to begin again.
+    """
     bot = interaction.client
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
     now = discord.utils.utcnow()
     life = await bot.lives.current(guild_id)
-    if life is None or is_over(life):
-        text = "♪ Wisp has no life to show right now. A new egg will be laid soon."
+    if life is None:
+        text = _NO_LIFE_YET
+    elif is_over(life):
+        text = WAITING
     else:
         happy = await current_happiness(bot, guild_id, now)
         text = await status_text(bot, guild_id, life, now, happy)

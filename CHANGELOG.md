@@ -1,5 +1,283 @@
 # Changelog
 
+## 2026-10-27 (FAQ banner pictures: one message per question)
+
+- Myra found the page-shaped FAQ pictures shrank in Discord until the text was
+  tiny, so the FAQ now uses 35 banner pictures, one per question, in
+  `ASSETS/faq/` named `{NN}_{section}_{k}.png`. The 11 one-per-section
+  pictures are removed.
+- `cogs.faq.FaqSection.pictures` is a tuple of file names (was one `picture`).
+  The 11 sections and titles are unchanged. `FAQ_PICTURE_COUNT` is the total.
+- `fill_faq` posts every picture as its own message (one file each, so Discord
+  shows each large, not as a grid), in order, with no pings. The first post's
+  table of contents links each section title to that section's first picture;
+  `table_of_contents` takes every picture's message id and raises `ValueError`
+  unless there is one per picture. The 11 links come to about 1,200 characters,
+  well under the 2,000 limit (tested at the largest possible ids).
+- All posted ids are still stored in `settings.faq_message_ids`, even when
+  posting stops part way, and the old stored ids, including the earlier
+  one-per-section posts, are deleted first. Missing pictures still raise
+  `FileNotFoundError` before anything changes.
+- `ensure_studio` rebuilds the FAQ when the stored id count is not 35, so a
+  restart replaces the earlier 11-picture FAQ by itself.
+- No schema change: `faq_message_ids` is `TEXT` (up to 65,535 bytes); 35 ids
+  are about 750 bytes as JSON. A repo test round-trips 500 ids on the real
+  database.
+- Tests: `tests/test_studio.py` (one file per message in order, links to each
+  section's first picture, one-per-section posts deleted on rebuild, partial
+  failure after 19 pictures stored, missing picture, contents length, code and
+  repo pictures agree) and `tests/test_repos.py`. README updated.
+
+## 2026-10-27 (lunchbox artist lookup: review fixes)
+
+- Only a 404 or 410 song page now means "no artist" (kept as ""). Any other
+  answer than the page (5xx, 429, 403, a redirect) raises
+  `aiohttp.ClientResponseError` from `ShareLinkResolver.artist`, so the
+  lunchbox shows `listen ♪`, logs a warning and asks again next time instead
+  of keeping "" for good. Share-link resolving (`resolve`) is unchanged; the
+  lunchbox is the only caller of `artist`.
+- An artist name is put on one line (`cogs.share_links.one_line`: every run
+  of whitespace, line breaks included, becomes one space) before it is kept
+  and again when the link is drawn, so it can never break a box line.
+- Tests: `tests/test_share_links.py` (404/410 name none; 500/503/429/403/301
+  raise; names with line breaks) and `tests/test_wisp_lunchbox.py` (a busy
+  site leaves the artist unknown and the next view stores it, on the real
+  database; a stored name with line breaks is drawn on one line).
+
+## 2026-10-27 (house style v2.1: spacing, matching bars, wrapping)
+
+- Myra's spacing pass (`DOCS/specs/2026-10-27-house-style.md` is updated to
+  v2.1). Presentation only; every behaviour stays.
+- Burrito's post is her text byte for byte (blank lines, 6 `𝄚` each side, a
+  22-`═` box, two wrapped lines), and `!wisp setup` now edits an existing
+  Burrito starter whose text differs (`StudioThread.current_content`). A
+  starter that is gone is left alone; a failed edit is posted in the thread
+  as `Error in updating the first post of Burrito, Fairy God-bot: ...`.
+- `wisp.text.visual_width` estimates how wide a line looks in Discord from
+  one table (`WIDTHS`), calibrated on her Burrito post (a 22-`═` box holds
+  every line and breaks where she broke them; 6 `𝄚` around its title match a
+  20-`𝄚` bottom bar) and on her Vault padding (a space is about 0.22 em). A
+  custom emoji counts 1.375 em and a mention 6 em.
+- `wisp.text.bars(title)` gives the title bar and a bottom bar sized to look
+  as wide; every layout's box top and bottom have the same number of `═`.
+  Widths: status card (and waiting card) 25 (a full bar line: 10 meter
+  emojis and `│100%`), Vault 24 (the widest badge row), Snack Pack,
+  lunchbox, leaderboard and Burrito 22.
+- `wisp.text.wrap` breaks every line wider than its box at word boundaries
+  into `║ ` continuation rows: at single spaces, between emoji (a line of only
+  emoji wraps between them) and before a `・`, which then leads the next row
+  (never ends one). A full row breaks before its last `・` part so each part
+  keeps together (`║ ・ peak Teen` / `║ ・ hatched by @someone`), and a
+  badge's reason moves down whole (`║ ・Bandmates only`); never inside Myra's
+  padding, bold text or a masked link.
+- Blank `║` lines are back exactly where her drafts have them: the status
+  card (after the box top, after the DAY section, after the meters, after the
+  fed and the tracks lines, after the hints, before the box close; the
+  waiting card the same), the Vault (after the box top and after the snack
+  rows) and the leaderboard (after the intro sentence and its wrapped lines,
+  after each list). The Snack Pack and lunchbox drafts have none.
+- Status card meters: each bar moves down onto its own line under its label
+  (`║𝄡 Care`, then `║{bar}│65%`), nothing else in the block changes, and the
+  three meters follow each other with no blank line. The label padding is
+  gone with the bar (`wisp.card.LABEL_PADDING` removed).
+- Lunchbox song links are masked links named for the song's artist
+  (`║𝄡 [Foggy X Music](url)`), or `[listen ♪](url)` when unknown (Myra: "just
+  do the artist"). Never broken across lines; a long artist is shortened with
+  `…` to fit the box; markdown in the name is escaped.
+- The artist comes from the song page's schema.org `byArtist`
+  (`ShareLinkResolver.artist`, `cogs.share_links.artist_on_page`). Small
+  calls, made here: it is looked up lazily, the first time the lunchbox shows
+  a song (all shown songs at once), not when the favorite is picked, so the
+  daily tick never waits on viibrmusic.com and each song is asked about once.
+  The result is kept in the new column `favorites.artist` (added on startup;
+  NULL = not looked up yet, "" = the page names none). When the site cannot
+  be reached, the link reads `listen ♪`, a warning is logged (no channel
+  post: the lunchbox itself worked) and the lookup is tried again next time.
+- Tests: `tests/test_text.py` (widths, calibration, bars for every layout
+  title, wrapping rules), `tests/test_card.py`, `tests/test_studio.py`
+  (Burrito's exact text, setup updating the old starter, a missing starter,
+  a failed edit), `tests/test_vault.py`, `tests/test_snacks.py`,
+  `tests/test_badges.py`, `tests/test_gifts.py`, `tests/test_magazines.py`,
+  `tests/test_wisp_lunchbox.py` (artist links against a local song-page
+  server) and `tests/test_share_links.py`; `tests/layout.py` gains
+  `assert_fits_its_box` for the fullest layouts.
+
+## 2026-10-27 (Rockstar magazines)
+
+- While the living Wisp is a **Rockstar**, the Vault shows a `# **Magazines**`
+  section between Badges and Gifts: `VIIBRATIONS cover・{mini} 100 WC` and
+  `Music & Science cover・{mini} 100 WC`, `・owned` once bought this life, and a
+  "Get a magazine" menu under it with the covers the member can still buy. At
+  every other stage (and between Wisps) the section and menu are absent.
+- Buying spends 100 WC (`MAGAZINE_COST`), with the usual refusals: banned,
+  can't feed, short of WC (Wisp's not-enough-points line), or already owned
+  this life (`♪ You already have the VIIBRATIONS cover for Wisp v1.`). A menu
+  left open after he stops being a Rockstar answers
+  `♪ The magazines are gone from the shelf.` and nothing is spent. A purchase
+  refreshes the Vault under `♪ You got the {name}.` and sends the cover's
+  picture to the buyer only (ephemeral). A picture that cannot be sent is
+  reported as `Error in sending the {name} picture (the purchase went
+  through): ...`; the purchase stands.
+- Purchases are stored in the new `magazines` table (member, magazine, life,
+  version, time; one per member per magazine per life), created by
+  `create_tables` beside the live tables.
+- The Snack Pack has a `# **Magazines**` section after Badges, only when the
+  member owns a cover: `Wisp v3's VIIBRATIONS cover`, every life, newest
+  first, cut to fit like keepsakes (at most a quarter of the room).
+- Art: posting copies `ASSETS/mags/viibrations_cover.jpg` and
+  `ASSETS/mags/musicnscience_cover.jpg` (927x1200, JPEG q88, about 230-250 KB)
+  made from the 3477x4500 originals, which are committed alongside.
+- FAQ: a "What are the magazines?" Q&A in the Vault and Snack Pack section
+  (the section picture needs re-rendering).
+- Tests: `tests/test_magazines.py` (section only for a living Rockstar, the
+  purchase, the private picture, the refusals, the next life, the Snack Pack
+  across lives, the fullest Vault and Snack Pack) and a schema test for the
+  new table on a live database.
+
+## 2026-10-27 (`!wisp song`)
+
+- New staff command `!wisp song <link> <words...>`: Wisp posts the words, then
+  the link on the line underneath, in the Jam Space thread, exactly as typed
+  (no prefix, flair or AI line, no pings, link previews left on so the player
+  shows). The staff member's command message is deleted afterwards; a failed
+  delete, such as a missing Manage Messages permission, is only logged.
+- The link must be an http(s) URL. A missing or bad link, or no words, gets
+  the usual one-line usage. A Jam Space that is not set up or cannot be
+  reached is reported as `Error in !wisp song: ...` where the command was
+  used, nothing is posted and the command message stays.
+- Tests: the post, the exact text, the deleted command, bad and missing
+  arguments, an unreachable Jam Space, a Discord refusal, a failed delete and
+  a non-staff author.
+
+## 2026-10-27 (Monster Pox, Hunger and Burrito's post)
+
+- His once-per-life childhood cold is now **Monster Pox** everywhere members
+  read it. His SICK and RECOVERED lines and his AI voice while sick are
+  spotty, itchy and feverish with a thermometer instead of sniffly and sneezy,
+  and the spots are back. The rules post, FAQ, spec page, README and build
+  rulings say Monster Pox. Code names (`is_sick`, `cold_*`, `SICK_*`,
+  `Moment.SICK`/`RECOVERED`) are unchanged, and a "cold egg" is still a cold
+  egg.
+- The food meter's member-facing name is **Hunger** (a full bar means well
+  fed): `♪ Wisp ate your Cheese ・ hunger +8`, the Vault and feed menu
+  descriptions (`3 WC ・ hunger +5`), the rules post (`・Hunger: tracks and
+  snacks...`), two hangry lines that named the meter, the FAQ, the spec page
+  and the README. `Life.full` and `FULL_*` keep their names.
+- The rules post's sickness line reads `・Once before Adult: Monster Pox for
+  {h} h. Faster drain, he can't die, meals count up to {n} a day`, and the
+  Last Ember line drops "each". At four-digit numbers it is 1,994 of 2,000.
+  (Run `!wisp faq` to refresh the live post.)
+- Setup keeps a sixth Studio post, `🧚│Burrito, Fairy God-bot`, created when
+  missing and renamed back like the others, its id in the new additive
+  `settings.burrito_thread_id` column. Its first post is the house-style frame
+  titled `𝔹𝓊𝓇𝓇𝒾𝓉𝑜`, saying Burrito is Wisp's fairy god-bot, to ask him
+  anything about how Wisp works right there, and that he points people to
+  Wisp's live stats. Wisp never answers or chimes in there (Burrito, a separate
+  bot, does). Run `!wisp setup` (or `/wispadmin setup`) once to create it.
+- The House notice for recreated Studio posts and setup's "Created threads"
+  line quote each name (`recreated "Mealtime", "Burrito, Fairy God-bot".`),
+  so a name with a comma reads as one post.
+- Tests: the feeding tests for endings now check the Begin again flow (the
+  ending is announced, staff are asked, no egg is laid), setup expects six
+  Studio posts, and the schema adds `burrito_thread_id` to a live table.
+- The FAQ page and the spec page show the v2 status card.
+- `/wisp lunchbox`: once the lunchbox is posted, a failure to remove the
+  private "thinking" reply is ignored, so the member is no longer told it did
+  not work.
+
+## 2026-10-27 (house style v2)
+
+- Myra's house style (`DOCS/specs/2026-10-27-house-style.md`) for the status
+  card, the Vault, the Snack Pack, the lunchbox and the leaderboard: a title
+  bar (`𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`), the box (`╔`/`╚` with 20 `═`), `#`
+  headings `║𝄡𝄚𝄂𝄆 **Name**`, `##` lines `║𝄡𝄚𝄂 text`, `###` items `║𝄡 text`,
+  `╠═══⇕` between sections and the bottom bar. Every frame piece lives in
+  `wisp/text.py` (`title_bar`, `BOX_TOP`, `BOX_CLOSE`, `heading`, `sub`,
+  `item`, `note`, `sections`, `framed`); the old `VAULT_RAIL`/`PACK_RAIL` and
+  per-module frame strings are gone.
+- Status card: `𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈`, bars Care, Happy, Hunger (Hunger is the Full
+  meter) with the meter app emojis: one `_full` per whole 10% of the shown
+  percent and one `_left` when its last digit is 5 to 9, else a space before
+  `│` (65% is six full and a left; 90% nine full and a space; 0-4% nothing).
+  The egg cards use the same frame (Warmth with the `full_` meter, Hatching and
+  Emerging with the `happiness_` meter). The sick line reads
+  `he has Monster Pox・{n} h left`. The waiting (Begin again) card is the frame
+  with one line, `No Wisp right now. Waiting for staff to begin again.`, on the
+  status card and in `/wisp status`. `render_status` takes the emoji lookup.
+- The Vault is now one Components V2 message (`VaultLayout`, a `LayoutView`
+  with no container): text displays with the snack select under the snacks,
+  the badge select under the badges and the collection and gift selects under
+  the gifts, up to 4,000 characters of text. Myra's snack and badge names and
+  padding, prices in WC with the `wisp_coin_mini` emoji, the balance as
+  `wisp coins: {coin} {n}`, the gamble line under Gifts. Purchase notes say WC
+  (`♪ Bought Cheese for 6 WC.`, `Your WC are back.`) and the select
+  descriptions too. Everything else (private, refusals, the two-step gift
+  select, errors) works as before.
+- Snack Pack, lunchbox and leaderboard in the frame. Empty sections read
+  `none yet` (`nothing saved yet` for snacks). Each lunchbox song is a day and
+  sharer line, then its link; each collection a progress line, then its gifts
+  and givers while there is room.
+- `/wisp lunchbox` is public: it posts in the channel where it was used,
+  pinging nobody and with link previews suppressed. Used where Wisp never
+  posts (the track drop, or a channel that cannot be placed) it posts in Wisp's
+  House and tells the member privately; with no House it is shown only to
+  them.
+- `wisp.text.SEPARATOR` is Myra's plain divider
+  `𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂`. `fit()` and `richest()` measure with
+  `text_length` (UTF-16), as the frames' music symbols count twice.
+- `wisp_coin_mini` is a coin, not one of Wisp's faces: it is left out of his
+  expressions and described as the Vault's coin in the AI prompt.
+- CLAUDE.md and README describe the house style, the new divider and the
+  public lunchbox.
+- The new divider costs 18 more UTF-16 units than the old one, so the FAQ's
+  quick rules are tightened to fit: the intro reads "One Wisp for the server:
+  share music and he grows from egg to Rockstar.", and the Vault lines say WC
+  for spending (`/wisp vault spends WC on snacks and gifts`, `Gifts cost 15
+  WC`). 1,946 of 2,000 at today's numbers; the all-9999 guard fits again.
+  (Run `!wisp faq` to refresh the live post.)
+- Rhyme Duel summaries are measured by `text_length`, and the last-resort cut
+  uses the new `wisp.text.clip`, which never splits a character.
+- `/wisp lunchbox` acknowledges privately and posts the lunchbox as a message
+  of its own in the channel (the private acknowledgement is then removed), so
+  a failure is told only to the member and still reported in the channel.
+
+## 2026-10-27 (begin again)
+
+- No egg is laid on its own after an ending any more. A death, a cold egg and
+  an old-age farewell are each announced as before (the ending post and
+  picture, the Last Embers and goodbyes, the badge sweep, the Vault card), then
+  Wisp's House asks `♪ Do you want to begin again?` with a persistent **Begin
+  again** button (`wisp:begin`), pinging nobody.
+- Only staff (`is_staff`: the app owner, Manage Server or a staff role) can
+  press it; anyone else hears `♪ Only staff can start a new Wisp.` privately.
+  A press lays the next egg under the guild lock exactly as the automatic path
+  did (next version, coal egg halfway hatched after a full life, the new-egg
+  post with its picture and Poke Wisp button), updates the status card and the
+  House panel at once, disables the question's button and answers
+  `♪ A new egg is on its way.` A press that finds a life that is not over (a
+  second press, two staff at once, an old question) lays nothing and answers
+  `♪ Wisp is already here.`, disabling that stale button too. A press also
+  gives any Last Embers an unannounced farewell never gave. Failures are
+  reported where it was pressed.
+- While waiting, the status card says `♪ No Wisp right now. Waiting for staff
+  to begin again.` with the picture of how he ended (no picture when that art
+  is missing) and only the Begin again button, so a question that was never
+  posted or was deleted can never strand the server; `/wisp status` says the
+  same line. The life loop lays nothing for an ended life, also after a
+  restart.
+- `!wisp begin`, a staff command doing the same as the button: lays the next
+  egg after an ending, or answers `♪ Wisp is already here.`
+- While waiting, the life loop picks no favorite song and `!wisp punish` posts
+  nothing in Wisp's voice (the staff answer notes it, as with no life).
+- The quick rules now say "Neglected, he fades; staff start the next egg."
+  (Run `!wisp faq` to refresh the live post.) `show_in_thread` gains
+  `clear_image` to take a card's picture off.
+- A server that has never had a Wisp still gets its first egg from the life
+  loop, with no button.
+- `!wisp eggs on|off` is gone, with its docs and its place in the staff command
+  list. The `settings.lay_eggs` column stays in the live database but is no
+  longer read, and the `Settings.lay_eggs` field is removed.
+
 ## 2026-10-26 (name ask tags the member)
 
 - When Wisp asks a member what to call him, the post starts with their @tag

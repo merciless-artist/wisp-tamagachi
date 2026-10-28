@@ -3,18 +3,48 @@
 Wisp is a Discord Tamagotchi for a music community. The whole server shares one
 pet: members feed him by dropping tracks in the track channel and by buying
 snacks from the ViiBR Vault, and he grows from an egg to a rockstar as long as
-he is fed. If he is neglected he dies and a new egg is laid. If he lives a
-full life he grows old, passes on as a lump of coal and the coal becomes the
-next egg. Members can also talk to him in Wisp's House.
+he is fed. If he is neglected he dies. If he lives a full life he grows old
+and passes on as a lump of coal. After every ending Wisp's House asks "Do you
+want to begin again?", and the next egg comes only when staff press **Begin
+again**; after a full life the coal becomes that egg. Members can also talk to
+him in Wisp's House.
+
+## Begin again
+
+- Every ending (a death, a cold egg, an old-age farewell) is announced as
+  before: the ending post and its picture, the Last Embers with their goodbyes,
+  the badge roles taken back and the Vault card refreshed. Then the House posts
+  `♪ Do you want to begin again?` with a **Begin again** button. Nobody is
+  pinged.
+- Only staff (the app owner, Manage Server, or a staff role) can press it;
+  anyone else is told privately that only staff can start a new Wisp.
+- A press lays the next egg the way the automatic path used to: the next
+  version, a coal egg halfway hatched after a full life, the new-egg post with
+  its picture and Poke Wisp button, the status card and the House panel. The
+  question's button is then disabled. A press that finds Wisp already here,
+  from a second staff member or an old question, lays nothing and disables
+  that button too.
+- Until someone presses it there is no Wisp: the status card and `/wisp
+  status` say `♪ No Wisp right now. Waiting for staff to begin again.`, and
+  tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
+  The waiting status card carries its own Begin again button (and no Feed or
+  Poke buttons) with the picture of how he ended, so staff can always begin
+  again even if the House question was never posted or was deleted; the
+  life loop puts it back if the card is gone. A restart lays nothing and every
+  button still works. No favorite song is picked and `!wisp punish` says
+  nothing in his voice while he is gone.
+- A brand-new server still gets its first egg on the first tick after setup,
+  with no button.
 
 ## His three meters
 
-The status card shows three meters, each from 0 to 100, plus a cold line while
-he is sick. All the numbers are starting values in `wisp/rules.py`.
+The status card shows three meters, each from 0 to 100, plus a Monster Pox
+line while he is sick. All the numbers are starting values in `wisp/rules.py`.
 
-- **Full** is his food. Tracks and snacks fill it and it drains every day (15 a
+- **Hunger** is his food (`Life.full` in the code). Like a Tamagotchi, a full
+  bar means well fed. Tracks and snacks fill it and it drains every day (15 a
   day, 10 as an Old Fogey). Below 30 he is hangry, below 10 he is fading, and
-  at 0 he dies. Only Full can kill him.
+  at 0 he dies. Only Hunger can kill him.
 - **Happy** is how many different people said hi in the last 24 hours. A
   member's first poke or mention of the UTC day counts and earns them 1 Vault
   point; later ones that day count for nothing. Only members who can feed Wisp
@@ -30,14 +60,16 @@ he is sick. All the numbers are starting values in `wisp/rules.py`.
   with a picture for his stage. Hangry beats lonely beats happy, and lonely
   never hurts him: no death, no growth penalty.
 
-The **childhood cold** comes once per life, at a random time between day 1 and
-day 12 while he is a Baby, Child or Teen, so every Wisp who grows up has had it.
-It lasts 48 hours (it carries on if he grows a stage). While sick his Full
-drains 1.5 times as fast, but it never drops below 1, so he cannot die of it;
-he can still be hangry and fading. Each member's daily meal limit goes from 15
-to 30 meal points, room for about one extra song and one extra snack. He posts
-once when he catches it (with his sick picture) and once when he is better, and
-the status card and Poke Wisp panel show his sick picture meanwhile.
+**Monster Pox**, his childhood sickness (`is_sick` and the `SICK_*` rules in
+the code), comes once per life, at a random time between day 1 and day 12
+while he is a Baby, Child or Teen, so every Wisp who grows up has had it. He
+is spotty, itchy and feverish. It lasts 48 hours (it carries on if he grows a
+stage). While sick his Hunger meter drains 1.5 times as fast, but it never
+drops below 1, so he cannot die of it; he can still be hangry and fading. Each
+member's daily meal limit goes from 15 to 30 meal points, room for about one
+extra song and one extra snack. He posts once when he catches it (with his
+sick picture) and once when he is better, and the status card and Poke Wisp
+panel show his sick picture meanwhile.
 
 ## Setup
 
@@ -121,30 +153,47 @@ where the command was used.
   and updates the quick rules post at the end of the Wisp FAQ. Until staff
   set them, the starting values in `wisp/rules.py` apply.
 - `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
-  pictures and rules post, posts them fresh and updates the table of
-  contents. Run it after the FAQ pictures change in a new release.
+  pictures (one per question, or one per section from before) and rules post,
+  posts them fresh and updates the table of contents. Run it after the FAQ pictures change in a new release.
 - `!wisp freeze` and `!wisp unfreeze` pause and resume the draining of his meters.
-- `!wisp eggs on|off` turns new eggs on or off. Off, no egg is laid when
-  Wisp's life ends (the ending, Last Embers and badge roles still happen as
-  usual) and the House says so once; on, the next tick lays the egg. A living
-  Wisp is not affected.
+- `!wisp begin` does what the Begin again button does, for when no button
+  can be pressed: it lays the next egg after an ending, or answers
+  `♪ Wisp is already here.`
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.
 - `!wisp unban @member` lifts a member's ban.
 - `!wisp strip @member <points>` takes leaderboard points from a member.
 - `!wisp resetname @member` makes Wisp forget a member's name.
+- `!wisp song <link> <words...>` makes Wisp post the words and, underneath,
+  the link (http or https) in the Jam Space thread, exactly as typed: no
+  prefix, flair or AI line, no pings, and the link's player still shows.
+  Staff's command message is deleted afterwards (a failed delete is
+  ignored). A missing or bad link or missing words get the usage line; a
+  Jam Space that cannot be reached is reported where the command was used
+  and nothing is posted.
 
 Member commands:
 
 - `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
-- `/wisp vault` is the shop: buy snacks with your points, get a badge, or
-  give Wisp a gift from one of seven collections: pick a collection, then a
-  gift. He might not like it.
+- `/wisp vault` is the shop: buy snacks with your wisp coins (WC, the points
+  you can spend), get a badge, or give Wisp a gift from one of seven
+  collections: pick a collection, then a gift. He might not like it. It is one
+  private Components V2 message with each menu under its section.
 - `/wisp snackpack` shows your Snack Pack: your saved snacks, keepsakes
-  like a Last Ember, and every badge you ever wore, with a button to shop
-  the Vault.
+  like a Last Ember, every badge you ever wore and any magazine covers you
+  bought, with a button to shop the Vault.
+
+Magazines: while the living Wisp is a Rockstar, the Vault has a Magazines
+section selling two covers, the VIIBRATIONS cover and the Music & Science
+cover, at 100 wisp coins each (`MAGAZINE_COST` and `MAGAZINES` in
+`wisp/rules.py`), with its own menu under it. Each can be bought once per
+member per Wisp life, recorded in the `magazines` table. The buyer gets the
+cover's picture in a private message and keeps the cover in their Snack Pack
+forever (`Wisp v3's VIIBRATIONS cover`). At any other stage, or once he is
+Old Fogey, the section is gone, and a menu left open from before answers
+`♪ The magazines are gone from the shelf.`
 
 Badges: the Vault sells four badge roles (Pickle Diplomat at 25 points,
 Flame Keeper at 100, Team ViiBR and Bandmate at 250; Bandmate only for
@@ -160,14 +209,17 @@ the purchase is undone and the points come back.
 - `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
-  the gift collections of this life.
-  Anyone can look, banned members included.
+  the gift collections of this life. It is posted publicly where it was asked
+  for, pinging nobody and with no link previews; asked for in the track drop,
+  it is posted in Wisp's House instead (or shown only to the member when there
+  is no House). Anyone can look, banned members included.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his Care
   and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
-its threads). He answers with AI at every stage: the egg wobbles or crackles in
+its threads). He never answers in the Studio, so Burrito's post is left to
+Burrito. He answers with AI at every stage: the egg wobbles or crackles in
 reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
@@ -215,7 +267,7 @@ Nobody gets one when nobody was there or the member is banned.
 
 ## Wisp's Studio
 
-The Studio forum holds five threads, named exactly:
+The Studio forum holds six threads, named exactly:
 
 - `☀️ | Status`: the live status card, which shows Wisp's current picture
   (the egg, the coal egg, then his stage).
@@ -223,13 +275,18 @@ The Studio forum holds five threads, named exactly:
 - `🔒| The ViiBR Vault`: the pinned leaderboard and the shop.
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
-  linking to one picture per section, and its last post is the quick rules
+  linking to each section's first picture, then one banner picture per
+  question, each in a message of its own, and its last post is the quick rules
   with the current numbers.
+- `🧚│Burrito, Fairy God-bot`: Burrito's room. Burrito, a separate bot,
+  answers questions about how Wisp works there; Wisp never talks in it. Its
+  first post is framed in the house style and has no picture.
 
-Each thread's first post carries its picture, which the forum shows as the
-thumbnail. Setup renames a thread whose name differs, adds a missing
-thumbnail and fills a Wisp FAQ that has no sections yet, such as an older How
-Wisp Works thread.
+Each thread's first post but Burrito's carries its picture, which the forum
+shows as the thumbnail. Setup renames a thread whose name differs, adds a
+missing thumbnail and fills a Wisp FAQ whose stored pictures are not the
+current set (35), such as an older How Wisp Works thread or the earlier
+one-picture-per-section FAQ.
 
 ## Errors
 
@@ -253,8 +310,8 @@ posts text only.
 - `moments/` pictures for his lonely and sick posts: `cry_baby.gif` and
   `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
   older) when Care drops below the lonely line, and `sick_baby.png`,
-  `sick_child.png` and `sick_teen.png` for his cold. The sick picture is also
-  on the status card and the Poke Wisp panel while he is sick.
+  `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture
+  is also on the status card and the Poke Wisp panel while he is sick.
 - `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
   `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full
   life (the egg's picture stands in when it is missing). The status card and
@@ -265,11 +322,18 @@ posts text only.
 - `badges/<key>.png` for each badge key (`pickle_diplomat`,
   `flame_keeper`, `team_viibr`, `bandmate`), the badge role icons, and the
   app emojis `badge_<key>` for the Vault and Snack Pack.
+- `mags/viibrations_cover.jpg` and `mags/musicnscience_cover.jpg`, the
+  magazine covers sent to their buyers (posting copies, 1200px tall, of the
+  full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
-- `faq/00_how_wisp_works.png` to `faq/10_fair_play.png`, the Wisp FAQ's
-  section pictures. These are required: without all eleven the FAQ is not
-  built and the error is posted in its thread.
+- `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
+  question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
+  `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,
+  `06_growing_1` to `_4`, `07_talking_1` to `_4`, `08_games_1` and `_2`,
+  `09_ending_1` to `_3`, `10_fair_1` and `_2` (35 in all). These are
+  required: without all of them the FAQ is not built and the error is posted
+  in its thread.
 - `gifts/<key>.gif` or `gifts/<key>.png` (512px) for each gift, attached
   when Wisp keeps it. An animated GIF is used before a PNG.
 - `keepsakes/<kind>.gif` or `.png` for `eggshell`, `first_spark`,
@@ -279,7 +343,11 @@ posts text only.
 App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `gift_<key>` for each gift key,
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
-`wisp_coin`, `wisp_happy`, `wisp_hangry`, `wisp_sad`.
+`wisp_coin`, `wisp_coin_mini` (prices and balances), `viibr_logo` (the Vault's
+title), the status card's meters `care_full` / `care_left`, `happiness_full` /
+`happiness_left` and `full_full` / `full_left`, `wisp_happy`, `wisp_hangry`,
+`wisp_sad`. The layouts are Myra's house style,
+`DOCS/specs/2026-10-27-house-style.md`.
 
 ## Testing
 

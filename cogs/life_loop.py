@@ -1,34 +1,60 @@
-"""The life loop: time passes for Wisp, events are announced and his card stays live."""
+"""The life loop: time passes for Wisp, events are announced and his card stays live.
+
+After an ending the loop lays nothing: staff press Begin again for the next egg.
+"""
 
 import asyncio
 import random
+import re
 from datetime import datetime
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Final
 
 import discord
 import pymysql
 from discord.ext import commands, tasks
 
 from cogs.announce import (
-    next_life,
+    BEGIN_ID,
+    begin_again,
+    begin_button,
+    begin_view,
+    ending_image,
+    lay_first_egg,
     post_events,
     say_in_house,
     show_in_thread,
 )
 from cogs.assets import nap_image
 from cogs.badges import sweep_badges
+from cogs.channels import where_of
+from cogs.groups import require_guild
 from cogs.pictures import life_image
-from cogs.players import current_happiness, status_text
+from cogs.players import (
+    EXPECTED_FAILURES,
+    bot_of,
+    current_happiness,
+    report_failure,
+    say_privately,
+    status_text,
+)
 from cogs.snacks import status_view
+from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
+from wisp.card import WAITING
 from wisp.life import Event, EventKind, Life, Phase, is_over, schedule_cold, tick
 from wisp.lines import Moment
 from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
+
+_BEGIN_CONTEXT: Final = "the Begin again button"
+_STAFF_ONLY: Final = "♪ Only staff can start a new Wisp."
+_ALREADY_HERE: Final = "♪ Wisp is already here."
+_ON_ITS_WAY: Final = "♪ A new egg is on its way."
 
 # ---
 # Loop
@@ -104,7 +130,7 @@ class LifeLoop(commands.Cog):
             if life is not None and not is_over(life):
                 events = await self._advance(guild_id, life, now, frozen, happy)
         if events is None:
-            await next_life(bot, guild_id, now)
+            await lay_first_egg(bot, guild_id, now)
         else:
             await post_events(bot, guild_id, events)
         await sweep_badges(bot, guild_id, now)
@@ -112,10 +138,11 @@ class LifeLoop(commands.Cog):
         if current is None:
             return
         await self._speak_if_quiet(guild_id, current, frozen, now)
-        await self._update_card(guild_id, current, now, happy)
+        await show_status_card(bot, guild_id, current, now, happy)
         await refresh_house_panel(bot, guild_id, current)
         await refresh_vault(bot, guild_id)
-        await pick_favorite_song(bot, guild, current, self.rng, now)
+        if not is_over(current):
+            await pick_favorite_song(bot, guild, current, self.rng, now)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
@@ -161,28 +188,147 @@ class LifeLoop(commands.Cog):
             self.bot, guild_id, Moment.QUIET, life, image=nap_image(life.stage)
         )
 
-    # ---
-    # Status card
-    # ---
 
-    async def _update_card(
-        self, guild_id: int, life: Life, now: datetime, happy: int
-    ) -> None:
-        """Show the live status card, with his current picture, in the Status thread."""
-        if is_over(life):
-            return
-        await show_in_thread(
-            self.bot,
-            guild_id,
-            "status_thread_id",
-            "status_message_id",
-            await status_text(self.bot, guild_id, life, now, happy),
-            "status card",
-            status_view(),
-            life_image(life),
+# ---
+# Status card
+# ---
+
+
+async def show_status_card(
+    bot: "WispBot", guild_id: int, life: Life, now: datetime, happy: int
+) -> None:
+    """Show `life` on the status card in the Status thread.
+
+    While he goes on it is his live card, with his current picture and the
+    Feed Wisp and Poke Wisp buttons. Once his life is over it says Wisp is
+    waiting for staff to begin again and carries only the Begin again button,
+    so staff always have one to press even when the House's question was never
+    posted or is gone; it shows the picture of how his life ended, or no
+    picture when that is missing.
+    """
+    view: discord.ui.View
+    image: Path | None
+    if is_over(life):
+        content, view, image = WAITING, begin_view(), ending_image(life)
+    else:
+        content = await status_text(bot, guild_id, life, now, happy)
+        view, image = status_view(), life_image(life)
+    await show_in_thread(
+        bot,
+        guild_id,
+        "status_thread_id",
+        "status_message_id",
+        content,
+        "status card",
+        view,
+        image,
+        clear_image=image is None and is_over(life),
+    )
+
+
+# ---
+# Begin again
+# ---
+
+
+class BeginButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(BEGIN_ID),
+):
+    """The Begin again button on the House's question after Wisp's life ends.
+
+    Only staff may press it. Its custom id is fixed, so the button keeps
+    working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(begin_button())
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "BeginButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Begin again, reporting a failure where the button was pressed."""
+        try:
+            await _begin(interaction)
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, _BEGIN_CONTEXT, error)
+
+
+async def _begin(interaction: discord.Interaction) -> None:
+    """Lay the next egg for staff, retiring the pressed button either way.
+
+    Anyone else is turned away. A press that finds Wisp already here lays
+    nothing; its button is disabled all the same, since it is stale. The
+    button is retired before the egg is shown, so a press on the waiting
+    status card ends with the egg's own card. The answer is private.
+    """
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    user = interaction.user
+    if not isinstance(user, discord.Member) or not await is_staff(bot, user):
+        await say_privately(interaction, _STAFF_ONLY)
+        return
+    now = discord.utils.utcnow()
+    egg = await begin_again(bot, guild_id, now)
+    await _retire_question(interaction)
+    if egg is None:
+        await say_privately(interaction, _ALREADY_HERE)
+        return
+    await _show_egg(bot, guild_id, egg, now)
+    await say_privately(interaction, _ON_ITS_WAY)
+
+
+async def _show_egg(bot: "WispBot", guild_id: int, egg: Life, now: datetime) -> None:
+    """Show a new egg on the status card and House panel now, not on the next tick."""
+    happy = await current_happiness(bot, guild_id, now)
+    await show_status_card(bot, guild_id, egg, now, happy)
+    await refresh_house_panel(bot, guild_id, egg)
+
+
+async def _retire_question(interaction: discord.Interaction) -> None:
+    """Disable the pressed question's button; a failure is reported, never raised."""
+    if interaction.message is None:
+        return
+    try:
+        await interaction.message.edit(view=begin_view(disabled=True))
+    except discord.HTTPException as error:
+        await bot_of(interaction).report_error(
+            interaction.guild, _BEGIN_CONTEXT, error, where=where_of(interaction)
         )
 
 
+@commands.command(name="begin")
+async def begin(ctx: StaffContext) -> None:
+    """Begin again by typing, for when no Begin again button can be pressed.
+
+    Like the button it lays nothing while Wisp is here. Only staff reach it.
+    """
+    bot = ctx.bot
+    guild_id = guild_of(ctx).id
+    now = discord.utils.utcnow()
+    egg = await begin_again(bot, guild_id, now)
+    if egg is None:
+        await reply(ctx, _ALREADY_HERE)
+        return
+    await _show_egg(bot, guild_id, egg, now)
+    await reply(ctx, _ON_ITS_WAY)
+
+
 async def setup(bot: "WispBot") -> None:
-    """Load the life loop cog."""
+    """Load the life loop cog, its `!wisp begin` and the Begin again button.
+
+    The button is registered so it still works after a restart.
+    """
     await bot.add_cog(LifeLoop(bot))
+    bot.add_command(begin)
+    bot.add_dynamic_items(BeginButton)

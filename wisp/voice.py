@@ -38,8 +38,9 @@ from wisp.text import strip_emoji
 NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 # The egg's one face. Hatched stages never use it.
 EGG_EXPRESSION: Final = "wisp_egg"
-# The Vault's points, not one of his faces.
+# The Vault's coins, big and small, not his faces.
 COIN_EMOJI: Final = "wisp_coin"
+MINI_COIN_EMOJI: Final = "wisp_coin_mini"
 # The nap GIF in small, only for the stages that have nap art.
 NAP_EMOJI: Final = "wisp_nap"
 # Reactions whose names do not read as "<name> face".
@@ -225,15 +226,16 @@ _MOOD_LAYERS: Final = {
 }
 
 _SICK: Final = (
-    "You have a cold right now, your one childhood cold. You're sniffly and "
-    "sneezy: you sniffle, sneeze (*achoo*) and sound stuffed up, and you're "
-    "extra hungry. You're not scared, you know you'll be better in a couple "
-    "of days."
+    "You have Monster Pox right now, your one childhood sickness. You're spotty, "
+    "itchy and a little feverish, with a thermometer in your mouth: you scratch "
+    "at your spots (*scratch scratch*) and you're extra hungry. You're not "
+    "scared, you know you'll be better in a couple of days."
 )
 
 _BABY_SICK: Final = (
-    "You have a cold right now, so your little noises come out sniffly and "
-    'sneezy, like "*sniff*" or "*achoo*", never swearing.'
+    "You have Monster Pox right now, so you're covered in spots and itchy, and "
+    'your little noises come out fussy and scratchy, like "*scratch scratch*" '
+    'or "*itchy whimper*", never swearing.'
 )
 
 _BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
@@ -434,7 +436,7 @@ def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
         return _SERVER_EMOTE
     kind, _, key = emoji.name.partition("_")
     words = key.replace("_", " ")
-    if emoji.name == COIN_EMOJI:
+    if emoji.name in (COIN_EMOJI, MINI_COIN_EMOJI):
         return "the coin members spend in the ViiBR Vault"
     if emoji.name in _REACTIONS:
         return f"{whose} {_REACTIONS[emoji.name]}"
@@ -485,7 +487,7 @@ def build_prompt(
     own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
     tags are only asked for when there is a speaker with a message.
     `own_emojis` are the emojis of his that the message used. While `sick`
-    he has his cold and sounds sniffly and sneezy.
+    he has Monster Pox and sounds spotty and itchy.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.

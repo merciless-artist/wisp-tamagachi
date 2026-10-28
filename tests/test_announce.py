@@ -18,7 +18,16 @@ import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs import announce, pictures
-from cogs.announce import next_life, post_events, show_in_thread
+from cogs.announce import (
+    BEGIN_AGAIN,
+    BEGIN_ID,
+    begin_again,
+    begin_view,
+    ending_image,
+    lay_first_egg,
+    post_events,
+    show_in_thread,
+)
 from cogs.pictures import life_image
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
@@ -440,6 +449,27 @@ async def test_without_a_picture_the_attachment_is_kept(
     assert "attachments" not in server.board.edit.await_args.kwargs
 
 
+async def test_a_picture_can_be_taken_off_the_card(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path
+) -> None:
+    await show_status(bot, image=picture(tmp_path, "egg"))
+    await show_in_thread(
+        bot,
+        GUILD_ID,
+        "status_thread_id",
+        "status_message_id",
+        "waiting",
+        "status card",
+        clear_image=True,
+    )
+    await show_status(bot, image=picture(tmp_path, "egg"))
+
+    first, cleared, again = server.status.edit.await_args_list
+    assert [file.filename for file in first.kwargs["attachments"]] == ["egg.png"]
+    assert cleared.kwargs["attachments"] == []
+    assert [file.filename for file in again.kwargs["attachments"]] == ["egg.png"]
+
+
 # ---
 # Failures
 # ---
@@ -599,7 +629,22 @@ async def embers(bot: app.WispBot, user_id: int) -> list[str]:
     return [keepsake.title for keepsake in await bot.keepsakes.of(GUILD_ID, user_id)]
 
 
-async def test_farewell_posts_line_then_gifts_then_coal_egg(
+def asks_to_begin_again(post: Any) -> bool:
+    """Whether a House post is the question, with its one Begin again button."""
+    view = post.kwargs.get("view")
+    if post.args[0] != BEGIN_AGAIN or view is None or view.timeout is not None:
+        return False
+    (button,) = view.children
+    return (
+        isinstance(button, discord.ui.Button)
+        and (button.label, button.custom_id, button.disabled)
+        == ("Begin again", BEGIN_ID, False)
+        and "file" not in post.kwargs
+        and sends_without_pinging(post.kwargs)
+    )
+
+
+async def test_farewell_posts_line_then_gifts_then_asks_to_begin_again(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     add_image(assets, "events", "farewell")
@@ -611,49 +656,127 @@ async def test_farewell_posts_line_then_gifts_then_coal_egg(
 
     posts = server.house.send.await_args_list
     assert len(posts) == 5
-    farewell, named, member, nameless, coal = posts
+    farewell, named, member, nameless, question = posts
     assert said(farewell.args[0], Moment.FAREWELL, version="3")
     assert farewell.kwargs["file"].filename == "farewell.png"
     assert gift_said(named.args[0], "Aria", 3)
     assert gift_said(member.args[0], "Bea", 3)
     assert gift_said(nameless.args[0], f"<@{NAMELESS}>", 3)
-    assert said(coal.args[0], Moment.COAL_EGG, version="4")
-    assert coal.kwargs["file"].filename == "coal_egg.png"
+    assert asks_to_begin_again(question)
     assert all(sends_without_pinging(post.kwargs) for post in posts)
-    egg = await current_life(bot)
-    assert (egg.version, egg.phase, egg.from_coal) == (4, Phase.EGG, True)
-    assert egg.egg_food == rules.COAL_EGG_FOOD
+    assert [old.version for old in await bot.lives.history(GUILD_ID)] == [3]
     for user_id in (NAMED, MEMBER, NAMELESS):
         assert await embers(bot, user_id) == ["Wisp v3's Last Ember"]
     assert await embers(bot, FOURTH) == []
 
 
-async def test_coal_egg_without_its_image_is_text_only(
+@pytest.mark.parametrize(
+    ("phase", "event"),
+    [
+        (Phase.DEAD, EventKind.DIED),
+        (Phase.COLD, EventKind.EGG_COLD),
+        (Phase.PASSED, EventKind.FAREWELL),
+    ],
+)
+async def test_every_ending_asks_to_begin_again_and_lays_no_egg(
+    bot: app.WispBot, server: FakeServer, assets: Path, phase: Phase, event: EventKind
+) -> None:
+    life = await ended_life(bot, phase)
+
+    await post_events(bot, GUILD_ID, [Event(event)])
+
+    ending, question = server.house.send.await_args_list
+    assert said(ending.args[0], Moment(event.value), version="3")
+    assert "view" not in ending.kwargs
+    assert asks_to_begin_again(question)
+    assert (await current_life(bot)).id == life.id
+    assert await bot.lives.next_version(GUILD_ID) == 4
+
+
+async def test_a_stale_ending_asks_nothing(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
-    await ended_life(bot, Phase.PASSED)
+    await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
 
+    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+
+    server.house.send.assert_not_awaited()
+
+
+async def test_the_begin_again_button_can_be_shown_used() -> None:
+    view = begin_view(disabled=True)
+
+    (button,) = view.children
+    assert isinstance(button, discord.ui.Button)
+    assert (button.label, button.custom_id, button.disabled) == (
+        "Begin again",
+        BEGIN_ID,
+        True,
+    )
+    assert BEGIN_ID == "wisp:begin"
+
+
+@pytest.mark.parametrize(
+    ("phase", "picture"),
+    [
+        (Phase.DEAD, "died.png"),
+        (Phase.COLD, "egg_cold.png"),
+        (Phase.PASSED, "farewell.png"),
+        (Phase.ALIVE, None),
+        (Phase.EGG, None),
+    ],
+)
+def test_an_ended_life_shows_the_picture_of_its_ending(
+    assets: Path, phase: Phase, picture: str | None
+) -> None:
+    for name in ("died", "egg_cold", "farewell"):
+        add_image(assets, "events", name)
+    life = new_egg(1, discord.utils.utcnow())
+    life.phase = phase
+
+    image = ending_image(life)
+
+    assert (None if image is None else image.name) == picture
+
+
+async def test_begin_again_after_farewell_lays_one_coal_egg_halfway_hatched(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "stages", "coal_egg")
+    life = await ended_life(bot, Phase.PASSED)
+    await known_sharers(bot, server, life)
     await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+    server.house.send.reset_mock()
 
-    farewell, coal = server.house.send.await_args_list
-    assert "file" not in farewell.kwargs
+    egg = await begin_again(bot, GUILD_ID, discord.utils.utcnow())
+    again = await begin_again(bot, GUILD_ID, discord.utils.utcnow())
+
+    assert egg is not None and again is None
+    assert (egg.version, egg.phase, egg.from_coal) == (4, Phase.EGG, True)
+    assert egg.egg_food == rules.COAL_EGG_FOOD == rules.EGG_FOOD_NEEDED // 2
+    (coal,) = server.house.send.await_args_list
     assert said(coal.args[0], Moment.COAL_EGG, version="4")
-    assert "file" not in coal.kwargs
+    assert coal.kwargs["file"].filename == "coal_egg.png"
+    assert sends_without_pinging(coal.kwargs)
+    assert [old.version for old in await bot.lives.history(GUILD_ID)] == [4, 3]
+    for user_id in (NAMED, MEMBER, NAMELESS):
+        assert await embers(bot, user_id) == ["Wisp v3's Last Ember"]
 
 
-async def test_next_life_after_farewell_is_idempotent(
+async def test_begin_again_gives_embers_an_unannounced_farewell_never_gave(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     life = await ended_life(bot, Phase.PASSED)
     await known_sharers(bot, server, life)
 
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
-    posted = server.house.send.await_count
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    await begin_again(bot, GUILD_ID, discord.utils.utcnow())
 
-    assert posted == 4
-    assert server.house.send.await_count == posted
-    assert [old.version for old in await bot.lives.history(GUILD_ID)] == [4, 3]
+    named, member, nameless, coal = server.house.send.await_args_list
+    assert gift_said(named.args[0], "Aria", 3)
+    assert gift_said(member.args[0], "Bea", 3)
+    assert gift_said(nameless.args[0], f"<@{NAMELESS}>", 3)
+    assert said(coal.args[0], Moment.COAL_EGG, version="4")
+    assert "file" not in coal.kwargs
     for user_id in (NAMED, MEMBER, NAMELESS):
         assert await embers(bot, user_id) == ["Wisp v3's Last Ember"]
 
@@ -666,12 +789,14 @@ async def test_banned_top_sharer_gets_no_ember(
     now = discord.utils.utcnow()
     await bot.players.set_offense(GUILD_ID, MEMBER, 1, now + timedelta(days=1), False)
 
-    await next_life(bot, GUILD_ID, now)
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
-    named, nameless, coal = [call.args[0] for call in server.house.send.await_args_list]
+    _farewell, named, nameless, question = [
+        call.args[0] for call in server.house.send.await_args_list
+    ]
     assert gift_said(named, "Aria", 3)
     assert gift_said(nameless, f"<@{NAMELESS}>", 3)
-    assert said(coal, Moment.COAL_EGG, version="4")
+    assert question == BEGIN_AGAIN
     assert await embers(bot, MEMBER) == []
     assert await embers(bot, FOURTH) == []
 
@@ -684,71 +809,12 @@ async def test_expired_ban_does_not_stop_the_ember(
     now = discord.utils.utcnow()
     await bot.players.set_offense(GUILD_ID, MEMBER, 1, now - timedelta(days=1), False)
 
-    await next_life(bot, GUILD_ID, now)
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
     assert await embers(bot, MEMBER) == ["Wisp v3's Last Ember"]
 
 
-NO_EGG = "♪ No new egg for now. Staff can turn eggs back on with !wisp eggs on."
-
-
-async def test_with_eggs_off_a_death_lays_no_egg_and_says_so_once(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await bot.settings.update(GUILD_ID, lay_eggs=False)
-    life = await ended_life(bot, Phase.DEAD)
-
-    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
-
-    died, paused = server.house.send.await_args_list
-    assert said(died.args[0], Moment.DIED, version="3")
-    assert paused.args[0] == NO_EGG
-    assert sends_without_pinging(paused.kwargs)
-    assert (await current_life(bot)).id == life.id
-
-
-async def test_with_eggs_off_a_farewell_still_gives_its_embers(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await bot.settings.update(GUILD_ID, lay_eggs=False)
-    life = await ended_life(bot, Phase.PASSED)
-    await known_sharers(bot, server, life)
-
-    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
-
-    farewell, named, member, nameless, paused = server.house.send.await_args_list
-    assert said(farewell.args[0], Moment.FAREWELL, version="3")
-    assert gift_said(named.args[0], "Aria", 3)
-    assert paused.args[0] == NO_EGG
-    assert (await current_life(bot)).id == life.id
-    for user_id in (NAMED, MEMBER, NAMELESS):
-        assert await embers(bot, user_id) == ["Wisp v3's Last Ember"]
-
-    await bot.settings.update(GUILD_ID, lay_eggs=True)
-    server.house.send.reset_mock()
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
-
-    (laid,) = server.house.send.await_args_list
-    assert said(laid.args[0], Moment.COAL_EGG, version="4")
-    egg = await current_life(bot)
-    assert (egg.version, egg.phase, egg.from_coal) == (4, Phase.EGG, True)
-    assert egg.egg_food == rules.COAL_EGG_FOOD
-
-
-async def test_with_eggs_off_and_no_life_nothing_is_laid(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await bot.settings.update(GUILD_ID, lay_eggs=False)
-
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
-
-    assert await bot.lives.current(GUILD_ID) is None
-    server.house.send.assert_not_awaited()
-
-
-async def test_neglect_death_gives_no_gifts_and_a_fresh_egg(
+async def test_neglect_death_gives_no_gifts_and_begins_again_with_a_fresh_egg(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     add_image(assets, "stages", "coal_egg")
@@ -756,27 +822,45 @@ async def test_neglect_death_gives_no_gifts_and_a_fresh_egg(
     await known_sharers(bot, server, life)
 
     await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+    egg = await begin_again(bot, GUILD_ID, discord.utils.utcnow())
 
-    died, laid = server.house.send.await_args_list
+    died, question, laid = server.house.send.await_args_list
     assert said(died.args[0], Moment.DIED, version="3")
+    assert asks_to_begin_again(question)
     assert said(laid.args[0], Moment.NEW_EGG, version="4")
     assert "file" not in laid.kwargs
-    egg = await current_life(bot)
+    assert egg is not None
     assert (egg.version, egg.from_coal, egg.egg_food) == (4, False, 0)
+    assert (await current_life(bot)).id == egg.id
     for user_id in (NAMED, MEMBER, NAMELESS, FOURTH):
         assert await embers(bot, user_id) == []
 
 
-async def test_first_life_is_a_fresh_egg(
+async def test_first_life_is_a_fresh_egg_without_asking(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    await lay_first_egg(bot, GUILD_ID, discord.utils.utcnow())
 
     egg = await current_life(bot)
     assert (egg.version, egg.phase, egg.from_coal) == (1, Phase.EGG, False)
     (laid,) = server.house.send.await_args_list
     assert said(laid.args[0], Moment.NEW_EGG, version="1")
     assert "file" not in laid.kwargs
+    (button,) = laid.kwargs["view"].children
+    assert isinstance(button, discord.ui.Button)
+    assert button.custom_id == "wisp:poke"
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED, Phase.EGG])
+async def test_the_first_egg_is_only_for_a_server_that_never_had_a_wisp(
+    bot: app.WispBot, server: FakeServer, assets: Path, phase: Phase
+) -> None:
+    life = await ended_life(bot, phase)
+
+    await lay_first_egg(bot, GUILD_ID, discord.utils.utcnow())
+
+    assert (await current_life(bot)).id == life.id
+    server.house.send.assert_not_awaited()
 
 
 async def test_a_new_egg_is_announced_with_the_egg_picture(
@@ -786,32 +870,28 @@ async def test_a_new_egg_is_announced_with_the_egg_picture(
     add_image(assets, "stages", "coal_egg")
     await ended_life(bot, Phase.DEAD)
 
-    await post_events(bot, GUILD_ID, [Event(EventKind.DIED)])
+    await begin_again(bot, GUILD_ID, discord.utils.utcnow())
 
-    _died, laid = server.house.send.await_args_list
+    (laid,) = server.house.send.await_args_list
     assert said(laid.args[0], Moment.NEW_EGG, version="4")
     assert laid.kwargs["file"].filename == "egg.png"
     assert sends_without_pinging(laid.kwargs)
 
 
-@pytest.mark.parametrize(
-    ("phase", "event"),
-    [(Phase.DEAD, EventKind.DIED), (Phase.PASSED, EventKind.FAREWELL)],
-)
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
 async def test_the_new_egg_post_has_the_poke_button(
-    bot: app.WispBot, server: FakeServer, assets: Path, phase: Phase, event: EventKind
+    bot: app.WispBot, server: FakeServer, assets: Path, phase: Phase
 ) -> None:
     await ended_life(bot, phase)
 
-    await post_events(bot, GUILD_ID, [Event(event)])
+    await begin_again(bot, GUILD_ID, discord.utils.utcnow())
 
-    *earlier, laid = server.house.send.await_args_list
+    (laid,) = server.house.send.await_args_list
     view = laid.kwargs["view"]
     (button,) = view.children
     assert isinstance(button, discord.ui.Button)
     assert (button.label, button.custom_id) == ("Poke Wisp", "wisp:poke")
     assert view.timeout is None
-    assert all("view" not in post.kwargs for post in earlier)
 
 
 async def test_a_coal_egg_without_its_own_picture_shows_the_egg(
@@ -820,9 +900,9 @@ async def test_a_coal_egg_without_its_own_picture_shows_the_egg(
     add_image(assets, "stages", "egg")
     await ended_life(bot, Phase.PASSED)
 
-    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
+    await begin_again(bot, GUILD_ID, discord.utils.utcnow())
 
-    _farewell, coal = server.house.send.await_args_list
+    (coal,) = server.house.send.await_args_list
     assert said(coal.args[0], Moment.COAL_EGG, version="4")
     assert coal.kwargs["file"].filename == "egg.png"
 
@@ -862,12 +942,12 @@ def test_life_image_is_his_current_picture(
     assert (None if image is None else image.name) == expected
 
 
-async def test_next_life_leaves_a_living_wisp_alone(
+async def test_begin_again_leaves_a_living_wisp_alone(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
     await bot.lives.insert(GUILD_ID, new_egg(1, discord.utils.utcnow()))
 
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    assert await begin_again(bot, GUILD_ID, discord.utils.utcnow()) is None
 
     assert [old.version for old in await bot.lives.history(GUILD_ID)] == [1]
     server.house.send.assert_not_awaited()
@@ -886,7 +966,7 @@ async def test_farewell_with_missing_house_is_logged_once_and_gifts_still_given(
     with caplog.at_level(logging.ERROR, logger="wisp"):
         await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
-    assert (await current_life(bot)).version == 4
+    assert (await current_life(bot)).version == 3
     assert await embers(bot, NAMED) == ["Wisp v3's Last Ember"]
     server.house.send.assert_not_awaited()
     assert caplog.text.count("Error in posting to Wisp's House") == 1
@@ -934,9 +1014,9 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
 
     ai.side_effect = answer
 
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
-    named, report, member, nameless, coal = [
+    _farewell, named, report, member, nameless, question = [
         call.args[0] for call in server.house.send.await_args_list
     ]
     assert named == (
@@ -945,7 +1025,7 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
     )
     assert gift_said(member, "Bea", 3)
     assert gift_said(nameless, f"<@{NAMELESS}>", 3)
-    assert said(coal, Moment.COAL_EGG, version="4")
+    assert question == BEGIN_AGAIN
     to_aria, to_bea, _ = [call.args[0] for call in ai.await_args_list]
     assert "Wisp v3" in to_aria.user
     assert "Aria" in to_aria.user and "plays bass" in to_aria.user
@@ -1365,9 +1445,9 @@ async def test_the_last_ember_carries_its_art_when_it_exists(
     life = await ended_life(bot, Phase.PASSED)
     await shared(bot, life, {NAMED: 10})
 
-    await next_life(bot, GUILD_ID, discord.utils.utcnow())
+    await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
-    ember, _coal = server.house.send.await_args_list
+    _farewell, ember, _question = server.house.send.await_args_list
     assert ember.kwargs["file"].filename == "last_ember.png"
     assert sends_without_pinging(ember.kwargs)
 
@@ -1405,7 +1485,7 @@ async def test_a_failed_keepsake_is_reported_and_later_events_still_post(
     assert all(" gets " not in line for line in (child, old))
 
 
-async def test_a_failed_keepsake_never_stops_the_next_life(
+async def test_a_failed_keepsake_never_stops_the_question(
     bot: app.WispBot,
     server: FakeServer,
     assets: Path,
@@ -1418,10 +1498,10 @@ async def test_a_failed_keepsake_never_stops_the_next_life(
 
     await post_events(bot, GUILD_ID, [Event(EventKind.FAREWELL)])
 
-    farewell, report, coal = [
+    farewell, report, question = [
         call.args[0] for call in server.house.send.await_args_list
     ]
     assert said(farewell, Moment.FAREWELL, version="3")
     assert report.startswith("Error in giving a keepsake: OperationalError")
-    assert said(coal, Moment.COAL_EGG, version="4")
+    assert question == BEGIN_AGAIN
     assert await embers(bot, NAMED) == ["Wisp v3's Last Ember"]

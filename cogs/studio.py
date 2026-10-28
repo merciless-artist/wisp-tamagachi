@@ -1,11 +1,13 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Annotated, Any, Final
+from urllib.parse import urlsplit
 
 import discord
 from discord import app_commands
@@ -14,7 +16,7 @@ from discord.ext import commands
 from cogs.assets import ASSETS_DIR
 from cogs.badges import ensure_badge_roles
 from cogs.channels import where_of
-from cogs.faq import FAQ_SECTIONS, fill_faq
+from cogs.faq import FAQ_PICTURE_COUNT, fill_faq
 from cogs.groups import wispadmin
 from cogs.pictures import Picture, art_kwargs, life_image
 from cogs.speech import POKE_ID, poke_view
@@ -23,12 +25,14 @@ from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import SEPARATOR, count
+from wisp.text import BLANK, SEPARATOR, count, framed, item, sub
 
 if TYPE_CHECKING:
     from app import WispBot
 
+log = logging.getLogger("wisp")
 _NO_PING: Final = discord.AllowedMentions.none()
+_LINK_SCHEMES: Final = frozenset({"http", "https"})
 _ARCHIVE_AFTER_MINUTES: Final = 10080
 _NUMBER_WORDS: Final = (
     "zero",
@@ -92,8 +96,8 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "One Wisp for the whole server: share music and he grows from an egg "
-            "to a Rockstar. Neglected, he fades and a new egg takes over.",
+            "One Wisp for the server: share music and he grows from egg to "
+            "Rockstar. Neglected, he fades; staff start the next egg.",
             SEPARATOR,
             "Who can feed him and earn points",
             "・Active Lounger or higher who opened /wisp board once",
@@ -105,7 +109,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Your meals and snacks count up to {daily_cap} a day",
             "",
             "His meters",
-            "・Full: tracks and snacks. Drains daily; hangry when low, dies at 0",
+            "・Hunger: tracks and snacks. Drains daily; hangry when low, dies at 0",
             f"・Happy: your first poke or chat each day earns {chat_points}. "
             f"{rules.HAPPY_FULL_AT_PEOPLE} people in 24 h fill it; Rockstar "
             "needs it high",
@@ -119,9 +123,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault spends points on snacks and gifts. The board is its "
+            "・/wisp vault spends WC on snacks and gifts. The board is its "
             "pinned post",
-            f"・Gifts cost {count(rules.GIFT_COST, 'point')} and he might not keep "
+            f"・Gifts cost {rules.GIFT_COST} WC and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
             f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",
@@ -133,9 +137,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"{rules.FAREWELL_AT_DAY} he passes on, coal after a full life",
             f"・The coal becomes an egg with {rules.COAL_EGG_FOOD} of its "
             f"{egg_meals} fed",
-            f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} each get "
-            "his Last Ember, unless he died of neglect",
-            f"・Once before Adult he gets a {sick_hours}-hour cold: faster drain, "
+            f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
+            "Last Ember, unless he died of neglect",
+            f"・Once before Adult: Monster Pox for {sick_hours} h. Faster drain, "
             f"he can't die, meals count up to {sick_cap} a day",
             "・Be there as he grows to win a keepsake",
             "",
@@ -161,15 +165,32 @@ def rules_post(settings: Settings) -> str:
     return rules_text(meal_points(settings))
 
 
+# Myra's Burrito post: the frame she calibrated the house style's widths on,
+# with 6 𝄚 each side of the title.
+_BURRITO_SIDE: Final = 6
+_BURRITO_STARTER: Final = framed(
+    "𝔹𝓊𝓇𝓇𝒾𝓉𝑜",
+    [
+        sub("Burrito is Wisp's fairy god-bot."),
+        BLANK,
+        item("Ask him anything about how Wisp works, right here."),
+        BLANK,
+        item("He'll point you to where to look for Wisp's live stats."),
+    ],
+    side=_BURRITO_SIDE,
+)
+
+
 @dataclass(frozen=True)
 class StudioThread:
     """One thread of the Studio forum and the settings that remember it.
 
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
-    post's text when the thread is created. `image` is the first post's
-    picture, which the forum shows as the post's thumbnail, relative to the
-    ASSETS folder.
+    post's text when the thread is created; with `current_content`, a first
+    post with other text is edited to it when the Studio is ensured. `image`
+    is the first post's picture, which the forum shows as the post's
+    thumbnail, relative to the ASSETS folder.
     """
 
     attr: str
@@ -179,6 +200,7 @@ class StudioThread:
     message_attr: str | None = None
     locked: bool = False
     image: str | None = None
+    current_content: bool = False
 
 
 STUDIO_THREADS: tuple[StudioThread, ...] = (
@@ -218,6 +240,13 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Loading the FAQ...",
         locked=True,
         image="thumbs/faq.png",
+    ),
+    StudioThread(
+        "burrito_thread_id",
+        "🧚│Burrito, Fairy God-bot",
+        "Burrito, Fairy God-bot",
+        _BURRITO_STARTER,
+        current_content=True,
     ),
 )
 
@@ -315,6 +344,8 @@ async def _finish_thread(
         except discord.HTTPException as error:
             await bot.report_error(guild, f"locking {spec.title}", error, where=thread)
     await _add_thumbnail(bot, guild, thread, spec)
+    if spec.current_content:
+        await _update_starter(bot, guild, thread, spec)
     if spec.message_attr is None or message_id is None:
         return
     try:
@@ -351,6 +382,26 @@ async def _add_thumbnail(
         )
 
 
+async def _update_starter(
+    bot: "WispBot", guild: discord.Guild, thread: discord.Thread, spec: StudioThread
+) -> None:
+    """Edit the thread's first post to `spec.content` when its text differs.
+
+    A first post that is gone is left alone; a failed edit is posted in the
+    thread.
+    """
+    try:
+        starter = await thread.fetch_message(thread.id)
+        if starter.content != spec.content:
+            await starter.edit(content=spec.content, allowed_mentions=_NO_PING)
+    except discord.NotFound:
+        return
+    except discord.HTTPException as error:
+        await bot.report_error(
+            guild, f"updating the first post of {spec.title}", error, where=thread
+        )
+
+
 async def _build_faq(
     bot: "WispBot", guild: discord.Guild, thread: discord.Thread
 ) -> None:
@@ -370,9 +421,9 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     attachment its thumbnail and finishing any lock or pin that is still
     missing. Threads that were stored but have been deleted are recreated, and
     Wisp's House is told about them. The Wisp FAQ is filled when its thread is
-    new or does not have one stored post per section: a How Wisp Works thread
+    new or does not have one stored post per picture: a How Wisp Works thread
     from before the FAQ, a build that stopped part way or a release with a
-    different number of sections.
+    different set of pictures (such as one picture per section).
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -398,13 +449,18 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
                 )
             await _finish_thread(bot, forum.guild, thread, spec, message_id)
             threads[spec.attr] = thread
-        stored_sections = len(settings.faq_message_ids or ())
-        if _FAQ_ATTR in created or stored_sections != len(FAQ_SECTIONS):
+        stored_pictures = len(settings.faq_message_ids or ())
+        if _FAQ_ATTR in created or stored_pictures != FAQ_PICTURE_COUNT:
             await _build_faq(bot, forum.guild, threads[_FAQ_ATTR])
         settings = await bot.settings.get(guild_id)
     if recreated:
         await _announce(bot, forum.guild, recreated)
     return settings
+
+
+def _thread_list(titles: list[str]) -> str:
+    """Thread titles, each in quotes, so a title with a comma reads as one."""
+    return ", ".join(f'"{title}"' for title in titles)
 
 
 async def _announce(bot: "WispBot", guild: discord.Guild, names: list[str]) -> None:
@@ -413,7 +469,8 @@ async def _announce(bot: "WispBot", guild: discord.Guild, names: list[str]) -> N
         return
     try:
         await house.send(
-            f"Wisp's Studio: recreated {', '.join(names)}.", allowed_mentions=_NO_PING
+            f"Wisp's Studio: recreated {_thread_list(names)}.",
+            allowed_mentions=_NO_PING,
         )
     except discord.HTTPException as error:
         await bot.report_error(guild, "announcing recreated Studio threads", error)
@@ -610,7 +667,7 @@ async def set_up(
         if getattr(before, spec.attr) != getattr(after, spec.attr)
     ]
     threads = (
-        f"Created threads: {', '.join(created)}"
+        f"Created threads: {_thread_list(created)}"
         if created
         else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )
@@ -759,35 +816,37 @@ async def unfreeze(ctx: StaffContext) -> None:
     await reply(ctx, "♪ Wisp is unfrozen. His meters drain normally again.")
 
 
-@commands.command(name="eggs", usage="on|off")
-async def eggs(ctx: StaffContext, state: str) -> None:
-    """Turn laying the next egg on or off, in any case. A living Wisp is not affected.
+def _http_link(argument: str) -> str:
+    """Accept an http(s) URL as typed; anything else is a bad argument."""
+    try:
+        parts = urlsplit(argument)
+    except ValueError as error:
+        raise commands.BadArgument(f"Not a link: {argument}") from error
+    if parts.scheme not in _LINK_SCHEMES or not parts.hostname:
+        raise commands.BadArgument(f"Not an http(s) link: {argument}")
+    return argument
 
-    Turned back on with no living Wisp, the life loop lays the egg on its next
-    tick. Anything but on or off gets the usage line.
+
+@commands.command(name="song", usage="<link> <words...>")
+async def song(
+    ctx: StaffContext, link: Annotated[str, _http_link], *, words: str
+) -> None:
+    """Post staff's words and a song link in Jam Space as if Wisp wrote them.
+
+    Nothing is added to the post, and the link is left to show its player. The
+    command message is deleted afterwards; a failed delete is only logged. A
+    Jam Space that cannot be reached raises, so the error is reported where
+    the command was used and nothing is posted.
     """
-    choice = state.lower()
-    if choice not in ("on", "off"):
-        await reply(ctx, usage_line(eggs))
-        return
-    bot = ctx.bot
-    guild_id = guild_of(ctx).id
-    on = choice == "on"
-    await bot.settings.update(guild_id, lay_eggs=on)
-    if not on:
-        text = (
-            "♪ New eggs are off. When Wisp's life ends, no new egg will be laid "
-            "until you turn eggs back on."
-        )
-    else:
-        life = await bot.lives.current(guild_id)
-        text = "♪ New eggs are on."
-        if life is None or is_over(life):
-            text += " A new egg arrives within a few minutes."
-    await reply(ctx, text)
+    thread = await studio_thread(ctx.bot, guild_of(ctx).id, "jam_thread_id")
+    await thread.send(f"{words}\n{link}", allowed_mentions=_NO_PING)
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        log.warning("Could not delete the !wisp song message %d", ctx.message.id)
 
 
 async def setup(bot: "WispBot") -> None:
     """Load the Studio staff commands."""
-    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, eggs):
+    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, song):
         bot.add_command(command)

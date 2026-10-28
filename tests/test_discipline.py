@@ -306,6 +306,26 @@ async def test_punish_without_a_life_still_bans_and_says_so(
     ]
 
 
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
+async def test_punish_while_waiting_to_begin_again_says_nothing_in_his_voice(
+    bot: app.WispBot, server: FakeServer, phase: Phase
+) -> None:
+    life = await lay(bot)
+    life.phase = phase
+    await bot.lives.save(GUILD_ID, life)
+
+    ctx = await punish(bot)
+
+    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).is_banned(
+        discord.utils.utcnow()
+    )
+    server.house.send.assert_not_awaited()
+    assert replies(ctx) == [
+        f"♪ <@{STAFF_ID}> punished <@{MEMBER_ID}> (offense 1, 1 day): {REASON}\n"
+        "・Wisp has no life right now, so nothing was posted in his House."
+    ]
+
+
 async def test_an_answer_that_cannot_be_posted_still_leaves_the_ban(
     bot: app.WispBot, server: FakeServer
 ) -> None:
