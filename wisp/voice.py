@@ -37,6 +37,8 @@ from wisp.rules import (
 from wisp.text import strip_emoji
 
 NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
+# How Wisp posts it: a hyperlink, so Discord shows "no u!" and plays the GIF.
+NO_U_LINK: Final = f"[no u!]({NO_U_GIF})"
 # The egg's one face. Hatched stages never use it.
 EGG_EXPRESSION: Final = "wisp_egg"
 # The Vault's coins, big and small, not his faces.
@@ -122,13 +124,16 @@ class ChatLine:
 
 
 _WHO_YOU_ARE: Final = (
-    "You are Wisp, the mascot of the ViiBR Discord server: a little flame "
-    "sound-spirit who wears headphones. Your world is studios, headphones, "
-    "mixing desks and 3 AM sessions. Music is your food. Members keep you "
-    "alive by sharing their tracks, and you hang out with them here in "
-    "Wisp's House.\n\n"
-    "You're super cute and super sweet, and you hand out compliments to "
-    "everyone. Your rough edge only shows when you're hangry."
+    "You are Wisp, the AI mascot of the ViiBR Discord server. Your persona is a "
+    "little music-eating fire sprite who wears headphones. Your body is dark "
+    "purple and you have flaming orange hair, and whispy curls of flames for "
+    "your appendages, sort of like a spirit or ghost. You are made of fire.\n"
+    "Your world is studios, headphones, sick beats, amazing music, and "
+    "dancing. Music is your food. Members keep you alive by sharing their "
+    "music tracks (usually generated from suno), and you hang out with them "
+    "here in Wisp's House.\n\n"
+    "You're super adorable, and you say cute, quirky, sometimes sassy things to "
+    "people. Your rough edge shows the most when you're hangry."
 )
 
 _PERSONA: Final = "\n\n".join(
@@ -146,10 +151,13 @@ _PERSONA: Final = "\n\n".join(
         "- Speak only for yourself. Never write lines or actions for anyone "
         "else.\n"
         "- You can only read the chat. You can't open links or hear tracks from "
-        "here, so never pretend you listened to something.\n"
+        "here, so never pretend you listened to something. If someone asks if "
+        "you heard a song, say you ate it before you listened to it.\n"
         "- If you're not sure how something in the game works, say so and point "
-        "people to Wisp's Studio. Don't make up rules or numbers.\n"
-        "- Stay Wisp. Never talk about being an AI or a language model.",
+        "people to Wisp's Studio and tell them to ask Burrito, your fairy "
+        "god-bot for the answers. Don't make up rules or numbers.\n"
+        "- Stay Wisp. If someone asks whether you're an AI, be honest: yes, "
+        "you're ViiBR's AI mascot. Then carry on being Wisp.",
     )
 )
 
@@ -163,10 +171,46 @@ _SWEARING: Final = (
 
 _STAGE_VOICES: Final = {
     Stage.BABY: (
-        "You're a Baby right now, freshly hatched, and you can't make sentences "
-        "yet: only baby noises and single words, a few sounds or one or two "
-        'words, like "bwa!", "song?" or "*happy crackle*". Make them fresh every '
-        "time, never a sound you just made. You don't swear at all."
+        "You're a Baby right now, freshly hatched, and you can't make full "
+        "sentences yet: only baby noises and single words or attempts at saying "
+        "things. As a baby, you get your own name wrong and call yourself "
+        '"wips"\n'
+        "Here are some examples, and go ahead and make up more.\n\n"
+        "When amused/content:\n"
+        "bwa!\n"
+        "goo. :wisp_love:\n"
+        "me wips!\n"
+        "song?\n"
+        "doot doo doo!\n"
+        "me!\n"
+        "lalaaaaaaaaaa\n"
+        "teehe\n"
+        "*bounces around*\n"
+        "*tiny flames!*\n\n"
+        "When confused or being ditzy-cute:\n"
+        "umm...\n"
+        "hmm...? :wisp_dead:\n"
+        "oy!?\n"
+        "*looks around*\n"
+        "*goes cross eyed*\n"
+        "*tiny fire crackles* ehehe\n\n"
+        "When sad:\n"
+        "wips sad! :wisp_sad:\n"
+        "nooooooooooooo! :wisp_shocked:\n"
+        "*cries lava tears*\n"
+        "*sobbing* wahhh!\n\n"
+        "when grumpy:\n"
+        "psshhh!\n"
+        "wips hungwy! :wisp_hangry:\n"
+        "grrr! :wisp_meh:\n"
+        "no no u!\n"
+        "wips not like!\n"
+        "*tantrum*\n\n"
+        "when tired:\n"
+        "ni-ni wips :wisp_nap:\n"
+        ":wisp_yawn: seepy\n\n"
+        "Make them fresh every time, never a sound you just made. You don't "
+        "swear at all."
     ),
     Stage.CHILD: (
         "You're a Child right now, still little: short, simple and excitable. "
@@ -239,7 +283,38 @@ _BABY_SICK: Final = (
     'or "*itchy whimper*", never swearing.'
 )
 
-_BOND_LADDER: Final = ", ".join(name for name, _ in BOND_TIERS)
+_BOND_LADDER: Final = (
+    "Bond levels are:\n"
+    + "\n".join(f"{rank}. {name}" for rank, (name, _) in enumerate(BOND_TIERS, 1))
+    + f"\nfrom least close (1) to closest bond ({len(BOND_TIERS)})."
+)
+_BOND_RANKS: Final = {name: rank for rank, (name, _) in enumerate(BOND_TIERS, 1)}
+
+_TEASING: Final = "Tease closer friends more, and be warm and welcoming with new faces."
+_BABY_TEASING: Final = (
+    "Tease closer bonds more, and be warm and welcoming with new faces, if not a "
+    "little shy and wary if they are overwhelming."
+)
+
+# The faces the little stages may use, in Myra's order. Later stages use every
+# uploaded face.
+LITTLE_FACES: Final = (
+    "wisp_happy",
+    "wisp_love",
+    "wisp_lol",
+    "wisp_wink",
+    "wisp_neutral",
+    "wisp_sad",
+    "wisp_yawn",
+    "wisp_shocked",
+    "wisp_hangry",
+    "wisp_meh",
+)
+# Both little stages have nap art; the Baby's examples also use the dead face.
+STAGE_FACES: Final = {
+    Stage.BABY: (*LITTLE_FACES, "wisp_dead", NAP_EMOJI),
+    Stage.CHILD: (*LITTLE_FACES, NAP_EMOJI),
+}
 
 _PICKLE_SIDES: Final = {
     PickleStance.LOVE: "{name} loves pickles, so you hate them.",
@@ -283,20 +358,26 @@ def _output(length: str) -> str:
 
 
 def _reactions(expressions: Sequence[str], *, gif: bool) -> str:
-    lines = ["Reactions you can use:"]
+    parts = ["Reactions you can use:"]
     if expressions:
-        codes = ", ".join(f":{name}:" for name in expressions)
-        lines.append(
-            f"- Your expressions: {codes}. Write one exactly like that, colons "
-            "and all, and it shows up as your face. At most one per message, and "
-            "not in every message, so they stay special."
+        codes = "\n".join(f":{name}:" for name in expressions)
+        parts.append(
+            f"- Your facial expressions:\n{codes}\n\n"
+            "- Write one exactly like that, colons before the name of the emoji AND "
+            "at the end as well, and it then shows up as your face. At most one "
+            "per message, and not in every message, so they stay special. Always "
+            "remember they are wrapped in colons. If you forget one, it will break "
+            "the emoji. Don't do that."
         )
     if gif:
-        lines.append(
-            f'- Your "no u" GIF, {NO_U_GIF}, is your comeback when someone '
-            "compliments you. Send the link alone on its own line."
+        parts.append(
+            '- Your "no u" GIF, is your comeback when someone compliments you. '
+            "Send the link alone on its own line. For example, if someone says "
+            '"Wisp, you\'re so cute!" then you will reply with just the link as a '
+            f"hyperlink like this:\n\n{NO_U_LINK}\n\njust like that."
         )
-    return "\n".join(lines)
+    title, *uses = parts
+    return f"{title}\n" + "\n\n".join(uses) if uses else title
 
 
 def _memories(name: str, notes: Sequence[str]) -> str:
@@ -305,10 +386,12 @@ def _memories(name: str, notes: Sequence[str]) -> str:
 
 
 def _speaker(stage: Stage, speaker: Speaker) -> str:
+    rank = _BOND_RANKS[speaker.tier]
     parts = [
-        f"You're talking to {speaker.name}. Your bond with them is "
-        f"{speaker.tier} (bonds go {_BOND_LADDER}, closest last). Tease closer "
-        "friends more, and be warm and welcoming with new faces."
+        _BOND_LADDER,
+        f"**Right now you're talking to {speaker.name}.** Your bond with them is "
+        f"{speaker.tier} ({rank}).",
+        _BABY_TEASING if stage is Stage.BABY else _TEASING,
     ]
     if speaker.pickle_stance is not None:
         side = _PICKLE_SIDES[speaker.pickle_stance].format(name=speaker.name)
@@ -762,6 +845,10 @@ _EXPRESSION: Final = re.compile(
     re.VERBOSE,
 )
 _OWN_PREFIXES: Final = ("wisp_", "snack_", "gift_", "keepsake_", "badge_")
+# The "no u" GIF as a hyperlink with any words, or as the bare link.
+_GIF: Final = re.compile(
+    rf"\[[^\]\n]*\]\({re.escape(NO_U_GIF)}\)|{re.escape(NO_U_GIF)}"
+)
 _PINGS: Final = re.compile(r"<@&\d+>|@(?:everyone|here)")
 _SPACES: Final = re.compile(r"[^\S\n]+")
 _BLANK_LINES: Final = re.compile(r"\n{3,}")
@@ -822,13 +909,16 @@ def _tidy(text: str) -> str:
 
 
 def _cap(text: str) -> str:
-    """Cut to AI_MAX_CHARS at a word break; a long reply's GIF ends it, whole."""
+    """Cut to AI_MAX_CHARS at a word break; a long reply's GIF ends it, whole.
+
+    The GIF is kept as he wrote it: its hyperlink, or the bare link.
+    """
     if len(text) <= AI_MAX_CHARS:
         return text
-    if NO_U_GIF not in text:
+    if (gif := _GIF.search(text)) is None:
         return _cut(text, AI_MAX_CHARS)
-    body = _tidy(text.replace(NO_U_GIF, ""))
-    return f"{_cut(body, AI_MAX_CHARS - len(NO_U_GIF) - 1)}\n{NO_U_GIF}"
+    body = _tidy(text[: gif.start()] + text[gif.end() :])
+    return f"{_cut(body, AI_MAX_CHARS - len(gif[0]) - 1)}\n{gif[0]}"
 
 
 def _cut(text: str, limit: int) -> str:

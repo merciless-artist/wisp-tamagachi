@@ -44,7 +44,7 @@ from wisp.rules import (
     TALK_COOLDOWN,
     Stage,
 )
-from wisp.voice import PokeFlavor
+from wisp.voice import STAGE_FACES, PokeFlavor
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -1080,7 +1080,27 @@ def test_the_nap_emoji_is_only_for_baby_and_child(
     give_emojis(bot, "wisp_happy", "wisp_nap", "wisp_gg")
 
     assert ("wisp_nap" in expressions(bot, stage)) is gets_nap
-    assert "wisp_gg" in expressions(bot, stage)
+    assert "wisp_happy" in expressions(bot, stage)
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD])
+def test_little_stages_use_only_their_own_faces_in_order(
+    bot: app.WispBot, stage: Stage
+) -> None:
+    give_emojis(bot, "wisp_meh", "wisp_gg", "wisp_dead", "wisp_happy", "wisp_coin")
+
+    faces = expressions(bot, stage)
+
+    assert faces == [name for name in STAGE_FACES[stage] if name in faces]
+    assert faces[:2] == ["wisp_happy", "wisp_meh"]
+    assert "wisp_gg" not in faces and "wisp_coin" not in faces
+    assert ("wisp_dead" in faces) is (stage is Stage.BABY)
+
+
+def test_grown_stages_use_every_face(bot: app.WispBot) -> None:
+    give_emojis(bot, "wisp_meh", "wisp_gg", "wisp_drummer")
+
+    assert expressions(bot, Stage.ROCKSTAR) == ["wisp_drummer", "wisp_gg", "wisp_meh"]
 
 
 # ---

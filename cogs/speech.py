@@ -21,6 +21,7 @@ from wisp.voice import (
     EGG_EXPRESSION,
     MINI_COIN_EMOJI,
     NAP_EMOJI,
+    STAGE_FACES,
     ChatLine,
     Reply,
     parse_reply,
@@ -41,11 +42,15 @@ _CONTEXT: Final = "Wisp's AI voice"
 
 
 def expressions(bot: "WispBot", stage: Stage) -> list[str]:
-    """Names of hatched Wisp's uploaded emojis he can use at `stage`, sorted.
+    """Names of hatched Wisp's uploaded emojis he can use at `stage`.
 
-    The coins are not faces, the egg's face is only the egg's and the nap is
-    only for the stages that have nap art.
+    A stage in `STAGE_FACES` gets its own faces, in that order, where uploaded.
+    Every other stage gets all his uploaded faces, sorted: the coins are not
+    faces, the egg's face is only the egg's and the nap is only for the stages
+    that have nap art.
     """
+    if (faces := STAGE_FACES.get(stage)) is not None:
+        return [name for name in faces if name in bot.emojis_by_name]
     unavailable = (
         _NOT_HIS_FACES if stage in NAP_STAGES else _NOT_HIS_FACES | {NAP_EMOJI}
     )

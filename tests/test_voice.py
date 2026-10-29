@@ -26,6 +26,7 @@ from wisp.voice import (
     EGG_EXPRESSION,
     MINI_COIN_EMOJI,
     NO_U_GIF,
+    NO_U_LINK,
     ChatLine,
     Fed,
     OwnEmoji,
@@ -157,7 +158,7 @@ def test_only_adult_and_older_chime_in_and_keep_notes() -> None:
 def test_prompt_has_persona_stage_and_hangry_layers() -> None:
     child = prompt_for(Stage.CHILD).system
     fogey = prompt_for(Stage.OLD_FOGEY).system
-    for persona in ("Wisp", "ViiBR", "headphones", "3 AM", "never cruel"):
+    for persona in ("Wisp", "ViiBR", "headphones", "sick beats", "never cruel"):
         assert persona in child and persona in fogey
     assert "simple" in child and "excitable" in child
     assert "You don't swear" in child
@@ -257,9 +258,35 @@ def test_prompt_asks_for_short_plain_text_without_pings() -> None:
 def test_prompt_offers_the_no_u_gif_and_expressions() -> None:
     system = prompt_for().system
     gif_lines = [line for line in system.splitlines() if NO_U_GIF in line]
-    assert len(gif_lines) == 1
-    assert "compliment" in gif_lines[0] and "on its own line" in gif_lines[0]
+    assert gif_lines == [NO_U_LINK]
+    assert "compliments you" in system and "on its own line" in system
     assert ":wisp_happy:" in system and ":wisp_sad:" in system
+    assert "wrapped in colons" in system
+
+
+@pytest.mark.parametrize("stage", AI_STAGES)
+def test_he_owns_up_to_being_an_ai_when_asked(stage: Stage) -> None:
+    system = prompt_for(stage).system
+    assert "the AI mascot of the ViiBR Discord server" in system
+    if stage is not Stage.BABY:
+        assert "If someone asks whether you're an AI, be honest" in system
+        assert "Never talk about being an AI" not in system
+
+
+@pytest.mark.parametrize("stage", AI_STAGES)
+def test_he_knows_the_bond_ladder_and_who_he_is_talking_to(stage: Stage) -> None:
+    system = prompt_for(stage).system
+    assert "1. New face\n2. Familiar\n3. Friend\n4. Bandmate" in system
+    talking = "**Right now you're talking to Myra.** Your bond with them is Friend (3)."
+    assert talking in system
+    assert ("a little shy and wary" in system) is (stage is Stage.BABY)
+
+
+def test_the_baby_calls_himself_wips() -> None:
+    system = prompt_for(Stage.BABY).system
+    assert 'call yourself "wips"' in system
+    assert "*cries lava tears*" in system
+    assert "How you talk" not in system
 
 
 def test_prompt_without_expressions_does_not_offer_any() -> None:
@@ -1025,6 +1052,16 @@ def test_parse_reply_caps_length_and_keeps_the_gif_link_whole() -> None:
         assert len(text) <= AI_MAX_CHARS
         assert NO_U_GIF in text
         assert set(text.replace(NO_U_GIF, "").split()) <= {"word"}
+
+
+def test_parse_reply_keeps_the_gif_hyperlink_whole() -> None:
+    long = "word " * 300
+    for raw in (f"{long}\n{NO_U_LINK}", f"{NO_U_LINK}\n{long}"):
+        text = clean(raw).text
+        assert len(text) <= AI_MAX_CHARS
+        assert text.endswith(f"\n{NO_U_LINK}")
+        assert set(text.replace(NO_U_LINK, "").split()) <= {"word"}
+    assert clean(NO_U_LINK).text == NO_U_LINK
 
 
 def test_parse_reply_leaves_a_short_gif_reply_alone() -> None:
