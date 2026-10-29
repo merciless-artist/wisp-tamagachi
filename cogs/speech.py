@@ -12,7 +12,7 @@ from ai.prompt import Prompt
 from wisp.rules import (
     CONTEXT_LINES,
     NAP_STAGES,
-    POKE_SPAM_WINDOW,
+    POKE_STREAK_GAP,
     TALK_COOLDOWN,
     Stage,
 )
@@ -105,7 +105,7 @@ class HouseTalk:
         self._chat: dict[int, deque[ChatLine]] = {}
         self._answered_at: dict[tuple[int, int], datetime] = {}
         self._stirred_at: dict[int, datetime] = {}
-        self._pokes: dict[int, deque[datetime]] = {}
+        self._pokes: dict[tuple[int, int], tuple[datetime, int]] = {}
 
     def hear(self, guild_id: int, line: ChatLine) -> tuple[ChatLine, ...]:
         """Add a line to the House's recent chat; return the lines before it."""
@@ -136,13 +136,17 @@ class HouseTalk:
         self._answered_at[key] = now
         return True
 
-    def poke(self, guild_id: int, now: datetime) -> int:
-        """Count a poke; return the pokes in the last POKE_SPAM_WINDOW, it included."""
-        pokes = self._pokes.setdefault(guild_id, deque())
-        while pokes and now - pokes[0] >= POKE_SPAM_WINDOW:
-            pokes.popleft()
-        pokes.append(now)
-        return len(pokes)
+    def poke(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Count the member's poke; return how many they have made in a row.
+
+        A poke within POKE_STREAK_GAP of the member's last one adds to their
+        streak; a later one starts a new streak at 1.
+        """
+        key = (guild_id, user_id)
+        last = self._pokes.get(key)
+        streak = last[1] + 1 if last and now - last[0] < POKE_STREAK_GAP else 1
+        self._pokes[key] = (now, streak)
+        return streak
 
 
 def poke_button() -> "discord.ui.Button[discord.ui.View]":

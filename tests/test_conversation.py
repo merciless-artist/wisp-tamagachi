@@ -37,7 +37,10 @@ from wisp.rules import (
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
+    POKE_FED_UP_AT,
+    POKE_MAD_AT,
     POKE_SLEEP_AFTER,
+    POKE_STREAK_GAP,
     TALK_COOLDOWN,
     Stage,
 )
@@ -1370,18 +1373,43 @@ async def test_a_sleepy_egg_has_no_nap_picture(
     assert house_pictures(server) == [None]
 
 
-async def test_a_flurry_of_pokes_annoys_him(
+async def test_one_member_poking_again_and_again_makes_him_mad(
     bot: app.WispBot, ai: AsyncMock, clock: Clock, poke: Press
 ) -> None:
     await lay(bot)
-    await poke(FIRST)
-    await poke(SECOND)
-    clock.advance(timedelta(seconds=1))
-    await poke(THIRD)
+    for _ in range(POKE_FED_UP_AT):
+        await poke(FIRST)
+        clock.advance(TALK_COOLDOWN)
 
-    first, second, third = prompts(ai)
-    assert "It tickled" in first.user and "It tickled" in second.user
-    assert "annoyed at being poked again" in third.user
+    feelings = [prompt.user for prompt in prompts(ai)]
+    assert all("It tickled" in user for user in feelings[: POKE_MAD_AT - 1])
+    assert all("in a row now" in user for user in feelings[POKE_MAD_AT - 1 : -1])
+    assert "times or more in a row" in feelings[-1]
+
+
+async def test_pokes_from_different_members_never_make_him_mad(
+    bot: app.WispBot, ai: AsyncMock, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    for member in (FIRST, SECOND, THIRD):
+        await poke(member)
+        clock.advance(timedelta(seconds=1))
+
+    assert all("It tickled" in prompt.user for prompt in prompts(ai))
+
+
+async def test_a_pause_ends_the_poke_streak(
+    bot: app.WispBot, ai: AsyncMock, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    for _ in range(POKE_MAD_AT - 1):
+        await poke(FIRST)
+        clock.advance(TALK_COOLDOWN)
+    clock.advance(POKE_STREAK_GAP)
+
+    await poke(FIRST)
+
+    assert "It tickled" in prompts(ai)[-1].user
 
 
 @pytest.mark.parametrize(

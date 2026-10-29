@@ -16,8 +16,9 @@ from wisp.rules import (
     EGG_LINE_CHARS,
     EGG_WARMTH,
     HATCHING_TIME,
+    POKE_FED_UP_AT,
+    POKE_MAD_AT,
     POKE_SLEEP_AFTER,
-    POKE_SPAM_POKES,
     Stage,
 )
 from wisp.voice import (
@@ -529,7 +530,7 @@ def flavor(
 def test_a_poke_most_likely_tickles() -> None:
     assert flavor() is PokeFlavor.TICKLED
     assert flavor(quiet_for=None) is PokeFlavor.TICKLED
-    assert flavor(pokes=POKE_SPAM_POKES - 1) is PokeFlavor.TICKLED
+    assert flavor(pokes=POKE_MAD_AT - 1) is PokeFlavor.TICKLED
 
 
 @pytest.mark.parametrize(
@@ -551,11 +552,22 @@ def test_seven_am_is_awake() -> None:
     assert flavor(now=morning) is PokeFlavor.TICKLED
 
 
-@pytest.mark.parametrize(
-    ("mood", "pokes"), [(Mood.HAPPY, POKE_SPAM_POKES), (Mood.HANGRY, 1)]
-)
-def test_spam_or_hunger_annoy_him(mood: Mood, pokes: int) -> None:
-    assert flavor(mood, pokes) is PokeFlavor.ANNOYED
+def test_hunger_annoys_him() -> None:
+    assert flavor(Mood.HANGRY) is PokeFlavor.ANNOYED
+
+
+@pytest.mark.parametrize("pokes", [POKE_MAD_AT, POKE_FED_UP_AT - 1])
+@pytest.mark.parametrize("mood", [Mood.HAPPY, Mood.HANGRY])
+def test_pokes_in_a_row_always_make_him_mad(mood: Mood, pokes: int) -> None:
+    assert flavor(mood, pokes) is PokeFlavor.MAD
+    assert flavor(mood, pokes, quiet_for=POKE_SLEEP_AFTER) is PokeFlavor.MAD
+    assert poke_flavor(mood, pokes, None, NIGHT, random.Random(1)) is PokeFlavor.MAD
+
+
+@pytest.mark.parametrize("pokes", [POKE_FED_UP_AT, POKE_FED_UP_AT + 4])
+def test_even_more_pokes_in_a_row_make_him_fed_up(pokes: int) -> None:
+    assert flavor(pokes=pokes) is PokeFlavor.FED_UP
+    assert flavor(Mood.HANGRY, pokes, now=NIGHT) is PokeFlavor.FED_UP
 
 
 def test_every_flavor_can_come_up() -> None:
@@ -565,6 +577,8 @@ def test_every_flavor_can_come_up() -> None:
         for mood, pokes, quiet in (
             (Mood.HAPPY, 1, timedelta(minutes=1)),
             (Mood.HANGRY, 1, POKE_SLEEP_AFTER),
+            (Mood.HAPPY, POKE_MAD_AT, None),
+            (Mood.HAPPY, POKE_FED_UP_AT, None),
         )
         for _ in range(200)
     }
@@ -575,7 +589,9 @@ def test_every_flavor_can_come_up() -> None:
     ("poked", "feeling"),
     [
         (PokeFlavor.WOKE_UP, "this poke woke you up"),
-        (PokeFlavor.ANNOYED, "annoyed at being poked again"),
+        (PokeFlavor.ANNOYED, "the poke annoys you"),
+        (PokeFlavor.MAD, f"at least {POKE_MAD_AT} times in a row"),
+        (PokeFlavor.FED_UP, f"{POKE_FED_UP_AT} times or more in a row"),
         (PokeFlavor.TICKLED, "It tickled, and you giggle"),
         (PokeFlavor.STARTLED, "It startled you"),
         (PokeFlavor.CURIOUS, "You turn to see who poked you"),
@@ -613,11 +629,59 @@ def test_annoyed_wisp_stays_playful() -> None:
     assert "never mean" in prompt.user
 
 
+@pytest.mark.parametrize("poked", [PokeFlavor.MAD, PokeFlavor.FED_UP])
+def test_mad_wisp_is_mean_but_never_cruel(poked: PokeFlavor) -> None:
+    prompt = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        None,
+        expressions=EXPRESSIONS,
+        poked=poked,
+    )
+    assert "big meanie head" in prompt.user
+    assert "Never cruel" in prompt.user
+    assert "never mean" not in prompt.user
+    assert "tantrum" not in prompt.user
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD])
+@pytest.mark.parametrize("poked", [PokeFlavor.MAD, PokeFlavor.FED_UP])
+def test_a_little_wisp_throws_a_tantrum(poked: PokeFlavor, stage: Stage) -> None:
+    prompt = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        None,
+        expressions=EXPRESSIONS,
+        poked=poked,
+    )
+    assert "full tantrum" in prompt.user
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD])
+def test_a_little_wisp_only_tantrums_when_mad(stage: Stage) -> None:
+    prompt = build_prompt(
+        stage,
+        Mood.HANGRY,
+        speaker(),
+        CONTEXT,
+        None,
+        expressions=EXPRESSIONS,
+        poked=PokeFlavor.ANNOYED,
+    )
+    assert "tantrum" not in prompt.user
+
+
 @pytest.mark.parametrize(
     ("poked", "feeling"),
     [
         (PokeFlavor.WOKE_UP, "a sleepy egg"),
         (PokeFlavor.ANNOYED, "a grumpy egg"),
+        (PokeFlavor.MAD, "wobbles away from them"),
+        (PokeFlavor.FED_UP, "turns its back on them"),
         (PokeFlavor.TICKLED, "a ticklish egg"),
         (PokeFlavor.STARTLED, "startled the egg"),
         (PokeFlavor.CURIOUS, "see who poked it"),
