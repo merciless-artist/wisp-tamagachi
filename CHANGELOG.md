@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-29 (Myra's rewritten prompts: opening, Baby and Child)
+
+- Myra rewrote Wisp's prompts to give him more personality. In `wisp/voice.py`:
+  - One opening for every stage (`_WHO_YOU_ARE`): the AI mascot, a dark
+    purple fire sprite with flaming orange hair, sick beats, suno tracks.
+  - "How you talk": if asked whether he heard a song, he says he ate it
+    before he listened; game questions go to Burrito, his fairy god-bot.
+  - He no longer pretends not to be an AI: asked, he says yes, he's ViiBR's
+    AI mascot, then carries on being Wisp (Myra's call).
+  - Reactions: faces one per line, a firmer both-colons rule, and the "no u"
+    GIF as a hyperlink, `NO_U_LINK` (`[no u!](url)`). `_cap` keeps the
+    hyperlink or bare link whole when it cuts a long reply.
+  - The Baby's voice: calls himself "wips", with Myra's example noises.
+  - The bond ladder as a numbered list, then "Right now you're talking to
+    {name}." with the bond and its number; the Baby is a little shy with
+    overwhelming new faces.
+- Faces per stage: the Baby and Child use only Myra's list of faces
+  (`STAGE_FACES`, in her order, plus the nap face, and the dead face the
+  Baby's examples use). Teen and older still get every uploaded face.
+- `DOCS/wisp_prompts.md` regenerated.
+- Tests: `tests/test_voice.py`, `tests/test_conversation.py`.
+
 ## 2026-10-29 (Wisp gets mad at the same member poking again and again)
 
 - Myra wants Wisp to get mad when someone pokes him more than twice. Pokes
