@@ -210,6 +210,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Status",
         "Wisp's status card will appear here.",
         message_attr="status_message_id",
+        locked=True,
     ),
     StudioThread(
         "mealtime_thread_id",
@@ -224,6 +225,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "The ViiBR Vault",
         "The ViiBR Vault is opening.",
         message_attr="vault_message_id",
+        locked=True,
         image="vault.png",
     ),
     StudioThread(
@@ -327,7 +329,7 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Name the thread, lock the FAQ, add the thumbnail and pin the card.
+    """Name the thread, lock it if it is a locked post, add the thumbnail, pin the card.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is

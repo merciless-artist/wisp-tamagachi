@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-29 (Status and Vault posts locked; prompt reference)
+
+- Myra asked for the Status and ViiBR Vault Studio posts to be locked like the
+  FAQ: they are boards Wisp keeps updated, not places to chat. Their
+  `StudioThread` specs now have `locked=True`; `!wisp setup` locks existing
+  ones. Wisp still edits and posts in them (he does the same in the FAQ).
+  Jam Space, Mealtime and Burrito stay open.
+- `DOCS/wisp_prompts.md`: every prompt Wisp uses (egg, each stage, poke,
+  chiming in, mood and Monster Pox layers, goodbye), generated from the code.
+
 ## 2026-10-28 (Wisp's emoji tags with a missing colon)
 
 - Myra saw tags come through broken when the AI dropped a colon. `parse_reply`
