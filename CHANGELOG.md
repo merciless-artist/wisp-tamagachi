@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-28 (Wisp's emoji tags with a missing colon)
+
+- Myra saw tags come through broken when the AI dropped a colon. `parse_reply`
+  now converts `:name` and `name:` (one colon missing) when the name is a known
+  expression and the match is a whole token: not inside a word, a URL, a time
+  such as `3:00`, a ratio or a tag. Unknown names in those forms stay plain
+  text (`Note: hi`), except names starting `wisp_`, `snack_`, `gift_`,
+  `keepsake_` or `badge_`, which are removed like the full form.
+- Half-formed Discord codes the AI writes itself (`<:name:>`, `<a:name:>`,
+  `<:name:123` with no `>`) are converted when known and removed when not. A
+  complete `<:name:id>` / `<a:name:id>` is never touched.
+- Converted names still land in `Reply.expressions` (his favorite-emoji count).
+- Tests: `tests/test_voice.py` (every form, edges, plain colons, unknown names).
+
 ## 2026-10-27 (FAQ banner pictures: one message per question)
 
 - Myra found the page-shaped FAQ pictures shrank in Discord until the text was

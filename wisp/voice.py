@@ -710,7 +710,21 @@ _UNCLOSED: Final = re.compile(r"<(?:note|pickles)>.*", re.IGNORECASE | re.DOTALL
 # <#id>, <:name:id> and <a:name:id> never matches: no letter follows the "<",
 # or a colon follows the first word.
 _TAG: Final = re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>]*)?>|</?[A-Za-z][\w-]*\Z")
-_EXPRESSION: Final = re.compile(r"(?<![<\w]):([A-Za-z]\w*):(?!\d)")
+# One pass over every way the AI writes an expression. In order: a complete
+# Discord code (kept as is); a half-formed one (`<:name:>`, `<:name:123`); the
+# full `:name:`; and a whole token missing one colon (`:name`, `name:`), which
+# must not sit inside a word, URL, time or tag.
+_EXPRESSION: Final = re.compile(
+    r"""
+    (?P<valid><a?:\w+:\d+>)
+    | <a?:(?P<half>[A-Za-z]\w*):(?:>|\d*)
+    | (?<![<\w]):(?P<full>[A-Za-z]\w*):(?!\d)
+    | (?<![\w<:/.@#-]):(?P<lead>[A-Za-z]\w*)(?![\w:])
+    | (?<![\w<:/.@#-])(?P<trail>[A-Za-z]\w*):(?![\w/:])
+    """,
+    re.VERBOSE,
+)
+_OWN_PREFIXES: Final = ("wisp_", "snack_", "gift_", "keepsake_", "badge_")
 _PINGS: Final = re.compile(r"<@&\d+>|@(?:everyone|here)")
 _SPACES: Final = re.compile(r"[^\S\n]+")
 _BLANK_LINES: Final = re.compile(r"\n{3,}")
@@ -721,7 +735,9 @@ def parse_reply(raw: str, emoji_text: Callable[[str], str]) -> Reply:
     """Clean an AI reply for posting and pull out its note and pickle tags.
 
     `emoji_text` turns an expression name into its emoji text, or "" when the
-    emoji is unknown, which removes the code.
+    emoji is unknown, which removes the code. A code missing one colon is
+    converted only for a known name; an unknown one stays as plain text unless
+    it starts with one of Wisp's own prefixes.
     """
     note_match = _NOTE.search(raw)
     note = " ".join(note_match.group(1).split()) if note_match else ""
@@ -733,11 +749,17 @@ def parse_reply(raw: str, emoji_text: Callable[[str], str]) -> Reply:
     converted: list[str] = []
 
     def expression(match: re.Match[str]) -> str:
-        name = match.group(1)
+        kind = match.lastgroup
+        if kind is None or kind == "valid":
+            return match[0]
+        name = match[kind]
         emoji = emoji_text(name)
         if emoji:
             converted.append(name)
-        return emoji
+            return emoji
+        if kind in ("half", "full") or name.startswith(_OWN_PREFIXES):
+            return ""
+        return match[0]
 
     text = _PICKLES.sub("", _NOTE.sub("", raw))
     text = _TAG.sub("", _UNCLOSED.sub("", text))
