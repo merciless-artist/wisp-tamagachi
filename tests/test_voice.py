@@ -818,6 +818,90 @@ def test_parse_reply_converts_known_expressions_and_drops_unknown() -> None:
     assert reply.expressions == ("wisp_happy",)
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        ":wisp_happy:",
+        ":wisp_happy",
+        "wisp_happy:",
+        "<:wisp_happy:>",
+        "<:wisp_happy:11",
+        "<:wisp_happy:",
+        "<a:wisp_happy:>",
+        "<a:wisp_happy:11",
+    ],
+)
+def test_parse_reply_repairs_a_broken_known_expression(raw: str) -> None:
+    reply = clean(f"yay {raw} ok")
+    assert reply.text == "yay <:wisp_happy:11> ok"
+    assert reply.expressions == ("wisp_happy",)
+
+
+def test_parse_reply_repairs_a_broken_expression_beside_punctuation() -> None:
+    reply = clean(":wisp_happy hi (wisp_happy:) wisp_happy:\nbye :wisp_happy.")
+    assert reply.text == (
+        "<:wisp_happy:11> hi (<:wisp_happy:11>) <:wisp_happy:11>\n"
+        "bye <:wisp_happy:11>."
+    )
+    assert reply.expressions == ("wisp_happy",) * 4
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Note: hi",
+        "ok :word here",
+        "ok word: here",
+        "a :hello b",
+        "dinner at 3:00 or 3:15:00",
+        "ratio 3:2 and 10:1",
+        "see https://wisp.example.com/x?a=b and http://wisp_happy.com",
+        "mailto:wisp_happy",
+        "foo:wisp_happy bar",
+        "x@wisp_happy: y",
+        "happyish: or :happyish",
+        "<:wisp_happy:11> <a:wisp_happy:12> <t:1700000000:R> <@42> <#7>",
+        "this_wisp_happy: and :my_wisp_happy",
+    ],
+)
+def test_parse_reply_leaves_ordinary_colons_alone(raw: str) -> None:
+    reply = clean(raw)
+    assert reply.text == raw
+    assert reply.expressions == ()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("hi :wisp_nope", "hi"),
+        ("hi wisp_happyish: there", "hi there"),
+        ("hi wisp_nope: there", "hi there"),
+        ("hi :snack_nope there", "hi there"),
+        ("hi gift_nope: there", "hi there"),
+        ("hi :keepsake_nope", "hi"),
+        ("hi badge_nope:", "hi"),
+        ("hi <:wisp_nope:> there", "hi there"),
+        ("hi <:wisp_nope:12 there", "hi there"),
+        ("hi <a:wisp_nope:> there", "hi there"),
+        ("hi :wisp_nope: there", "hi there"),
+    ],
+)
+def test_parse_reply_removes_an_unknown_own_expression_in_any_form(
+    raw: str, expected: str
+) -> None:
+    reply = clean(raw)
+    assert reply.text == expected
+    assert reply.expressions == ()
+
+
+def test_parse_reply_keeps_a_complete_code_whole_beside_a_broken_one() -> None:
+    reply = clean("<:wisp_happy:11> :wisp_happy <a:other:99> <:wisp_happy:>")
+    assert reply.text == (
+        "<:wisp_happy:11> <:wisp_happy:11> <a:other:99> <:wisp_happy:11>"
+    )
+    assert reply.expressions == ("wisp_happy", "wisp_happy")
+
+
 def test_parse_reply_lists_every_expression_it_converted_in_order() -> None:
     reply = clean(":wisp_happy: hi :wisp_missing: :wisp_happy:")
     assert reply.expressions == ("wisp_happy", "wisp_happy")
