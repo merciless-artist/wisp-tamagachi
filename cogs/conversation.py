@@ -405,7 +405,8 @@ async def _poke(interaction: discord.Interaction) -> None:
             interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
         )
     quiet_for = talk.quiet_for(guild_id, now)
-    flavor = poke_flavor(mood(life), talk.poke(guild_id, now), quiet_for, now, talk.rng)
+    streak = talk.poke(guild_id, user.id, now)
+    flavor = poke_flavor(mood(life), streak, quiet_for, now, talk.rng)
     talk.stir(guild_id, now)
     name = player.name or user.display_name
     reaction = await _reaction(interaction, life, level, player, name, flavor)

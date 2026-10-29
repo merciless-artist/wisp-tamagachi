@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-29 (Wisp gets mad at the same member poking again and again)
+
+- Myra wants Wisp to get mad when someone pokes him more than twice. Pokes
+  are now counted per member as a streak (`HouseTalk.poke(guild, user, now)`):
+  each poke within `POKE_STREAK_GAP` (10 minutes) of that member's last adds
+  one; other members' pokes never count toward it.
+- `poke_flavor` takes the streak: from `POKE_MAD_AT` (3) he is always
+  `PokeFlavor.MAD`, from `POKE_FED_UP_AT` (5) always `FED_UP`. Below that it
+  rolls as before; `ANNOYED` now only comes from being hangry.
+- Mad and fed-up prompts let him be mean like a kid in a huff ("big meanie
+  head") but never cruel. A Baby or Child gets a full tantrum. The egg
+  rattles away, or turns its back.
+- `POKE_SPAM_WINDOW` and `POKE_SPAM_POKES` are gone.
+- Tests: `tests/test_voice.py`, `tests/test_conversation.py` (poke streaks).
+
 ## 2026-10-29 (Status and Vault posts locked; prompt reference)
 
 - Myra asked for the Status and ViiBR Vault Studio posts to be locked like the

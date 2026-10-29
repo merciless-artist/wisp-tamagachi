@@ -23,10 +23,11 @@ from wisp.rules import (
     GIFT_BY_KEY,
     HATCHING_TIME,
     POKE_CURIOUS_WEIGHT,
+    POKE_FED_UP_AT,
+    POKE_MAD_AT,
     POKE_MOOD_WEIGHT,
     POKE_SLEEP_AFTER,
     POKE_SLEEP_HOURS,
-    POKE_SPAM_POKES,
     POKE_STARTLED_WEIGHT,
     POKE_TICKLED_WEIGHT,
     SNACK_BY_KEY,
@@ -340,25 +341,54 @@ class PokeFlavor(StrEnum):
 
     WOKE_UP = auto()
     ANNOYED = auto()
+    MAD = auto()
+    FED_UP = auto()
     TICKLED = auto()
     STARTLED = auto()
     CURIOUS = auto()
 
 
+_NOT_CRUEL: Final = (
+    'Be mean like a kid in a huff: call them names like "big meanie head". '
+    "Never cruel: nothing about who they are, how they look or their music."
+)
+
 _POKE_FEELINGS: Final = {
     PokeFlavor.WOKE_UP: "You were asleep, and this poke woke you up.",
     PokeFlavor.ANNOYED: (
-        "You're annoyed at being poked again. Keep it playful, never mean to them."
+        "You're too hungry for this, and the poke annoys you. Keep it playful, "
+        "never mean to them."
+    ),
+    PokeFlavor.MAD: (
+        f"They keep poking you, at least {POKE_MAD_AT} times in a row now, and "
+        "you're properly mad at them. Tell them off and tell them to quit it, and "
+        f"don't soften it or make it cute. {_NOT_CRUEL}"
+    ),
+    PokeFlavor.FED_UP: (
+        f"They've poked you {POKE_FED_UP_AT} times or more in a row, and you're "
+        "completely fed up with them. You're done: grumpy, short, refusing to "
+        f"play along and telling them to go away. {_NOT_CRUEL}"
     ),
     PokeFlavor.TICKLED: "It tickled, and you giggle.",
     PokeFlavor.STARTLED: "It startled you.",
     PokeFlavor.CURIOUS: "You turn to see who poked you.",
 }
 
+_LITTLE_TANTRUM: Final = "You're little, so it comes out as a full tantrum."
+_LITTLE: Final = frozenset({Stage.BABY, Stage.CHILD})
+
 _EGG_POKE_FEELINGS: Final = {
     PokeFlavor.WOKE_UP: "The egg was asleep, and the poke woke it: a sleepy egg.",
     PokeFlavor.ANNOYED: (
-        "The egg has been poked a lot, so it's a grumpy egg. Playful, never mean."
+        "The egg is hungry, so it's a grumpy egg. Playful, never mean."
+    ),
+    PokeFlavor.MAD: (
+        f"They keep poking the egg, at least {POKE_MAD_AT} times in a row now, and "
+        "it's mad at them: it rattles, huffs and wobbles away from them."
+    ),
+    PokeFlavor.FED_UP: (
+        f"They've poked the egg {POKE_FED_UP_AT} times or more in a row, and it's "
+        "fed up: it turns its back on them, goes stiff or rolls away in a huff."
     ),
     PokeFlavor.TICKLED: "The poke tickled: a ticklish egg.",
     PokeFlavor.STARTLED: "The poke startled the egg.",
@@ -368,26 +398,30 @@ _EGG_POKE_FEELINGS: Final = {
 
 def poke_flavor(
     mood: Mood,
-    recent_pokes: int,
+    streak: int,
     quiet_for: timedelta | None,
     now: datetime,
     rng: random.Random,
 ) -> PokeFlavor:
-    """Roll how Wisp takes a poke.
+    """Pick how Wisp takes a poke that is the member's `streak`-th in a row.
 
-    Tickled is the likeliest, startled and curious come now and then. A House
-    quiet for POKE_SLEEP_AFTER, or a poke in POKE_SLEEP_HOURS, makes waking up
-    likeliest; POKE_SPAM_POKES `recent_pokes` (this one included) or being
-    hangry make him likeliest to be annoyed. `quiet_for` is None when nobody
-    has been heard since Wisp started.
+    From POKE_MAD_AT in a row he is always mad at them, from POKE_FED_UP_AT
+    fed up. Otherwise it is a roll: tickled is the likeliest, startled and
+    curious come now and then. A House quiet for POKE_SLEEP_AFTER, or a poke
+    in POKE_SLEEP_HOURS, makes waking up likeliest, and being hangry makes
+    being annoyed likeliest. `quiet_for` is None when nobody has been heard
+    since Wisp started.
     """
+    if streak >= POKE_FED_UP_AT:
+        return PokeFlavor.FED_UP
+    if streak >= POKE_MAD_AT:
+        return PokeFlavor.MAD
     sleepy = (
         quiet_for is not None and quiet_for >= POKE_SLEEP_AFTER
     ) or now.astimezone(UTC).hour in POKE_SLEEP_HOURS
-    pestered = recent_pokes >= POKE_SPAM_POKES or mood is Mood.HANGRY
     weights = {
         PokeFlavor.WOKE_UP: POKE_MOOD_WEIGHT if sleepy else 0,
-        PokeFlavor.ANNOYED: POKE_MOOD_WEIGHT if pestered else 0,
+        PokeFlavor.ANNOYED: POKE_MOOD_WEIGHT if mood is Mood.HANGRY else 0,
         PokeFlavor.TICKLED: POKE_TICKLED_WEIGHT,
         PokeFlavor.STARTLED: POKE_STARTLED_WEIGHT,
         PokeFlavor.CURIOUS: POKE_CURIOUS_WEIGHT,
@@ -516,7 +550,10 @@ def build_prompt(
     if message is not None:
         user.append(f"{name} says to you: {message}{_emoji_note(own_emojis, 'your')}")
     elif poked is not None:
-        user.append(f"{name} just poked you. {_POKE_FEELINGS[poked]}")
+        feeling = _POKE_FEELINGS[poked]
+        if poked in (PokeFlavor.MAD, PokeFlavor.FED_UP) and stage in _LITTLE:
+            feeling += f" {_LITTLE_TANTRUM}"
+        user.append(f"{name} just poked you. {feeling}")
     else:
         user.append(
             "Nobody asked you anything. You're chiming in on your own with one "

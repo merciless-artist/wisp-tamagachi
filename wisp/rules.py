@@ -524,12 +524,15 @@ NOTE_MAX_CHARS = 200
 # likely wakes him.
 POKE_SLEEP_AFTER = timedelta(hours=2)
 POKE_SLEEP_HOURS = range(3, 7)
-# This many pokes from anyone within the window, this one included, likely
-# annoy him. So does being hangry.
-POKE_SPAM_WINDOW = timedelta(minutes=2)
-POKE_SPAM_POKES = 3
-# How likely each kind of poke reaction is, as weights. Waking up and being
-# annoyed only get POKE_MOOD_WEIGHT while their reason holds, else none.
+# A member's pokes in a row: each within POKE_STREAK_GAP of their last one.
+# From POKE_MAD_AT in a row he is always mad at them, from POKE_FED_UP_AT fed
+# up. Pokes from other members never add to someone's streak.
+POKE_STREAK_GAP = timedelta(minutes=10)
+POKE_MAD_AT = 3
+POKE_FED_UP_AT = 5
+# How likely each other kind of poke reaction is, as weights. Waking up only
+# gets POKE_MOOD_WEIGHT while the House is sleepy, and being annoyed only while
+# he is hangry, else none.
 POKE_TICKLED_WEIGHT = 6
 POKE_STARTLED_WEIGHT = 2
 POKE_CURIOUS_WEIGHT = 2
