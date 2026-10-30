@@ -391,7 +391,8 @@ def test_lonely_warns_once_per_drop() -> None:
 
 
 def test_loneliness_never_hurts_him() -> None:
-    life = alive(full=FULL_MAX, care=0.0, at=T0 - timedelta(days=3), growth=25)
+    child_at = timedelta(days=STAGE_RULES[Stage.CHILD][0])
+    life = alive(full=FULL_MAX, care=0.0, at=T0 - child_at, growth=25)
     events = tick(life, T0, frozen=False, happiness=0, caretakers=3)
     assert kinds(events) == [EventKind.LONELY, EventKind.STAGE_UP]
     assert life.phase is Phase.ALIVE
@@ -422,14 +423,17 @@ def test_age_counts_whole_days_from_hatching() -> None:
     assert age_days(new_egg(1, T0), T0) == 0
 
 
+_CHILD_AGE, _CHILD_GROWTH, _CHILD_CARETAKERS = STAGE_RULES[Stage.CHILD]
+
+
 @pytest.mark.parametrize(
     "age,growth,caretakers,advances",
     [
-        (3, 20, 3, True),
-        (2, 20, 3, False),
-        (3, 19, 3, False),
-        (3, 20, 2, False),
-        (9, 99, 9, True),
+        (_CHILD_AGE, _CHILD_GROWTH, _CHILD_CARETAKERS, True),
+        (_CHILD_AGE - 1, _CHILD_GROWTH, _CHILD_CARETAKERS, False),
+        (_CHILD_AGE, _CHILD_GROWTH - 1, _CHILD_CARETAKERS, False),
+        (_CHILD_AGE, _CHILD_GROWTH, _CHILD_CARETAKERS - 1, False),
+        (_CHILD_AGE + 6, 99, 9, True),
     ],
 )
 def test_stage_up_needs_age_growth_and_caretakers(
@@ -483,12 +487,13 @@ def test_rockstar_after_seven_happy_days() -> None:
 
 
 def test_happiness_dip_resets_rockstar_clock() -> None:
+    almost = ROCKSTAR_HAPPY_FOR - timedelta(days=1)
     life = alive(full=FULL_MAX, stage=Stage.ADULT)
-    tended(life, timedelta(days=6))
+    tended(life, almost)
     assert life.high_happiness_since is not None
     run(life, TICK_EVERY, happiness=ROCKSTAR_HAPPINESS - 1, fed=True, cared=True)
     assert life.high_happiness_since is None
-    events = tended(life, timedelta(days=6))
+    events = tended(life, almost)
     assert events == []
     assert life.stage is Stage.ADULT
     events = run(life, timedelta(days=1, hours=1), happiness=100, fed=True, cared=True)

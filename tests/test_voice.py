@@ -413,7 +413,7 @@ def test_hangry_baby_is_fussy_and_never_swears() -> None:
 def test_egg_prompt_says_how_fed_it_is_in_words(food: int, words: str) -> None:
     system = poke(egg(food)).system
     assert f"It's {words}." in system
-    assert str(EGG_FOOD_NEEDED) not in system
+    assert not re.search(rf"\b{EGG_FOOD_NEEDED}\b", system)
     assert f" {food} " not in system
 
 

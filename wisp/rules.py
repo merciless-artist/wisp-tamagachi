@@ -78,7 +78,7 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 # ---
 
 # Once per life he catches Monster Pox, due a random time between COLD_EARLIEST
-# and COLD_LATEST after hatching. Adult needs 14 days, so it comes first.
+# and COLD_LATEST after hatching. Adult needs 16 days, so it comes first.
 COLD_EARLIEST = timedelta(days=1)
 COLD_LATEST = timedelta(days=12)
 # Credited time he stays sick.
@@ -99,7 +99,7 @@ SICK_PICTURES: Final[dict[Stage, str]] = {
 # Egg
 # ---
 
-EGG_FOOD_NEEDED = 30
+EGG_FOOD_NEEDED = 20
 COAL_EGG_FOOD = EGG_FOOD_NEEDED // 2
 EGG_WARMTH = timedelta(hours=48)
 HATCHING_TIME = timedelta(hours=5)
@@ -112,16 +112,16 @@ HAPPY_FULL_AT_PEOPLE = 5
 
 # Per stage: (minimum age in days, growth points, distinct caretakers).
 STAGE_RULES: dict[Stage, tuple[int, int, int]] = {
-    Stage.CHILD: (3, 20, 3),
-    Stage.TEEN: (7, 60, 5),
-    Stage.ADULT: (14, 150, 8),
+    Stage.CHILD: (5, 20, 3),
+    Stage.TEEN: (11, 60, 5),
+    Stage.ADULT: (16, 150, 8),
 }
 
-OLD_FOGEY_AT_DAY = 45
-FAREWELL_AT_DAY = 60
+OLD_FOGEY_AT_DAY = 24
+FAREWELL_AT_DAY = 30
 LAST_EMBER_GIFTS = 3
 
-ROCKSTAR_HAPPY_FOR = timedelta(days=7)
+ROCKSTAR_HAPPY_FOR = timedelta(days=4)
 ROCKSTAR_HAPPINESS = 80
 
 GROWTH_PER_PLAY = 2
