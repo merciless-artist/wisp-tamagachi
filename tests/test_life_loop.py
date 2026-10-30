@@ -449,8 +449,8 @@ async def test_happy_counts_only_chatters(
 
     await cog.run_tick(NOW)
 
-    content = server.card_edit.await_args.kwargs["content"]
-    assert f"║𝄡 Happy   {bar(happiness(1), '', '')}" in content.splitlines()
+    lines = server.card_edit.await_args.kwargs["content"].splitlines()
+    assert lines[lines.index("║𝄡 Happy") + 1] == f"║{bar(happiness(1), '', '')}"
 
 
 async def test_missing_status_message_is_reposted(

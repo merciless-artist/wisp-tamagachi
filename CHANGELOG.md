@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 (A 30-day life)
+
+- Myra halved Wisp's life to keep the cute stages coming round more often. In
+  `wisp/rules.py`:
+  - The egg hatches at 20 meal points (was 30); coal eggs start with 10.
+  - Child from day 5 (was 3), Teen from day 11 (was 7), Adult from day 16
+    (was 14). Points and caretakers needed are unchanged.
+  - Old Fogey at day 24 (was 45), farewell at day 30 (was 60).
+  - Rockstar needs 4 days of high happiness (was 7), so it still fits in the
+    shorter Adult stretch.
+- Monster Pox (day 1 to 12) still comes before Adult. The FAQ's quick rules
+  read these numbers, so they update when the FAQ is rebuilt.
+- Tests that hard-coded the old days now read them from the rules
+  (`tests/test_life.py`, `tests/test_voice.py`). `test_happy_counts_only_chatters`
+  now expects the Happy bar on its own line, as house style v2.1 lays it out.
+
 ## 2026-10-29 (Myra's rewritten prompts: opening, Baby and Child)
 
 - Myra rewrote Wisp's prompts to give him more personality. In `wisp/voice.py`:
