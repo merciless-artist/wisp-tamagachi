@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-31 (No shame pictures, one branch)
+
+- `!wisp punish` no longer attaches a picture: Myra's shame GIFs belong to
+  the counting game, so the ban line in Wisp's House is text only. The GIFs
+  moved out of `ASSETS/shame` to the untracked `RECYCLING/shame`.
+- The repo has one branch, `main`; `wisp-core` was deleted (fully merged).
+- `CLAUDE.md` is no longer in the repo (it is in `.gitignore`).
+
 ## 2026-10-31 (The Studio as a gallery, and Burrito's picture)
 
 - Setup now makes gallery view the Studio forum's default layout
