@@ -103,6 +103,7 @@ THUMBNAILS = {
     VAULT: "vault.png",
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
+    BURRITO: "thumbs/burrito.png",
 }
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
@@ -254,6 +255,8 @@ class FakeServer:
         forum.is_media.return_value = False
         forum.mention = f"<#{forum_id}>"
         forum.guild = self.guild
+        forum.default_layout = discord.ForumLayoutType.not_set
+        forum.edit = AsyncMock(side_effect=lambda **fields: self._edit(forum, fields))
         forum.create_thread = AsyncMock(
             side_effect=lambda **kwargs: self._create_thread(forum_id, **kwargs)
         )
@@ -594,6 +597,7 @@ async def test_new_threads_carry_their_thumbnails(
         VAULT: "vault.png",
         JAM: "jam_space.png",
         FAQ: "faq.png",
+        BURRITO: "burrito.png",
     }
     for art in attached.values():
         art.close()
@@ -669,9 +673,11 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert house_posts(server) == []
 
 
-async def test_burritos_post_is_framed_open_and_has_no_picture(
-    bot: app.WispBot, server: FakeServer
+async def test_burritos_post_is_framed_open_and_shows_his_picture(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
+    add_thumbnails(art_dir)
+
     await run_setup(bot, server)
 
     burrito = server.thread_named(BURRITO)
@@ -679,12 +685,15 @@ async def test_burritos_post_is_framed_open_and_has_no_picture(
     assert starter.content == BURRITO_STARTER
     assert text_length(starter.content) <= MESSAGE_LIMIT
     assert not re.search(EMOJI, starter.content)
-    assert starter.attachments == []
+    assert starter.attachments == ["burrito.png"]
     burrito.edit.assert_not_awaited()
     starter.pin.assert_not_awaited()
     starter.edit.assert_not_awaited()
     settings = await bot.settings.get(GUILD_ID)
     assert settings.burrito_thread_id == burrito.id
+    for thread in server.threads.values():
+        if "file" in thread.create_kwargs:
+            thread.create_kwargs.pop("file").close()
 
 
 def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
@@ -695,6 +704,35 @@ def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
     assert abs(visual_width(lines[0]) - visual_width(lines[-1])) <= (
         WIDTHS["staff"] / 2
     )
+
+
+async def test_setup_shows_the_studio_as_a_gallery_once(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    await run_setup(bot, server)
+
+    assert server.forum.default_layout == discord.ForumLayoutType.gallery_view
+    server.forum.edit.assert_awaited_once_with(
+        default_layout=discord.ForumLayoutType.gallery_view
+    )
+
+
+async def test_a_failed_gallery_switch_is_posted_in_the_house_and_setup_carries_on(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.forum.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    ctx = await run_setup(bot, server)
+
+    (post,) = house_posts(server)
+    assert post.args[0].startswith(
+        "Error in setting Wisp's Studio to gallery view: Forbidden"
+    )
+    assert server.created_names == list(THREAD_NAMES)
+    assert sent_text(ctx).startswith("♪ Wisp is set up.")
 
 
 async def test_setup_brings_an_old_burrito_post_up_to_date(

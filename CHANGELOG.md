@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-31 (The Studio as a gallery, and Burrito's picture)
+
+- Setup now makes gallery view the Studio forum's default layout
+  (`_show_as_gallery` in `cogs/studio.py`), once; a failure, such as a missing
+  Manage Channels permission, is posted in Wisp's House.
+- Burrito's post gets his picture (`ASSETS/thumbs/burrito.png`, a 600 px copy
+  of his pfp), which the forum shows as its thumbnail. Setup adds it to the
+  existing post like the other thumbnails.
+- Myra will replace the text frames with images, since every device draws
+  the frame symbols in a different font, so the frames are left as they are.
+
 ## 2026-10-31 (A real kid voice, and the track drop)
 
 - The Child talked like an adult ("hey hey! got any fresh beats for me?"). His

@@ -248,6 +248,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "🧚│Burrito, Fairy God-bot",
         "Burrito, Fairy God-bot",
         _BURRITO_STARTER,
+        image="thumbs/burrito.png",
         current_content=True,
     ),
 )
@@ -300,6 +301,18 @@ def _thumbnail(spec: StudioThread) -> Path | None:
     if spec.image is None or not (path := ASSETS_DIR / spec.image).is_file():
         return None
     return path
+
+
+async def _show_as_gallery(bot: "WispBot", forum: discord.ForumChannel) -> None:
+    """Make gallery the Studio forum's default layout; a failure goes to the House."""
+    if forum.default_layout == discord.ForumLayoutType.gallery_view:
+        return
+    try:
+        await forum.edit(default_layout=discord.ForumLayoutType.gallery_view)
+    except discord.HTTPException as error:
+        await bot.report_error(
+            forum.guild, "setting Wisp's Studio to gallery view", error
+        )
 
 
 async def _create_thread(
@@ -418,7 +431,8 @@ async def _build_faq(
 async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     """Create any Studio thread that is missing and return the guild's settings.
 
-    Threads that already exist are left alone apart from reopening an archived
+    The forum is set to show as a gallery when it does not already. Threads
+    that already exist are left alone apart from reopening an archived
     one, renaming one whose name has changed, giving a first post with no
     attachment its thumbnail and finishing any lock or pin that is still
     missing. Threads that were stored but have been deleted are recreated, and
@@ -433,6 +447,7 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
         settings = await bot.settings.get(guild_id)
         forum = _studio_forum(bot, guild_id, settings)
+        await _show_as_gallery(bot, forum)
         recreated: list[str] = []
         threads: dict[str, discord.Thread] = {}
         created: set[str] = set()
