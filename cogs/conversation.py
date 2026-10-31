@@ -46,6 +46,7 @@ from wisp.voice import (
     chimes_in,
     egg_prompt,
     keeps_notes,
+    link_track_drop,
     own_emojis,
     poke_flavor,
     talk_level,
@@ -131,6 +132,15 @@ async def _fed(bot: "WispBot", guild_id: int, life: Life, user_id: int) -> Fed:
     return Fed.MOST if points >= most else Fed.SOME
 
 
+async def _track_drop(bot: "WispBot", guild: discord.Guild | None) -> str | None:
+    """The track drop's channel link, or None when it isn't set or can't be seen."""
+    if guild is None:
+        return None
+    channel_id = (await bot.settings.get(guild.id)).tracks_channel_id
+    channel = None if channel_id is None else guild.get_channel(channel_id)
+    return None if channel is None else channel.mention
+
+
 async def _prompt(
     bot: "WispBot",
     guild_id: int,
@@ -143,11 +153,13 @@ async def _prompt(
     *,
     poked: PokeFlavor | None = None,
     emojis: Sequence[OwnEmoji] = (),
+    track_drop: bool = False,
 ) -> Prompt:
     """The prompt for Wisp's answer, in the voice for `level`.
 
     `text` is what the member said to him, or None for a poke, which `poked`
-    flavors. `emojis` are the emojis of his that `text` used.
+    flavors. `emojis` are the emojis of his that `text` used. `track_drop`
+    says whether he can send people to the track drop.
     """
     if level is Talk.EGG:
         poker = Poker(name, await _fed(bot, guild_id, life, player.user_id))
@@ -173,6 +185,7 @@ async def _prompt(
         poked=poked,
         own_emojis=emojis,
         sick=is_sick(life),
+        track_drop=track_drop,
     )
 
 
@@ -288,6 +301,7 @@ class Conversation(commands.Cog):
         """
         bot = self.bot
         emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
+        track_drop = await _track_drop(bot, guild)
         prompt = await _prompt(
             bot,
             guild.id,
@@ -298,13 +312,14 @@ class Conversation(commands.Cog):
             earlier,
             text,
             emojis=emojis,
+            track_drop=track_drop is not None,
         )
         async with message.channel.typing():
             reply = await ai_reply(bot, guild, prompt)
         if reply is None:
             await _reply(message, bot.lines.pick(_FALLBACK[level], mood(life)))
             return
-        await _reply(message, reply.text)
+        await _reply(message, link_track_drop(reply.text, track_drop))
         if level is Talk.EGG:
             return
         await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
@@ -346,6 +361,7 @@ class Conversation(commands.Cog):
         if not self._chime_in_due(guild.id, now):
             return
         self._chimed_at[guild.id] = now
+        track_drop = await _track_drop(self.bot, guild)
         prompt = build_prompt(
             life.stage,
             mood(life),
@@ -354,12 +370,15 @@ class Conversation(commands.Cog):
             None,
             expressions=expressions(self.bot, life.stage),
             sick=is_sick(life),
+            track_drop=track_drop is not None,
         )
         reply = await ai_reply(self.bot, guild, prompt)
         if reply is None:
             return
         try:
-            await message.channel.send(reply.text, allowed_mentions=_NO_PING)
+            await message.channel.send(
+                link_track_drop(reply.text, track_drop), allowed_mentions=_NO_PING
+            )
         except discord.HTTPException as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
             return
@@ -456,14 +475,24 @@ async def _reaction(
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     chat = bot.talk.chat(guild_id)
+    track_drop = await _track_drop(bot, interaction.guild)
     prompt = await _prompt(
-        bot, guild_id, life, level, player, name, chat, None, poked=flavor
+        bot,
+        guild_id,
+        life,
+        level,
+        player,
+        name,
+        chat,
+        None,
+        poked=flavor,
+        track_drop=track_drop is not None,
     )
     reply = await ai_reply(bot, interaction.guild, prompt)
     if reply is not None:
         if level is not Talk.EGG:
             await bot.wisp_lunchbox.record_expressions(guild_id, reply.expressions)
-        return reply.text
+        return link_track_drop(reply.text, track_drop)
     if level is Talk.EGG:
         return bot.lines.pick(Moment.EGG_POKE, mood(life))
     return bot.lines.pick(Moment.POKED, mood(life), name=name)

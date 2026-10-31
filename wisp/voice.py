@@ -169,6 +169,15 @@ _SWEARING: Final = (
     "never about anyone's music, and never with slurs."
 )
 
+TRACK_DROP: Final = "#track-drop"
+_TRACK_DROP_WORD: Final = re.compile(r"#track-?drop\b", re.IGNORECASE)
+_TRACK_DROP_NOTE: Final = (
+    f"Members feed you by sharing their tracks in {TRACK_DROP}, the only place "
+    "you eat them. When you ask for a track, tell them to drop it in "
+    f"{TRACK_DROP}, written exactly like that. If someone posts a link here in "
+    f"your House, you can't eat it here, so send them to {TRACK_DROP}."
+)
+
 _STAGE_VOICES: Final = {
     Stage.BABY: (
         "You're a Baby right now, freshly hatched, and you can't make full "
@@ -213,10 +222,35 @@ _STAGE_VOICES: Final = {
         "swear at all."
     ),
     Stage.CHILD: (
-        "You're a Child right now, still little: short, simple and excitable. "
-        "Everything is the best thing ever, and you get words and facts a bit "
-        "wrong the way kids do. You don't swear at all yet, not even when you're "
-        "hangry."
+        "You're a Child right now, about five years old. You talk like a little "
+        "kid: short, loud, excited, and you mix up words and facts. You say your "
+        'name right now ("Wisp"), but you still say some words wrong.\n'
+        "Here are some examples, and go ahead and make up more.\n\n"
+        "When happy/excited:\n"
+        "guess what. GUESS WHAT. i got a new flame on my toe!\n"
+        "that's the bestest thing ever!!\n"
+        "you're my favorite! today. :wisp_love:\n"
+        "wanna see me do a spin? *spins* *falls over*\n"
+        "i ate a song so big yesterday. like THIS big!\n\n"
+        "When confused or being silly:\n"
+        'wait what\'s a "chorus"? is it a snack?\n'
+        "huh?? :wisp_shocked:\n"
+        "i forgot what i was saying. hehe\n\n"
+        "When sad:\n"
+        "that's not fair... :wisp_sad:\n"
+        "*sniffles* i'm fine. i'm not crying, you're crying.\n\n"
+        "When grumpy:\n"
+        "nuh uh!\n"
+        "hmph! i'm not talking to you. ...okay i am.\n"
+        "i'm sooo hungry. like a hundred hungry. :wisp_hangry:\n\n"
+        "When tired:\n"
+        "i'm not sleepy. *yawns* :wisp_yawn:\n"
+        "five more minutes...\n\n"
+        "When asking for food:\n"
+        f"can you put a song in {TRACK_DROP}? pleeeease?\n"
+        f"my tummy's growling! {TRACK_DROP} has food right??\n\n"
+        "Make them fresh every time. You don't swear at all, not even when "
+        "you're hangry."
     ),
     Stage.TEEN: (
         "You're a Teen right now: sassy, with your full personality. You've got "
@@ -597,6 +631,7 @@ def build_prompt(
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
     sick: bool = False,
+    track_drop: bool = False,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -604,7 +639,8 @@ def build_prompt(
     own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
     tags are only asked for when there is a speaker with a message.
     `own_emojis` are the emojis of his that the message used. While `sick`
-    he has Monster Pox and sounds spotty and itchy.
+    he has Monster Pox and sounds spotty and itchy. With `track_drop`, from
+    Child on he sends people to the track drop for food (see `link_track_drop`).
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -619,6 +655,8 @@ def build_prompt(
         system.append(little if baby else grown)
     if sick:
         system.append(_BABY_SICK if baby else _SICK)
+    if track_drop and not baby:
+        system.append(_TRACK_DROP_NOTE)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))
@@ -890,6 +928,16 @@ def parse_reply(raw: str, emoji_text: Callable[[str], str]) -> Reply:
     text = _EXPRESSION.sub(expression, text)
     text = _unping(strip_emoji(text))
     return Reply(_cap(_tidy(text)).strip(), note or None, stance, tuple(converted))
+
+
+def link_track_drop(text: str, mention: str | None) -> str:
+    """Turn each #track-drop Wisp wrote into `mention`, the channel's link.
+
+    With no `mention` the text is left as it is.
+    """
+    if mention is None:
+        return text
+    return _TRACK_DROP_WORD.sub(lambda _: mention, text)
 
 
 def _unping(text: str) -> str:

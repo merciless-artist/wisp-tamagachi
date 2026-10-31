@@ -27,6 +27,7 @@ from wisp.voice import (
     MINI_COIN_EMOJI,
     NO_U_GIF,
     NO_U_LINK,
+    TRACK_DROP,
     ChatLine,
     Fed,
     OwnEmoji,
@@ -40,6 +41,7 @@ from wisp.voice import (
     egg_prompt,
     goodbye_prompt,
     keeps_notes,
+    link_track_drop,
     own_emojis,
     parse_reply,
     poke_flavor,
@@ -160,7 +162,7 @@ def test_prompt_has_persona_stage_and_hangry_layers() -> None:
     fogey = prompt_for(Stage.OLD_FOGEY).system
     for persona in ("Wisp", "ViiBR", "headphones", "sick beats", "never cruel"):
         assert persona in child and persona in fogey
-    assert "simple" in child and "excitable" in child
+    assert "five years old" in child and "little kid" in child
     assert "You don't swear" in child
     assert "You don't swear" not in fogey
     assert "life lessons" in fogey
@@ -1066,3 +1068,60 @@ def test_parse_reply_keeps_the_gif_hyperlink_whole() -> None:
 
 def test_parse_reply_leaves_a_short_gif_reply_alone() -> None:
     assert clean(f"no u\n{NO_U_GIF}").text == f"no u\n{NO_U_GIF}"
+
+
+# ---
+# The track drop
+# ---
+
+TRACK_DROP_NOTE = "Members feed you by sharing their tracks"
+
+
+@pytest.mark.parametrize("stage", AI_STAGES)
+def test_he_sends_people_to_the_track_drop_from_child_on(stage: Stage) -> None:
+    system = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hi",
+        expressions=EXPRESSIONS,
+        track_drop=True,
+    ).system
+    assert TRACK_DROP_NOTE in system
+    assert TRACK_DROP in system
+
+
+def test_the_baby_babbles_without_the_track_drop() -> None:
+    system = build_prompt(
+        Stage.BABY,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hi",
+        expressions=EXPRESSIONS,
+        track_drop=True,
+    ).system
+    assert TRACK_DROP_NOTE not in system
+
+
+def test_no_track_drop_note_when_the_channel_is_not_set() -> None:
+    assert TRACK_DROP_NOTE not in prompt_for(Stage.CHILD).system
+
+
+@pytest.mark.parametrize(
+    ("text", "linked"),
+    [
+        ("drop one in #track-drop!", "drop one in <#42>!"),
+        ("#Track-Drop pls", "<#42> pls"),
+        ("#trackdrop? and #track-drop!", "<#42>? and <#42>!"),
+        ("no channel here", "no channel here"),
+        ("#track-dropping", "#track-dropping"),
+    ],
+)
+def test_link_track_drop(text: str, linked: str) -> None:
+    assert link_track_drop(text, "<#42>") == linked
+
+
+def test_link_track_drop_leaves_text_without_a_channel() -> None:
+    assert link_track_drop("go to #track-drop", None) == "go to #track-drop"
