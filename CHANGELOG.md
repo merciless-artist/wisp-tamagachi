@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-31 (Pickles: ask first, then the other side)
+
+- When Wisp doesn't know someone's side on pickles yet, his prompt now says
+  (Myra's approved wording): "You don't know where {name} stands on pickles
+  yet. If pickles come up, don't pick a side: ask them if they like pickles.
+  Once they answer, take the opposite side." Before, he picked a side himself
+  and only argued against theirs from his next message on.
+
 ## 2026-10-31 (The status card as a quote under Myra's title picture)
 
 - Text frames look different on every device, so Myra made the frames into

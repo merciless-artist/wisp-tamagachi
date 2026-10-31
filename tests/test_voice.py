@@ -337,6 +337,17 @@ def test_pickle_stance_reaches_the_prompt(
     assert theirs in system and wisps in system
     unknown = prompt_for(who=speaker()).system
     assert "loves pickles" not in unknown and "hates pickles" not in unknown
+    assert "don't know where Myra stands on pickles" not in system
+
+
+def test_an_unknown_pickle_side_is_asked_then_opposed() -> None:
+    system = prompt_for(who=speaker()).system
+
+    assert (
+        "You don't know where Myra stands on pickles yet. If pickles come up, "
+        "don't pick a side: ask them if they like pickles. Once they answer, take "
+        "the opposite side."
+    ) in system
 
 
 def test_user_part_has_recent_chat_then_the_message() -> None:

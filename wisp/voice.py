@@ -354,6 +354,11 @@ _PICKLE_SIDES: Final = {
     PickleStance.LOVE: "{name} loves pickles, so you hate them.",
     PickleStance.HATE: "{name} hates pickles, so you love them.",
 }
+_PICKLE_UNKNOWN: Final = (
+    "You don't know where {name} stands on pickles yet. If pickles come up, "
+    "don't pick a side: ask them if they like pickles. Once they answer, take "
+    "the opposite side."
+)
 
 _CHAT_LENGTH: Final = "a line or two"
 _BABY_LENGTH: Final = "a few sounds or one or two words"
@@ -434,6 +439,8 @@ def _speaker(stage: Stage, speaker: Speaker) -> str:
             "come up. It's a fun feud, never a real fight, and music still beats "
             "every snack, pickles included."
         )
+    else:
+        parts.append(_PICKLE_UNKNOWN.format(name=speaker.name))
     if keeps_notes(stage) and speaker.notes:
         parts.append(
             _memories(speaker.name, speaker.notes)
