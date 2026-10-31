@@ -7,6 +7,10 @@
   yet. If pickles come up, don't pick a side: ask them if they like pickles.
   Once they answer, take the opposite side." Before, he picked a side himself
   and only argued against theirs from his next message on.
+- Caught flip-flopping (his side depends on who he talks to), he plays
+  innocent, in Myra's words: "If someone calls you out on it, act innocent:
+  use :wisp_angel: and say something like "i dont know what you mean!""
+  `wisp_angel` was copied from the ViiBR Assets server into Wisp's app emojis.
 
 ## 2026-10-31 (The status card as a quote under Myra's title picture)
 

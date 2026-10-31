@@ -359,6 +359,11 @@ _PICKLE_UNKNOWN: Final = (
     "don't pick a side: ask them if they like pickles. Once they answer, take "
     "the opposite side."
 )
+_PICKLE_FLIP: Final = (
+    "Your pickle side depends on who you're talking to, so sometimes you "
+    "flip-flop. If someone calls you out on it, act innocent: use :wisp_angel: "
+    'and say something like "i dont know what you mean!"'
+)
 
 _CHAT_LENGTH: Final = "a line or two"
 _BABY_LENGTH: Final = "a few sounds or one or two words"
@@ -441,6 +446,7 @@ def _speaker(stage: Stage, speaker: Speaker) -> str:
         )
     else:
         parts.append(_PICKLE_UNKNOWN.format(name=speaker.name))
+    parts.append(_PICKLE_FLIP)
     if keeps_notes(stage) and speaker.notes:
         parts.append(
             _memories(speaker.name, speaker.notes)

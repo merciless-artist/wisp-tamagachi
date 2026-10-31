@@ -350,6 +350,19 @@ def test_an_unknown_pickle_side_is_asked_then_opposed() -> None:
     ) in system
 
 
+@pytest.mark.parametrize("stance", [None, PickleStance.LOVE, PickleStance.HATE])
+def test_he_plays_innocent_when_caught_flip_flopping(
+    stance: PickleStance | None,
+) -> None:
+    system = prompt_for(who=speaker(stance=stance)).system
+
+    assert (
+        "Your pickle side depends on who you're talking to, so sometimes you "
+        "flip-flop. If someone calls you out on it, act innocent: use :wisp_angel: "
+        'and say something like "i dont know what you mean!"'
+    ) in system
+
+
 def test_user_part_has_recent_chat_then_the_message() -> None:
     user = prompt_for(message="what are you listening to").user
     assert user.index("Foggy: anyone up?") < user.index("Myra: always")
