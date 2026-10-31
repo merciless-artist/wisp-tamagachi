@@ -123,6 +123,26 @@ async def run(command: Any, *args: Any) -> None:
     await command.callback(*args)
 
 
+def status_answer(interaction: MagicMock) -> str:
+    """The card of a private /wisp status, sent under its title picture.
+
+    The title picture comes first on its own; the card carries it too and
+    cannot ping anyone.
+    """
+    title, card = interaction.followup.send.await_args_list
+    for sent in (title, card):
+        assert sent.kwargs["ephemeral"] is True
+        sent.kwargs["file"].close()
+        assert sent.kwargs["file"].filename == "stats_title.png"
+    assert title.args == ()
+    assert card.kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
+    (text,) = card.args
+    assert isinstance(text, str)
+    return text
+
+
 def followups(interaction: MagicMock) -> list[str]:
     """Texts sent as ephemeral follow-ups that cannot ping anyone."""
     sent = []
@@ -186,7 +206,7 @@ async def test_status_shows_the_card_privately(bot: app.WispBot) -> None:
     await run(players.wisp_status, interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    (text,) = followups(interaction)
+    text = status_answer(interaction)
     assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
     assert f"tag <@{WISP_ID}> in his House to say hi!!" in text
 
@@ -223,9 +243,9 @@ async def test_status_card_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
 
     await run(players.wisp_status, interaction)
 
-    (text,) = followups(interaction)
-    assert "║𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
-    assert "║𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks・♪‿♫ ♪" in text.splitlines()
+    text = status_answer(interaction)
+    assert "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
+    assert "> 𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks ・♪‿♫ ♪" in text.splitlines()
     assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
 
 
@@ -247,9 +267,9 @@ async def test_status_while_waiting_to_begin_again_says_so(
 
     await run(players.wisp_status, interaction)
 
-    (text,) = followups(interaction)
+    text = status_answer(interaction)
     assert text == WAITING
-    assert "║𝄡𝄚𝄂 No Wisp right now. Waiting for staff to begin again." in text
+    assert "> 𝄡𝄚𝄂 No Wisp right now. Waiting for staff to begin again." in text
 
 
 # ---
@@ -359,8 +379,8 @@ async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
     assert await players.current_happiness(bot, GUILD_ID, now) == happiness(1)
     interaction = make_interaction(bot)
     await run(players.wisp_status, interaction)
-    (text,) = followups(interaction)
-    assert f"║𝄡 Happy   {bar(happiness(1), '', '')}" in text.splitlines()
+    lines = status_answer(interaction).splitlines()
+    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(happiness(1), '', '')}"
 
 
 async def test_chats_older_than_a_day_do_not_make_him_happy(

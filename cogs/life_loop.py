@@ -23,7 +23,6 @@ from cogs.announce import (
     lay_first_egg,
     post_events,
     say_in_house,
-    show_in_thread,
 )
 from cogs.assets import nap_image
 from cogs.badges import sweep_badges
@@ -40,6 +39,7 @@ from cogs.players import (
 )
 from cogs.snacks import status_view
 from cogs.staff import StaffContext, guild_of, is_staff, reply
+from cogs.status_card import show_status
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
@@ -197,13 +197,13 @@ class LifeLoop(commands.Cog):
 async def show_status_card(
     bot: "WispBot", guild_id: int, life: Life, now: datetime, happy: int
 ) -> None:
-    """Show `life` on the status card in the Status thread.
+    """Show `life` in the Status post: his picture first, then the card.
 
-    While he goes on it is his live card, with his current picture and the
-    Feed Wisp and Poke Wisp buttons. Once his life is over it says Wisp is
+    While he goes on it is his live card with the Feed Wisp and Poke Wisp
+    buttons, under his current picture. Once his life is over it says Wisp is
     waiting for staff to begin again and carries only the Begin again button,
     so staff always have one to press even when the House's question was never
-    posted or is gone; it shows the picture of how his life ended, or no
+    posted or is gone; the post shows the picture of how his life ended, or no
     picture when that is missing.
     """
     view: discord.ui.View
@@ -213,16 +213,8 @@ async def show_status_card(
     else:
         content = await status_text(bot, guild_id, life, now, happy)
         view, image = status_view(), life_image(life)
-    await show_in_thread(
-        bot,
-        guild_id,
-        "status_thread_id",
-        "status_message_id",
-        content,
-        "status card",
-        view,
-        image,
-        clear_image=image is None and is_over(life),
+    await show_status(
+        bot, guild_id, content, view, image, clear_image=image is None and is_over(life)
     )
 
 

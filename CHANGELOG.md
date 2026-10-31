@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-31 (The status card as a quote under Myra's title picture)
+
+- Text frames look different on every device, so Myra made the frames into
+  pictures. The Status post is now three messages:
+  - its first message shows only Wisp's picture, so the Studio's gallery
+    shows him (it changes as he grows, gets sick or ends);
+  - Myra's Wisp Stats title picture (`ASSETS/stats_title.png`) on its own;
+  - the card, with the title picture attached under it, the Feed and Poke
+    buttons, pinned and edited in place (`cogs/status_card.py`).
+- The card text (`wisp/card.py`) is Myra's draft byte for byte: one Discord
+  quote (`> ` lines, `wisp.text.quoted`), same live numbers and emoji meters,
+  her blank lines and line breaks. The egg, hatching and waiting cards follow
+  the same layout. `/wisp status` answers the same way, title picture first.
+- A Status post from before is brought over on the next tick: the card text
+  comes off its first message and the title and card are posted under it.
+  The title post is remembered in the new `settings.status_title_message_id`
+  column, so a deleted card is reposted together with its title.
+- Setup pins the Status post to the top of the Studio forum
+  (`StudioThread.pinned_post`); a failure is posted in the thread.
+- Myra's Burrito card picture is saved as `ASSETS/burrito_post.png`, not used
+  yet.
+
 ## 2026-10-31 (No shame pictures, one branch)
 
 - `!wisp punish` no longer attaches a picture: Myra's shame GIFs belong to

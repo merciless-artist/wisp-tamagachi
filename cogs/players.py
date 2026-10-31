@@ -11,6 +11,7 @@ import pymysql
 from cogs.announce import say_in_house
 from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
+from cogs.status_card import send_status_privately
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
@@ -359,8 +360,9 @@ async def maybe_meet(
 async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
     """Show Wisp's status card, only to the member who asked.
 
-    Before a server's first egg it says one is coming; after an ending it says
-    Wisp is waiting for staff to begin again.
+    The card comes as it looks in the Status post, under its title picture.
+    Before a server's first egg it only says one is coming; after an ending
+    the card says Wisp is waiting for staff to begin again.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
@@ -368,13 +370,14 @@ async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
     now = discord.utils.utcnow()
     life = await bot.lives.current(guild_id)
     if life is None:
-        text = _NO_LIFE_YET
-    elif is_over(life):
+        await say_privately(interaction, _NO_LIFE_YET)
+        return
+    if is_over(life):
         text = WAITING
     else:
         happy = await current_happiness(bot, guild_id, now)
         text = await status_text(bot, guild_id, life, now, happy)
-    await say_privately(interaction, text)
+    await send_status_privately(interaction, text)
 
 
 async def setup(bot: "WispBot") -> None:

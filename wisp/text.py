@@ -148,9 +148,12 @@ TITLE_SIDE: Final = 4
 SECTION_BREAK: Final = "╠═══⇕"
 RAIL: Final = "║"
 BLANK: Final = RAIL
-HEADING_MARK: Final = "║𝄡𝄚𝄂𝄆"
-SUB_MARK: Final = "║𝄡𝄚𝄂"
-ITEM_MARK: Final = "║𝄡"
+SUB_CLEF: Final = "𝄡𝄚𝄂"
+ITEM_CLEF: Final = "𝄡"
+HEADING_MARK: Final = f"{RAIL}{SUB_CLEF}𝄆"
+SUB_MARK: Final = f"{RAIL}{SUB_CLEF}"
+ITEM_MARK: Final = f"{RAIL}{ITEM_CLEF}"
+QUOTE: Final = "> "
 CONTINUATION: Final = f"{RAIL} "
 _MARKS: Final = (HEADING_MARK, SUB_MARK, ITEM_MARK, RAIL)
 _BOTTOM_ENDS: Final = ("𝄃𝄣", "𝄂")
@@ -238,6 +241,11 @@ def framed(
             *box_close(title, width, side),
         ]
     )
+
+
+def quoted(lines: Sequence[str]) -> str:
+    """`lines` as one Discord quote: each starts with `> `, an empty one too."""
+    return "\n".join(QUOTE + line for line in lines)
 
 
 # ---

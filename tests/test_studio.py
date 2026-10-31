@@ -283,6 +283,7 @@ class FakeServer:
         thread.parent_id = forum_id
         thread.archived = False
         thread.locked = False
+        thread.flags = discord.ChannelFlags()
         thread.posts = []
         thread.send = AsyncMock(
             side_effect=lambda *args, **fields: self._post(thread, *args, **fields)
@@ -359,7 +360,10 @@ class FakeServer:
 
     def _edit(self, thread: MagicMock, fields: dict[str, Any]) -> MagicMock:
         for name, value in fields.items():
-            setattr(thread, name, value)
+            if name == "pinned":
+                thread.flags.pinned = value
+            else:
+                setattr(thread, name, value)
         return thread
 
     def _edit_message(self, message: MagicMock, fields: dict[str, Any]) -> MagicMock:
@@ -704,6 +708,52 @@ def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
     assert abs(visual_width(lines[0]) - visual_width(lines[-1])) <= (
         WIDTHS["staff"] / 2
     )
+
+
+async def test_setup_pins_the_status_post_to_the_top_once(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    await run_setup(bot, server)
+
+    status = server.thread_named(STATUS)
+    assert status.flags.pinned
+    status.edit.assert_any_await(pinned=True)
+    pins = [call for call in status.edit.await_args_list if "pinned" in call.kwargs]
+    assert len(pins) == 1
+    for name in THREAD_NAMES[1:]:
+        assert not server.thread_named(name).flags.pinned
+
+
+async def test_a_failed_post_pin_is_posted_in_its_thread_and_setup_carries_on(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    original = server.forum.create_thread.side_effect
+
+    def unpinnable(**kwargs: Any) -> discord.channel.ThreadWithMessage:
+        created: discord.channel.ThreadWithMessage = original(**kwargs)
+        thread = server.threads[created.thread.id]
+        edit = thread.edit.side_effect
+
+        def refuse_pin(**fields: Any) -> MagicMock:
+            if "pinned" in fields:
+                raise discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+            edited: MagicMock = edit(**fields)
+            return edited
+
+        thread.edit.side_effect = refuse_pin
+        return created
+
+    server.forum.create_thread.side_effect = unpinnable
+
+    ctx = await run_setup(bot, server)
+
+    status = server.thread_named(STATUS)
+    (line,) = [call.args[0] for call in status.send.await_args_list]
+    assert line.startswith("Error in pinning the Status post: Forbidden")
+    assert status.locked is True
+    assert server.created_names == list(THREAD_NAMES)
+    assert sent_text(ctx).startswith("♪ Wisp is set up.")
 
 
 async def test_setup_shows_the_studio_as_a_gallery_once(

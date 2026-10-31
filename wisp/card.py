@@ -1,6 +1,8 @@
-"""Text of Wisp's status card, in Myra's house style.
+"""Text of Wisp's status card, in Myra's quote layout.
 
-The layout is the status card in `DOCS/specs/2026-10-27-house-style.md`.
+The card is one Discord quote with her Wisp Stats title picture attached, so
+the picture shows under it and closes it. Each line is copied from her draft
+of 2026-10-31, blank lines and line breaks included.
 """
 
 import math
@@ -17,19 +19,14 @@ from wisp.rules import (
     FULL_MAX,
     HATCHING_TIME,
 )
-from wisp.text import BLANK, RAIL, SUB_MARK, count, framed, item, sections, sub
+from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted
 
 # ---
 # Layout
 # ---
 
-STATUS_TITLE: Final = "𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈"
-# Wide enough for a full bar's line: ten meter emojis, then │100%.
-STATUS_WIDTH: Final = 25
-WAITING: Final = framed(
-    STATUS_TITLE,
-    [BLANK, sub("No Wisp right now. Waiting for staff to begin again."), BLANK],
-    STATUS_WIDTH,
+WAITING: Final = quoted(
+    ["", f"{SUB_CLEF} No Wisp right now. Waiting for staff to begin again."]
 )
 
 _PERCENT_PER_PIECE: Final = 10
@@ -100,10 +97,10 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         bars = _meter("Emerging", emerging, HAPPY, emoji)
         return _card([], bars, "the egg", "HATCHING", facts)
     if life.phase is Phase.ALIVE:
-        heading = [f"{SUB_MARK}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
+        heading = [f"{SUB_CLEF}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
         if is_sick(life):
             hours = math.ceil(life.cold_left / _HOUR)
-            heading.append(sub(f"he has Monster Pox・{hours} h left"))
+            heading.append(f"{SUB_CLEF} he has Monster Pox・{hours} h left")
         bars = [
             *_meter("Care", life.care / CARE_MAX * 100, CARE, emoji),
             *_meter("Happy", facts.happiness, HAPPY, emoji),
@@ -116,10 +113,9 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
 def _card(
     heading: list[str], bars: list[str], poke: str, stage: str, facts: CardFacts
 ) -> str:
-    """Myra's frame around the heading, the bars and the facts.
+    """Myra's quote: the heading, the bars, the facts, the hints and the stage.
 
-    The blank lines are where her draft has them: after the box top, at the
-    end of each section and before the box closes.
+    An egg has no heading, so its bars follow the first blank line.
     """
     people = "person" if facts.fed_today == 1 else "people"
     tracks = (
@@ -127,24 +123,29 @@ def _card(
         f"{count(facts.suno_tracks, 'Suno track')}"
     )
     house = "his House" if facts.house_id is None else f"<#{facts.house_id}>"
-    body = sections(
-        *([[BLANK, *heading, BLANK]] if heading else []),
-        [*([] if heading else [BLANK]), *bars, BLANK],
+    return quoted(
         [
-            sub(f"Fed by {facts.fed_today:02d} {people} today・♬‿♩. ♪"),
-            BLANK,
-            sub(f"{tracks}・♪‿♫ ♪"),
-            BLANK,
-        ],
-        [
-            item(f"Poke {poke} or tag <@{facts.wisp_id}> in {house} to say hi!!"),
-            item("check your snackpack with /wisp snackpack"),
-            item("check the ViiBR Vault to buy treats and toys for Wisp!"),
-            BLANK,
-        ],
-        [f"{SUB_MARK}・・**life stage**・{_bold(stage)}・♪‿♪ ♫.", BLANK],
+            "",
+            *([*heading, ""] if heading else []),
+            *bars,
+            "",
+            f"{SUB_CLEF} Fed by {facts.fed_today:02d} {people} today・♬‿♩. ♪",
+            "",
+            f"{SUB_CLEF} {tracks} ・♪‿♫ ♪",
+            "",
+            f"{ITEM_CLEF} Poke {poke} or tag <@{facts.wisp_id}> in {house} "
+            "to say hi!!",
+            "",
+            f"{ITEM_CLEF} check your snackpack with /wisp",
+            " snackpack",
+            "",
+            f"{ITEM_CLEF} check the ViiBR Vault to buy treats",
+            " and toys for Wisp!",
+            "",
+            "",
+            f"{SUB_CLEF}・・**life stage**・{_bold(stage)}・♪‿♪ ♫.",
+        ]
     )
-    return framed(STATUS_TITLE, body, STATUS_WIDTH)
 
 
 # ---
@@ -176,7 +177,7 @@ def _bold(text: str) -> str:
 
 def _meter(label: str, value: float, meter: Meter, emoji: Emoji) -> list[str]:
     """The label's line, then the bar on its own line under it."""
-    return [item(label), RAIL + bar(value, emoji(meter.full), emoji(meter.left))]
+    return [f"{ITEM_CLEF} {label}", bar(value, emoji(meter.full), emoji(meter.left))]
 
 
 def _share(part: float, whole: float) -> float:

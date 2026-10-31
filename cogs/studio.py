@@ -190,7 +190,8 @@ class StudioThread:
     post's text when the thread is created; with `current_content`, a first
     post with other text is edited to it when the Studio is ensured. `image`
     is the first post's picture, which the forum shows as the post's
-    thumbnail, relative to the ASSETS folder.
+    thumbnail, relative to the ASSETS folder. A `pinned_post` stays at the top
+    of the forum; Discord pins one post per forum.
     """
 
     attr: str
@@ -201,6 +202,7 @@ class StudioThread:
     locked: bool = False
     image: str | None = None
     current_content: bool = False
+    pinned_post: bool = False
 
 
 STUDIO_THREADS: tuple[StudioThread, ...] = (
@@ -211,6 +213,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Wisp's status card will appear here.",
         message_attr="status_message_id",
         locked=True,
+        pinned_post=True,
     ),
     StudioThread(
         "mealtime_thread_id",
@@ -342,7 +345,8 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Name the thread, lock it if it is a locked post, add the thumbnail, pin the card.
+    """Name the thread, lock and pin the post if it should be, add the
+    thumbnail, pin the card.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is
@@ -358,6 +362,13 @@ async def _finish_thread(
             await thread.edit(locked=True)
         except discord.HTTPException as error:
             await bot.report_error(guild, f"locking {spec.title}", error, where=thread)
+    if spec.pinned_post and not thread.flags.pinned:
+        try:
+            await thread.edit(pinned=True)
+        except discord.HTTPException as error:
+            await bot.report_error(
+                guild, f"pinning the {spec.title} post", error, where=thread
+            )
     await _add_thumbnail(bot, guild, thread, spec)
     if spec.current_content:
         await _update_starter(bot, guild, thread, spec)
