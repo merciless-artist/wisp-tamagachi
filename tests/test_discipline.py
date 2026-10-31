@@ -4,10 +4,8 @@ Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
-import random
 from collections.abc import Iterator
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -79,13 +77,6 @@ async def configured(bot: app.WispBot) -> None:
     await bot.settings.update(
         GUILD_ID, house_channel_id=HOUSE_ID, tracks_channel_id=TRACKS_ID
     )
-
-
-@pytest.fixture(autouse=True)
-def shame_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """An ASSETS folder with no shame images, so tests never touch the real one."""
-    monkeypatch.setattr(discipline, "ASSETS_DIR", tmp_path)
-    return tmp_path / "shame"
 
 
 def make_member(
@@ -257,40 +248,14 @@ async def test_the_staff_log_names_the_permanent_ban(
     )
 
 
-async def test_shame_image_optional(
-    bot: app.WispBot, server: FakeServer, shame_folder: Path
+async def test_the_ban_announcement_has_no_picture(
+    bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
+
     await punish(bot)
+
     assert "file" not in server.house.send.await_args.kwargs
-
-    server.house.send.reset_mock()
-    shame_folder.mkdir(parents=True)
-    await punish(bot)
-    assert "file" not in server.house.send.await_args.kwargs
-
-
-async def test_a_random_shame_image_is_attached(
-    bot: app.WispBot,
-    server: FakeServer,
-    shame_folder: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    await lay(bot)
-    shame_folder.mkdir(parents=True)
-    for name in ("a.png", "b.gif", "c.jpg", "d.webp", "notes.txt"):
-        (shame_folder / name).write_bytes(b"x")
-    seen: list[list[Path]] = []
-
-    def pick_last(choices: list[Path]) -> Path:
-        seen.append(choices)
-        return choices[-1]
-
-    monkeypatch.setattr(random, "choice", pick_last)
-    await punish(bot)
-    assert [path.name for path in seen[0]] == ["a.png", "b.gif", "c.jpg", "d.webp"]
-    sent = server.house.send.await_args.kwargs["file"]
-    assert sent.filename == "d.webp"
 
 
 async def test_punish_without_a_life_still_bans_and_says_so(

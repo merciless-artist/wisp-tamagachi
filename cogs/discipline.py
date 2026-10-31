@@ -1,15 +1,12 @@
 """Discipline: staff commands to punish cheaters and correct mistakes."""
 
-import random
 from datetime import timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
 from discord.ext import commands
 
 from cogs.announce import say_in_house
-from cogs.assets import ASSETS_DIR
 from cogs.staff import StaffContext, guild_of, reply
 from wisp.life import is_over
 from wisp.lines import Moment
@@ -19,7 +16,6 @@ from wisp.text import count
 if TYPE_CHECKING:
     from app import WispBot
 
-_IMAGE_SUFFIXES: Final = frozenset({".png", ".gif", ".jpg", ".webp"})
 _REASON_MAX: Final = 500
 _MAX_POINTS: Final = 2**31 - 1
 
@@ -34,16 +30,6 @@ async def _refuse_bot(ctx: StaffContext, member: discord.Member) -> bool:
         return False
     await reply(ctx, f"♪ {member.mention} is a bot, and bots do not play with Wisp.")
     return True
-
-
-def _shame_image() -> Path | None:
-    """A random image from ASSETS/shame, or None when the folder has none."""
-    images = sorted(
-        path
-        for path in (ASSETS_DIR / "shame").glob("*")
-        if path.suffix.lower() in _IMAGE_SUFFIXES and path.is_file()
-    )
-    return random.choice(images) if images else None
 
 
 def _duration(length: timedelta | None) -> str:
@@ -96,7 +82,6 @@ async def punish(
             Moment.BANNED,
             life,
             name=player.name or member.display_name,
-            image=_shame_image(),
         )
     await reply(
         ctx,

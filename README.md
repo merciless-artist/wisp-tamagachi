@@ -108,7 +108,7 @@ panel show his sick picture meanwhile.
 - Developer Portal, Installation: User Install off. Public Bot off.
 - Bot permissions: Send Messages, Send Messages in Threads, Create Public
   Threads, Manage Threads, Pin Messages, Read Message History, Attach Files
-  (event art, eating GIFs, shame images, Studio thumbnails, the status card's
+  (event art, eating GIFs, Studio thumbnails, the status card's
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
@@ -318,7 +318,6 @@ posts text only.
   the House's announcements use them.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
   `events/farewell.png`.
-- `shame/*` any images, picked at random when a member is punished.
 - `badges/<key>.png` for each badge key (`pickle_diplomat`,
   `flame_keeper`, `team_viibr`, `bandmate`), the badge role icons, and the
   app emojis `badge_<key>` for the Vault and Snack Pack.

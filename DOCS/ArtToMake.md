@@ -81,4 +81,3 @@ Use a still frame for the [ACTION] ones.
 
 | Save in | What |
 |---|---|
-| ASSETS/shame/ (any names, png/gif/jpg/webp) | one or more shaming images; Wisp picks one at random when staff punish someone. The counting game's shame pictures work too. Text only until any exist. |
