@@ -1116,7 +1116,6 @@ def test_the_members_slash_commands_are_still_registered() -> None:
     names = {command.qualified_name for command in groups.wisp.walk_commands()}
 
     assert names == {
-        "wisp status",
         "wisp vault",
         "wisp snackpack",
         "wisp board",

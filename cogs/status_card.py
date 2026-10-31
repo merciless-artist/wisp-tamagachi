@@ -168,22 +168,3 @@ async def _show_card(
         await bot.report_error(
             bot.get_guild(guild_id), f"pinning the {_LABEL}", error, where=thread
         )
-
-
-# ---
-# Private answers
-# ---
-
-
-async def send_status_privately(interaction: discord.Interaction, text: str) -> None:
-    """Answer a deferred /wisp status the way the Status post looks.
-
-    The title picture comes first on its own, then the card with the title
-    under it. Without the picture only the card is sent.
-    """
-    title_art = _title_file()
-    if title_art:
-        await interaction.followup.send(ephemeral=True, **title_art)
-    await interaction.followup.send(
-        text, ephemeral=True, allowed_mentions=_NO_PING, **_title_file()
-    )

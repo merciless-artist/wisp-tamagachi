@@ -175,7 +175,6 @@ where the command was used.
 
 Member commands:
 
-- `/wisp status` shows how Wisp is doing.
 - `/wisp board` shows the ViiBR Vault leaderboard and Wisp's past versions.
 - `/wisp vault` is the shop: buy snacks with your wisp coins (WC, the points
   you can spend), get a badge, or give Wisp a gift from one of seven

@@ -1,4 +1,4 @@
-"""Players: /wisp status and Wisp learning members' names."""
+"""Players: the status card text, chat credit and Wisp learning members' names."""
 
 import contextlib
 import re
@@ -10,13 +10,12 @@ import pymysql
 
 from cogs.announce import say_in_house
 from cogs.channels import where_of
-from cogs.groups import require_guild, wisp
-from cogs.status_card import send_status_privately
+from cogs.groups import require_guild
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import happiness, should_meet
-from wisp.card import WAITING, CardFacts, render_status
-from wisp.life import Life, Phase, add_growth, is_over
+from wisp.card import CardFacts, render_status
+from wisp.life import Life, Phase, add_growth
 from wisp.lines import Moment
 from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
 from wisp.text import USER_ERROR, count
@@ -30,9 +29,6 @@ NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
 CANNOT_FEED: Final = (
     "♪ Only members at Active Lounger or higher who have opened /wisp board "
     "can feed Wisp."
-)
-_NO_LIFE_YET: Final = (
-    "♪ Wisp has no life to show right now. A new egg will be laid soon."
 )
 
 # ---
@@ -349,35 +345,6 @@ async def maybe_meet(
         view=view,
         ping=user_id,
     )
-
-
-# ---
-# Commands
-# ---
-
-
-@wisp.command(name="status", description="See how Wisp is doing.")
-async def wisp_status(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show Wisp's status card, only to the member who asked.
-
-    The card comes as it looks in the Status post, under its title picture.
-    Before a server's first egg it only says one is coming; after an ending
-    the card says Wisp is waiting for staff to begin again.
-    """
-    bot = interaction.client
-    guild_id = require_guild(interaction)
-    await interaction.response.defer(ephemeral=True)
-    now = discord.utils.utcnow()
-    life = await bot.lives.current(guild_id)
-    if life is None:
-        await say_privately(interaction, _NO_LIFE_YET)
-        return
-    if is_over(life):
-        text = WAITING
-    else:
-        happy = await current_happiness(bot, guild_id, now)
-        text = await status_text(bot, guild_id, life, now, happy)
-    await send_status_privately(interaction, text)
 
 
 async def setup(bot: "WispBot") -> None:

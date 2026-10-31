@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-31 (No more /wisp status)
+
+- `/wisp status` is gone (Myra: "it's pointless"). The pinned card in the
+  Status post already shows everything, and a tester ran the command in the
+  waiting room. `send_status_privately` went with it; the card tests now call
+  `players.status_text` directly. README and the FAQ draft point to the
+  Status post instead. The command leaves Discord on the next start, when
+  the tree syncs.
+
 ## 2026-10-31 (Pickles: ask first, then the other side)
 
 - When Wisp doesn't know someone's side on pickles yet, his prompt now says

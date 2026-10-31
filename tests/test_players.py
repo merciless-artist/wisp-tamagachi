@@ -1,4 +1,4 @@
-"""Tests for the status command and Wisp learning members' names.
+"""Tests for the status card text, chat credit and Wisp learning members' names.
 
 Discord objects are fakes; the repositories are the real ones.
 """
@@ -12,10 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pymysql
 import pytest
-from discord import app_commands
 
 import app
-from cogs import groups, players
+from cogs import players
 from cogs.players import NameButton, NameModal, maybe_meet
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -24,7 +23,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
 from wisp.bond import happiness
-from wisp.card import WAITING, bar
+from wisp.card import bar
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
@@ -123,38 +122,6 @@ async def run(command: Any, *args: Any) -> None:
     await command.callback(*args)
 
 
-def status_answer(interaction: MagicMock) -> str:
-    """The card of a private /wisp status, sent under its title picture.
-
-    The title picture comes first on its own; the card carries it too and
-    cannot ping anyone.
-    """
-    title, card = interaction.followup.send.await_args_list
-    for sent in (title, card):
-        assert sent.kwargs["ephemeral"] is True
-        sent.kwargs["file"].close()
-        assert sent.kwargs["file"].filename == "stats_title.png"
-    assert title.args == ()
-    assert card.kwargs["allowed_mentions"].to_dict() == (
-        discord.AllowedMentions.none().to_dict()
-    )
-    (text,) = card.args
-    assert isinstance(text, str)
-    return text
-
-
-def followups(interaction: MagicMock) -> list[str]:
-    """Texts sent as ephemeral follow-ups that cannot ping anyone."""
-    sent = []
-    for call in interaction.followup.send.await_args_list:
-        assert call.kwargs["ephemeral"] is True
-        assert call.kwargs["allowed_mentions"].to_dict() == (
-            discord.AllowedMentions.none().to_dict()
-        )
-        sent.append(call.args[0])
-    return sent
-
-
 def make_life(
     version: int,
     phase: Phase,
@@ -195,23 +162,22 @@ async def play_on_days(
 
 
 # ---
-# Status command
+# Status card text
 # ---
 
 
-async def test_status_shows_the_card_privately(bot: app.WispBot) -> None:
-    await lay(bot)
-    interaction = make_interaction(bot)
+async def test_status_text_shows_the_card(bot: app.WispBot) -> None:
+    life = await lay(bot)
 
-    await run(players.wisp_status, interaction)
+    text = await players.status_text(
+        bot, GUILD_ID, life, discord.utils.utcnow(), happiness(0)
+    )
 
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    text = status_answer(interaction)
     assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
     assert f"tag <@{WISP_ID}> in his House to say hi!!" in text
 
 
-async def test_status_card_counts_todays_feeders_and_tracks(bot: app.WispBot) -> None:
+async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) -> None:
     await configure(bot)
     life = await lay(bot)
     assert life.id is not None
@@ -239,37 +205,12 @@ async def test_status_card_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
             track_kind, f"{track_kind}:{index}", f"https://example.test/{index}"
         )
         await log.record_feed(GUILD_ID, life.id, FIRST_USER, track, 1, index, fed_at)
-    interaction = make_interaction(bot)
 
-    await run(players.wisp_status, interaction)
+    text = await players.status_text(bot, GUILD_ID, life, now, happiness(0))
 
-    text = status_answer(interaction)
     assert "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
     assert "> 𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks ・♪‿♫ ♪" in text.splitlines()
     assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
-
-
-async def test_status_without_a_life_says_so(bot: app.WispBot) -> None:
-    interaction = make_interaction(bot)
-
-    await run(players.wisp_status, interaction)
-
-    (text,) = followups(interaction)
-    assert "no life" in text
-
-
-@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
-async def test_status_while_waiting_to_begin_again_says_so(
-    bot: app.WispBot, phase: Phase
-) -> None:
-    await lay(bot, phase)
-    interaction = make_interaction(bot)
-
-    await run(players.wisp_status, interaction)
-
-    text = status_answer(interaction)
-    assert text == WAITING
-    assert "> 𝄡𝄚𝄂 No Wisp right now. Waiting for staff to begin again." in text
 
 
 # ---
@@ -376,10 +317,10 @@ async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
     ]:
         await log.record_interaction(GUILD_ID, life.id, user_id, kind, 0, 0, now)
 
-    assert await players.current_happiness(bot, GUILD_ID, now) == happiness(1)
-    interaction = make_interaction(bot)
-    await run(players.wisp_status, interaction)
-    lines = status_answer(interaction).splitlines()
+    happy = await players.current_happiness(bot, GUILD_ID, now)
+    assert happy == happiness(1)
+    text = await players.status_text(bot, GUILD_ID, life, now, happy)
+    lines = text.splitlines()
     assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(happiness(1), '', '')}"
 
 
@@ -822,11 +763,6 @@ async def test_setup_registers_the_button_for_restarts(bot: app.WispBot) -> None
     await players.setup(bot)
 
     bot.add_dynamic_items.assert_called_once_with(NameButton)
-
-
-def test_member_commands_hang_off_the_wisp_group() -> None:
-    assert groups.wisp.get_command("status") is players.wisp_status
-    assert isinstance(players.wisp_status, app_commands.Command)
 
 
 def test_players_is_a_loaded_extension() -> None:
