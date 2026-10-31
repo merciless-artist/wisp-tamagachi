@@ -171,7 +171,18 @@ RHYME_SLANT_POINTS = 1
 RHYME_OPENER_RHYMES = 8
 MAX_WORD_LENGTH = 30
 
-# Chance that Wisp finds a rhyme on his turn, by stage.
+# Wisp's first turns in a duel, by stage, on which he always finds a rhyme
+# when one is left.
+RHYME_SURE_TURNS: dict[Stage, int] = {
+    Stage.BABY: 1,
+    Stage.CHILD: 3,
+    Stage.TEEN: 4,
+    Stage.ADULT: 5,
+    Stage.ROCKSTAR: 6,
+    Stage.OLD_FOGEY: 4,
+}
+# Chance that Wisp finds a rhyme on his first turn after the sure ones, by
+# stage. It drops by RHYME_TIRING on each turn after that.
 RHYME_SKILL: dict[Stage, float] = {
     Stage.BABY: 0.5,
     Stage.CHILD: 0.65,
@@ -180,6 +191,7 @@ RHYME_SKILL: dict[Stage, float] = {
     Stage.ROCKSTAR: 0.97,
     Stage.OLD_FOGEY: 0.9,
 }
+RHYME_TIRING = 0.1
 
 # ---
 # The Vault card
@@ -507,7 +519,7 @@ AI_MAX_CHARS = 600
 # Talking
 # ---
 
-TALK_COOLDOWN = timedelta(seconds=15)
+TALK_COOLDOWN = timedelta(seconds=4)
 EGG_LINE_CHARS = 120
 CHIME_IN_CHANCE = 0.04
 CHIME_IN_GAP = timedelta(minutes=90)

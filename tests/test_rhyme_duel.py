@@ -184,9 +184,9 @@ def wisp_says(monkeypatch: pytest.MonkeyPatch) -> Callable[..., list[Any]]:
         queue = list(replies)
 
         def reply(
-            word: str, used: set[str], stage: Stage, rng: random.Random
+            word: str, used: set[str], stage: Stage, turn: int, rng: random.Random
         ) -> str | None:
-            asked.append((word, set(used), stage))
+            asked.append((word, set(used), stage, turn))
             return queue.pop(0)
 
         monkeypatch.setattr(rhyme_duel, "wisp_reply", reply)
@@ -287,8 +287,8 @@ async def test_duel_scores_perfect_and_slant(
     assert chain == "・fire ・ choir ・ higher ・ mine"
     assert points == "・Score: 3 points"
     assert asked == [
-        ("choir", {"fire", "choir"}, Stage.BABY),
-        ("mine", {"fire", "choir", "higher", "mine"}, Stage.BABY),
+        ("choir", {"fire", "choir"}, Stage.BABY, 1),
+        ("mine", {"fire", "choir", "higher", "mine"}, Stage.BABY, 2),
     ]
     server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
 

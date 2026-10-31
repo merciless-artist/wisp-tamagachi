@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-31 (Rhyme duels last longer; 4 second talk cooldown)
+
+- Wisp kept giving up after one rhyme: every turn was a flat skill roll (a
+  Child failed 35% of the time). Now his first turns always find a rhyme when
+  one is left (`RHYME_SURE_TURNS`: Baby 1, Child 3, Teen 4, Adult 5,
+  Rockstar 6, Old Fogey 4). After those, his `RHYME_SKILL` chance drops by
+  `RHYME_TIRING` (10%) per turn, so he tires out instead of quitting at
+  random. `wisp_reply` and `rhyme_chance` take the turn number.
+- `TALK_COOLDOWN` is 4 seconds (was 15): the 15 second wait swallowed real
+  replies. His House has a 5 second slow mode, set in Discord, so members
+  can't outpace him.
+
 ## 2026-10-31 (No more /wisp status)
 
 - `/wisp status` is gone (Myra: "it's pointless"). The pinned card in the

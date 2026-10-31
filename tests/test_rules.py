@@ -9,6 +9,7 @@ from wisp.rules import (
     BOND_TIERS,
     MEAL_POINTS,
     RHYME_SKILL,
+    RHYME_SURE_TURNS,
     SNACKS,
     STAGE_RULES,
     Stage,
@@ -53,8 +54,9 @@ def test_stage_labels() -> None:
     ]
 
 
-def test_every_hatched_stage_has_a_rhyme_skill() -> None:
+def test_every_hatched_stage_has_a_rhyme_skill_and_sure_turns() -> None:
     assert set(RHYME_SKILL) == set(Stage) - {Stage.EGG}
+    assert set(RHYME_SURE_TURNS) == set(RHYME_SKILL)
 
 
 def test_the_badge_catalog() -> None:

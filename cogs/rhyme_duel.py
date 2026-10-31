@@ -95,7 +95,7 @@ async def _duel(
             return _Outcome(Moment.RHYME_PLAYER_STUCK, reason, chain, points)
         chain.append(answer)
         points += score(kind)
-        reply = wisp_reply(answer, set(chain), life.stage, rng)
+        reply = wisp_reply(answer, set(chain), life.stage, len(chain) // 2, rng)
         if reply is None:
             return _Outcome(Moment.RHYME_WISP_STUCK, None, chain, points)
         chain.append(reply)

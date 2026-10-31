@@ -22,6 +22,8 @@ from wisp.rules import (
     RHYME_PERFECT_POINTS,
     RHYME_SKILL,
     RHYME_SLANT_POINTS,
+    RHYME_SURE_TURNS,
+    RHYME_TIRING,
     Stage,
 )
 
@@ -157,15 +159,27 @@ def opening_word(rng: random.Random) -> str:
     return rng.choice(_openers())
 
 
-def wisp_reply(
-    word: str, used: set[str], stage: Stage, rng: random.Random
-) -> str | None:
-    """Wisp's unused perfect rhyme for `word`, or None when he runs out.
+def rhyme_chance(stage: Stage, turn: int) -> float:
+    """The chance that Wisp finds a rhyme on his `turn` (1 for his first) of a duel.
 
-    He finds one with the chance his stage gives him in RHYME_SKILL, and only
-    when an unused common word rhymes.
+    Certain on his stage's RHYME_SURE_TURNS, then his RHYME_SKILL, dropping by
+    RHYME_TIRING each turn after that, like a kid getting tired, never below 0.
     """
-    if rng.random() >= RHYME_SKILL[stage]:
+    sure = RHYME_SURE_TURNS[stage]
+    if turn <= sure:
+        return 1.0
+    return max(RHYME_SKILL[stage] - RHYME_TIRING * (turn - sure - 1), 0.0)
+
+
+def wisp_reply(
+    word: str, used: set[str], stage: Stage, turn: int, rng: random.Random
+) -> str | None:
+    """Wisp's unused perfect rhyme for `word` on his `turn`, or None when he runs out.
+
+    He finds one with the chance `rhyme_chance` gives him, and only when an
+    unused common word rhymes.
+    """
+    if rng.random() >= rhyme_chance(stage, turn):
         return None
     options = sorted(_common_rhymes(word.lower()) - used)
     return rng.choice(options) if options else None

@@ -11,11 +11,19 @@ from wisp.rhymes import (
     RhymeKind,
     clean_word,
     opening_word,
+    rhyme_chance,
     rhyme_kind,
     score,
     wisp_reply,
 )
-from wisp.rules import MAX_WORD_LENGTH, RHYME_OPENER_RHYMES, Stage
+from wisp.rules import (
+    MAX_WORD_LENGTH,
+    RHYME_OPENER_RHYMES,
+    RHYME_SKILL,
+    RHYME_SURE_TURNS,
+    RHYME_TIRING,
+    Stage,
+)
 
 WORDS_FILE = Path(__file__).resolve().parent.parent / "wisp/data/common_words.txt"
 COMMON = WORDS_FILE.read_text(encoding="utf-8").splitlines()
@@ -32,10 +40,12 @@ HATCHED = [Stage.BABY, Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 TRIALS = 1000
 
 
-def reply_rate(stage: Stage) -> float:
+def reply_rate(stage: Stage, turn: int | None = None) -> float:
+    """How often Wisp answers "day" on `turn`; by default his first unsure one."""
     rng = random.Random(15)
+    turn = RHYME_SURE_TURNS[stage] + 1 if turn is None else turn
     hits = sum(
-        wisp_reply("day", {"day"}, stage, rng) is not None for _ in range(TRIALS)
+        wisp_reply("day", {"day"}, stage, turn, rng) is not None for _ in range(TRIALS)
     )
     return hits / TRIALS
 
@@ -118,7 +128,7 @@ def test_wisp_never_repeats() -> None:
     used = {"day"}
     replies = []
     for _ in range(200):
-        reply = wisp_reply("day", used, Stage.ROCKSTAR, rng)
+        reply = wisp_reply("day", used, Stage.ROCKSTAR, 1, rng)
         if reply is not None:
             assert reply not in used
             assert rhyme_kind("day", reply) is RhymeKind.PERFECT
@@ -128,7 +138,7 @@ def test_wisp_never_repeats() -> None:
     assert set(replies) <= set(COMMON)
     everything = used | set(COMMON)
     assert all(
-        wisp_reply("day", everything, Stage.ROCKSTAR, rng) is None for _ in range(20)
+        wisp_reply("day", everything, Stage.ROCKSTAR, 1, rng) is None for _ in range(20)
     )
 
 
@@ -140,7 +150,7 @@ def test_wisp_never_answers_with_a_homophone(word: str, homophone: str) -> None:
     rng = random.Random(9)
     used = {word}
     for _ in range(300):
-        reply = wisp_reply(word, used, Stage.ROCKSTAR, rng)
+        reply = wisp_reply(word, used, Stage.ROCKSTAR, 1, rng)
         if reply is not None:
             used.add(reply)
     assert homophone not in used
@@ -148,7 +158,7 @@ def test_wisp_never_answers_with_a_homophone(word: str, homophone: str) -> None:
 
 
 def test_wisp_has_nothing_for_an_unknown_word() -> None:
-    assert wisp_reply("blorptang", set(), Stage.ROCKSTAR, random.Random(1)) is None
+    assert wisp_reply("blorptang", set(), Stage.ROCKSTAR, 1, random.Random(1)) is None
 
 
 def test_wisp_reply_rate_rises_with_stage() -> None:
@@ -156,6 +166,28 @@ def test_wisp_reply_rate_rises_with_stage() -> None:
     assert rates == sorted(rates)
     assert abs(rates[0] - 0.5) < 0.05
     assert abs(rates[-1] - 0.97) < 0.02
+
+
+@pytest.mark.parametrize("stage", HATCHED + [Stage.OLD_FOGEY])
+def test_he_always_answers_on_his_sure_turns(stage: Stage) -> None:
+    for turn in range(1, RHYME_SURE_TURNS[stage] + 1):
+        assert rhyme_chance(stage, turn) == 1.0
+        assert reply_rate(stage, turn) == 1.0
+
+
+def test_after_the_sure_turns_he_tires_ten_percent_a_turn() -> None:
+    sure = RHYME_SURE_TURNS[Stage.CHILD]
+
+    chances = [rhyme_chance(Stage.CHILD, sure + step) for step in range(1, 5)]
+
+    assert RHYME_TIRING == 0.1
+    assert chances == pytest.approx([0.65, 0.55, 0.45, 0.35])
+    assert rhyme_chance(Stage.CHILD, sure + 50) == 0.0
+
+
+def test_the_child_gets_three_sure_turns() -> None:
+    assert RHYME_SURE_TURNS[Stage.CHILD] == 3
+    assert RHYME_SKILL[Stage.CHILD] == 0.65
 
 
 def test_opening_word_has_plenty_of_rhymes() -> None:

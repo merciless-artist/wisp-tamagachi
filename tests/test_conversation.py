@@ -680,7 +680,7 @@ async def test_cooldown_stops_mention_spam(
     await lay(bot)
     spam = [message.to_wisp(f"hey {index}") for index in range(3)]
 
-    for gap, said in zip((0, 2, 3), spam):
+    for gap, said in zip((0, 1, 2), spam):
         clock.advance(timedelta(seconds=gap))
         await cog.on_message(said)
 
@@ -693,7 +693,7 @@ async def test_cooldown_stops_mention_spam(
     await cog.on_message(someone_else)
     assert reply_text(someone_else) == "hey you"
 
-    clock.advance(TALK_COOLDOWN - timedelta(seconds=5))
+    clock.advance(TALK_COOLDOWN - timedelta(seconds=3))
     later = message.to_wisp("ok now?")
     await cog.on_message(later)
     assert reply_text(later) == "hey you"
