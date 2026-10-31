@@ -860,7 +860,7 @@ async def test_named_member_is_called_by_their_wisp_name(
     await cog.on_message(message.to_wisp("hi"))
 
     (prompt,) = prompts(ai)
-    assert "You're talking to Aria." in prompt.system
+    assert "you're talking to Aria." in prompt.system
     assert prompt.user.endswith("Aria says to you: hi")
 
 

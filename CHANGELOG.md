@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-31 (A real kid voice, and the track drop)
+
+- The Child talked like an adult ("hey hey! got any fresh beats for me?"). His
+  voice in `wisp/voice.py` is now about five years old, with example lines in
+  the same style as Myra's Baby voice (excited, grumpy, sad, sleepy, silly,
+  asking for food). Myra approved the draft.
+- From Child on, Wisp knows members feed him in the track drop: when he asks
+  for a track he sends people there, and a link posted in his House gets
+  pointed there too (`_TRACK_DROP_NOTE`). He writes `#track-drop`, and
+  `link_track_drop` turns it into a clickable link to the real channel
+  (answers, pokes and chime-ins). The Baby still only babbles.
+- `DOCS/wisp_prompts.md` regenerated.
+- Fixed a stale test: Myra's rewrite says "Right now you're talking to …",
+  which `test_named_member_is_called_by_their_wisp_name` still expected with a
+  capital Y.
+
 ## 2026-10-30 (A 30-day life)
 
 - Myra halved Wisp's life to keep the cute stages coming round more often. In
