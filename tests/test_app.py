@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterator
 from dataclasses import fields
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -517,6 +518,123 @@ async def test_a_failed_slash_check_is_reported_not_refused(
     )
     bot.report_error.assert_awaited_once_with(
         guild, "/wisp feed", error, where=interaction.channel
+    )
+
+
+# ---
+# Where /wisp works
+# ---
+
+STUDIO_ID = 666
+
+
+async def _does_nothing(interaction: discord.Interaction) -> None:
+    """A command body for the place checks, which never run it."""
+
+
+def command_under(group: app_commands.Group) -> app_commands.Command[Any, ..., None]:
+    return app_commands.Command(
+        name="try", description="Try it.", callback=_does_nothing, parent=group
+    )
+
+
+def used_in(
+    bot: app.WispBot,
+    channel: MagicMock,
+    group: app_commands.Group = groups.wisp,
+    settings: Settings | None = None,
+) -> MagicMock:
+    """An interaction with a command under `group`, used in `channel`."""
+    bot.settings = AsyncMock()
+    bot.settings.get.return_value = (
+        Settings(house_channel_id=HOUSE_ID, studio_forum_id=STUDIO_ID)
+        if settings is None
+        else settings
+    )
+    interaction = make_interaction(False, make_guild(None))
+    interaction.guild_id = 7
+    interaction.channel = channel
+    interaction.command = command_under(group)
+    return interaction
+
+
+@pytest.mark.parametrize(
+    "channel",
+    [
+        make_sender(channel_id=HOUSE_ID),
+        make_sender(discord.Thread, channel_id=901, parent_id=HOUSE_ID),
+        make_sender(discord.Thread, channel_id=902, parent_id=STUDIO_ID),
+    ],
+    ids=["house", "thread in the house", "studio post"],
+)
+async def test_wisp_commands_run_in_his_house_and_studio(
+    bot: app.WispBot, channel: MagicMock
+) -> None:
+    interaction = used_in(bot, channel)
+
+    assert await bot.tree.interaction_check(interaction) is True
+    interaction.response.send_message.assert_not_awaited()
+
+
+@pytest.mark.parametrize("group", [groups.wisp, groups.play])
+async def test_wisp_commands_elsewhere_say_where_they_work(
+    bot: app.WispBot, group: app_commands.Group
+) -> None:
+    interaction = used_in(bot, make_sender(channel_id=903), group)
+
+    assert await bot.tree.interaction_check(interaction) is False
+    interaction.response.send_message.assert_awaited_once_with(
+        f"♪ Wisp's commands only work in <#{HOUSE_ID}> and <#{STUDIO_ID}>.",
+        ephemeral=True,
+    )
+
+
+async def test_the_refusal_names_only_the_channels_that_are_set(
+    bot: app.WispBot,
+) -> None:
+    interaction = used_in(
+        bot, make_sender(channel_id=903), settings=Settings(house_channel_id=HOUSE_ID)
+    )
+
+    assert await bot.tree.interaction_check(interaction) is False
+    interaction.response.send_message.assert_awaited_once_with(
+        f"♪ Wisp's commands only work in <#{HOUSE_ID}>.", ephemeral=True
+    )
+
+
+async def test_before_setup_wisp_commands_work_anywhere(bot: app.WispBot) -> None:
+    interaction = used_in(bot, make_sender(channel_id=903), settings=Settings())
+
+    assert await bot.tree.interaction_check(interaction) is True
+    interaction.response.send_message.assert_not_awaited()
+
+
+async def test_staff_commands_are_not_held_to_wisps_channels(
+    bot: app.WispBot,
+) -> None:
+    interaction = used_in(bot, make_sender(channel_id=903), groups.wispadmin)
+
+    assert await bot.tree.interaction_check(interaction) is True
+    assert isinstance(bot.settings, AsyncMock)
+    bot.settings.get.assert_not_awaited()
+
+
+async def test_a_failed_settings_read_stops_the_command_and_is_reported(
+    bot: app.WispBot,
+) -> None:
+    here = make_sender(channel_id=903)
+    interaction = used_in(bot, here)
+    failure = pymysql.err.OperationalError(2013, "Lost connection")
+    assert isinstance(bot.settings, AsyncMock)
+    bot.settings.get.side_effect = failure
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+
+    assert await bot.tree.interaction_check(interaction) is False
+    interaction.response.send_message.assert_awaited_once_with(
+        USER_ERROR, ephemeral=True
+    )
+    bot.report_error.assert_awaited_once_with(
+        interaction.guild, "/wisp try", failure, where=here
     )
 
 

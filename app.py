@@ -7,12 +7,13 @@ from typing import Any, Final
 
 import aiohttp
 import discord
+import pymysql
 from discord import app_commands
 from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
-from cogs.channels import may_post_in, where_of
+from cogs.channels import in_channel, may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from cogs.share_links import ShareLinkResolver
 from cogs.speech import HouseTalk
@@ -64,8 +65,49 @@ _NO_PING: Final = discord.AllowedMentions.none()
 # ---
 
 
+def wrong_place(places: list[int]) -> str:
+    """Tell a member which of Wisp's channels his commands work in."""
+    where = " and ".join(f"<#{place}>" for place in places)
+    return f"♪ Wisp's commands only work in {where}."
+
+
 class WispTree(app_commands.CommandTree["WispBot"]):
-    """Command tree that tells the user when a command fails and posts the error."""
+    """Command tree that keeps /wisp in Wisp's channels and reports failures."""
+
+    async def interaction_check(
+        self, interaction: discord.Interaction["WispBot"], /
+    ) -> bool:
+        """Let members' /wisp commands run only in Wisp's House and Studio.
+
+        Anywhere else the member is told where to use them and the command
+        does not run. Threads and posts inside the House or the Studio count.
+        Before staff set Wisp up, his commands work in any channel.
+        """
+        command = interaction.command
+        if (
+            interaction.guild_id is None
+            or not isinstance(command, app_commands.Command)
+            or (command.root_parent or command) is not wisp
+        ):
+            return True
+        context = f"/{command.qualified_name}"
+        try:
+            settings = await self.client.settings.get(interaction.guild_id)
+        except pymysql.err.Error as error:
+            await self._reply(interaction, USER_ERROR, context)
+            await self.client.report_error(
+                interaction.guild, context, error, where=where_of(interaction)
+            )
+            return False
+        places = [
+            place
+            for place in (settings.house_channel_id, settings.studio_forum_id)
+            if place is not None
+        ]
+        if not places or any(in_channel(interaction.channel, p) for p in places):
+            return True
+        await self._reply(interaction, wrong_place(places), context)
+        return False
 
     async def on_error(
         self,

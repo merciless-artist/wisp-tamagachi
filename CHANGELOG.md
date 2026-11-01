@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-01 (/wisp only works in Wisp's House and Studio)
+
+- A tester ran `/wisp lunchbox` in the waiting room and Wisp posted it there.
+  `WispTree.interaction_check` now lets members' `/wisp` commands (and
+  `/wisp play ...`) run only in the House, the Studio, or a thread or post
+  inside either. Anywhere else the member gets a private line, "♪ Wisp's
+  commands only work in #House and #Studio.", and the command does not run.
+  Before staff set Wisp up, his commands work anywhere. `/wispadmin` is not
+  held to his channels. A settings read that fails is reported like any
+  other command failure.
+
 ## 2026-10-31 (Rhyme duels last longer; 4 second talk cooldown)
 
 - Wisp kept giving up after one rhyme: every turn was a flat skill roll (a
