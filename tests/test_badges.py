@@ -1173,7 +1173,7 @@ async def test_a_snack_pack_without_badges_says_so(
     text = await snack_pack(bot, server)
 
     assert vault_section(text, "Badges") == ["║𝄡 none yet"]
-    assert text.splitlines()[-2].startswith("╚")
+    assert text.splitlines()[-1].startswith("╚")
 
 
 async def test_the_fullest_snack_pack_still_fits_one_message(
@@ -1201,7 +1201,7 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
     assert_fits_its_box(text)
     keepsakes = vault_section(text, "Keepsakes")
     badge_lines = vault_section(text, "Badges")
-    assert text.splitlines()[-2].startswith("╚")
+    assert text.splitlines()[-1].startswith("╚")
     assert keepsakes[-1].startswith("║𝄡 and ") and keepsakes[-1].endswith(" more")
     assert badge_lines[-1].startswith("║𝄡 and ") and badge_lines[-1].endswith(" more")
     assert len(keepsakes) > 2 and len(badge_lines) > 2

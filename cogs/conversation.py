@@ -25,7 +25,7 @@ from cogs.players import (
     report_failure,
     say_privately,
 )
-from cogs.speech import POKE_ID, ai_reply, expressions, poke_button
+from cogs.speech import POKE_ID, ai_reply, dances, expressions, poke_button
 from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
@@ -182,6 +182,7 @@ async def _prompt(
         chat,
         text,
         expressions=expressions(bot, life.stage),
+        dances=dances(bot, life.stage),
         poked=poked,
         own_emojis=emojis,
         sick=is_sick(life),
@@ -369,6 +370,7 @@ class Conversation(commands.Cog):
             chat,
             None,
             expressions=expressions(self.bot, life.stage),
+            dances=dances(self.bot, life.stage),
             sick=is_sick(life),
             track_drop=track_drop is not None,
         )

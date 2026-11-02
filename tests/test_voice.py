@@ -266,6 +266,45 @@ def test_prompt_offers_the_no_u_gif_and_expressions() -> None:
     assert "wrapped in colons" in system
 
 
+def test_dances_come_with_what_each_one_shows() -> None:
+    system = build_prompt(
+        Stage.ROCKSTAR,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        dances=["wisp_drummer", "wisp_slowdance"],
+    ).system
+
+    assert "- Your dances:" in system
+    assert ":wisp_drummer: dancing with drumsticks" in system
+    assert ":wisp_slowdance: a slow, mellow swaying dance" in system
+    assert "Your dances" not in prompt_for(Stage.TEEN).system
+
+
+@pytest.mark.parametrize(
+    ("stage", "number"),
+    [
+        (Stage.TEEN, "third"),
+        (Stage.ADULT, "fourth"),
+        (Stage.ROCKSTAR, "fifth"),
+        (Stage.OLD_FOGEY, "sixth"),
+    ],
+)
+def test_from_teen_on_he_knows_myras_things_you_know(stage: Stage, number: str) -> None:
+    system = prompt_for(stage).system
+
+    assert f"you are on your {number} stage of life" in system
+    assert "**press play** - a pop punk song" in system
+    assert "https://suno.com/@wisp_viibr" in system
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD])
+def test_the_little_ones_do_not_get_the_things_you_know(stage: Stage) -> None:
+    assert "Things you know" not in prompt_for(stage).system
+
+
 @pytest.mark.parametrize("stage", AI_STAGES)
 def test_he_owns_up_to_being_an_ai_when_asked(stage: Stage) -> None:
     system = prompt_for(stage).system

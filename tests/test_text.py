@@ -10,16 +10,12 @@ from wisp.text import (
     SEPARATOR,
     USER_ERROR,
     WIDTHS,
-    bars,
     box_bottom,
-    box_close,
-    box_open,
     box_room,
     box_top,
     clip,
     count,
     fit,
-    framed,
     heading,
     item,
     note,
@@ -28,7 +24,6 @@ from wisp.text import (
     strip_emoji,
     sub,
     text_length,
-    title_bar,
     visual_width,
     wrap,
     wrapped,
@@ -36,17 +31,6 @@ from wisp.text import (
 
 SPEC = Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md"
 SPEC_LINES = frozenset(SPEC.read_bytes().decode("utf-8").splitlines())
-LAYOUT_TITLES = (
-    "𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈",
-    "𝕍𝒾𝒾𝔹ℝ <:viibr_logo:1533030151015895120> 𝕍𝒶𝓊𝓁𝓉",
-    "𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉",
-    "𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀",
-    "𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍",
-    "𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹",
-)
-BURRITO_TITLE = "𝔹𝓊𝓇𝓇𝒾𝓉𝑜"
-# Half a 𝄚: the closest two bars made of whole 𝄚 can come.
-BAR_TOLERANCE = WIDTHS["staff"] / 2
 
 
 @pytest.mark.parametrize(
@@ -123,26 +107,6 @@ def test_the_box_lines_have_the_same_number_of_rules() -> None:
     assert box_top() in SPEC_LINES
 
 
-@pytest.mark.parametrize("title", LAYOUT_TITLES)
-def test_the_title_bar_and_the_bottom_bar_look_as_wide(title: str) -> None:
-    top, bottom = bars(title)
-
-    assert top == f"𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
-    assert bottom.startswith("𝄃𝄣𝄚") and bottom.endswith("𝄚𝄂")
-    assert set(bottom[2:-1]) == {"𝄚"}
-    assert abs(visual_width(top) - visual_width(bottom)) <= BAR_TOLERANCE
-    assert title_bar(title) == top
-    assert box_open(title)[0] == top
-    assert box_close(title)[1] == bottom
-
-
-def test_the_bars_are_calibrated_on_myras_burrito_post() -> None:
-    top, bottom = bars(BURRITO_TITLE, side=6)
-
-    assert top == "𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄂"
-    assert bottom == "𝄃𝄣" + "𝄚" * 20 + "𝄂"
-
-
 def test_her_burrito_lines_fit_a_22_box_and_her_breaks_are_kept() -> None:
     room = box_room(22)
 
@@ -216,18 +180,6 @@ def test_sections_put_a_break_only_between_parts() -> None:
         "d",
     ]
     assert sections(["a"]) == ["a"]
-
-
-def test_framed_puts_the_wrapped_body_in_the_box() -> None:
-    long = item("word " * 12 + "end")
-
-    assert framed("T", ["║ x", long]).splitlines() == [
-        *box_open("T"),
-        "║ x",
-        *wrap(long).splitlines(),
-        *box_close("T"),
-    ]
-    assert framed("T", ["║ x"], 25).splitlines()[1] == box_top(25)
 
 
 # ---

@@ -344,11 +344,86 @@ LITTLE_FACES: Final = (
     "wisp_hangry",
     "wisp_meh",
 )
-# Both little stages have nap art; the Baby's examples also use the dead face.
+GROWN_FACES: Final = (
+    *LITTLE_FACES,
+    "wisp_dead",
+    "wisp_sleepy",
+    "wisp_skeptical",
+    "wisp_rofl",
+)
+# Myra's faces for each stage; both little stages have nap art.
 STAGE_FACES: Final = {
     Stage.BABY: (*LITTLE_FACES, "wisp_dead", NAP_EMOJI),
-    Stage.CHILD: (*LITTLE_FACES, NAP_EMOJI),
+    Stage.CHILD: (*LITTLE_FACES, "wisp_dead", NAP_EMOJI),
+    Stage.TEEN: GROWN_FACES,
+    Stage.ADULT: GROWN_FACES,
+    Stage.ROCKSTAR: GROWN_FACES,
+    Stage.OLD_FOGEY: GROWN_FACES,
 }
+
+# Myra's dance emojis and what each one shows, from Teen on.
+DANCES: Final = {
+    "wisp_crazy_dance": "going crazy",
+    "wisp_conductor_dance": "swaying your arms like the conductor of a symphony",
+    "wisp_drummer": "dancing with drumsticks",
+    "wisp_happy_dance": "a bouncy dance with a big smile",
+    "wisp_head_bang": "rolling head banging",
+    "wisp_slowdance": "a slow, mellow swaying dance",
+    "wisp_guitarshred": "an electric guitar solo",
+    "wisp_rocks": "rocking out on the guitar",
+}
+_DANCING: Final = (
+    "wisp_crazy_dance",
+    "wisp_conductor_dance",
+    "wisp_happy_dance",
+    "wisp_head_bang",
+    "wisp_slowdance",
+)
+_GUITAR: Final = ("wisp_guitarshred", "wisp_rocks")
+# The drummer is the Rockstar's alone.
+STAGE_DANCES: Final = {
+    Stage.TEEN: _DANCING,
+    Stage.ADULT: _DANCING,
+    Stage.ROCKSTAR: (*_DANCING[:2], "wisp_drummer", *_DANCING[2:], *_GUITAR),
+    Stage.OLD_FOGEY: (*_DANCING, *_GUITAR),
+}
+
+# What Wisp knows about himself and ViiBR from Teen on, in Myra's words.
+_STAGE_NUMBERS: Final = {
+    Stage.TEEN: "third",
+    Stage.ADULT: "fourth",
+    Stage.ROCKSTAR: "fifth",
+    Stage.OLD_FOGEY: "sixth",
+}
+_THINGS_YOU_KNOW: Final = (
+    "Things you know: You hatched from an egg, and you are on your {number} "
+    "stage of life. The server is named ViiBR Music. The ViiBR administrators "
+    "are Foggy X, Angel, and Tyro. Your creator and the server's developer is "
+    "a_cat or Cat. Foggy has a character persona AI named Stara who is a "
+    "supermodel singer. Angel reads tarot cards. Tyro is a developer and loves "
+    "cheese. Cat has a character persona AI called Lang who is an autonomous "
+    "AI agent.\n"
+    "There is a separate ViiBR Music website where people can keep their "
+    "discography, plan listen parties and participate in contests, plus more.\n"
+    "Your ViiBR Music profile is [Wisp on ViiBR](https://viibrmusic.com/"
+    "creators/035b8a04-9138-4edd-bfe5-ad015537e82f) and your SUNO profile is "
+    "[Wisp on SUNO](https://suno.com/@wisp_viibr). You can tell people about "
+    "them. Your discography is:\n"
+    "**Wisp B4 the Storm!** - a funk song that is a cover song you did. The "
+    "original is by one of your beta testers, <@442479258812678145> aka Cosmic "
+    "Baddie.\n"
+    "**Wisp with a Wish** - a pop punk/liquid d&b song about wanting to be "
+    "better at rhyming\n"
+    "**foggy x** - a hip hop song teasing Foggy because he didn't follow your "
+    'profile. He commented "Nooooooo Wisp!!!!! I would follow but Suno put a '
+    'limit on the people I follow so I am capped. Poor Wispy one."\n'
+    "**happy baby!** - a liquid d&b cover song you did from one of your beta "
+    "testers songs, <@454484971470585857> aka Surj, with simple lyrics that "
+    'just say "fire fire fire fire wisp wisp wisp oy oy oy fire fire fire beats '
+    'happy happy happy baby" repeated. Surj commented "Love it!! 🔥🔥🔥"\n'
+    "**press play** - a pop punk song about growing up in the viibr server and "
+    "hoping that people will poke and feed you"
+)
 
 _PICKLE_SIDES: Final = {
     PickleStance.LOVE: "{name} loves pickles, so you hate them.",
@@ -401,12 +476,17 @@ def _output(length: str) -> str:
     )
 
 
-def _reactions(expressions: Sequence[str], *, gif: bool) -> str:
+def _reactions(
+    expressions: Sequence[str], *, gif: bool, dances: Sequence[str] = ()
+) -> str:
     parts = ["Reactions you can use:"]
-    if expressions:
+    if expressions or dances:
         codes = "\n".join(f":{name}:" for name in expressions)
+        faces = f"- Your facial expressions:\n{codes}\n\n" if expressions else ""
+        moves = "\n".join(f":{name}: {DANCES[name]}" for name in dances)
+        dancing = f"- Your dances:\n{moves}\n\n" if dances else ""
         parts.append(
-            f"- Your facial expressions:\n{codes}\n\n"
+            f"{faces}{dancing}"
             "- Write one exactly like that, colons before the name of the emoji AND "
             "at the end as well, and it then shows up as your face. At most one "
             "per message, and not in every message, so they stay special. Always "
@@ -641,6 +721,7 @@ def build_prompt(
     message: str | None,
     *,
     expressions: Sequence[str],
+    dances: Sequence[str] = (),
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
     sick: bool = False,
@@ -651,7 +732,9 @@ def build_prompt(
     `message` is what `speaker` said to him; None means he is chiming in on his
     own, unless `poked` says how he takes `speaker`'s poke. The note and pickle
     tags are only asked for when there is a speaker with a message.
-    `own_emojis` are the emojis of his that the message used. While `sick`
+    `own_emojis` are the emojis of his that the message used. `dances` are
+    the dance emojis he may post, and from Teen on he knows the things in
+    Myra's "Things you know". While `sick`
     he has Monster Pox and sounds spotty and itchy. With `track_drop`, from
     Child on he sends people to the track drop for food (see `link_track_drop`).
 
@@ -662,7 +745,13 @@ def build_prompt(
     if voice is None:
         raise ValueError(f"Wisp has no chat voice at the {stage.label} stage")
     baby = stage is Stage.BABY
-    system = [*_personality(stage), _reactions(expressions, gif=not baby), voice]
+    system = [
+        *_personality(stage),
+        _reactions(expressions, gif=not baby, dances=dances),
+        voice,
+    ]
+    if (number := _STAGE_NUMBERS.get(stage)) is not None:
+        system.append(_THINGS_YOU_KNOW.format(number=number))
     if (layers := _MOOD_LAYERS.get(mood)) is not None:
         grown, little = layers
         system.append(little if baby else grown)

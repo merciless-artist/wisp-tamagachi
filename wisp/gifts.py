@@ -7,7 +7,13 @@ import random
 from dataclasses import dataclass
 from enum import StrEnum, auto
 
-from wisp.rules import GIFT_COLLECTIONS, GIFT_LIKE_CHANCE, Gift, GiftCollection
+from wisp.rules import (
+    GIFT_COLLECTIONS,
+    GIFT_LIKE_CHANCE,
+    GIFT_LIKE_RISE,
+    Gift,
+    GiftCollection,
+)
 
 _VOWELS = frozenset("AEIOUaeiou")
 # Letters whose names start with a vowel sound: "an L Block", "an S Block".
@@ -65,11 +71,20 @@ def collection_of(gift: Gift) -> GiftCollection:
     return next(group for group in GIFT_COLLECTIONS if group.key == gift.collection)
 
 
+def like_chance(state: GiftState) -> float:
+    """His chance of keeping the next gift on a day he has kept none yet.
+
+    Every gift given today was passed on, one per collection, and each one
+    makes him `GIFT_LIKE_RISE` more open to the next.
+    """
+    return min(1.0, GIFT_LIKE_CHANCE + GIFT_LIKE_RISE * len(state.given_today))
+
+
 def decide(state: GiftState, rng: random.Random) -> Outcome:
     """Whether he keeps a gift: full after one kept today, else a roll of `rng`."""
     if state.kept_today:
         return Outcome.FULL
-    return Outcome.KEPT if rng.random() < GIFT_LIKE_CHANCE else Outcome.PASSED
+    return Outcome.KEPT if rng.random() < like_chance(state) else Outcome.PASSED
 
 
 def with_article(title: str) -> str:

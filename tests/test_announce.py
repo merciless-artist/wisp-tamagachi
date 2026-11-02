@@ -24,6 +24,7 @@ from cogs.announce import (
     begin_again,
     begin_view,
     ending_image,
+    general_news,
     lay_first_egg,
     post_events,
     show_in_thread,
@@ -46,6 +47,7 @@ from wisp.rules import Stage
 GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
+GENERAL_ID = 21
 STATUS_ID = 60
 BOARD_ID = 61
 STATUS_MESSAGE_ID = 777
@@ -85,11 +87,16 @@ class FakeServer:
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
+        self.general = MagicMock(spec=discord.TextChannel)
+        self.general.send = AsyncMock()
         self.status = FakeThread(STATUS_ID)
         self.board = FakeThread(BOARD_ID)
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
-        self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
+        self.guild.get_channel_or_thread.side_effect = {
+            HOUSE_ID: self.house,
+            GENERAL_ID: self.general,
+        }.get
         self.members: dict[int, MagicMock] = {}
         self.guild.get_member.side_effect = self.members.get
 
@@ -1505,3 +1512,103 @@ async def test_a_failed_keepsake_never_stops_the_question(
     assert report.startswith("Error in giving a keepsake: OperationalError")
     assert question == BEGIN_AGAIN
     assert await embers(bot, NAMED) == ["Wisp v3's Last Ember"]
+
+
+# ---
+# General chat
+# ---
+
+
+@pytest.mark.parametrize(
+    "event,news",
+    [
+        (Event(EventKind.HATCHED), "hatched"),
+        (Event(EventKind.STAGE_UP, Stage.TEEN), "became a teen"),
+        (Event(EventKind.STAGE_UP, Stage.ADULT), "became an adult"),
+        (Event(EventKind.STAGE_UP, Stage.ROCKSTAR), "became a rockstar"),
+        (Event(EventKind.GREW_OLD, Stage.OLD_FOGEY), "became an old fogey"),
+    ],
+)
+def test_general_news_is_myras_line(event: Event, news: str) -> None:
+    assert general_news(event) == (
+        f"# Wisp just {news} today! Go give him a birthday poke!"
+    )
+
+
+async def test_a_stage_up_is_shared_in_general_chat_with_its_picture(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID)
+    add_image(assets, "stages", "teen")
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    server.general.send.assert_awaited_once()
+    call = server.general.send.await_args
+    assert call.args == (
+        "# Wisp just became a teen today! Go give him a birthday poke!",
+    )
+    assert call.kwargs["file"].filename == "teen.png"
+    assert sends_without_pinging(call.kwargs)
+    assert said(
+        server.house.send.await_args_list[0].args[0], Moment.STAGE_UP, stage="teen"
+    )
+
+
+async def test_without_a_general_chat_the_news_stays_in_the_house(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    server.general.send.assert_not_awaited()
+    server.house.send.assert_awaited()
+
+
+async def test_other_events_are_not_shared_in_general_chat(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID)
+    await growing_life(bot)
+
+    await post_events(
+        bot,
+        GUILD_ID,
+        [Event(EventKind.LONELY, Stage.TEEN), Event(EventKind.SICK, Stage.TEEN)],
+    )
+
+    server.general.send.assert_not_awaited()
+
+
+async def test_a_general_chat_that_cannot_be_seen_is_reported_in_the_house(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID + 1)
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    report = server.house.send.await_args_list[-1].args[0]
+    assert report.startswith(
+        "Error in sharing Wisp's new stage in general chat: LookupError"
+    )
+
+
+async def test_a_failed_general_post_is_reported_and_the_rest_still_happens(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID)
+    server.general.send.side_effect = forbidden()
+    life = await growing_life(bot)
+    await interacted(bot, life, MEMBER, 2)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    texts = [call.args[0] for call in server.house.send.await_args_list]
+    assert any(
+        text.startswith("Error in sharing Wisp's new stage in general chat: Forbidden")
+        for text in texts
+    )
+    assert await embers(bot, MEMBER) == ["Wisp v1's Teen Spark"]

@@ -921,7 +921,7 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
 
     assert order == ["card", "vault"]
     content = server.vault_edit.await_args.kwargs["content"]
-    assert content.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
+    assert content.startswith("╔")
     assert f"<@{USER_ID}>" in content
 
 

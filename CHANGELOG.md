@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026-11-01 (Myra's prompt edits: faces, dances, things he knows)
+
+- From Myra's edits in `DOCS/wisp_prompts/`. Every stage now uses only her
+  face list (`STAGE_FACES`); from Teen on he used to get every uploaded
+  `wisp_` emoji. The Child gains `wisp_dead`; Teen and up have
+  `GROWN_FACES`: the little faces plus dead, sleepy, skeptical and rofl.
+- New dance emojis with what each one shows (`DANCES`, `STAGE_DANCES`,
+  listed under "Your dances" in his prompt): crazy dance, conductor dance,
+  happy dance, head bang and slow dance from Teen on; the Rockstar adds the
+  drummer, and the Rockstar and Old Fogey the guitar shred and rocks. The
+  drummer is the Rockstar's alone (Myra). `cogs.speech.dances` picks the
+  uploaded ones.
+- From Teen on his prompt has Myra's "Things you know": the admins, the
+  ViiBR site, his ViiBR and Suno profiles and his discography. Which stage of
+  life he is on is filled in for each stage (her draft said "third" in all
+  four). Typo fixes: `:wisp_happy dance:` is `wisp_happy_dance`, the missing
+  colon on `wisp_skeptical`, "a song funk song" and "hip hop song song".
+
+## 2026-11-01 (New stages are shared in general chat)
+
+- Myra missed Wisp becoming a Teen. When he hatches, reaches a new stage or
+  becomes an Old Fogey, he now also posts his stage picture in the server's
+  general chat with Myra's line, "# Wisp just became a teen today! Go give
+  him a birthday poke!" ("just hatched" for hatching, "an" before adult and
+  old fogey). It pings nobody, and the House post is unchanged.
+- General chat is set with his other channels: `!wisp setup #house #studio
+  #tracks [#general]` and the new optional `general` box on `/wispadmin
+  setup`. Leaving it out turns the posts off; setup refuses the track drop
+  as general chat, and its answer lists "General chat". New column
+  `settings.general_channel_id`. A general chat that cannot be seen, or a
+  failed post, is reported in the House.
+
+## 2026-11-01 (Wisp warms up to gifts)
+
+- Myra's last four gifts were all passed on (a flat 1 in 3 each). He now
+  keeps the first gift of a UTC day half the time (`GIFT_LIKE_CHANCE` 1/2,
+  was 1/3), and each gift he passes on that day makes him `GIFT_LIKE_RISE`
+  (1/4) more open: 3 in 4 for the second, and the third is always kept.
+  Once he keeps one he is still full for the day. `wisp.gifts.like_chance`
+  works it out from the collections given from today. The FAQ draft says so.
+
+## 2026-11-01 (Myra's header pictures; Burrito's post is her picture)
+
+- The music-symbol title bars (𝄃𝄞𝄚𝄆 Title 𝄇𝄡𝄚𝄂) did not show on some
+  phones and older Macs, so Myra made them as pictures in Canva. The
+  Leaderboard, Wisp's Lunchbox, the Snack Pack and the ViiBR Vault now open
+  with her header picture (`ASSETS/leaderboard_title.png`,
+  `lunchbox_title.png`, `snack_pack_title.png`, `vault_title.png`) and close
+  with her footer (`ASSETS/box_footer.png`) instead of the text bars. The box
+  lines (`╔═╗`) stay.
+- A plain message shows pictures only under its text, so the header goes on
+  its own just before the text, which carries the footer (Myra's way, the
+  same as the Wisp Stats card). The Vault is a Components V2 message, so its
+  header and footer are media galleries inside it.
+- The pinned Vault card used to be the Vault post's first message. On the
+  first refresh it is brought over like the Status post was: the first
+  message keeps only the vault picture (the gallery thumbnail), and the
+  Leaderboard header and the card go under it. The header's message id is
+  the new `settings.vault_title_message_id` column.
+- New `cogs/headers.py` holds the header pieces: `send_headed`, the media
+  galleries, and `show_headed_card`, which the Status card now shares.
+  `box_open`, `box_close`, `bars` and `title_bar` are gone from
+  `wisp/text.py`, along with the Vault's logo emoji in its title.
+- Burrito's post is now Myra's picture alone (`ASSETS/burrito_post.png`) with
+  no text. An old Burrito post is edited to it on the next Studio setup.
+
 ## 2026-11-01 (/wisp only works in Wisp's House and Studio)
 
 - A tester ran `/wisp lunchbox` in the waiting room and Wisp posted it there.

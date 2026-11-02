@@ -144,7 +144,6 @@ def visual_width(text: str) -> float:
 
 SEPARATOR: Final = "𝄡" + _STAFF * 22 + "𝄂"
 BOX_WIDTH: Final = 22
-TITLE_SIDE: Final = 4
 SECTION_BREAK: Final = "╠═══⇕"
 RAIL: Final = "║"
 BLANK: Final = RAIL
@@ -156,7 +155,6 @@ ITEM_MARK: Final = f"{RAIL}{ITEM_CLEF}"
 QUOTE: Final = "> "
 CONTINUATION: Final = f"{RAIL} "
 _MARKS: Final = (HEADING_MARK, SUB_MARK, ITEM_MARK, RAIL)
-_BOTTOM_ENDS: Final = ("𝄃𝄣", "𝄂")
 
 
 def box_top(width: int = BOX_WIDTH) -> str:
@@ -167,24 +165,6 @@ def box_top(width: int = BOX_WIDTH) -> str:
 def box_bottom(width: int = BOX_WIDTH) -> str:
     """The bottom of a box `width` `═` wide."""
     return "╚" + "═" * width + "╝"
-
-
-def bars(title: str, side: int = TITLE_SIDE) -> tuple[str, str]:
-    """The title bar with `title` and a bottom bar that looks just as wide.
-
-    The title bar has `side` `𝄚` on each side of the title; the bottom bar has
-    as many `𝄚` as bring it nearest the title bar's `visual_width`.
-    """
-    staff = _STAFF * side
-    top = f"𝄃𝄞{staff}𝄆 {title} 𝄇𝄡{staff}𝄂"
-    ends = visual_width("".join(_BOTTOM_ENDS))
-    count = round((visual_width(top) - ends) / visual_width(_STAFF))
-    return top, _BOTTOM_ENDS[0] + _STAFF * max(count, 0) + _BOTTOM_ENDS[1]
-
-
-def title_bar(title: str, side: int = TITLE_SIDE) -> str:
-    """The bar above the box, with `title` between the repeat signs."""
-    return bars(title, side)[0]
 
 
 def heading(name: str) -> str:
@@ -207,16 +187,6 @@ def note(text: str) -> str:
     return f"{RAIL} {text}"
 
 
-def box_open(title: str, width: int = BOX_WIDTH, side: int = TITLE_SIDE) -> list[str]:
-    """The title bar and the top of the box."""
-    return [title_bar(title, side), box_top(width)]
-
-
-def box_close(title: str, width: int = BOX_WIDTH, side: int = TITLE_SIDE) -> list[str]:
-    """The bottom of the box and the bottom bar that matches `title`'s bar."""
-    return [box_bottom(width), bars(title, side)[1]]
-
-
 def sections(*parts: Sequence[str]) -> list[str]:
     """The lines of each part, with a section break between parts."""
     lines: list[str] = []
@@ -225,22 +195,6 @@ def sections(*parts: Sequence[str]) -> list[str]:
             lines.append(SECTION_BREAK)
         lines.extend(part)
     return lines
-
-
-def framed(
-    title: str,
-    body: Sequence[str],
-    width: int = BOX_WIDTH,
-    side: int = TITLE_SIDE,
-) -> str:
-    """`body`, wrapped to fit, in a box `width` wide under `title`."""
-    return "\n".join(
-        [
-            *box_open(title, width, side),
-            *wrapped(body, width),
-            *box_close(title, width, side),
-        ]
-    )
 
 
 def quoted(lines: Sequence[str]) -> str:

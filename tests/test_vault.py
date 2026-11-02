@@ -31,7 +31,6 @@ from wisp.text import (
     BLANK,
     MESSAGE_LIMIT,
     SECTION_BREAK,
-    bars,
     text_length,
 )
 
@@ -40,12 +39,14 @@ FORUM_ID = 10
 HOUSE_ID = 20
 VAULT_ID = 61
 VAULT_MESSAGE_ID = 778
+VAULT_TITLE_ID = 777
+POSTED_ID = 779
 FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 BOX_BOTTOM = "╚══════════════════════╝"
-BOTTOM_BAR = bars("𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")[1]
+BOX_TOP = "╔══════════════════════╗"
 INTRO = [
     "║𝄡𝄚𝄂 Snacks and the leaderboard.",
     BLANK,
@@ -76,9 +77,19 @@ class FakeServer:
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
         self.vault.archived = False
-        self.vault.send = AsyncMock()
+        self.vault.send = AsyncMock(
+            side_effect=lambda *args, **kwargs: MagicMock(
+                id=VAULT_TITLE_ID if "file" in kwargs and not args else POSTED_ID,
+                pin=AsyncMock(),
+            )
+        )
+        self.starter = MagicMock(spec=discord.Message)
+        self.starter.attachments = ["vault.png"]
+        self.starter.edit = AsyncMock()
+        self.vault.fetch_message = AsyncMock(return_value=self.starter)
+        self.vault_delete: Any = AsyncMock()
         self.vault.get_partial_message.return_value = MagicMock(
-            spec=discord.PartialMessage, edit=self.vault_edit
+            spec=discord.PartialMessage, edit=self.vault_edit, delete=self.vault_delete
         )
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
@@ -117,6 +128,7 @@ async def configure(bot: app.WispBot) -> None:
         studio_forum_id=FORUM_ID,
         vault_thread_id=VAULT_ID,
         vault_message_id=VAULT_MESSAGE_ID,
+        vault_title_message_id=VAULT_TITLE_ID,
     )
 
 
@@ -139,10 +151,16 @@ async def run(command: Any, *args: Any) -> None:
 
 
 def followups(interaction: MagicMock) -> list[str]:
-    """Texts sent as ephemeral follow-ups that cannot ping anyone."""
+    """Texts sent as ephemeral follow-ups that cannot ping anyone.
+
+    The Leaderboard header, sent on its own above the board, is skipped.
+    """
     sent = []
     for call in interaction.followup.send.await_args_list:
         assert call.kwargs["ephemeral"] is True
+        if not call.args:
+            assert call.kwargs["file"].filename == "leaderboard_title.png"
+            continue
         assert call.kwargs["allowed_mentions"].to_dict() == (
             discord.AllowedMentions.none().to_dict()
         )
@@ -206,12 +224,12 @@ async def test_board_activates_once(bot: app.WispBot) -> None:
     first.response.defer.assert_awaited_once_with(ephemeral=True)
     radar, board = followups(first)
     assert "radar" in radar
-    assert board.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
+    assert board.startswith(BOX_TOP)
 
     second = make_interaction(bot)
     await run(vault.wisp_board, second)
     (board_only,) = followups(second)
-    assert board_only.startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
+    assert board_only.startswith(BOX_TOP)
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
 
 
@@ -223,8 +241,9 @@ async def test_board_puts_the_buttons_on_the_leaderboard_only(
 
     await run(vault.wisp_board, interaction)
 
-    radar_call, board_call = interaction.followup.send.await_args_list
+    radar_call, header_call, board_call = interaction.followup.send.await_args_list
     assert "view" not in radar_call.kwargs
+    assert "view" not in header_call.kwargs
     view = board_call.kwargs["view"]
     shop, snack_pack = view.children
     assert isinstance(shop, ShopButton)
@@ -237,6 +256,22 @@ async def test_board_works_before_any_life_exists(bot: app.WispBot) -> None:
     await run(vault.wisp_board, interaction)
 
     assert "Nobody" in followups(interaction)[-1]
+
+
+async def test_board_shows_myras_header_above_and_footer_under_it(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    interaction = make_interaction(bot)
+    await bot.players.activate(GUILD_ID, FIRST_USER, NOW)
+
+    await run(vault.wisp_board, interaction)
+
+    header_call, board_call = interaction.followup.send.await_args_list
+    assert header_call.args == ()
+    assert header_call.kwargs["file"].filename == "leaderboard_title.png"
+    assert board_call.args[0].startswith(BOX_TOP)
+    assert board_call.kwargs["file"].filename == "box_footer.png"
 
 
 # ---
@@ -367,13 +402,9 @@ async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     lines = text.splitlines()
-    assert lines[:7] == [
-        "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
-        "╔══════════════════════╗",
-        *INTRO,
-    ]
-    assert lines[-3:] == [BLANK, BOX_BOTTOM, BOTTOM_BAR]
-    for line in (*lines[:3], *lines[-2:]):
+    assert lines[:6] == [BOX_TOP, *INTRO]
+    assert lines[-2:] == [BLANK, BOX_BOTTOM]
+    for line in (*lines[:2], lines[-1]):
         assert line in SPEC_LINES, line
     assert_fits_its_box(text)
 
@@ -422,7 +453,7 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
 ) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text.splitlines()[2:] == [
+    assert text.splitlines()[1:] == [
         *INTRO,
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **This life**",
@@ -441,7 +472,6 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
         "║𝄡 None yet",
         BLANK,
         BOX_BOTTOM,
-        BOTTOM_BAR,
     ]
 
 
@@ -483,7 +513,7 @@ async def test_leaderboard_fits_one_message(
 
     assert text_length(text) <= MESSAGE_LIMIT
     lines = text.splitlines()
-    assert lines[-3:] == [BLANK, BOX_BOTTOM, BOTTOM_BAR]
+    assert lines[-2:] == [BLANK, BOX_BOTTOM]
     assert_fits_its_box(text)
     assert sum(line.startswith("║𝄡 ") and ". <@" in line for line in lines) == 25
     version_lines = section(text, "Versions")
@@ -512,7 +542,7 @@ async def test_refresh_vault_edits_the_pinned_message(
 
     server.vault.get_partial_message.assert_called_once_with(VAULT_MESSAGE_ID)
     kwargs = server.vault_edit.await_args.kwargs
-    assert kwargs["content"].startswith("𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹")
+    assert kwargs["content"].startswith(BOX_TOP)
     assert "║𝄡 v1 ・ going strong" in kwargs["content"]
     assert kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
@@ -534,6 +564,43 @@ async def test_refresh_vault_puts_shop_and_snack_pack_buttons_on_the_card(
     shop, snack_pack = view.children
     assert isinstance(shop, ShopButton)
     assert isinstance(snack_pack, SnackPackButton)
+
+
+async def test_a_card_in_the_first_post_is_brought_over(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, vault_message_id=VAULT_ID)
+    await lay(bot)
+
+    await refresh_vault(bot, GUILD_ID)
+
+    server.vault.fetch_message.assert_awaited_once_with(VAULT_ID)
+    starter = server.starter.edit.await_args.kwargs
+    assert starter["content"] is None
+    assert starter["view"] is None
+    server.vault.get_partial_message.assert_called_once_with(VAULT_TITLE_ID)
+    server.vault_delete.assert_awaited_once()
+    header, card = server.vault.send.await_args_list
+    assert header.kwargs["file"].filename == "leaderboard_title.png"
+    assert card.kwargs["file"].filename == "box_footer.png"
+    assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
+
+
+async def test_a_first_post_with_no_picture_keeps_its_name(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(
+        GUILD_ID, vault_message_id=VAULT_ID, vault_title_message_id=None
+    )
+    server.starter.attachments = []
+    await lay(bot)
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert server.starter.edit.await_args.kwargs["content"] == "♪ The ViiBR Vault"
+    server.vault_delete.assert_not_awaited()
 
 
 def test_board_command_hangs_off_the_wisp_group() -> None:

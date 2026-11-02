@@ -6,13 +6,12 @@ card, which carries the same picture so it shows under the card and closes
 it, and the card's buttons. The card is pinned and edited in place.
 """
 
-import contextlib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.assets import ASSETS_DIR
+from cogs.headers import HeadedCard, show_headed_card
 from cogs.pictures import Picture
 from cogs.studio import StudioError, studio_thread
 
@@ -25,18 +24,14 @@ _LABEL: Final = "status card"
 _PICTURE_KEY: Final = "status picture"
 _NO_PICTURE: Final = "♪ Wisp's status"
 _NO_PING: Final = discord.AllowedMentions.none()
-
-
-def _title() -> Path | None:
-    """Myra's Wisp Stats title picture, or None when it is missing."""
-    path = ASSETS_DIR / _TITLE_NAME
-    return path if path.is_file() else None
-
-
-def _title_file() -> dict[str, Any]:
-    """The keyword that attaches the title picture to a send, if there is one."""
-    title = _title()
-    return {} if title is None else {"file": discord.File(title)}
+_CARD: Final = HeadedCard(
+    header=_TITLE_NAME,
+    footer=_TITLE_NAME,
+    title_attr="status_title_message_id",
+    card_attr=_CARD_ATTR,
+    label=_LABEL,
+    post=_NO_PICTURE.removeprefix("♪ "),
+)
 
 
 # ---
@@ -77,8 +72,8 @@ async def show_status(
         card_id = (await bot.settings.get(guild_id)).status_message_id
         posted = card_id is not None and card_id != thread.id
         await _show_picture(bot, guild_id, thread, image, clear_image, posted)
-        await _show_card(
-            bot, guild_id, thread, content, view, card_id if posted else None
+        await show_headed_card(
+            bot, guild_id, thread, content, view, _CARD, card_id if posted else None
         )
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
@@ -124,47 +119,3 @@ async def _show_picture(
     except discord.NotFound:
         return
     bot.shown_images[key] = (thread.id, attached or "")
-
-
-async def _show_card(
-    bot: "WispBot",
-    guild_id: int,
-    thread: discord.Thread,
-    content: str,
-    view: discord.ui.View,
-    card_id: int | None,
-) -> None:
-    """Edit the card `card_id`, or post the title and the card when there is none.
-
-    Only the text and buttons are edited, so the title picture under the card
-    stays. A card that is gone is posted again with its title, and the old
-    title, if still there, is deleted so the two stay together.
-    """
-    if card_id is not None:
-        try:
-            await thread.get_partial_message(card_id).edit(
-                content=content, view=view, allowed_mentions=_NO_PING
-            )
-            return
-        except discord.NotFound:
-            pass
-    title_id = (await bot.settings.get(guild_id)).status_title_message_id
-    if title_id is not None:
-        with contextlib.suppress(discord.NotFound):
-            await thread.get_partial_message(title_id).delete()
-    title_art = _title_file()
-    title = await thread.send(**title_art) if title_art else None
-    card = await thread.send(
-        content, view=view, allowed_mentions=_NO_PING, **_title_file()
-    )
-    await bot.settings.update(
-        guild_id,
-        status_title_message_id=None if title is None else title.id,
-        status_message_id=card.id,
-    )
-    try:
-        await card.pin()
-    except discord.HTTPException as error:
-        await bot.report_error(
-            bot.get_guild(guild_id), f"pinning the {_LABEL}", error, where=thread
-        )

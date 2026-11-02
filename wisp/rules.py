@@ -265,7 +265,9 @@ FAVORITE_SONGS_SHOWN = 10
 # ---
 
 GIFT_COST = 15
-GIFT_LIKE_CHANCE = 1 / 3
+GIFT_LIKE_CHANCE = 1 / 2
+# Added for each gift he passed on today, so the third gift of a day is kept.
+GIFT_LIKE_RISE = 1 / 4
 # Outside the daily casual bond cap.
 BOND_PER_KEPT_GIFT = 5
 COLLECTION_BOND_BONUS = 25

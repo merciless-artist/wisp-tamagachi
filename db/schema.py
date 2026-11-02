@@ -30,6 +30,8 @@ _DEFINITIONS: dict[str, str] = {
         house_panel_message_id BIGINT NULL,
         burrito_thread_id BIGINT NULL,
         status_title_message_id BIGINT NULL,
+        vault_title_message_id BIGINT NULL,
+        general_channel_id BIGINT NULL,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -204,6 +206,8 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "house_panel_message_id": "BIGINT NULL",
         "burrito_thread_id": "BIGINT NULL",
         "status_title_message_id": "BIGINT NULL",
+        "vault_title_message_id": "BIGINT NULL",
+        "general_channel_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
     "favorites": {"artist": "VARCHAR(100) NULL"},

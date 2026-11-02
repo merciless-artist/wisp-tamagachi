@@ -557,7 +557,7 @@ async def test_the_snack_pack_keeps_every_cover_from_every_life_newest_first(
     ]
     lines = text.splitlines()
     assert lines.index("║𝄡𝄚𝄂𝄆 **Badges**") < lines.index("║𝄡𝄚𝄂𝄆 **Magazines**")
-    assert lines[-2].startswith("╚")
+    assert lines[-1].startswith("╚")
 
 
 async def test_a_snack_pack_without_magazines_has_no_magazines_section(
@@ -595,7 +595,7 @@ async def test_the_fullest_snack_pack_with_magazines_still_fits_one_message(
 
     assert text_length(text) <= MESSAGE_LIMIT
     assert_fits_its_box(text)
-    assert text.splitlines()[-2].startswith("╚")
+    assert text.splitlines()[-1].startswith("╚")
     for heading in ("Keepsakes", "Badges", "Magazines"):
         lines = section(text, heading)
         assert len(lines) > 2, heading

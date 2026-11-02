@@ -34,6 +34,7 @@ HERE_ID = 920000000000000003
 TRACK_THREAD_ID = 920000000000000004
 STUDIO_ID = 920000000000000005
 FORUM_DROP_ID = 920000000000000006
+GENERAL_ID = 920000000000000007
 STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
@@ -77,7 +78,8 @@ class FakeServer:
         self.forum_drop = self.add_channel(
             discord.ForumChannel, FORUM_DROP_ID, "forum-drop"
         )
-        self.guild.text_channels = [self.house, self.tracks, self.here]
+        self.general = self.add_channel(discord.TextChannel, GENERAL_ID, "general")
+        self.guild.text_channels = [self.house, self.tracks, self.here, self.general]
         self.guild.forums = [self.studio, self.forum_drop]
         self.roles = {
             role_id: make_role(role_id) for role_id in (STAFF_ROLE_ID, OTHER_ROLE_ID)
@@ -578,9 +580,48 @@ async def test_setup(
         f"・Wisp's House: <#{HOUSE_ID}>\n"
         f"・Wisp's Studio: <#{STUDIO_ID}>\n"
         f"・Track drop: <#{TRACKS_ID}>\n"
+        "・General chat: off\n"
         "・Studio threads: all six already exist\n"
         "・Badge roles: all 2 ready"
     ]
+
+
+async def test_setup_saves_general_chat_when_given(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
+) -> None:
+    content = f"!wisp setup <#{HOUSE_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}> <#{GENERAL_ID}>"
+
+    await say(bot, server.message(content, boss))
+
+    assert (await bot.settings.get(GUILD_ID)).general_channel_id == GENERAL_ID
+    (answer,) = sent(server.here)
+    assert f"・General chat: <#{GENERAL_ID}>" in answer.splitlines()
+
+
+async def test_setup_without_general_chat_turns_it_off(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID)
+    content = f"!wisp setup <#{HOUSE_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}>"
+
+    await say(bot, server.message(content, boss))
+
+    assert (await bot.settings.get(GUILD_ID)).general_channel_id is None
+
+
+async def test_setup_refuses_a_general_chat_that_is_the_track_drop(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, no_studio_work: list[str]
+) -> None:
+    content = f"!wisp setup <#{HOUSE_ID}> <#{STUDIO_ID}> <#{TRACKS_ID}> <#{TRACKS_ID}>"
+
+    await say(bot, server.message(content, boss))
+
+    assert sent(server.here) == [
+        "♪ General chat can't be the track drop, since Wisp never posts there. "
+        "Pick a different channel for one of them."
+    ]
+    assert no_studio_work == []
+    assert (await bot.settings.get(GUILD_ID)).general_channel_id is None
 
 
 async def test_setup_refuses_a_house_that_is_the_track_drop(
@@ -628,7 +669,9 @@ async def test_setup_with_the_wrong_channels_gets_the_usage_line(
 ) -> None:
     await say(bot, server.message(f"!wisp setup {arguments}", boss))
 
-    assert sent(server.here) == ["♪ Usage: !wisp setup #house #studio #tracks"]
+    assert sent(server.here) == [
+        "♪ Usage: !wisp setup #house #studio #tracks [#general]"
+    ]
     assert no_studio_work == []
     assert (await bot.settings.get(GUILD_ID)).studio_forum_id is None
 
@@ -1058,7 +1101,13 @@ async def test_slash_setup_and_faq_reach_the_shared_logic_privately(
     await faq_command.callback(faq_used)
 
     shared["set_up"].assert_awaited_once_with(
-        bot, server.guild, server.house, server.studio, server.forum_drop, server.here
+        bot,
+        server.guild,
+        server.house,
+        server.studio,
+        server.forum_drop,
+        server.here,
+        general=None,
     )
     shared["rebuild"].assert_awaited_once_with(bot, GUILD_ID)
     for used, text in ((setup_used, "♪ set up"), (faq_used, "♪ rebuilt")):
@@ -1082,7 +1131,13 @@ async def test_the_typed_forms_reach_the_same_shared_logic(
     await say(bot, server.message("!wisp faq", boss))
 
     shared["set_up"].assert_awaited_once_with(
-        bot, server.guild, server.house, server.studio, server.forum_drop, server.here
+        bot,
+        server.guild,
+        server.house,
+        server.studio,
+        server.forum_drop,
+        server.here,
+        general=None,
     )
     shared["rebuild"].assert_awaited_once_with(bot, GUILD_ID)
     assert sent(server.here) == ["♪ set up", "♪ rebuilt"]

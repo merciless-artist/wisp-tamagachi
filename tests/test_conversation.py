@@ -19,7 +19,7 @@ import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs.conversation import Conversation, PokeButton
-from cogs.speech import expressions
+from cogs.speech import dances, expressions
 from db.activity import ActivityRepo
 from db.database import Database
 from db.lives import LifeRepo
@@ -1094,13 +1094,39 @@ def test_little_stages_use_only_their_own_faces_in_order(
     assert faces == [name for name in STAGE_FACES[stage] if name in faces]
     assert faces[:2] == ["wisp_happy", "wisp_meh"]
     assert "wisp_gg" not in faces and "wisp_coin" not in faces
-    assert ("wisp_dead" in faces) is (stage is Stage.BABY)
+    assert "wisp_dead" in faces
 
 
-def test_grown_stages_use_every_face(bot: app.WispBot) -> None:
-    give_emojis(bot, "wisp_meh", "wisp_gg", "wisp_drummer")
+@pytest.mark.parametrize(
+    "stage", [Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR, Stage.OLD_FOGEY]
+)
+def test_grown_stages_use_only_myras_faces(bot: app.WispBot, stage: Stage) -> None:
+    give_emojis(bot, "wisp_rofl", "wisp_gg", "wisp_drummer", "wisp_happy")
 
-    assert expressions(bot, Stage.ROCKSTAR) == ["wisp_drummer", "wisp_gg", "wisp_meh"]
+    assert expressions(bot, stage) == ["wisp_happy", "wisp_rofl"]
+
+
+@pytest.mark.parametrize(
+    ("stage", "drums"),
+    [
+        (Stage.BABY, False),
+        (Stage.CHILD, False),
+        (Stage.TEEN, False),
+        (Stage.ADULT, False),
+        (Stage.ROCKSTAR, True),
+        (Stage.OLD_FOGEY, False),
+    ],
+)
+def test_only_the_rockstar_gets_the_drummer(
+    bot: app.WispBot, stage: Stage, drums: bool
+) -> None:
+    give_emojis(bot, "wisp_drummer", "wisp_slowdance", "wisp_rocks")
+
+    moves = dances(bot, stage)
+
+    assert ("wisp_drummer" in moves) is drums
+    assert ("wisp_slowdance" in moves) is (stage not in (Stage.BABY, Stage.CHILD))
+    assert ("wisp_rocks" in moves) is (stage in (Stage.ROCKSTAR, Stage.OLD_FOGEY))
 
 
 # ---

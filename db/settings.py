@@ -23,7 +23,10 @@ class Settings:
     Studio, where Burrito, a separate bot, answers and Wisp stays quiet.
     `status_title_message_id` is the Wisp Stats title post above the status
     card; the card is `status_message_id`, and the Status post's first
-    message shows only Wisp's picture.
+    message shows only Wisp's picture. `vault_title_message_id` is the
+    Leaderboard title post above the Vault card, `vault_message_id`.
+    `general_channel_id` is the server's general chat, where Wisp shares
+    each new stage; None keeps the news in his House.
     """
 
     tracks_channel_id: int | None = None
@@ -44,6 +47,8 @@ class Settings:
     house_panel_message_id: int | None = None
     burrito_thread_id: int | None = None
     status_title_message_id: int | None = None
+    vault_title_message_id: int | None = None
+    general_channel_id: int | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))

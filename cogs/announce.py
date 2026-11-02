@@ -34,6 +34,11 @@ BEGIN_ID: Final = "wisp:begin"
 BEGIN_AGAIN: Final = "♪ Do you want to begin again?"
 _BABY_STAGE: Final = "baby"
 _GIVING: Final = "giving a keepsake"
+_NEW_STAGE: Final = frozenset(
+    {EventKind.HATCHED, EventKind.STAGE_UP, EventKind.GREW_OLD}
+)
+_GENERAL_NEWS: Final = "# Wisp just {news} today! Go give him a birthday poke!"
+_GENERAL_CONTEXT: Final = "sharing Wisp's new stage in general chat"
 _STAGE_KEEPSAKES: Final = {
     Stage.CHILD: KeepsakeKind.FIRST_SPARK,
     Stage.TEEN: KeepsakeKind.TEEN_SPARK,
@@ -269,8 +274,9 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     """Announce life events in Wisp's House.
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
-    A death, a cold egg or a farewell gives any Last Embers and then asks staff
-    whether to begin again; no egg is laid until they press the button. An
+    Each new stage is also shared in the server's general chat when staff
+    set one. A death, a cold egg or a farewell gives any Last Embers and then
+    asks staff whether to begin again; no egg is laid until they press the button. An
     ending is skipped when the current life is not over, which means it is
     stale. Hatching, each stage up and growing old give a keepsake to the
     member who was there. A missing House channel is reported once; the
@@ -288,10 +294,49 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
             continue
         moment = Moment(event.kind.value)
         await house.say(_line(bot, moment, life, event), _image_for(event))
+        if event.kind in _NEW_STAGE:
+            await _tell_general(bot, guild_id, event)
         if (kind := _milestone(event)) is not None:
             await _give_milestone(bot, guild_id, house, life, kind)
         if event.kind in _ENDINGS:
             await _ask_to_begin_again(bot, guild_id, house, discord.utils.utcnow())
+
+
+# ---
+# General chat
+# ---
+
+
+def general_news(event: Event) -> str:
+    """Myra's line for general chat when Wisp hatches or reaches a new stage."""
+    if event.kind is EventKind.HATCHED or event.stage is None:
+        return _GENERAL_NEWS.format(news="hatched")
+    stage = event.stage.label.lower()
+    article = "an" if stage[0] in "aeiou" else "a"
+    return _GENERAL_NEWS.format(news=f"became {article} {stage}")
+
+
+async def _tell_general(bot: "WispBot", guild_id: int, event: Event) -> None:
+    """Share a new stage in general chat, with its picture, pinging nobody.
+
+    Nothing is posted when staff set no general chat. One that cannot be
+    seen, or a failed post, is reported in Wisp's House.
+    """
+    channel_id = (await bot.settings.get(guild_id)).general_channel_id
+    if channel_id is None:
+        return
+    guild = bot.get_guild(guild_id)
+    channel = None if guild is None else guild.get_channel_or_thread(channel_id)
+    if not isinstance(channel, discord.abc.Messageable):
+        error = LookupError(f"general chat {channel_id} cannot be seen")
+        await bot.report_error(guild, _GENERAL_CONTEXT, error)
+        return
+    image = _image_for(event)
+    art: dict[str, Any] = {} if image is None else {"file": discord.File(image)}
+    try:
+        await channel.send(general_news(event), allowed_mentions=_NO_PING, **art)
+    except discord.DiscordException as error:
+        await bot.report_error(guild, _GENERAL_CONTEXT, error)
 
 
 # ---

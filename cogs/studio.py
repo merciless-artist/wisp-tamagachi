@@ -25,7 +25,7 @@ from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import BLANK, SEPARATOR, count, framed, item, sub
+from wisp.text import SEPARATOR, count
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -52,6 +52,10 @@ _PANEL_CONTEXT: Final = "setting up the Poke Wisp panel in Wisp's House"
 _PANEL_ATTR: Final = "house_panel_message_id"
 _HOUSE_IS_TRACKS: Final = (
     "♪ Wisp's House can't be the track drop, since Wisp never posts there. "
+    "Pick a different channel for one of them."
+)
+_GENERAL_IS_TRACKS: Final = (
+    "♪ General chat can't be the track drop, since Wisp never posts there. "
     "Pick a different channel for one of them."
 )
 _PANEL_LABEL: Final = "Poke Wisp panel"
@@ -165,32 +169,17 @@ def rules_post(settings: Settings) -> str:
     return rules_text(meal_points(settings))
 
 
-# Myra's Burrito post: the frame she calibrated the house style's widths on,
-# with 6 𝄚 each side of the title.
-_BURRITO_SIDE: Final = 6
-_BURRITO_STARTER: Final = framed(
-    "𝔹𝓊𝓇𝓇𝒾𝓉𝑜",
-    [
-        sub("Burrito is Wisp's fairy god-bot."),
-        BLANK,
-        item("Ask him anything about how Wisp works, right here."),
-        BLANK,
-        item("He'll point you to where to look for Wisp's live stats."),
-    ],
-    side=_BURRITO_SIDE,
-)
-
-
 @dataclass(frozen=True)
 class StudioThread:
     """One thread of the Studio forum and the settings that remember it.
 
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
-    post's text when the thread is created; with `current_content`, a first
-    post with other text is edited to it when the Studio is ensured. `image`
-    is the first post's picture, which the forum shows as the post's
-    thumbnail, relative to the ASSETS folder. A `pinned_post` stays at the top
+    post's text when the thread is created, empty when the picture is the
+    whole post; with `current_content`, a first post with other text is
+    edited to it, picture included, when the Studio is ensured. `image` is
+    the first post's picture, which the forum shows as the post's thumbnail,
+    relative to the ASSETS folder. A `pinned_post` stays at the top
     of the forum; Discord pins one post per forum.
     """
 
@@ -250,8 +239,8 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "burrito_thread_id",
         "🧚│Burrito, Fairy God-bot",
         "Burrito, Fairy God-bot",
-        _BURRITO_STARTER,
-        image="thumbs/burrito.png",
+        "",
+        image="burrito_post.png",
         current_content=True,
     ),
 )
@@ -413,13 +402,17 @@ async def _update_starter(
 ) -> None:
     """Edit the thread's first post to `spec.content` when its text differs.
 
-    A first post that is gone is left alone; a failed edit is posted in the
-    thread.
+    The edit brings the post's picture up to date with it. A first post that
+    is gone is left alone; a failed edit is posted in the thread.
     """
     try:
         starter = await thread.fetch_message(thread.id)
-        if starter.content != spec.content:
-            await starter.edit(content=spec.content, allowed_mentions=_NO_PING)
+        if starter.content == spec.content:
+            return
+        art: dict[str, Any] = {}
+        if (path := _thumbnail(spec)) is not None:
+            art["attachments"] = [discord.File(path)]
+        await starter.edit(content=spec.content, allowed_mentions=_NO_PING, **art)
     except discord.NotFound:
         return
     except discord.HTTPException as error:
@@ -668,21 +661,27 @@ async def set_up(
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
     where: discord.abc.Messageable | None,
+    *,
+    general: discord.TextChannel | None = None,
 ) -> str:
     """Save the channels, then make the House panel, Studio threads and badge roles.
 
-    Failures along the way are reported in `where`. A House that is also the
-    track drop is refused, since Wisp never posts there. Returns the answer
-    for staff.
+    `general` is the server's general chat, where Wisp shares each new stage;
+    without one he shares it only in his House. Failures along the way are
+    reported in `where`. A House or general chat that is also the track drop
+    is refused, since Wisp never posts there. Returns the answer for staff.
     """
     if house.id == tracks.id:
         return _HOUSE_IS_TRACKS
+    if general is not None and general.id == tracks.id:
+        return _GENERAL_IS_TRACKS
     before = await bot.settings.get(guild.id)
     await bot.settings.update(
         guild.id,
         house_channel_id=house.id,
         studio_forum_id=studio.id,
         tracks_channel_id=tracks.id,
+        general_channel_id=None if general is None else general.id,
     )
     await ensure_house_panel(bot, guild, where)
     try:
@@ -706,6 +705,7 @@ async def set_up(
             f"・Wisp's House: {house.mention}",
             f"・Wisp's Studio: {studio.mention}",
             f"・Track drop: {tracks.mention}",
+            f"・General chat: {'off' if general is None else general.mention}",
             f"・{threads}",
             *badge_lines,
         ]
@@ -735,12 +735,14 @@ async def rebuild(bot: "WispBot", guild_id: int) -> str:
     house="Where Wisp talks and announces his big moments",
     studio="The forum for Wisp's Studio threads",
     tracks="The track drop channel Wisp eats from",
+    general="General chat, where Wisp shares each new stage (leave empty for none)",
 )
 async def setup_slash(
     interaction: discord.Interaction["WispBot"],
     house: discord.TextChannel,
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
+    general: discord.TextChannel | None = None,
 ) -> None:
     """The slash form of `!wisp setup`, answered privately."""
     if await refused(interaction) or interaction.guild is None:
@@ -753,6 +755,7 @@ async def setup_slash(
         studio,
         tracks,
         where_of(interaction),
+        general=general,
     )
     await interaction.followup.send(text, ephemeral=True, allowed_mentions=_NO_PING)
 
@@ -772,17 +775,19 @@ async def faq_slash(interaction: discord.Interaction["WispBot"]) -> None:
 # ---
 
 
-@commands.command(name="setup", usage="#house #studio #tracks")
+@commands.command(name="setup", usage="#house #studio #tracks [#general]")
 async def setup_studio(
     ctx: StaffContext,
     house: discord.TextChannel,
     studio: discord.ForumChannel,
     tracks: discord.TextChannel | discord.ForumChannel,
+    general: discord.TextChannel | None = None,
 ) -> None:
     """Save the channels, then make the House panel, Studio threads and badges."""
-    await reply(
-        ctx, await set_up(ctx.bot, guild_of(ctx), house, studio, tracks, ctx.channel)
+    answer = await set_up(
+        ctx.bot, guild_of(ctx), house, studio, tracks, ctx.channel, general=general
     )
+    await reply(ctx, answer)
 
 
 @commands.group(

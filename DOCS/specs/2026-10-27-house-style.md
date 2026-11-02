@@ -32,11 +32,14 @@ Myra's draft has one and nowhere else; the layouts below show each one.
 
 ## The frame
 
-- Title bar: `𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`: 4 `𝄚` on each side (Burrito's post
-  has 6), one space inside each repeat sign.
-- Bottom bar: `𝄃𝄣` + m `𝄚` + `𝄂`, where m makes it look as wide as the title
-  bar (`wisp.text.bars(title)` picks m from `visual_width`, below). Calibrated
-  on Myra's Burrito post: 6 `𝄚` each side of `𝔹𝓊𝓇𝓇𝒾𝓉𝑜` looks as wide as 20 `𝄚`.
+- Title and bottom bars (2026-11-01): the text bars did not show on some
+  phones, so they are now Myra's pictures. Each layout opens with its header
+  picture (`ASSETS/leaderboard_title.png`, `lunchbox_title.png`,
+  `snack_pack_title.png`, `vault_title.png`) and closes with her footer
+  (`ASSETS/box_footer.png`); `cogs/headers.py` sends them. Burrito's post is
+  her picture alone. The text bars in the layouts below show where the
+  pictures go.
+- Old title bar: `𝄃𝄞𝄚𝄚𝄚𝄚𝄆 {Title} 𝄇𝄡𝄚𝄚𝄚𝄚𝄂`; old bottom bar: `𝄃𝄣` + `𝄚`s + `𝄂`.
 - Box top `╔═…═╗` and bottom `╚═…═╝` always have the same number of `═`: the
   layout's box width.
 

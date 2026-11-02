@@ -1,12 +1,13 @@
 """The ViiBR Vault card: the leaderboard, Wisp's versions and /wisp board."""
 
+import functools
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.announce import show_in_thread
 from cogs.groups import require_guild, wisp
+from cogs.headers import FOOTER, HeadedCard, send_headed, show_headed_in_thread
 from cogs.players import say_privately
 from cogs.snacks import vault_view
 from wisp.bond import tier_for
@@ -14,8 +15,8 @@ from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
 from wisp.text import (
     BLANK,
-    box_close,
-    box_open,
+    box_bottom,
+    box_top,
     count,
     fit,
     heading,
@@ -29,7 +30,16 @@ from wisp.text import (
 if TYPE_CHECKING:
     from app import WispBot
 
-_TITLE: Final = "𝕃𝑒𝒶𝒹𝑒𝓇𝒷𝑜𝒶𝓇𝒹"
+_HEADER: Final = "leaderboard_title.png"
+_CARD: Final = HeadedCard(
+    header=_HEADER,
+    footer=FOOTER,
+    title_attr="vault_title_message_id",
+    card_attr="vault_message_id",
+    label="ViiBR Vault card",
+    post="The ViiBR Vault",
+)
+_NO_PING: Final = discord.AllowedMentions.none()
 _INTRO: Final = (
     sub("Snacks and the leaderboard."),
     BLANK,
@@ -106,7 +116,7 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
         for place, player in enumerate(rhymers, start=1)
     ] or [item("Nobody has dueled him yet")]
     head = [
-        *box_open(_TITLE),
+        box_top(),
         *wrapped(
             sections(
                 _INTRO,
@@ -120,20 +130,14 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
     versions = [wrap(item(version_line(life, now))) for life in history] or [
         item("None yet")
     ]
-    return fit(head, versions, [BLANK, *box_close(_TITLE)])
+    return fit(head, versions, [BLANK, box_bottom()])
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
     """Bring the pinned Vault card in the Studio up to date, buttons included."""
     text = await render_leaderboard(bot, guild_id, discord.utils.utcnow())
-    await show_in_thread(
-        bot,
-        guild_id,
-        "vault_thread_id",
-        "vault_message_id",
-        text,
-        "ViiBR Vault card",
-        vault_view(),
+    await show_headed_in_thread(
+        bot, guild_id, "vault_thread_id", text, vault_view(), _CARD
     )
 
 
@@ -152,10 +156,12 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
         await bot.players.activate(guild_id, interaction.user.id, now)
         await say_privately(interaction, "♪ You're on Wisp's radar now.")
-    await say_privately(
-        interaction,
+    await send_headed(
+        functools.partial(interaction.followup.send, ephemeral=True),
+        _HEADER,
         await render_leaderboard(bot, guild_id, now),
         view=vault_view(),
+        allowed_mentions=_NO_PING,
     )
 
 

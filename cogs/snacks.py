@@ -1,5 +1,6 @@
 """The ViiBR Vault, Snack Packs and the Feed button: snacks and gifts for Wisp."""
 
+import functools
 import re
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ from cogs.gifts import (
     todays_gifts,
 )
 from cogs.groups import require_guild, wisp
+from cogs.headers import FOOTER, gallery, gallery_files, send_headed
 from cogs.magazines import (
     cover_art,
     magazine_options,
@@ -90,8 +92,8 @@ from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
     SUB_MARK,
-    box_close,
-    box_open,
+    box_bottom,
+    box_top,
     heading,
     item,
     sub,
@@ -122,9 +124,8 @@ _BADGE_NOT_READY: Final = (
 _SHELF_EMPTY: Final = "♪ The magazines are gone from the shelf."
 _NONE_YET: Final = item("none yet")
 _NOTHING_SAVED: Final = item("nothing saved yet")
-_LOGO_EMOJI: Final = "viibr_logo"
-_VAULT_TITLE: Final = ("𝕍𝒾𝒾𝔹ℝ", "𝕍𝒶𝓊𝓁𝓉")
-_PACK_TITLE: Final = "𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀"
+_VAULT_HEADER: Final = "vault_title.png"
+_PACK_HEADER: Final = "snack_pack_title.png"
 # Wide enough for the widest badge row, from its name and padding to its price.
 VAULT_WIDTH: Final = 24
 _VAULT_CONTEXT: Final = "the ViiBR Vault menu"
@@ -331,22 +332,29 @@ class Menu(discord.ui.View):
 
 @dataclass(frozen=True)
 class _VaultPiece:
-    """A run of the Vault's lines and the menus shown under it."""
+    """A run of the Vault's lines and the menus shown under it, or a picture."""
 
-    lines: Sequence[str]
+    lines: Sequence[str] = ()
     selects: Sequence[discord.ui.Select[Any]] = ()
+    picture: str | None = None
 
 
 class VaultLayout(discord.ui.LayoutView):
     """The Vault as one Components V2 message, with no container around it.
 
     Each piece's lines are one text display, followed by an action row for each
-    of its menus. A failure is reported as the ViiBR Vault menu.
+    of its menus; a picture piece is a media gallery of its attached picture,
+    left out when the picture is missing. A failure is reported as the ViiBR
+    Vault menu.
     """
 
     def __init__(self, pieces: Sequence[_VaultPiece]) -> None:
         super().__init__()
         for piece in pieces:
+            if piece.picture is not None:
+                if (shown := gallery(piece.picture)) is not None:
+                    self.add_item(shown)
+                continue
             self.add_item(discord.ui.TextDisplay("\n".join(piece.lines)))
             for select in piece.selects:
                 self.add_item(discord.ui.ActionRow(select))
@@ -389,18 +397,17 @@ def _vault_pieces(
 ) -> list[_VaultPiece]:
     """The Vault's text in pieces, each followed by its menus.
 
-    An optional note comes before the frame. The Magazines are there only when
-    `magazines`, the covers the member owns this life, is not None. The Gifts
-    take whatever room the rest leaves of the layout's text limit. Blank lines
+    An optional note comes before Myra's header picture, and her footer
+    picture closes the Vault. The Magazines are there only when `magazines`,
+    the covers the member owns this life, is not None. The Gifts take
+    whatever room the rest leaves of the layout's text limit. Blank lines
     follow the box top and the snacks, as in Myra's draft, and every line is
     wrapped to fit the box.
     """
-    logo = bot.emoji(_LOGO_EMOJI)
-    title = " ".join(word for word in (_VAULT_TITLE[0], logo, _VAULT_TITLE[1]) if word)
-    close = box_close(title, VAULT_WIDTH)
+    told = [note] if note else []
+    close = [box_bottom(VAULT_WIDTH)]
     snacks = [
-        *([note] if note else []),
-        *box_open(title, VAULT_WIDTH),
+        box_top(VAULT_WIDTH),
         *wrapped(
             [
                 BLANK,
@@ -425,11 +432,13 @@ def _vault_pieces(
     )
     # Joined as one text, so the newlines between the text displays are
     # counted too: a small safety margin on purpose.
-    rest = "\n".join([*snacks, *badges, *covers, SECTION_BREAK, *close])
+    rest = "\n".join([*told, *snacks, *badges, *covers, SECTION_BREAK, *close])
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
     cover_menus = [] if menus.magazines is None else [menus.magazines]
     return [
+        *([_VaultPiece(told)] if told else []),
+        _VaultPiece(picture=_VAULT_HEADER),
         _VaultPiece(snacks, [menus.snacks]),
         _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
         *([_VaultPiece(covers, cover_menus)] if covers else []),
@@ -437,6 +446,7 @@ def _vault_pieces(
             [SECTION_BREAK, *gift_section(bot, gifts, room, VAULT_WIDTH)], gift_menus
         ),
         _VaultPiece(close),
+        _VaultPiece(picture=FOOTER),
     ]
 
 
@@ -555,7 +565,7 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
         snacks.append(_pack_snack(bot, _FREE, "free today"))
     balance = _coins(bot, f"{player.balance} WC (wisp coins)")
     head = [
-        *box_open(_PACK_TITLE),
+        box_top(),
         *wrapped(
             [
                 sub(f"<@{user_id}> snack pack"),
@@ -579,7 +589,7 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     covers = wrapped(magazine_pack_lines(await bot.magazines.of(guild_id, user_id)))
     between = [SECTION_BREAK, heading("Badges")]
     shelf = [SECTION_BREAK, heading("Magazines")] if covers else []
-    tail = box_close(_PACK_TITLE)
+    tail = [box_bottom()]
     framing = "\n".join([*head, *between, *shelf, *tail])
     room = MESSAGE_LIMIT - text_length(framing) - 3
     cover_room = min(_length(covers), room // 4)
@@ -885,7 +895,10 @@ async def _open_vault(interaction: discord.Interaction) -> None:
         bot_of(interaction), require_guild(interaction), interaction.user.id
     )
     await interaction.followup.send(
-        view=vault, ephemeral=True, allowed_mentions=_NO_PING
+        view=vault,
+        files=gallery_files(_VAULT_HEADER, FOOTER),
+        ephemeral=True,
+        allowed_mentions=_NO_PING,
     )
 
 
@@ -895,12 +908,13 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
         return
     view = discord.ui.View()
     view.add_item(ShopButton())
-    await interaction.followup.send(
+    await send_headed(
+        functools.partial(interaction.followup.send, ephemeral=True),
+        _PACK_HEADER,
         await _snack_pack_text(
             bot_of(interaction), require_guild(interaction), interaction.user.id
         ),
         view=view,
-        ephemeral=True,
         allowed_mentions=_NO_PING,
     )
 

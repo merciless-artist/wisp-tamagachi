@@ -11,16 +11,12 @@ from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from wisp.rules import (
     CONTEXT_LINES,
-    NAP_STAGES,
     POKE_STREAK_GAP,
     TALK_COOLDOWN,
     Stage,
 )
 from wisp.voice import (
-    COIN_EMOJI,
-    EGG_EXPRESSION,
-    MINI_COIN_EMOJI,
-    NAP_EMOJI,
+    STAGE_DANCES,
     STAGE_FACES,
     ChatLine,
     Reply,
@@ -31,8 +27,6 @@ if TYPE_CHECKING:
     from app import WispBot
 
 POKE_ID: Final = "wisp:poke"
-_EXPRESSION_PREFIX: Final = "wisp_"
-_NOT_HIS_FACES: Final = frozenset({COIN_EMOJI, MINI_COIN_EMOJI, EGG_EXPRESSION})
 _OUTAGE_STREAK: Final = "ai"
 _CONTEXT: Final = "Wisp's AI voice"
 
@@ -42,23 +36,13 @@ _CONTEXT: Final = "Wisp's AI voice"
 
 
 def expressions(bot: "WispBot", stage: Stage) -> list[str]:
-    """Names of hatched Wisp's uploaded emojis he can use at `stage`.
+    """Myra's faces for hatched Wisp at `stage`, in order, where uploaded."""
+    return [name for name in STAGE_FACES.get(stage, ()) if name in bot.emojis_by_name]
 
-    A stage in `STAGE_FACES` gets its own faces, in that order, where uploaded.
-    Every other stage gets all his uploaded faces, sorted: the coins are not
-    faces, the egg's face is only the egg's and the nap is only for the stages
-    that have nap art.
-    """
-    if (faces := STAGE_FACES.get(stage)) is not None:
-        return [name for name in faces if name in bot.emojis_by_name]
-    unavailable = (
-        _NOT_HIS_FACES if stage in NAP_STAGES else _NOT_HIS_FACES | {NAP_EMOJI}
-    )
-    return sorted(
-        name
-        for name in bot.emojis_by_name
-        if name.startswith(_EXPRESSION_PREFIX) and name not in unavailable
-    )
+
+def dances(bot: "WispBot", stage: Stage) -> list[str]:
+    """Myra's dance emojis for Wisp at `stage`, in order, where uploaded."""
+    return [name for name in STAGE_DANCES.get(stage, ()) if name in bot.emojis_by_name]
 
 
 async def ai_reply(

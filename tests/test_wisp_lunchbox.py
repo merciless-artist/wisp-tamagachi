@@ -38,7 +38,6 @@ from wisp.rules import Stage
 from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
-    bars,
     box_room,
     text_length,
     visual_width,
@@ -56,10 +55,8 @@ SECOND = 2
 NOW = datetime(2026, 10, 23, 0, 5, tzinfo=UTC)
 YESTERDAY = date(2026, 10, 22)
 NO_PING = discord.AllowedMentions.none().to_dict()
-TITLE = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
 BOX_TOP = "╔══════════════════════╗"
 BOX_BOTTOM = "╚══════════════════════╝"
-BOTTOM_BAR = bars("𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍")[1]
 NONE_YET = "║𝄡 none yet"
 SONGS = "║𝄡𝄚𝄂𝄆 **Favorite songs**"
 SNACK = "║𝄡𝄚𝄂𝄆 **Favorite snack**"
@@ -274,10 +271,10 @@ async def open_lunchbox(
 def sections(text: str) -> list[list[str]]:
     """The lunchbox's sections inside its frame."""
     lines = text.splitlines()
-    assert lines[:2] == [TITLE, BOX_TOP]
-    assert lines[-2:] == [BOX_BOTTOM, BOTTOM_BAR]
+    assert lines[0] == BOX_TOP
+    assert lines[-1] == BOX_BOTTOM
     return [
-        part.splitlines() for part in "\n".join(lines[2:-2]).split(SECTION_BREAK + "\n")
+        part.splitlines() for part in "\n".join(lines[1:-1]).split(SECTION_BREAK + "\n")
     ]
 
 
@@ -548,8 +545,11 @@ async def test_the_lunchbox_is_posted_publicly_where_it_was_asked_for(
     interaction = await open_lunchbox(bot, server)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    post = interaction.channel.send.await_args
+    header, post = interaction.channel.send.await_args_list
+    assert header.args == ()
+    assert header.kwargs["file"].filename == "lunchbox_title.png"
     assert post.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert post.kwargs["file"].filename == "box_footer.png"
     assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
     assert post.kwargs["suppress_embeds"] is True
     interaction.delete_original_response.assert_awaited_once_with()
@@ -566,7 +566,7 @@ async def test_a_failed_delete_of_the_private_answer_is_ignored(
 
     await open_lunchbox(bot, server, interaction)
 
-    interaction.channel.send.assert_awaited_once()
+    assert interaction.channel.send.await_count == 2
     interaction.delete_original_response.assert_awaited_once_with()
     interaction.followup.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
@@ -603,8 +603,8 @@ async def test_asked_for_in_the_track_drop_it_goes_to_the_house(
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     interaction.channel.send.assert_not_awaited()
-    server.house.send.assert_awaited_once()
-    post = server.house.send.await_args
+    header, post = server.house.send.await_args_list
+    assert header.kwargs["file"].filename == "lunchbox_title.png"
     assert post.args == (await lunchbox_text(bot, GUILD_ID),)
     assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
     assert post.kwargs["suppress_embeds"] is True
@@ -625,7 +625,9 @@ async def test_in_the_track_drop_with_no_house_it_is_shown_privately(
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     server.house.send.assert_not_awaited()
-    call = interaction.followup.send.await_args
+    header, call = interaction.followup.send.await_args_list
+    assert header.kwargs["ephemeral"] is True
+    assert header.kwargs["file"].filename == "lunchbox_title.png"
     assert call.args == (await lunchbox_text(bot, GUILD_ID),)
     assert call.kwargs["ephemeral"] is True
     assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
@@ -640,7 +642,7 @@ async def test_a_channel_that_cannot_be_placed_counts_as_the_track_drop(
 
     await open_lunchbox(bot, server, interaction)
 
-    server.house.send.assert_awaited_once()
+    assert server.house.send.await_count == 2
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
 
 
@@ -653,7 +655,7 @@ async def test_an_empty_lunchbox_says_none_yet(bot: app.WispBot) -> None:
         [EMOJI, NONE_YET],
         [COLLECTIONS, NONE_YET],
     ]
-    for line in (TITLE, BOX_TOP, SONGS, SNACK, EMOJI, COLLECTIONS, BOTTOM_BAR):
+    for line in (BOX_TOP, SONGS, SNACK, EMOJI, COLLECTIONS, BOX_BOTTOM):
         assert line in SPEC_LINES, line
 
 
@@ -924,7 +926,7 @@ async def test_a_banned_member_can_still_look(
     interaction = await open_lunchbox(bot, server)
 
     (text,) = interaction.channel.send.await_args.args
-    assert text.startswith(TITLE)
+    assert text.startswith(BOX_TOP)
 
 
 # ---

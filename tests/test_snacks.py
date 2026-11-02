@@ -53,7 +53,6 @@ from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
     USER_ERROR,
-    bars,
     text_length,
 )
 
@@ -75,14 +74,10 @@ SPEC_LINES = frozenset(
     .decode("utf-8")
     .splitlines()
 )
-VAULT_TOP = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
-PACK_TOP = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
 BOX_TOP = "╔══════════════════════╗"
 BOX_BOTTOM = "╚══════════════════════╝"
-PACK_BAR = bars("𝕊𝓃𝒶𝒸𝓀 ℙ𝒶𝒸𝓀")[1]
 VAULT_BOX_TOP = "╔════════════════════════╗"
 VAULT_BOX_BOTTOM = "╚════════════════════════╝"
-VAULT_BAR = bars("𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉")[1]
 # Myra's snack names with her padding before the │, from the spec.
 VAULT_NAMES = {
     "sinewave": "sinewave    ",
@@ -343,12 +338,12 @@ def say(bot: app.WispBot, line: str = "yum") -> MagicMock:
 def pack_sections(text: str) -> list[list[str]]:
     """A Snack Pack's sections inside its frame: head, snacks, keepsakes, badges."""
     lines = text.splitlines()
-    assert lines[:2] == [PACK_TOP, BOX_TOP]
-    assert lines[-2:] == [BOX_BOTTOM, PACK_BAR]
+    assert lines[0] == BOX_TOP
+    assert lines[-1] == BOX_BOTTOM
     assert_fits_its_box(text)
     return [
         section.splitlines()
-        for section in "\n".join(lines[2:-2]).split(SECTION_BREAK + "\n")
+        for section in "\n".join(lines[1:-1]).split(SECTION_BREAK + "\n")
     ]
 
 
@@ -372,8 +367,7 @@ async def test_vault_is_one_layout_in_the_house_frame(bot: app.WispBot) -> None:
     lines = text.splitlines()
     mini = emoji_text("wisp_coin_mini", 4)
     paid = [snack for snack in SNACKS if snack.cost > 0]
-    assert lines[:18] == [
-        VAULT_TOP,
+    assert lines[:17] == [
         VAULT_BOX_TOP,
         BLANK,
         f"║𝄡𝄚𝄂 wisp coins: {emoji_text('wisp_coin')} 12",
@@ -392,7 +386,7 @@ async def test_vault_is_one_layout_in_the_house_frame(bot: app.WispBot) -> None:
         SECTION_BREAK,
         "║𝄡𝄚𝄂𝄆 **Badges**",
     ]
-    assert lines[-2:] == [VAULT_BOX_BOTTOM, VAULT_BAR]
+    assert lines[-1] == VAULT_BOX_BOTTOM
     assert_fits_its_box(text)
     assert "x2" not in text
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
@@ -417,7 +411,6 @@ async def test_the_vaults_fixed_lines_are_copied_from_the_spec(
     ):
         assert line in SPEC_LINES, line
         assert line in lines, line
-    assert VAULT_BAR in lines
     for name, padded in VAULT_NAMES.items():
         assert any(line.startswith(f"║𝄡 {padded}│") for line in SPEC_LINES), name
 
@@ -445,7 +438,7 @@ async def test_the_vaults_menus_sit_between_its_sections(bot: app.WispBot) -> No
     assert snacks_part.splitlines()[-1] == BLANK
     assert badges_part.splitlines()[:2] == [SECTION_BREAK, "║𝄡𝄚𝄂𝄆 **Badges**"]
     assert gifts_part.splitlines()[:2] == [SECTION_BREAK, "║𝄡𝄚𝄂𝄆 **Gifts**・15 WC each"]
-    assert closing.splitlines() == [VAULT_BOX_BOTTOM, VAULT_BAR]
+    assert closing.splitlines() == [VAULT_BOX_BOTTOM]
 
 
 async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
@@ -454,20 +447,30 @@ async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
     interaction = await buy(bot, "cheese")
 
     lines = reply_text(interaction).splitlines()
-    assert lines[:4] == ["♪ Bought Cheese for 6 WC.", VAULT_TOP, VAULT_BOX_TOP, BLANK]
-    assert lines[4] == "║𝄡𝄚𝄂 wisp coins: 4"
+    assert lines[:3] == ["♪ Bought Cheese for 6 WC.", VAULT_BOX_TOP, BLANK]
+    assert lines[3] == "║𝄡𝄚𝄂 wisp coins: 4"
+    view = interaction.edit_original_response.await_args.kwargs["view"]
+    note, header = view.children[:2]
+    assert isinstance(note, discord.ui.TextDisplay)
+    assert isinstance(header, discord.ui.MediaGallery)
 
 
-async def test_vault_title_shows_the_viibr_logo_when_uploaded(
+async def test_the_vault_opens_with_myras_header_and_closes_with_her_footer(
     bot: app.WispBot,
 ) -> None:
-    give_emojis(bot, "viibr_logo")
-
     interaction, _ = await open_vault(bot)
 
-    assert vault_text(interaction).splitlines()[0] == (
-        f"𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕍𝒾𝒾𝔹ℝ {emoji_text('viibr_logo', 1)} 𝕍𝒶𝓊𝓁𝓉 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
-    )
+    call = interaction.followup.send.await_args
+    assert [file.filename for file in call.kwargs["files"]] == [
+        "vault_title.png",
+        "box_footer.png",
+    ]
+    children = call.kwargs["view"].children
+    header, footer = children[0], children[-1]
+    assert isinstance(header, discord.ui.MediaGallery)
+    assert isinstance(footer, discord.ui.MediaGallery)
+    assert [item.media.url for item in header.items] == ["attachment://vault_title.png"]
+    assert [item.media.url for item in footer.items] == ["attachment://box_footer.png"]
 
 
 async def test_vault_without_emojis_stays_tidy(bot: app.WispBot) -> None:
@@ -516,11 +519,16 @@ async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
     ]
     assert keepsakes == ["║𝄡𝄚𝄂𝄆 **Keepsakes**", "║𝄡 Wisp v3's Last Ember"]
     assert badges == ["║𝄡𝄚𝄂𝄆 **Badges**", "║𝄡 none yet"]
-    for line in (PACK_TOP, BOX_TOP, *snack_lines[:1], *keepsakes[:1], *badges[:1]):
+    for line in (BOX_TOP, *snack_lines[:1], *keepsakes[:1], *badges[:1]):
         assert line in SPEC_LINES, line
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     (button,) = kwargs["view"].children
     assert isinstance(button, ShopButton)
+    assert kwargs["file"].filename == "box_footer.png"
+    header = interaction.followup.send.await_args_list[0]
+    assert header.args == ()
+    assert header.kwargs["ephemeral"] is True
+    assert header.kwargs["file"].filename == "snack_pack_title.png"
 
 
 async def test_snack_pack_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> None:
@@ -681,8 +689,7 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert vault_text(interaction).splitlines()[:4] == [
-        VAULT_TOP,
+    assert vault_text(interaction).splitlines()[:3] == [
         VAULT_BOX_TOP,
         BLANK,
         "║𝄡𝄚𝄂 wisp coins: 12",

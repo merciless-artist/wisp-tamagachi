@@ -35,10 +35,7 @@ from wisp.links import TrackKind
 from wisp.text import (
     MESSAGE_LIMIT,
     SEPARATOR,
-    WIDTHS,
-    box_room,
     text_length,
-    visual_width,
 )
 
 GUILD_ID = 100
@@ -71,8 +68,8 @@ OLD_NAMES = (
     "How Wisp Works",
     "Burrito",
 )
-# Myra's Burrito post, byte for byte (house style v2.1).
-BURRITO_STARTER = "\n".join(
+# Burrito's post as it was before Myra's picture became the post.
+OLD_BURRITO_STARTER = "\n".join(
     [
         "𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
         "╔══════════════════════╗",
@@ -87,23 +84,12 @@ BURRITO_STARTER = "\n".join(
         "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
     ]
 )
-OLD_BURRITO_STARTER = "\n".join(
-    [
-        "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄂",
-        "╔════════════════════╗",
-        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
-        "║𝄡 Ask him anything about how Wisp works, right here.",
-        "║𝄡 He'll point you to where to look for Wisp's live stats.",
-        "╚════════════════════╝",
-        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
-    ]
-)
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
     VAULT: "vault.png",
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
-    BURRITO: "thumbs/burrito.png",
+    BURRITO: "burrito_post.png",
 }
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
@@ -601,7 +587,7 @@ async def test_new_threads_carry_their_thumbnails(
         VAULT: "vault.png",
         JAM: "jam_space.png",
         FAQ: "faq.png",
-        BURRITO: "burrito.png",
+        BURRITO: "burrito_post.png",
     }
     for art in attached.values():
         art.close()
@@ -677,7 +663,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert house_posts(server) == []
 
 
-async def test_burritos_post_is_framed_open_and_shows_his_picture(
+async def test_burritos_post_is_myras_picture_alone(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
     add_thumbnails(art_dir)
@@ -686,10 +672,8 @@ async def test_burritos_post_is_framed_open_and_shows_his_picture(
 
     burrito = server.thread_named(BURRITO)
     starter = server.messages[burrito.id]
-    assert starter.content == BURRITO_STARTER
-    assert text_length(starter.content) <= MESSAGE_LIMIT
-    assert not re.search(EMOJI, starter.content)
-    assert starter.attachments == ["burrito.png"]
+    assert starter.content == ""
+    assert starter.attachments == ["burrito_post.png"]
     burrito.edit.assert_not_awaited()
     starter.pin.assert_not_awaited()
     starter.edit.assert_not_awaited()
@@ -698,16 +682,6 @@ async def test_burritos_post_is_framed_open_and_shows_his_picture(
     for thread in server.threads.values():
         if "file" in thread.create_kwargs:
             thread.create_kwargs.pop("file").close()
-
-
-def test_burritos_post_fits_its_box_and_its_bars_match() -> None:
-    lines = BURRITO_STARTER.split("\n")
-
-    assert lines[1].count("═") == lines[-2].count("═") == 22
-    assert all(visual_width(line) <= box_room(22) for line in lines[2:-2])
-    assert abs(visual_width(lines[0]) - visual_width(lines[-1])) <= (
-        WIDTHS["staff"] / 2
-    )
 
 
 async def test_setup_pins_the_status_post_to_the_top_once(
@@ -786,20 +760,23 @@ async def test_a_failed_gallery_switch_is_posted_in_the_house_and_setup_carries_
 
 
 async def test_setup_brings_an_old_burrito_post_up_to_date(
-    bot: app.WispBot, server: FakeServer
+    bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
     await run_setup(bot, server)
     burrito = server.thread_named(BURRITO)
     starter = server.messages[burrito.id]
     starter.content = OLD_BURRITO_STARTER
+    starter.attachments = ["burrito.png"]
     others = {
         name: server.messages[server.thread_named(name).id].content
         for name in THREAD_NAMES[:-1]
     }
+    add_thumbnails(art_dir)
 
     await run_setup(bot, server)
 
-    assert starter.content == BURRITO_STARTER
+    assert starter.content == ""
+    assert starter.attachments == ["burrito_post.png"]
     starter.edit.assert_awaited_once()
     assert starter.edit.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
     assert server.created_names == list(THREAD_NAMES)

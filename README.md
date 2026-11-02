@@ -114,7 +114,7 @@ panel show his sick picture meanwhile.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
   role must sit above the badge roles.
 - Upload the app emojis listed under Assets.
-- In the server, run `!wisp setup #house #studio #tracks`, then
+- In the server, run `!wisp setup #house #studio #tracks #general`, then
   `!wisp roles add @role` for each role allowed to feed Wisp.
 
 ## Commands
@@ -136,9 +136,12 @@ track drop the answer goes to Wisp's House. Wrong arguments get one usage
 line, an unknown command gets the list of commands, and a failure is posted
 where the command was used.
 
-- `!wisp setup #house #studio #tracks` (or `/wispadmin setup`) sets Wisp's
-  House, the Studio forum and the track drop channel (mentions, ids or names),
-  and creates the Studio threads that are missing (see Wisp's Studio). It also
+- `!wisp setup #house #studio #tracks [#general]` (or `/wispadmin setup`) sets
+  Wisp's House, the Studio forum, the track drop channel and, optionally, the
+  server's general chat (mentions, ids or names). When he hatches or reaches a
+  new stage, he posts his stage picture in general chat with "# Wisp just
+  became a teen today! Go give him a birthday poke!"; leaving `#general` out
+  turns that off. Setup also creates the Studio threads that are missing (see Wisp's Studio). It also
   pins one Poke Wisp panel in the House: "♪ Poke Wisp" with the Poke Wisp
   button. The panel shows Wisp's current picture (the egg, the coal
   egg or his stage), and the life loop swaps it when the picture changes. A rerun leaves a panel that still exists alone, pins it again or
@@ -279,10 +282,10 @@ The Studio forum holds six threads, named exactly:
   with the current numbers.
 - `🧚│Burrito, Fairy God-bot`: Burrito's room. Burrito, a separate bot,
   answers questions about how Wisp works there; Wisp never talks in it. Its
-  first post is framed in the house style and has no picture.
+  first post is Myra's picture alone (`burrito_post.png`).
 
-Each thread's first post but Burrito's carries its picture, which the forum
-shows as the thumbnail. Setup renames a thread whose name differs, adds a
+Each thread's first post carries its picture, which the forum shows as the
+thumbnail. Setup renames a thread whose name differs, adds a
 missing thumbnail and fills a Wisp FAQ whose stored pictures are not the
 current set (35), such as an older How Wisp Works thread or the earlier
 one-picture-per-section FAQ.
@@ -325,6 +328,11 @@ posts text only.
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
+- `stats_title.png`, `leaderboard_title.png`, `lunchbox_title.png`,
+  `snack_pack_title.png` and `vault_title.png`, Myra's header pictures above
+  the status card, the Leaderboard, Wisp's Lunchbox, the Snack Pack and the
+  Vault, and `box_footer.png`, the footer under all but the status card
+  (which closes with its own header).
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
   `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,

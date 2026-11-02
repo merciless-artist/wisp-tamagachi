@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import functools
 import logging
 import random
 from datetime import UTC, date, datetime, timedelta
@@ -14,6 +15,7 @@ from cogs.announce import display_name, say_in_mealtime
 from cogs.channels import may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
+from cogs.headers import send_headed
 from cogs.share_links import one_line
 from db.lunchbox import Favorite
 from wisp.life import Life, mood
@@ -22,9 +24,9 @@ from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
 from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
-    box_close,
-    box_open,
+    box_bottom,
     box_room,
+    box_top,
     fit,
     heading,
     item,
@@ -43,7 +45,7 @@ _NO_PING: Final = discord.AllowedMentions.none()
 _NO_ARTIST: Final = "listen ♪"
 _CUT: Final = "…"
 _NOTHING_YET: Final = item("none yet")
-_TITLE: Final = "𝕎𝒾𝓈𝓅'𝓈 𝕃𝓊𝓃𝒸𝒽𝒷𝑜𝓍"
+_HEADER: Final = "lunchbox_title.png"
 
 # ---
 # Favorite songs
@@ -177,7 +179,7 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         )
         for favorite, artist in zip(favorites, artists, strict=True)
     ]
-    head = [*box_open(_TITLE), heading("Favorite songs")]
+    head = [box_top(), heading("Favorite songs")]
     middle = [
         *([] if songs else [_NOTHING_YET]),
         SECTION_BREAK,
@@ -189,7 +191,7 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
         SECTION_BREAK,
         heading("Collections"),
     ]
-    close = box_close(_TITLE)
+    close = [box_bottom()]
     framing = "\n".join([*head, *songs, *middle, *close])
     room = MESSAGE_LIMIT - text_length(framing) - 1
     collections = await _collections(bot, guild_id, life, room)
@@ -215,17 +217,33 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     text = await lunchbox_text(bot, guild_id)
     channel = where_of(interaction)
     if channel is not None and may_post_in(channel, settings.tracks_channel_id):
-        await channel.send(text, allowed_mentions=_NO_PING, suppress_embeds=True)
+        await send_headed(
+            channel.send,
+            _HEADER,
+            text,
+            allowed_mentions=_NO_PING,
+            suppress_embeds=True,
+        )
         with contextlib.suppress(discord.HTTPException):
             await interaction.delete_original_response()
         return
     house = await bot.house_channel(interaction.guild)
     if house is None:
-        await interaction.followup.send(
-            text, ephemeral=True, allowed_mentions=_NO_PING, suppress_embeds=True
+        await send_headed(
+            functools.partial(interaction.followup.send, ephemeral=True),
+            _HEADER,
+            text,
+            allowed_mentions=_NO_PING,
+            suppress_embeds=True,
         )
         return
-    await house.send(text, allowed_mentions=_NO_PING, suppress_embeds=True)
+    await send_headed(
+        house.send,
+        _HEADER,
+        text,
+        allowed_mentions=_NO_PING,
+        suppress_embeds=True,
+    )
     await interaction.followup.send(
         f"♪ Wisp's lunchbox is open in <#{settings.house_channel_id}>.",
         ephemeral=True,

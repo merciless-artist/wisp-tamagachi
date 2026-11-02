@@ -30,7 +30,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from tests.layout import assert_fits_its_box, entries, layout_selects, layout_text
 from wisp import rules
-from wisp.gifts import GiftState, Outcome, decide, with_article
+from wisp.gifts import GiftState, Outcome, decide, like_chance, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
@@ -40,8 +40,8 @@ from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
     USER_ERROR,
-    bars,
     box_bottom,
+    box_top,
     text_length,
     wrap,
     wrapped,
@@ -61,7 +61,6 @@ PASS = 0.99
 GIVE = "Give Wisp a gift"
 PICK = "Pick a collection"
 LONG_EMOJI = "<a:" + "e" * 23 + ":" + "1" * 19 + ">"
-VAULT_TOP = "𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉 𝄇𝄡𝄚𝄚𝄚𝄚𝄂"
 GIFTS_HEADING = "║𝄡𝄚𝄂𝄆 **Gifts**・15 WC each"
 GAMBLE = "║ ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ"
 SPEC_LINES = frozenset(
@@ -443,7 +442,8 @@ def test_the_catalog_fits_discord_and_the_database() -> None:
 
 def test_gift_numbers_are_the_starting_values() -> None:
     assert rules.GIFT_COST == 15
-    assert rules.GIFT_LIKE_CHANCE == pytest.approx(1 / 3)
+    assert rules.GIFT_LIKE_CHANCE == pytest.approx(1 / 2)
+    assert rules.GIFT_LIKE_RISE == pytest.approx(1 / 4)
     assert rules.BOND_PER_KEPT_GIFT == 5
     assert rules.COLLECTION_BOND_BONUS == 25
 
@@ -478,6 +478,28 @@ def test_the_roll_keeps_under_the_like_chance() -> None:
 
     assert decide(state, FixedRandom(rules.GIFT_LIKE_CHANCE - 0.01)) is Outcome.KEPT
     assert decide(state, FixedRandom(rules.GIFT_LIKE_CHANCE)) is Outcome.PASSED
+
+
+@pytest.mark.parametrize(
+    ("passed_today", "chance"),
+    [((), 1 / 2), (("aliens",), 3 / 4), (("aliens", "books"), 1.0)],
+)
+def test_each_gift_he_passes_on_makes_him_more_open(
+    passed_today: tuple[str, ...], chance: float
+) -> None:
+    state = GiftState(frozenset(), frozenset(passed_today), kept_today=False)
+
+    assert like_chance(state) == pytest.approx(chance)
+    assert decide(state, FixedRandom(chance - 0.01)) is Outcome.KEPT
+
+
+def test_the_third_gift_of_a_day_is_always_kept() -> None:
+    state = GiftState(frozenset(), frozenset({"aliens", "books"}), kept_today=False)
+
+    assert decide(state, FixedRandom(PASS)) is Outcome.KEPT
+    assert like_chance(
+        GiftState(frozenset(), frozenset({"aliens", "books", "cards"}), False)
+    ) == pytest.approx(1.0)
 
 
 def test_after_a_kept_gift_he_is_full_without_rolling() -> None:
@@ -862,7 +884,6 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
     assert lines[gifts_at + 1 :] == [
         *"\n".join(wrapped(gift_lines, VAULT_WIDTH)).split("\n"),
         box_bottom(VAULT_WIDTH),
-        bars("𝕍𝒾𝒾𝔹ℝ 𝕍𝒶𝓊𝓁𝓉")[1],
     ]
     assert GAMBLE in SPEC_LINES
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
@@ -893,7 +914,7 @@ async def test_picking_a_collection_shows_its_gifts_with_the_price(
     interaction = await pick(bot, "tetris")
 
     text, selects = shown(interaction)
-    assert text.startswith(VAULT_TOP)
+    assert text.startswith(box_top(VAULT_WIDTH))
     assert [select.placeholder for select in selects] == ["Buy a snack", PICK, GIVE]
     items = gift_select(selects)
     assert [(option.label, option.value) for option in items.options] == [
