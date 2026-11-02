@@ -431,7 +431,7 @@ class Conversation(commands.Cog):
 
 
 async def _poke(interaction: discord.Interaction) -> None:
-    """Poke Wisp: post who poked him and his reaction in the House.
+    """Poke Wisp: tag who poked him in the House, with his reaction.
 
     Banned members, a poke with nobody alive to take it and a member still
     within TALK_COOLDOWN of their last answer are told privately instead. The
@@ -471,7 +471,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     reaction = await _reaction(interaction, life, level, player, name, flavor, now)
     poked = "the egg" if level is Talk.EGG else "Wisp"
     nap = nap_image(life.stage) if flavor is PokeFlavor.WOKE_UP else None
-    await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}", nap)
+    await post_in_house(
+        bot, guild_id, f"♪ <@{user.id}> poked {poked}\n{reaction}", nap, ping=user.id
+    )
     log.info(
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
     )

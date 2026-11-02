@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-02 (Pokes and gifts tag the member)
+
+- Myra: a poke or gift post that only names the member is easy to miss. The
+  House post now opens with a tag and pings that one member:
+  `♪ @member poked Wisp` and `♪ @member gave Wisp a ...`. Wisp's own reply
+  under it still calls them by name.
+
 ## 2026-11-01 (Wisp follows the track drop talk)
 
 - Myra told Wisp "sure i just did" and "i gotchu", and he kept sending her

@@ -327,11 +327,15 @@ def _gift_art(gift: Gift) -> Path | None:
 async def announce_gift(
     bot: "WispBot", guild_id: int, given: GiftGiven, name: str
 ) -> None:
-    """Tell Wisp's House about a gift, with its picture when he kept it."""
+    """Tell Wisp's House about a gift, with its picture when he kept it.
+
+    The post tags and pings the giver, so they see how Wisp took it.
+    """
     feeling = mood(given.life)
     title = given.gift.title
+    giver = given.player.user_id
     lines = [
-        f"♪ {name} gave Wisp {with_article(title)}",
+        f"♪ <@{giver}> gave Wisp {with_article(title)}",
         bot.lines.pick(_MOMENTS[given.outcome], feeling, name=name, gift=title),
     ]
     if given.completed:
@@ -345,7 +349,11 @@ async def announce_gift(
     if not kept:
         lines.append(_BACK_IN_VAULT)
     await post_in_house(
-        bot, guild_id, "\n".join(lines), image=_gift_art(given.gift) if kept else None
+        bot,
+        guild_id,
+        "\n".join(lines),
+        image=_gift_art(given.gift) if kept else None,
+        ping=giver,
     )
 
 

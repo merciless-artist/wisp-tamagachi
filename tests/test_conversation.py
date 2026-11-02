@@ -61,6 +61,7 @@ FIRST = 1
 SECOND = 2
 START = datetime(2026, 10, 23, 12, 0, tzinfo=UTC)
 NO_PING = discord.AllowedMentions.none().to_dict()
+PING_FIRST = {"parse": [], "users": [FIRST]}
 OUTAGE = AllProvidersFailed([("gemini", "timed out"), ("groq", "HTTP 503")])
 
 # ---
@@ -1280,9 +1281,15 @@ def private_reply(interaction: MagicMock) -> str:
 
 
 def house_posts(server: FakeServer) -> list[str]:
-    """What Wisp posted in his House, each checked to ping nobody."""
+    """What Wisp posted in his House.
+
+    A post that tags the poker pings only them; every other post pings nobody.
+    """
     posts = server.house.send.await_args_list
-    assert all(post.kwargs["allowed_mentions"].to_dict() == NO_PING for post in posts)
+    for post in posts:
+        tagged = str(post.args[0]).startswith(f"♪ <@{FIRST}> ")
+        pings = PING_FIRST if tagged else NO_PING
+        assert post.kwargs["allowed_mentions"].to_dict() == pings
     return [str(post.args[0]) for post in posts]
 
 
@@ -1330,7 +1337,7 @@ async def test_poke_posts_who_poked_and_his_reaction_in_the_house(
 
     pressed = await poke()
 
-    assert house_posts(server) == ["♪ Aria poked Wisp\nhehe stop that tickles"]
+    assert house_posts(server) == [f"♪ <@{FIRST}> poked Wisp\nhehe stop that tickles"]
     assert private_reply(pressed) == "♪ You poked Wisp."
     (prompt,) = prompts(ai)
     assert "You're a Teen" in prompt.system
@@ -1373,7 +1380,7 @@ async def test_poking_the_egg_uses_the_egg_voice(
     pressed = await poke()
 
     assert house_posts(server) == [
-        "♪ Member1 poked the egg\n*the shell giggles and rolls*"
+        f"♪ <@{FIRST}> poked the egg\n*the shell giggles and rolls*"
     ]
     assert private_reply(pressed) == "♪ You poked Wisp."
     (prompt,) = prompts(ai)
@@ -1531,7 +1538,7 @@ async def test_poke_falls_back_to_a_canned_line_when_the_ai_fails(
     report, post = house_posts(server)
     assert report.startswith("Error in Wisp's AI voice: AllProvidersFailed")
     heading, line = post.split("\n")
-    assert heading.startswith("♪ Member1 poked")
+    assert heading.startswith(f"♪ <@{FIRST}> poked")
     assert any(
         line in {text.format(name="Member1") for text in LINES[(moment, feeling)]}
         for feeling in Mood
@@ -1806,7 +1813,7 @@ async def test_a_failed_credit_is_reported_and_the_poke_still_answered(
     assert report.startswith("Error in the Poke Wisp button: OperationalError")
     assert private_reply(pressed) == "♪ You poked Wisp."
     posted = [str(call.args[0]) for call in server.house.send.await_args_list]
-    assert any(text.startswith("♪ Member1 poked Wisp") for text in posted)
+    assert any(text.startswith(f"♪ <@{FIRST}> poked Wisp") for text in posted)
 
 
 # ---
@@ -1853,7 +1860,7 @@ async def test_chat_credits_on_three_days_make_him_meet_a_poker(
 
     assert (await bot.players.get(GUILD_ID, FIRST)).met_at is not None
     posted = [call.args[0] for call in server.house.send.await_args_list]
-    assert any(str(text).startswith("♪ Member1 poked Wisp") for text in posted)
+    assert any(str(text).startswith(f"♪ <@{FIRST}> poked Wisp") for text in posted)
     assert any(
         call.kwargs.get("view") is not None
         for call in server.house.send.await_args_list
