@@ -64,8 +64,18 @@ def life_in(phase: Phase, stage: Stage) -> Life:
     return life
 
 
-def speaker(notes: tuple[str, ...] = (), stance: PickleStance | None = None) -> Speaker:
-    return Speaker(name="Myra", tier="Friend", notes=notes, pickle_stance=stance)
+def speaker(
+    notes: tuple[str, ...] = (),
+    stance: PickleStance | None = None,
+    tracks_today: int = 0,
+) -> Speaker:
+    return Speaker(
+        name="Myra",
+        tier="Friend",
+        notes=notes,
+        pickle_stance=stance,
+        tracks_today=tracks_today,
+    )
 
 
 def prompt_for(
@@ -360,6 +370,26 @@ def test_notes_only_reach_the_prompt_from_adult_on(stage: Stage) -> None:
 def test_prompt_names_the_speaker_and_their_bond() -> None:
     system = prompt_for().system
     assert "Myra" in system and "Friend" in system
+
+
+@pytest.mark.parametrize(
+    ("tracks", "knows"),
+    [
+        (
+            0,
+            "No track from Myra has reached you today, so if they say they shared "
+            "one, you haven't tasted it yet.",
+        ),
+        (
+            1,
+            "Myra has fed you a track today, so thank them when it fits and don't "
+            "ask them for another one.",
+        ),
+        (3, "Myra has fed you 3 tracks today"),
+    ],
+)
+def test_he_knows_whether_the_speaker_fed_him_today(tracks: int, knows: str) -> None:
+    assert knows in prompt_for(who=speaker(tracks_today=tracks)).system
 
 
 @pytest.mark.parametrize(

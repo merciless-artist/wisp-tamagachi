@@ -32,9 +32,11 @@ from wisp.bond import tier_for
 from wisp.life import Life, is_sick, mood
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
+from wisp.text import strip_emoji
 from wisp.voice import (
     EGG_EXPRESSION,
     EMOJI_NAME_PATTERN,
+    TRACK_DROP,
     ChatLine,
     Fed,
     OwnEmoji,
@@ -65,7 +67,10 @@ _FALLBACK: Final = {
     Talk.AI: Moment.CHAT_FALLBACK,
 }
 _MEMBER_MENTION: Final = re.compile(r"<@!?(\d+)>")
-_ROLE_OR_CHANNEL_MENTION: Final = re.compile(r"<(?:@&|#)\d+>")
+_ROLE_MENTION: Final = re.compile(r"<@&\d+>")
+_CHANNEL_MENTION: Final = re.compile(r"<#(\d+)>")
+# Channel names open with an emoji and a divider, as in "⏪｜general-chat".
+_NAME_DIVIDERS: Final = "｜|・-_ "
 _CUSTOM_EMOJI: Final = re.compile(rf"<a?:({EMOJI_NAME_PATTERN}):\d+>")
 
 _POKE_CONTEXT: Final = "the Poke Wisp button"
@@ -79,11 +84,30 @@ _POKE_DONE: Final = "♪ You poked Wisp."
 # ---
 
 
-def _clean(message: discord.Message, wisp: discord.ClientUser) -> str:
+def _channel_name(
+    guild: discord.Guild | None, channel_id: int, tracks_channel_id: int | None
+) -> str:
+    """How Wisp reads a channel link: the track drop as #track-drop, others as #name.
+
+    The emoji and divider a name opens with are left out. A channel he can't
+    see is dropped.
+    """
+    if channel_id == tracks_channel_id:
+        return TRACK_DROP
+    channel = None if guild is None else guild.get_channel(channel_id)
+    if channel is None:
+        return ""
+    return f"#{strip_emoji(channel.name).lstrip(_NAME_DIVIDERS)}"
+
+
+def _clean(
+    message: discord.Message, wisp: discord.ClientUser, tracks_channel_id: int | None
+) -> str:
     """The message's text on one line, without Discord markup.
 
-    A mentioned member becomes their display name; Wisp's own mention and any
-    other mention are dropped. Custom emojis become ":name:", the way Wisp
+    A mentioned member becomes their display name; Wisp's own mention and role
+    mentions are dropped. A channel link becomes its name, so Wisp can read
+    back where he sent people. Custom emojis become ":name:", the way Wisp
     writes his own.
     """
     names = {
@@ -92,8 +116,13 @@ def _clean(message: discord.Message, wisp: discord.ClientUser) -> str:
     text = _MEMBER_MENTION.sub(
         lambda match: names.get(int(match.group(1)), ""), message.content
     )
-    text = _CUSTOM_EMOJI.sub(r":\1:", _ROLE_OR_CHANNEL_MENTION.sub("", text))
-    return " ".join(text.split())
+    text = _CHANNEL_MENTION.sub(
+        lambda match: _channel_name(
+            message.guild, int(match.group(1)), tracks_channel_id
+        ),
+        _ROLE_MENTION.sub("", text),
+    )
+    return " ".join(_CUSTOM_EMOJI.sub(r":\1:", text).split())
 
 
 def _aimed_at(message: discord.Message, wisp: discord.ClientUser) -> bool:
@@ -150,6 +179,7 @@ async def _prompt(
     name: str,
     chat: Sequence[ChatLine],
     text: str | None,
+    now: datetime,
     *,
     poked: PokeFlavor | None = None,
     emojis: Sequence[OwnEmoji] = (),
@@ -159,7 +189,8 @@ async def _prompt(
 
     `text` is what the member said to him, or None for a poke, which `poked`
     flavors. `emojis` are the emojis of his that `text` used. `track_drop`
-    says whether he can send people to the track drop.
+    says whether he can send people to the track drop. A hatched Wisp knows
+    how many tracks the member fed him on the UTC day of `now`.
     """
     if level is Talk.EGG:
         poker = Poker(name, await _fed(bot, guild_id, life, player.user_id))
@@ -174,7 +205,13 @@ async def _prompt(
         )
     remembers = keeps_notes(life.stage)
     notes = await bot.notes.recent(guild_id, player.user_id) if remembers else []
-    speaker = Speaker(name, tier_for(player.bond), tuple(notes), player.pickle_stance)
+    speaker = Speaker(
+        name,
+        tier_for(player.bond),
+        tuple(notes),
+        player.pickle_stance,
+        await bot.activity_log.tracks_fed_today(guild_id, player.user_id, now),
+    )
     return build_prompt(
         life.stage,
         mood(life),
@@ -226,7 +263,7 @@ class Conversation(commands.Cog):
         wisp = self.bot.user
         if message.channel.id != settings.house_channel_id or wisp is None:
             return
-        text = _clean(message, wisp)
+        text = _clean(message, wisp, settings.tracks_channel_id)
         talk = self.bot.talk
         line = ChatLine(message.author.display_name, text[:CONTEXT_LINE_CHARS])
         earlier = talk.hear(guild.id, line)
@@ -312,6 +349,7 @@ class Conversation(commands.Cog):
             player.name or message.author.display_name,
             earlier,
             text,
+            now,
             emojis=emojis,
             track_drop=track_drop is not None,
         )
@@ -430,7 +468,7 @@ async def _poke(interaction: discord.Interaction) -> None:
     flavor = poke_flavor(mood(life), streak, quiet_for, now, talk.rng)
     talk.stir(guild_id, now)
     name = player.name or user.display_name
-    reaction = await _reaction(interaction, life, level, player, name, flavor)
+    reaction = await _reaction(interaction, life, level, player, name, flavor, now)
     poked = "the egg" if level is Talk.EGG else "Wisp"
     nap = nap_image(life.stage) if flavor is PokeFlavor.WOKE_UP else None
     await post_in_house(bot, guild_id, f"♪ {name} poked {poked}\n{reaction}", nap)
@@ -469,6 +507,7 @@ async def _reaction(
     player: Player,
     name: str,
     flavor: PokeFlavor,
+    now: datetime,
 ) -> str:
     """Wisp's reaction to a poke from his AI voice, or a canned one when it fails.
 
@@ -487,6 +526,7 @@ async def _reaction(
         name,
         chat,
         None,
+        now,
         poked=flavor,
         track_drop=track_drop is not None,
     )

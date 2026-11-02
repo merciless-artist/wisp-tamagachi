@@ -255,6 +255,17 @@ class ActivityRepo:
         assert row is not None
         return int(row["viibr"]), int(row["suno"])
 
+    async def tracks_fed_today(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Tracks the member has fed Wisp on the UTC day of `now`."""
+        start, end = utc_day(now)
+        row = await self._db.fetchone(
+            f"SELECT COUNT(*) AS tracks FROM {self._db.t('feeds')} "
+            "WHERE guild_id = %s AND user_id = %s AND fed_at >= %s AND fed_at < %s",
+            (guild_id, user_id, start, end),
+        )
+        assert row is not None
+        return int(row["tracks"])
+
     async def plays_today(self, guild_id: int, user_id: int, now: datetime) -> int:
         """Games the member has played with Wisp on the UTC day of `now`."""
         return await self._count_today(InteractionKind.PLAY, guild_id, user_id, now)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-01 (Wisp follows the track drop talk)
+
+- Myra told Wisp "sure i just did" and "i gotchu", and he kept sending her
+  to the track drop. Two causes:
+  - His memory of the House chat dropped channel links, so he read his own
+    "put it in #track-drop" as "put it in so i can munch!" and asked again.
+    `_clean` now reads the track drop as `#track-drop` and any other channel
+    he can see as `#name`, without the emoji and divider its name opens
+    with. Role mentions and channels he can't see are still dropped.
+  - He had no idea who had fed him. The member he answers or who pokes him
+    now comes with how many tracks they fed him today
+    (`ActivityRepo.tracks_fed_today`, `Speaker.tracks_today`): with none he
+    knows a track they mention hasn't reached him yet; with some he thanks
+    them and doesn't ask for another.
+
 ## 2026-11-01 (Myra's prompt edits: faces, dances, things he knows)
 
 - From Myra's edits in `DOCS/wisp_prompts/`. Every stage now uses only her

@@ -34,7 +34,7 @@ from wisp.rules import (
     Stage,
     badge_name,
 )
-from wisp.text import strip_emoji
+from wisp.text import count, strip_emoji
 
 NO_U_GIF: Final = "https://i.imgur.com/G0SZAsT.gif"
 # How Wisp posts it: a hyperlink, so Discord shows "no u!" and plays the GIF.
@@ -113,6 +113,7 @@ class Speaker:
     tier: str
     notes: tuple[str, ...]
     pickle_stance: PickleStance | None
+    tracks_today: int
 
 
 @dataclass(frozen=True)
@@ -509,6 +510,23 @@ def _memories(name: str, notes: Sequence[str]) -> str:
     return f"What you remember about {name}:\n{remembered}"
 
 
+def _fed_today(speaker: Speaker) -> str:
+    """What Wisp knows about the tracks `speaker` fed him today."""
+    name = speaker.name
+    if speaker.tracks_today == 0:
+        return (
+            f"No track from {name} has reached you today, so if they say they "
+            "shared one, you haven't tasted it yet."
+        )
+    tracks = (
+        "a track" if speaker.tracks_today == 1 else count(speaker.tracks_today, "track")
+    )
+    return (
+        f"{name} has fed you {tracks} today, so thank them when it fits and "
+        "don't ask them for another one."
+    )
+
+
 def _speaker(stage: Stage, speaker: Speaker) -> str:
     rank = _BOND_RANKS[speaker.tier]
     parts = [
@@ -516,6 +534,7 @@ def _speaker(stage: Stage, speaker: Speaker) -> str:
         f"**Right now you're talking to {speaker.name}.** Your bond with them is "
         f"{speaker.tier} ({rank}).",
         _BABY_TEASING if stage is Stage.BABY else _TEASING,
+        _fed_today(speaker),
     ]
     if speaker.pickle_stance is not None:
         side = _PICKLE_SIDES[speaker.pickle_stance].format(name=speaker.name)

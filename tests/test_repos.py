@@ -652,6 +652,25 @@ async def test_plays_today_counts_only_todays_play(db: Database) -> None:
     assert await repo.plays_today(OTHER_GUILD, USER, NOW) == 0
 
 
+async def test_tracks_fed_today_counts_only_the_members_tracks_today(
+    db: Database,
+) -> None:
+    repo = ActivityRepo(db)
+    feeds = [
+        (GUILD, USER, NOW),
+        (GUILD, USER, MIDNIGHT),
+        (GUILD, USER, MIDNIGHT - timedelta(seconds=1)),
+        (GUILD, OTHER_USER, NOW),
+        (OTHER_GUILD, USER, NOW),
+    ]
+    for index, (guild, user, at) in enumerate(feeds):
+        await repo.record_feed(guild, 1, user, track(str(index)), 1, 900 + index, at)
+
+    assert await repo.tracks_fed_today(GUILD, USER, NOW) == 2
+    assert await repo.tracks_fed_today(GUILD, OTHER_USER, NOW) == 1
+    assert await repo.tracks_fed_today(OTHER_GUILD, OTHER_USER, NOW) == 0
+
+
 async def test_duplicate_track_feeds_once(db: Database) -> None:
     repo = ActivityRepo(db)
     assert await repo.record_feed(GUILD, 1, USER, track("a"), 1, 900, NOW) is True

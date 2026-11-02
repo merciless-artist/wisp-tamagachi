@@ -52,6 +52,8 @@ OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
 STUDIO_ID = 23
 BURRITO_THREAD_ID = 24
+TRACKS_ID = 25
+GENERAL_CHAT_ID = 26
 WISP_ID = 999
 WISP_ROLE_ID = 998
 QUALIFYING_ROLE = 997
@@ -97,16 +99,25 @@ YOUNG = [
 
 
 class FakeServer:
-    """A guild with Wisp's House."""
+    """A guild with Wisp's House, a track drop and a general chat."""
 
     def __init__(self) -> None:
         self.house = make_channel(HOUSE_ID)
+        tracks = make_channel(TRACKS_ID)
+        tracks.name = "⏩｜track-drop"
+        tracks.mention = f"<#{TRACKS_ID}>"
+        general = make_channel(GENERAL_CHAT_ID)
+        general.name = "⏪｜general-chat"
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.wisp_role = MagicMock(spec=discord.Role)
         self.wisp_role.id = WISP_ROLE_ID
         self.guild.self_role = self.wisp_role
         self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
+        self.guild.get_channel.side_effect = {
+            TRACKS_ID: tracks,
+            GENERAL_CHAT_ID: general,
+        }.get
 
 
 class MessageFactory:
@@ -995,6 +1006,43 @@ async def test_context_includes_recent_house_lines(
     assert f"{chat}\n\n" in prompt.user
     assert prompt.user.count("thoughts on") == 1
     assert prompt.user.endswith("Member1 says to you: thoughts on Member2?")
+
+
+async def test_context_reads_channel_links_as_their_names(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    await bot.settings.update(GUILD_ID, tracks_channel_id=TRACKS_ID)
+    await cog.on_message(
+        message(f"put it in <#{TRACKS_ID}> so i can munch!", author=WISP)
+    )
+    await cog.on_message(
+        message(f"see you in <#{GENERAL_CHAT_ID}> and <#7>", author=MEMBERS[SECOND])
+    )
+    await cog.on_message(message.to_wisp("i gotchu"))
+
+    (prompt,) = prompts(ai)
+    assert "Wisp: put it in #track-drop so i can munch!\n" in prompt.user
+    assert "Member2: see you in #general-chat and\n" in prompt.user
+
+
+async def test_he_knows_how_many_tracks_the_speaker_fed_him_today(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    for index, at in enumerate((START, START - timedelta(days=1))):
+        track = Track(TrackKind.SUNO, f"suno:{index}", f"https://suno.test/{index}")
+        await bot.activity_log.record_feed(
+            GUILD_ID, life.id, FIRST, track, 1, index, at
+        )
+
+    await cog.on_message(message.to_wisp("sure i just did"))
+    await cog.on_message(message.to_wisp("me too", author=MEMBERS[SECOND]))
+
+    fed, unfed = (prompt.system for prompt in prompts(ai))
+    assert "Member1 has fed you a track today" in fed
+    assert "No track from Member2 has reached you today" in unfed
 
 
 async def test_staff_commands_are_not_talk(
