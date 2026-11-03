@@ -3,7 +3,7 @@
 ## 2026-11-02 (Wisp gets more personality)
 
 - Myra wanted Wisp less bland for the song contest. `_WHO_YOU_ARE` in
-  `wisp/voice.py` now adds: all heart and zero chill, curious, jumps in
+  `wisp/voice.py` now adds: curious, jumps in
   before he thinks and talks his way back out, sweet under the sass, would
   drop everything for a friend, hears a beat in everything, secretly worries
   about his rhyming, and big fast feelings (joy, jealousy, stubbornness) that
