@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-02 (Status and Vault posts unlocked; chat there is deleted)
+
+- Myra found on her alt that the locked Status post's buttons don't work for
+  members: Discord blocks interactions in a locked post. Status and the
+  ViiBR Vault are no longer locked (`STUDIO_THREADS`), and setup now sets
+  each post's lock to match its spec, so a rerun unlocks posts locked
+  before. Only the Wisp FAQ, which has no buttons, stays locked.
+- New `cogs/boards.py`: Wisp deletes what a member types in either post and
+  says "This post is just for buttons. Come chat in #house", deleted after
+  `BOARD_NOTICE_LIFETIME` (8 s). A burst gets one notice per post at a time.
+  Staff, bots and Discord's own notices are left alone. Wisp needs Manage
+  Messages; a failed delete is posted in the post.
+
 ## 2026-11-02 (Pokes and gifts tag the member)
 
 - Myra: a poke or gift post that only names the member is easy to miss. The

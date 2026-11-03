@@ -522,6 +522,7 @@ AI_MAX_CHARS = 600
 # ---
 
 TALK_COOLDOWN = timedelta(seconds=4)
+BOARD_NOTICE_LIFETIME = timedelta(seconds=8)
 EGG_LINE_CHARS = 120
 CHIME_IN_CHANCE = 0.04
 CHIME_IN_GAP = timedelta(minutes=90)

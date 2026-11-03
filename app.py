@@ -45,6 +45,7 @@ log = logging.getLogger("wisp")
 
 EXTENSIONS: tuple[str, ...] = (
     "cogs.studio",
+    "cogs.boards",
     "cogs.players",
     "cogs.gifts",
     "cogs.snacks",

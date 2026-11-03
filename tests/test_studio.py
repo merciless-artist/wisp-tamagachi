@@ -725,7 +725,6 @@ async def test_a_failed_post_pin_is_posted_in_its_thread_and_setup_carries_on(
     status = server.thread_named(STATUS)
     (line,) = [call.args[0] for call in status.send.await_args_list]
     assert line.startswith("Error in pinning the Status post: Forbidden")
-    assert status.locked is True
     assert server.created_names == list(THREAD_NAMES)
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
 
@@ -951,6 +950,23 @@ async def test_rerun_locks_an_existing_unlocked_rules_thread(
     assert server.created_names == list(THREAD_NAMES)
     assert rules_thread.locked is True
     assert rules_thread.edit.await_count == 2
+
+
+async def test_rerun_unlocks_the_status_and_vault_posts_so_their_buttons_work(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    boards = [server.thread_named(name) for name in (STATUS, VAULT)]
+    for thread in boards:
+        assert thread.locked is False
+        thread.locked = True
+
+    await ensure_studio(bot, GUILD_ID)
+
+    for thread in boards:
+        assert thread.locked is False
+        thread.edit.assert_awaited_with(locked=False)
+    assert server.thread_named(FAQ).locked is True
 
 
 async def test_rerun_renames_threads_that_have_their_old_names(

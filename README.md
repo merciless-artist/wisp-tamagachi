@@ -111,6 +111,7 @@ panel show his sick picture meanwhile.
   (event art, eating GIFs, Studio thumbnails, the status card's
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
+  Manage Messages, to delete chat typed in the Status and ViiBR Vault posts.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
   role must sit above the badge roles.
 - Upload the app emojis listed under Assets.
@@ -275,6 +276,12 @@ The Studio forum holds six threads, named exactly:
   (the egg, the coal egg, then his stage).
 - `🧡 | Mealtime`: every track that feeds him.
 - `🔒| The ViiBR Vault`: the pinned leaderboard and the shop.
+
+Status and the ViiBR Vault stay unlocked, since a locked post's buttons and
+menus don't work for members. Wisp deletes anything a member types in them
+and posts "This post is just for buttons" for a few seconds; staff and bots
+may post there.
+
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
   linking to each section's first picture, then one banner picture per

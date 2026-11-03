@@ -201,7 +201,6 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Status",
         "Wisp's status card will appear here.",
         message_attr="status_message_id",
-        locked=True,
         pinned_post=True,
     ),
     StudioThread(
@@ -217,7 +216,6 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "The ViiBR Vault",
         "The ViiBR Vault is opening.",
         message_attr="vault_message_id",
-        locked=True,
         image="vault.png",
     ),
     StudioThread(
@@ -334,8 +332,8 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Name the thread, lock and pin the post if it should be, add the
-    thumbnail, pin the card.
+    """Name the thread, lock or unlock it as its spec says, pin the post if it
+    should be, add the thumbnail, pin the card.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is
@@ -346,11 +344,12 @@ async def _finish_thread(
             await thread.edit(name=spec.name)
         except discord.HTTPException as error:
             await bot.report_error(guild, f"renaming {spec.title}", error, where=thread)
-    if spec.locked and not thread.locked:
+    if thread.locked != spec.locked:
+        step = "locking" if spec.locked else "unlocking"
         try:
-            await thread.edit(locked=True)
+            await thread.edit(locked=spec.locked)
         except discord.HTTPException as error:
-            await bot.report_error(guild, f"locking {spec.title}", error, where=thread)
+            await bot.report_error(guild, f"{step} {spec.title}", error, where=thread)
     if spec.pinned_post and not thread.flags.pinned:
         try:
             await thread.edit(pinned=True)
@@ -438,10 +437,12 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     The forum is set to show as a gallery when it does not already. Threads
     that already exist are left alone apart from reopening an archived
     one, renaming one whose name has changed, giving a first post with no
-    attachment its thumbnail and finishing any lock or pin that is still
-    missing. Threads that were stored but have been deleted are recreated, and
-    Wisp's House is told about them. The Wisp FAQ is filled when its thread is
-    new or does not have one stored post per picture: a How Wisp Works thread
+    attachment its thumbnail, locking or unlocking it as its spec says and
+    finishing any pin that is still missing. Only the FAQ is locked: a locked
+    post's buttons and menus don't work for members. Threads that were stored
+    but have been deleted are recreated, and Wisp's House is told about them.
+    The Wisp FAQ is filled when its thread is new or does not have one stored
+    post per picture: a How Wisp Works thread
     from before the FAQ, a build that stopped part way or a release with a
     different set of pictures (such as one picture per section).
 
