@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-02 (Wisp dances a lot, and the Child dances too)
+
+- Myra wants Wisp to dance a lot. The reaction rules in `wisp/voice.py` now
+  limit only faces to one per message; a separate line tells him he loves
+  to dance and to add a dance whenever music, a beat, a track, food, good
+  news or anything fun comes up, alongside a face if he likes.
+- New app emoji `wisp_child_dance`, made from Myra's `dancingchild.gif`
+  (128 px, 12 fps, 225 KB). The Child now has it in `STAGE_DANCES`; the Baby
+  still has no dance until there is art for one.
+
 ## 2026-11-02 (Wisp gets more personality)
 
 - Myra wanted Wisp less bland for the song contest. `_WHO_YOU_ARE` in

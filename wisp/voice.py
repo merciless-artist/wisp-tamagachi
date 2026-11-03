@@ -369,8 +369,9 @@ STAGE_FACES: Final = {
     Stage.OLD_FOGEY: GROWN_FACES,
 }
 
-# Myra's dance emojis and what each one shows, from Teen on.
+# Myra's dance emojis and what each one shows.
 DANCES: Final = {
+    "wisp_child_dance": "a happy little bouncing dance",
     "wisp_crazy_dance": "going crazy",
     "wisp_conductor_dance": "swaying your arms like the conductor of a symphony",
     "wisp_drummer": "dancing with drumsticks",
@@ -390,6 +391,7 @@ _DANCING: Final = (
 _GUITAR: Final = ("wisp_guitarshred", "wisp_rocks")
 # The drummer is the Rockstar's alone.
 STAGE_DANCES: Final = {
+    Stage.CHILD: ("wisp_child_dance",),
     Stage.TEEN: _DANCING,
     Stage.ADULT: _DANCING,
     Stage.ROCKSTAR: (*_DANCING[:2], "wisp_drummer", *_DANCING[2:], *_GUITAR),
@@ -497,9 +499,15 @@ def _reactions(
             f"{faces}{dancing}"
             "- Write one exactly like that, colons before the name of the emoji AND "
             "at the end as well, and it then shows up as your face. At most one "
-            "per message, and not in every message, so they stay special. Always "
-            "remember they are wrapped in colons. If you forget one, it will break "
-            "the emoji. Don't do that."
+            "face per message, and not in every message, so they stay special. "
+            "Always remember they are wrapped in colons. If you forget one, it will "
+            "break the emoji. Don't do that."
+        )
+    if dances:
+        parts.append(
+            "- You love to dance, and you dance a lot. Whenever music, a beat, a "
+            "track, food, good news or anything fun comes up, add one of your "
+            "dances to your message, along with a face if you like."
         )
     if gif:
         parts.append(

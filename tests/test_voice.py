@@ -27,6 +27,7 @@ from wisp.voice import (
     MINI_COIN_EMOJI,
     NO_U_GIF,
     NO_U_LINK,
+    STAGE_DANCES,
     TRACK_DROP,
     ChatLine,
     Fed,
@@ -293,6 +294,28 @@ def test_dances_come_with_what_each_one_shows() -> None:
     assert "Your dances" not in prompt_for(Stage.TEEN).system
 
 
+def test_he_dances_a_lot_when_he_has_dances() -> None:
+    dancing = build_prompt(
+        Stage.CHILD,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        dances=["wisp_child_dance"],
+    ).system
+
+    assert ":wisp_child_dance: a happy little bouncing dance" in dancing
+    assert "You love to dance" in dancing
+    assert "At most one face per message" in dancing
+    assert "You love to dance" not in prompt_for(Stage.CHILD).system
+
+
+def test_the_child_has_his_own_dance() -> None:
+    assert STAGE_DANCES[Stage.CHILD] == ("wisp_child_dance",)
+    assert Stage.BABY not in STAGE_DANCES
+
+
 @pytest.mark.parametrize(
     ("stage", "number"),
     [
@@ -481,7 +504,7 @@ def test_baby_keeps_the_pickle_tag_but_no_note_tag() -> None:
 
 def test_baby_may_use_one_expression() -> None:
     system = prompt_for(Stage.BABY).system
-    assert ":wisp_happy:" in system and "At most one" in system
+    assert ":wisp_happy:" in system and "At most one face" in system
 
 
 def test_hangry_baby_is_fussy_and_never_swears() -> None:
