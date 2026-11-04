@@ -17,7 +17,9 @@ import pytest
 import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
-from cogs import announce, pictures
+from cogs import announce
+from cogs import assets as art
+from cogs import pictures
 from cogs.announce import (
     BEGIN_AGAIN,
     BEGIN_ID,
@@ -564,6 +566,7 @@ async def test_unreachable_studio_is_posted_in_the_house_not_raised(
 def assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(art, "ASSETS_DIR", tmp_path)
     return tmp_path
 
 
@@ -1322,6 +1325,21 @@ def test_the_card_picture_is_the_sick_one_while_sick(
     assert image is not None and image.name == expected
     life.cold_left = 0.0
     assert life_image(life) == assets / "stages" / f"{stage.value}.png"
+
+
+def test_a_wisp_with_a_cold_shows_the_sick_gif(assets: Path) -> None:
+    add_image(assets, "stages", "teen")
+    add_image(assets, "moments", "wispsick", ".gif")
+    life = new_egg(1, discord.utils.utcnow())
+    life.phase = Phase.ALIVE
+    life.stage = Stage.TEEN
+    life.sniffles_left = rules.SNIFFLES_FOR.total_seconds()
+
+    image = life_image(life)
+
+    assert image is not None and image.name == "wispsick.gif"
+    life.sniffles_left = 0.0
+    assert life_image(life) == assets / "stages" / "teen.png"
 
 
 async def test_hatched_keeps_the_baby_picture_first(

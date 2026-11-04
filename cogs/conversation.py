@@ -30,7 +30,7 @@ from cogs.speech import POKE_ID, ai_reply, dances, expressions, poke_button
 from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
-from wisp.life import Life, is_sick, mood
+from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.text import strip_emoji
@@ -48,6 +48,7 @@ from wisp.voice import (
     build_prompt,
     chimes_in,
     egg_prompt,
+    feelings_of,
     keeps_notes,
     link_track_drop,
     own_emojis,
@@ -223,7 +224,7 @@ async def _prompt(
         dances=dances(bot, life.stage),
         poked=poked,
         own_emojis=emojis,
-        sick=is_sick(life),
+        feelings=feelings_of(life, now),
         track_drop=track_drop,
     )
 
@@ -411,7 +412,7 @@ class Conversation(commands.Cog):
             None,
             expressions=expressions(self.bot, life.stage),
             dances=dances(self.bot, life.stage),
-            sick=is_sick(life),
+            feelings=feelings_of(life, now),
             track_drop=track_drop is not None,
         )
         reply = await ai_reply(self.bot, guild, prompt)
@@ -467,7 +468,7 @@ async def _poke(interaction: discord.Interaction) -> None:
         )
     quiet_for = talk.quiet_for(guild_id, now)
     streak = talk.poke(guild_id, user.id, now)
-    flavor = poke_flavor(mood(life), streak, quiet_for, now, talk.rng)
+    flavor = poke_flavor(mood(life), streak, quiet_for, talk.rng)
     talk.stir(guild_id, now)
     name = player.name or user.display_name
     reaction = await _reaction(interaction, life, level, player, name, flavor, now)

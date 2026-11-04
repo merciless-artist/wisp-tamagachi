@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
-from cogs.assets import ASSETS_DIR
-from wisp.life import Life, Phase, is_sick
-from wisp.rules import SICK_PICTURES, Stage
+from cogs.assets import ASSETS_DIR, moment_image
+from wisp.life import Life, Phase, has_sniffles, is_sick
+from wisp.rules import SICK_PICTURES, SNIFFLES_PICTURE, Stage
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -23,8 +23,8 @@ def life_image(life: Life) -> Path | None:
 
     An egg, hatching or not, is the egg picture; an egg from coal is the coal
     egg's own picture when it exists. A living Wisp is his stage's picture,
-    or while he is sick his stage's sick picture when there is one. A life
-    that is over has none.
+    or while he is sick his stage's sick picture when there is one, or with a
+    cold the cold's picture when it exists. A life that is over has none.
     """
     stages = ASSETS_DIR / "stages"
     candidates: list[Path] = []
@@ -36,6 +36,8 @@ def life_image(life: Life) -> Path | None:
         case Phase.ALIVE:
             if is_sick(life) and (sick := sick_image(life.stage)) is not None:
                 return sick
+            if has_sniffles(life) and (cold := moment_image(SNIFFLES_PICTURE)):
+                return cold
             candidates.append(stages / f"{life.stage.value}.png")
     return next((path for path in candidates if path.is_file()), None)
 
@@ -43,10 +45,7 @@ def life_image(life: Life) -> Path | None:
 def sick_image(stage: Stage) -> Path | None:
     """The stage's sick picture when it exists, or None."""
     name = SICK_PICTURES.get(stage)
-    if name is None:
-        return None
-    path = ASSETS_DIR / "moments" / name
-    return path if path.is_file() else None
+    return None if name is None else moment_image(name)
 
 
 def art_kwargs(field: str, art: discord.File | None) -> dict[str, Any]:

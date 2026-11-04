@@ -170,6 +170,35 @@ NAP_FOR = timedelta(hours=1)
 LIGHTS_WINDOW = timedelta(minutes=15)
 LIGHTS_MOOD_PENALTY = 10.0
 CRANKY_FOR = timedelta(hours=1)
+# What the mess is at each stage, its button label and its picture in
+# ASSETS/moments; a None picture posts the words and the button alone.
+MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
+    Stage.BABY: ("poop", "Clean up", "poop.gif"),
+    Stage.CHILD: ("poop", "Clean up", "poop.gif"),
+    Stage.TEEN: ("a zit breakout", "Hand him face wash", "pimple.gif"),
+    Stage.ADULT: (
+        "takeout boxes and dirty dishes",
+        "Take out the trash",
+        "trash_adult.gif",
+    ),
+    Stage.ROCKSTAR: (
+        "the green room he trashed after a show",
+        "Clean the green room",
+        "trash_rockstar.gif",
+    ),
+    Stage.OLD_FOGEY: ("dentures that need a soak", "Soak his teeth", "dentures.gif"),
+}
+# The pictures in ASSETS/moments for a cold, its medicine and a tantrum.
+SNIFFLES_PICTURE: Final = "wispsick.gif"
+MEDICINE_PICTURE: Final = "medicine.png"
+TANTRUM_PICTURES: Final[dict[Stage, str]] = {
+    Stage.BABY: "tantrum_baby.gif",
+    Stage.CHILD: "grumpy.gif",
+    Stage.TEEN: "cry_teen.gif",
+    Stage.ADULT: "grumpy_adult.gif",
+    Stage.ROCKSTAR: "grumpy_adult.gif",
+    Stage.OLD_FOGEY: "grumpy_old_fogey.gif",
+}
 
 # ---
 # Egg
@@ -627,10 +656,8 @@ NOTE_MAX_CHARS = 200
 # Poking
 # ---
 
-# A House quiet this long, or a poke in these UTC hours (3 AM up to 7 AM),
-# likely wakes him.
+# A House quiet this long likely wakes him when poked.
 POKE_SLEEP_AFTER = timedelta(hours=2)
-POKE_SLEEP_HOURS = range(3, 7)
 # A member's pokes in a row: each within POKE_STREAK_GAP of their last one.
 # From POKE_MAD_AT in a row he is always mad at them, from POKE_FED_UP_AT fed
 # up. Pokes from other members never add to someone's streak.

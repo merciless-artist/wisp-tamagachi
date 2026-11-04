@@ -48,7 +48,33 @@ ONE_MOOD_MOMENTS = {
     Moment.LONELY,
     Moment.SICK,
     Moment.RECOVERED,
+    Moment.MESS,
+    Moment.MESS_LEFT,
+    Moment.SNIFFLES,
+    Moment.TANTRUM,
+    Moment.TANTRUM_MISSED,
+    Moment.NAP,
+    Moment.LIGHTS_MISSED,
+    Moment.NAP_TALK,
+    Moment.MESS_CLEANED,
+    Moment.SCOLDED,
+    Moment.LIGHTS_OFF,
+    Moment.MEDICINE,
 }
+CHORE_AND_COLD_MOMENTS = [
+    Moment.MESS,
+    Moment.MESS_LEFT,
+    Moment.SNIFFLES,
+    Moment.TANTRUM,
+    Moment.TANTRUM_MISSED,
+    Moment.NAP,
+    Moment.LIGHTS_MISSED,
+    Moment.NAP_TALK,
+    Moment.MESS_CLEANED,
+    Moment.SCOLDED,
+    Moment.LIGHTS_OFF,
+    Moment.MEDICINE,
+]
 LONELY_TALK_MOMENTS = [Moment.POKED, Moment.CHAT_FALLBACK, Moment.BABY_TALK]
 FAREWELL_MOMENTS = [
     Moment.GREW_OLD,
@@ -144,6 +170,35 @@ def test_the_monster_pox_lines_are_spotty_not_sneezy(moment: Moment) -> None:
     for line in lines:
         for word in ("cold", "sneez", "sniff", "achoo", "tissue", "nose"):
             assert word not in line
+
+
+@pytest.mark.parametrize("moment", CHORE_AND_COLD_MOMENTS)
+def test_the_chore_and_cold_moments_have_at_least_six_lines(moment: Moment) -> None:
+    assert len(LINES[(moment, Mood.HAPPY)]) >= 6
+
+
+def test_the_chore_and_cold_moments_take_the_fields_they_should() -> None:
+    named = {
+        Moment.MESS_CLEANED,
+        Moment.SCOLDED,
+        Moment.LIGHTS_OFF,
+        Moment.MEDICINE,
+    }
+    for moment in CHORE_AND_COLD_MOMENTS:
+        assert FIELDS[moment] == ({"name"} if moment in named else set())
+
+
+@pytest.mark.parametrize("moment", [Moment.SNIFFLES, Moment.MEDICINE])
+def test_the_cold_lines_are_sneezy_not_spotty(moment: Moment) -> None:
+    lines = [line.lower() for line in LINES[(moment, Mood.HAPPY)]]
+    for line in lines:
+        for word in ("spot", "itch", "scratch"):
+            assert word not in line
+
+
+def test_nap_talk_is_only_sleepy_noises() -> None:
+    for line in LINES[(Moment.NAP_TALK, Mood.HAPPY)]:
+        assert line.startswith("*") and line.endswith("*"), line
 
 
 @pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)

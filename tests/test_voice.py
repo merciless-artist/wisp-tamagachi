@@ -31,6 +31,7 @@ from wisp.voice import (
     TRACK_DROP,
     ChatLine,
     Fed,
+    Feeling,
     OwnEmoji,
     PokeFlavor,
     Poker,
@@ -40,6 +41,7 @@ from wisp.voice import (
     build_prompt,
     chimes_in,
     egg_prompt,
+    feelings_of,
     goodbye_prompt,
     keeps_notes,
     link_track_drop,
@@ -221,7 +223,7 @@ def test_a_lonely_baby_is_clingy_and_never_swears() -> None:
 
 @pytest.mark.parametrize("mood", list(Mood))
 def test_sick_reaches_the_prompt(mood: Mood) -> None:
-    def system(stage: Stage, sick: bool) -> str:
+    def system(stage: Stage, feelings: tuple[Feeling, ...]) -> str:
         return build_prompt(
             stage,
             mood,
@@ -229,23 +231,101 @@ def test_sick_reaches_the_prompt(mood: Mood) -> None:
             CONTEXT,
             "hey wisp",
             expressions=EXPRESSIONS,
-            sick=sick,
+            feelings=feelings,
         ).system
 
-    grown = system(Stage.TEEN, sick=True)
+    grown = system(Stage.TEEN, (Feeling.MONSTER_POX,))
     assert "You have Monster Pox right now" in grown
     for symptom in ("spotty", "itchy", "fever", "thermometer"):
         assert symptom in grown
-    baby = system(Stage.BABY, sick=True)
+    baby = system(Stage.BABY, (Feeling.MONSTER_POX,))
     assert "You have Monster Pox right now" in baby and "never swearing" in baby
     assert "spots" in baby and "itchy" in baby
     for sick_prompt in (grown, baby):
         assert "cold" not in sick_prompt and "sneez" not in sick_prompt
         assert "sniff" not in sick_prompt
     for stage in (Stage.BABY, Stage.TEEN):
-        healthy = system(stage, sick=False)
+        healthy = system(stage, ())
         assert "Monster Pox" not in healthy and "itchy" not in healthy
         assert healthy == prompt_for(stage, mood).system
+
+
+FEELING_LAYERS = {
+    Feeling.MONSTER_POX: "You have Monster Pox right now",
+    Feeling.SNIFFLES: "You have a cold right now",
+    Feeling.SPOILED: "You're spoiled for the rest of today",
+    Feeling.CRANKY: "You were just woken up",
+}
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+@pytest.mark.parametrize("feeling", list(Feeling))
+def test_each_feeling_reaches_the_prompt(feeling: Feeling, stage: Stage) -> None:
+    system = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        feelings=(feeling,),
+    ).system
+    assert FEELING_LAYERS[feeling] in system
+    for other, text in FEELING_LAYERS.items():
+        if other is not feeling:
+            assert text not in system
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+def test_a_cold_is_stuffy_and_sneezy_never_spotty(stage: Stage) -> None:
+    system = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        feelings=(Feeling.SNIFFLES,),
+    ).system
+    assert "sneez" in system and "stuffy" in system
+    for word in ("spot", "itch", "scratch"):
+        assert word not in system
+
+
+def test_feelings_stack_in_one_prompt() -> None:
+    system = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        feelings=(Feeling.SNIFFLES, Feeling.CRANKY),
+    ).system
+    assert FEELING_LAYERS[Feeling.SNIFFLES] in system
+    assert FEELING_LAYERS[Feeling.CRANKY] in system
+
+
+def test_feelings_of_a_life() -> None:
+    now = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
+    life = life_in(Phase.ALIVE, Stage.TEEN)
+    assert feelings_of(life, now) == frozenset()
+
+    life.cold_left = 10.0
+    life.sniffles_left = 10.0
+    assert feelings_of(life, now) == {Feeling.MONSTER_POX, Feeling.SNIFFLES}
+    life.cold_left = 0.0
+    life.sniffles_left = 0.0
+
+    life.spoiled_until = datetime(2026, 11, 5, 0, 0, tzinfo=UTC)
+    spoiled_late = datetime(2026, 11, 4, 23, 59, tzinfo=UTC)
+    assert feelings_of(life, spoiled_late) == {Feeling.SPOILED}
+    assert feelings_of(life, life.spoiled_until) == frozenset()
+
+    life.spoiled_until = None
+    life.cranky_until = now + timedelta(hours=1)
+    assert feelings_of(life, now) == {Feeling.CRANKY}
+    assert feelings_of(life, life.cranky_until) == frozenset()
 
 
 def test_teen_does_not_claim_to_remember_conversations() -> None:
@@ -659,17 +739,12 @@ class HeaviestChoice(random.Random):
         return [population[heaviest]]
 
 
-AWAKE = datetime(2026, 10, 23, 15, 0, tzinfo=UTC)
-NIGHT = datetime(2026, 10, 23, 4, 30, tzinfo=UTC)
-
-
 def flavor(
     mood: Mood = Mood.HAPPY,
     pokes: int = 1,
     quiet_for: timedelta | None = timedelta(minutes=5),
-    now: datetime = AWAKE,
 ) -> PokeFlavor:
-    return poke_flavor(mood, pokes, quiet_for, now, HeaviestChoice())
+    return poke_flavor(mood, pokes, quiet_for, HeaviestChoice())
 
 
 def test_a_poke_most_likely_tickles() -> None:
@@ -678,23 +753,13 @@ def test_a_poke_most_likely_tickles() -> None:
     assert flavor(pokes=POKE_MAD_AT - 1) is PokeFlavor.TICKLED
 
 
-@pytest.mark.parametrize(
-    ("quiet_for", "now"),
-    [
-        (POKE_SLEEP_AFTER, AWAKE),
-        (timedelta(minutes=1), NIGHT),
-        (None, datetime(2026, 10, 23, 3, 0, tzinfo=UTC)),
-    ],
-)
-def test_a_quiet_house_or_the_small_hours_wake_him(
-    quiet_for: timedelta | None, now: datetime
-) -> None:
-    assert flavor(quiet_for=quiet_for, now=now) is PokeFlavor.WOKE_UP
+def test_a_quiet_house_wakes_him() -> None:
+    assert flavor(quiet_for=POKE_SLEEP_AFTER) is PokeFlavor.WOKE_UP
 
 
-def test_seven_am_is_awake() -> None:
-    morning = datetime(2026, 10, 23, 7, 0, tzinfo=UTC)
-    assert flavor(now=morning) is PokeFlavor.TICKLED
+def test_a_poke_in_the_small_hours_is_not_sleepy() -> None:
+    assert flavor(quiet_for=None) is not PokeFlavor.WOKE_UP
+    assert flavor(quiet_for=timedelta(minutes=1)) is not PokeFlavor.WOKE_UP
 
 
 def test_hunger_annoys_him() -> None:
@@ -706,19 +771,19 @@ def test_hunger_annoys_him() -> None:
 def test_pokes_in_a_row_always_make_him_mad(mood: Mood, pokes: int) -> None:
     assert flavor(mood, pokes) is PokeFlavor.MAD
     assert flavor(mood, pokes, quiet_for=POKE_SLEEP_AFTER) is PokeFlavor.MAD
-    assert poke_flavor(mood, pokes, None, NIGHT, random.Random(1)) is PokeFlavor.MAD
+    assert poke_flavor(mood, pokes, None, random.Random(1)) is PokeFlavor.MAD
 
 
 @pytest.mark.parametrize("pokes", [POKE_FED_UP_AT, POKE_FED_UP_AT + 4])
 def test_even_more_pokes_in_a_row_make_him_fed_up(pokes: int) -> None:
     assert flavor(pokes=pokes) is PokeFlavor.FED_UP
-    assert flavor(Mood.HANGRY, pokes, now=NIGHT) is PokeFlavor.FED_UP
+    assert flavor(Mood.HANGRY, pokes) is PokeFlavor.FED_UP
 
 
 def test_every_flavor_can_come_up() -> None:
     rng = random.Random(4)
     rolled = {
-        poke_flavor(mood, pokes, quiet, AWAKE, rng)
+        poke_flavor(mood, pokes, quiet, rng)
         for mood, pokes, quiet in (
             (Mood.HAPPY, 1, timedelta(minutes=1)),
             (Mood.HANGRY, 1, POKE_SLEEP_AFTER),

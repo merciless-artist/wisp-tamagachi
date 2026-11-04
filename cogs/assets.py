@@ -21,6 +21,12 @@ def asset_image(folder: Path, name: str) -> Path | None:
     )
 
 
+def moment_image(name: str) -> Path | None:
+    """The picture called `name` in ASSETS/moments when it exists, else None."""
+    path = ASSETS_DIR / "moments" / name
+    return path if path.is_file() else None
+
+
 def nap_image(stage: Stage) -> Path | None:
     """The nap picture while Wisp is young enough to have one, else None."""
     if stage not in NAP_STAGES:

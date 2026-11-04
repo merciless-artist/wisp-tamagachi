@@ -55,6 +55,18 @@ class Moment(StrEnum):
     GIFT_FULL = auto()
     COLLECTION_DONE = auto()
     KEEPSAKE_WON = auto()
+    MESS = auto()
+    MESS_LEFT = auto()
+    MESS_CLEANED = auto()
+    SNIFFLES = auto()
+    MEDICINE = auto()
+    TANTRUM = auto()
+    TANTRUM_MISSED = auto()
+    SCOLDED = auto()
+    NAP = auto()
+    LIGHTS_MISSED = auto()
+    LIGHTS_OFF = auto()
+    NAP_TALK = auto()
 
 
 _NAME = frozenset({"name"})
@@ -105,6 +117,18 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.GIFT_FULL: _GIFT,
     Moment.COLLECTION_DONE: frozenset({"name", "collection"}),
     Moment.KEEPSAKE_WON: _NAME,
+    Moment.MESS: _NONE,
+    Moment.MESS_LEFT: _NONE,
+    Moment.MESS_CLEANED: _NAME,
+    Moment.SNIFFLES: _NONE,
+    Moment.MEDICINE: _NAME,
+    Moment.TANTRUM: _NONE,
+    Moment.TANTRUM_MISSED: _NONE,
+    Moment.SCOLDED: _NAME,
+    Moment.NAP: _NONE,
+    Moment.LIGHTS_MISSED: _NONE,
+    Moment.LIGHTS_OFF: _NAME,
+    Moment.NAP_TALK: _NONE,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -496,6 +520,143 @@ _RECOVERED = (
     "I beat Monster Pox. put it on a poster. Wisp versus the spots, Wisp wins",
     "my headphones aren't polka dot anymore. it's a good day",
     "I'm better! sorry for scratching on everybody's tracks",
+)
+
+# ---
+# Messes, the cold, tantrums and naps
+# ---
+
+_MESS = (
+    "uh. so. there's a mess. it's mine. I'm not proud. could somebody help",
+    "I made a mess and I'm standing very still next to it like that fixes it",
+    "okay don't look, but something needs cleaning up. first one to it is my hero",
+    "a mess has happened. I'd say sorry but I'm too busy hoping someone else "
+    "grabs the cleaning stuff",
+    "things got messy in here. I take zero responsibility. please fix it",
+    "this place needs a cleanup and I have no hands. well, flames. not the "
+    "cleaning kind",
+    "I ate a lot of music and now there's a mess. that's how it works, that's "
+    "science",
+    "quick, before it gets worse. somebody come clean this up",
+)
+
+_MESS_LEFT = (
+    "nobody cleaned it. it's been hours. now I've got a cold, and it's your "
+    "fault. *sniffle*",
+    "*achoo* the mess sat there too long and now I'm all stuffy. thanks a lot",
+    "I told you it needed cleaning. now my nose is blocked and I sound like a " "kazoo",
+    "left it too long and I caught a cold. *sniffle* I'm not mad. I'm stuffy",
+    "the mess won. I've got the sniffles and a very sad flame",
+    "*achoo* excuse me. that's the mess talking. I'm sick now",
+    "nobody came and now I'm all clogged up. a song would help. so would " "medicine",
+)
+
+_SNIFFLES = (
+    "*achoo* I've got a cold. my nose is totally blocked and my flame is " "wobbling",
+    "*sniffle* I don't feel so good. everything's stuffy and my voice is doing "
+    "a thing",
+    "I caught a cold. I can't smell a single song. that's a tragedy for a flame",
+    "*achoo* sorry. my head's full of cotton and my flame keeps sneezing out "
+    "little sparks",
+    "I'm all stuffy and sneezy today. medicine would be real nice right about now",
+    "being sick is the worst. *sniffle* bring me songs and a bottle of medicine",
+    "ahh... ahh... AHCHOO. okay I'm fine. I'm not fine. I've got a cold",
+    "I sound like I'm talking through a pillow. it's a cold. *sniffle* be nice "
+    "to me",
+)
+
+_TANTRUM = (
+    "I'M UPSET. I don't know why. I'm just upset and everyone has to know",
+    "waaah. no reason. none. I just feel like crying and kicking things",
+    "NOPE. nope nope nope. everything is wrong and I won't say what",
+    "I'm throwing a fit and I can't tell you why. somebody make it stop",
+    "why is everything so annoying right now?? it just is. hmph",
+    "I'm not crying, you're crying. okay I'm crying. I don't know what about",
+    "grrr. I'm in a mood. a big loud mood. come tell me off",
+    "this is the worst day ever and it's mostly about nothing",
+)
+
+_TANTRUM_MISSED = (
+    "fine. FINE. nobody wants to deal with me, so I'm going to be a brat all day",
+    "you all ignored me and now I'm extra grumpy. that's on you",
+    "nobody told me off so I'm doing whatever I want today. hmph",
+    "I wanted attention and I didn't get it. I'm spoiled now and it's your " "problem",
+    "I yelled and nobody came. fine. I'll be difficult for the rest of the day",
+    "wow. the tantrum is over and nobody even cared. I'm being a brat about it",
+    "no one scolded me, so now I think I can get away with everything. watch me",
+)
+
+_NAP = (
+    "*yawn* I'm so sleepy. somebody turn the lights off so I can nap",
+    "my flame's getting low and my eyes are closing. lights off, please",
+    "nap time. I can feel it. somebody get the lights before I fall over",
+    "*yawn* it's too bright in here for a nap. lights off, anybody?",
+    "I'm dozing off already. the lights, the lights, please get the lights",
+    "so... sleepy... can someone switch off the lights. I'll be quick. I " "promise",
+    "time for my nap. please hit the lights, I'm heading down now",
+    "*yawn* wake me in a bit. first, lights off",
+)
+
+_LIGHTS_MISSED = (
+    "nobody turned the lights off, so I napped with them on. I'm grumpy and "
+    "I feel terrible",
+    "I tried to sleep and the lights were too bright. now I'm cranky. thanks",
+    "bad nap. the lights stayed on the whole time. don't talk to me",
+    "I'm up and I'm grumpy. you left the lights on. *yawn* I hate it",
+    "the lights stayed on and I barely slept. I'm cranky and it's your fault",
+    "worst nap ever. somebody forgot the lights. I'm awake and I'm mad about it",
+    "I didn't sleep at all with the lights on. grrr. I'm cranky now",
+)
+
+_NAP_TALK = (
+    "*snore*",
+    "*zzz*",
+    "*snore... snore*",
+    "*mumbles in his sleep*",
+    "*sleepy little hum*",
+    "*soft snoring*",
+    "*zzz... mmm... zzz*",
+    "*rolls over and snores*",
+)
+
+_MESS_CLEANED = (
+    "all clean! thank you {name}, I feel so fresh",
+    "{name} cleaned it all up. you're my favorite person for like an hour",
+    "sparkling. {name}, you absolute legend",
+    "that's so much better. thanks {name}, I owe you a song",
+    "{name} came through with the cleaning. my flame is happy again",
+    "the mess is gone and {name} did it. I'm not crying. you're crying",
+    "ahh, fresh and tidy. {name}, you're the best",
+)
+
+_SCOLDED = (
+    "hmph. okay, {name}. I'm sorry. I'll stop. *pout*",
+    "...fine. {name} told me off. I'm pouting. I'm done pouting. I think",
+    "okay okay, {name}. I get it. I'll calm down now",
+    "*pout* ...okay. {name}'s right. I'm settling down",
+    "I was a brat. {name} told me. now I'm sitting quietly. mostly",
+    "waaah... okay. {name}, I'm better now. a little",
+    "fine. I'll behave, {name}. *deep breath* all calm now",
+)
+
+_LIGHTS_OFF = (
+    "*click* thank you {name}. night night. *yawn*",
+    "lights off. {name}, you're a lifesaver. zzz",
+    "ahh, dark and cozy. thanks {name}. I'm out",
+    "{name} got the lights. goodnight, world. *snore*",
+    "*yawn* thanks {name}. wake me in a bit",
+    "dark at last. {name}, you're the best. nap time",
+    "lights are off and I'm drifting. thank you {name}",
+)
+
+_MEDICINE = (
+    "*gulp* thank you {name}. I feel so much better. no more sneezing",
+    "{name} brought medicine. my nose is clear and my flame is bright again",
+    "the cold is gone! {name}, you're a real doctor. better than me",
+    "medicine from {name}. tastes weird. works great. *sniffle*... gone",
+    "I can smell the songs again! thank you {name}",
+    "{name} saved me from the sniffles. I owe you a whole playlist",
+    "all better. {name}, I can breathe again",
 )
 
 # ---
@@ -909,6 +1070,18 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.NOT_ENOUGH_POINTS, _NOT_ENOUGH_POINTS),
     **_either_mood(Moment.EGG_POKE, _EGG_POKE),
     **_either_mood(Moment.KEEPSAKE_WON, _KEEPSAKE_WON),
+    **_either_mood(Moment.MESS, _MESS),
+    **_either_mood(Moment.MESS_LEFT, _MESS_LEFT),
+    **_either_mood(Moment.MESS_CLEANED, _MESS_CLEANED),
+    **_either_mood(Moment.SNIFFLES, _SNIFFLES),
+    **_either_mood(Moment.MEDICINE, _MEDICINE),
+    **_either_mood(Moment.TANTRUM, _TANTRUM),
+    **_either_mood(Moment.TANTRUM_MISSED, _TANTRUM_MISSED),
+    **_either_mood(Moment.SCOLDED, _SCOLDED),
+    **_either_mood(Moment.NAP, _NAP),
+    **_either_mood(Moment.LIGHTS_MISSED, _LIGHTS_MISSED),
+    **_either_mood(Moment.LIGHTS_OFF, _LIGHTS_OFF),
+    **_either_mood(Moment.NAP_TALK, _NAP_TALK),
 }
 """Every moment has happy and hangry lines. One without lonely lines of its own
 says its happy lines when he is lonely; see `lines_for`."""

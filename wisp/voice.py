@@ -7,13 +7,13 @@ import random
 import re
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum, auto
 from typing import Final
 
 from ai.prompt import Prompt
 from wisp.bond import PickleStance
-from wisp.life import Life, Mood, Phase, is_over
+from wisp.life import Life, Mood, Phase, has_sniffles, is_over, is_sick
 from wisp.rules import (
     AI_MAX_CHARS,
     BOND_TIERS,
@@ -27,7 +27,6 @@ from wisp.rules import (
     POKE_MAD_AT,
     POKE_MOOD_WEIGHT,
     POKE_SLEEP_AFTER,
-    POKE_SLEEP_HOURS,
     POKE_STARTLED_WEIGHT,
     POKE_TICKLED_WEIGHT,
     SNACK_BY_KEY,
@@ -327,6 +326,81 @@ _BABY_SICK: Final = (
     'your little noises come out fussy and scratchy, like "*scratch scratch*" '
     'or "*itchy whimper*", never swearing.'
 )
+
+_SNIFFLES: Final = (
+    "You have a cold right now. You're stuffy and sneezy: your nose is blocked, "
+    "your words come out a bit nasal, and now and then you sneeze mid-sentence "
+    "(*achoo*) and sniffle (*sniffle*). You feel run down and want a song and "
+    "some medicine, and you know you'll be fine in a couple of days."
+)
+
+_BABY_SNIFFLES: Final = (
+    "You have a cold right now, so you're a stuffy, sneezy baby: your little "
+    'noises come out snuffly, like "*achoo*" or "*sniffly whimper*", never '
+    "swearing."
+)
+
+_SPOILED: Final = (
+    "You're spoiled for the rest of today. You threw a fit and nobody settled "
+    "you down, so you're extra bratty: demanding, whiny and sure the world owes "
+    "you songs and snacks. It's cheeky, never cruel."
+)
+
+_BABY_SPOILED: Final = (
+    "You're spoiled for the rest of today, so you're an extra bratty baby: it "
+    "all comes out as demanding, whiny little noises, never swearing."
+)
+
+_CRANKY: Final = (
+    "You were just woken up from a nap and you're grumpy about it. You're "
+    "groggy and short with people, you yawn, and you grumble about being "
+    "disturbed, but it fades as you wake up and it's never cruel."
+)
+
+_BABY_CRANKY: Final = (
+    "You were just woken up from a nap, so you're a groggy, grumpy baby: it "
+    "all comes out as cranky little noises and yawns, never swearing."
+)
+
+# ---
+# Feelings
+# ---
+
+
+class Feeling(StrEnum):
+    """Something Wisp feels that colors how he talks."""
+
+    MONSTER_POX = auto()
+    SNIFFLES = auto()
+    SPOILED = auto()
+    CRANKY = auto()
+
+
+# The layer each feeling adds to his prompt: (grown up, Baby).
+_FEELING_LAYERS: Final = {
+    Feeling.MONSTER_POX: (_SICK, _BABY_SICK),
+    Feeling.SNIFFLES: (_SNIFFLES, _BABY_SNIFFLES),
+    Feeling.SPOILED: (_SPOILED, _BABY_SPOILED),
+    Feeling.CRANKY: (_CRANKY, _BABY_CRANKY),
+}
+
+
+def feelings_of(life: Life, now: datetime) -> frozenset[Feeling]:
+    """What he feels at `now`: Monster Pox, a cold, spoiled and cranky."""
+    return frozenset(
+        feeling
+        for feeling, active in (
+            (Feeling.MONSTER_POX, is_sick(life)),
+            (Feeling.SNIFFLES, has_sniffles(life)),
+            (
+                Feeling.SPOILED,
+                life.spoiled_until is not None and now < life.spoiled_until,
+            ),
+            (Feeling.CRANKY, life.cranky_until is not None and now < life.cranky_until),
+        )
+        if active
+    )
+
 
 _BOND_LADDER: Final = (
     "Bond levels are:\n"
@@ -647,25 +721,21 @@ def poke_flavor(
     mood: Mood,
     streak: int,
     quiet_for: timedelta | None,
-    now: datetime,
     rng: random.Random,
 ) -> PokeFlavor:
     """Pick how Wisp takes a poke that is the member's `streak`-th in a row.
 
     From POKE_MAD_AT in a row he is always mad at them, from POKE_FED_UP_AT
     fed up. Otherwise it is a roll: tickled is the likeliest, startled and
-    curious come now and then. A House quiet for POKE_SLEEP_AFTER, or a poke
-    in POKE_SLEEP_HOURS, makes waking up likeliest, and being hangry makes
-    being annoyed likeliest. `quiet_for` is None when nobody has been heard
-    since Wisp started.
+    curious come now and then. A House quiet for POKE_SLEEP_AFTER makes
+    waking up likeliest, and being hangry makes being annoyed likeliest.
+    `quiet_for` is None when nobody has been heard since Wisp started.
     """
     if streak >= POKE_FED_UP_AT:
         return PokeFlavor.FED_UP
     if streak >= POKE_MAD_AT:
         return PokeFlavor.MAD
-    sleepy = (
-        quiet_for is not None and quiet_for >= POKE_SLEEP_AFTER
-    ) or now.astimezone(UTC).hour in POKE_SLEEP_HOURS
+    sleepy = quiet_for is not None and quiet_for >= POKE_SLEEP_AFTER
     weights = {
         PokeFlavor.WOKE_UP: POKE_MOOD_WEIGHT if sleepy else 0,
         PokeFlavor.ANNOYED: POKE_MOOD_WEIGHT if mood is Mood.HANGRY else 0,
@@ -761,7 +831,7 @@ def build_prompt(
     dances: Sequence[str] = (),
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
-    sick: bool = False,
+    feelings: Collection[Feeling] = (),
     track_drop: bool = False,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
@@ -771,9 +841,11 @@ def build_prompt(
     tags are only asked for when there is a speaker with a message.
     `own_emojis` are the emojis of his that the message used. `dances` are
     the dance emojis he may post, and from Teen on he knows the things in
-    Myra's "Things you know". While `sick`
-    he has Monster Pox and sounds spotty and itchy. With `track_drop`, from
-    Child on he sends people to the track drop for food (see `link_track_drop`).
+    Myra's "Things you know". Each of his `feelings` adds a layer: Monster
+    Pox is spotty and itchy, a cold stuffy and sneezy, spoiled extra bratty
+    for the rest of the day, cranky just woken and grumpy about it. With
+    `track_drop`, from Child on he sends people to the track drop for food
+    (see `link_track_drop`).
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -792,8 +864,9 @@ def build_prompt(
     if (layers := _MOOD_LAYERS.get(mood)) is not None:
         grown, little = layers
         system.append(little if baby else grown)
-    if sick:
-        system.append(_BABY_SICK if baby else _SICK)
+    system.extend(
+        _FEELING_LAYERS[feeling][baby] for feeling in Feeling if feeling in feelings
+    )
     if track_drop and not baby:
         system.append(_TRACK_DROP_NOTE)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
