@@ -34,6 +34,8 @@ BEGIN_ID: Final = "wisp:begin"
 BEGIN_AGAIN: Final = "♪ Do you want to begin again?"
 _BABY_STAGE: Final = "baby"
 _GIVING: Final = "giving a keepsake"
+_POSTING: Final = "posting to Wisp's House"
+_EDITING: Final = "editing a post in Wisp's House"
 _NEW_STAGE: Final = frozenset(
     {EventKind.HATCHED, EventKind.STAGE_UP, EventKind.GREW_OLD}
 )
@@ -136,7 +138,7 @@ class _House:
             return
         await self._bot.report_error(
             self._guild,
-            "posting to Wisp's House",
+            _POSTING,
             LookupError("the House channel is not set or cannot be seen"),
         )
 
@@ -146,14 +148,14 @@ class _House:
         image: Path | None = None,
         view: discord.ui.View | None = None,
         ping: int | None = None,
-    ) -> None:
-        """Post a line, with an image or buttons when given.
+    ) -> discord.Message | None:
+        """Post a line, with an image or buttons when given, and return the post.
 
         Nobody is pinged unless `ping` names the one member who may be. A
-        failure is reported.
+        failure is reported and returns None, as does a missing House.
         """
         if self._channel is None:
-            return
+            return None
         extras: dict[str, Any] = {}
         if image is not None:
             extras["file"] = discord.File(image)
@@ -170,9 +172,23 @@ class _House:
             )
         )
         try:
-            await self._channel.send(text, allowed_mentions=mentions, **extras)
+            return await self._channel.send(text, allowed_mentions=mentions, **extras)
         except discord.DiscordException as error:
-            await self._bot.report_error(self._guild, "posting to Wisp's House", error)
+            await self._bot.report_error(self._guild, _POSTING, error)
+            return None
+
+    async def edit(self, message_id: int, text: str) -> None:
+        """Replace a House post's words and take its buttons away, pinging nobody.
+
+        A failure, a missing post included, is reported.
+        """
+        if self._channel is None:
+            return
+        try:
+            message = await self._channel.fetch_message(message_id)
+            await message.edit(content=text, view=None, allowed_mentions=_NO_PING)
+        except discord.DiscordException as error:
+            await self._bot.report_error(self._guild, _EDITING, error)
 
 
 # ---
@@ -235,14 +251,15 @@ async def say_in_house(
     image: Path | None = None,
     view: discord.ui.View | None = None,
     ping: int | None = None,
-) -> None:
+) -> discord.Message | None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
     `name` fills the line's name when the moment has one, `prefix` goes in front
     of the line, `image` attaches a file, `view` adds buttons and `ping` is the
-    one member the post may ping. A missing House channel is reported.
+    one member the post may ping. Returns the post, or None when the House is
+    missing or the post failed; either is reported.
     """
-    await post_in_house(
+    return await post_in_house(
         bot,
         guild_id,
         prefix + _line(bot, moment, life, name=name),
@@ -259,15 +276,29 @@ async def post_in_house(
     image: Path | None = None,
     view: discord.ui.View | None = None,
     ping: int | None = None,
-) -> None:
+) -> discord.Message | None:
     """Post text in Wisp's House, with an image or buttons when given.
 
-    Nobody is pinged unless `ping` names the one member who may be. A missing
-    House channel is reported.
+    Nobody is pinged unless `ping` names the one member who may be. Returns
+    the post, or None when the House is missing or the post failed; either is
+    reported.
     """
     house = _House(bot, guild_id)
     await house.open()
-    await house.say(text, image, view, ping)
+    return await house.say(text, image, view, ping)
+
+
+async def edit_in_house(
+    bot: "WispBot", guild_id: int, message_id: int, text: str
+) -> None:
+    """Replace the words of a House post and take its buttons away.
+
+    Nobody is pinged. A failure, a missing post included, is reported, never
+    raised.
+    """
+    house = _House(bot, guild_id)
+    await house.open()
+    await house.edit(message_id, text)
 
 
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:

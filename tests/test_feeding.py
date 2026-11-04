@@ -5,6 +5,7 @@ Discord objects are fakes; the repositories are the real ones.
 
 import asyncio
 import logging
+import random
 import re
 from collections.abc import AsyncIterator, Iterator
 from datetime import timedelta
@@ -294,6 +295,29 @@ async def test_a_fed_track_fills_health_and_restarts_its_stretch(
     assert life.health_stretch == 0.0
     assert life.wellbeing_stretch == 10800.0
     assert life.wellbeing == ready.wellbeing
+
+
+class LowRng(random.Random):
+    """An rng whose `uniform` always lands on the low end of its range."""
+
+    def uniform(self, a: float, b: float) -> float:
+        return a
+
+
+async def test_a_fed_track_schedules_a_mess(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    assert isinstance(cog.rng, random.Random)
+    cog.rng = LowRng()
+
+    await cog.on_message(message(f"new one {VIIBR_URL}"))
+
+    life = await current_life(bot)
+    assert life.mess_in == rules.MESS_DELAY_MIN.total_seconds()
+    assert life.mess_left == 0.0
 
 
 async def test_forward_line_uses_chosen_name_and_hangry_mood(

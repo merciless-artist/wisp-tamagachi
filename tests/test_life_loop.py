@@ -21,8 +21,9 @@ import pytest
 from discord.ext import commands
 
 import app
-from cogs import announce, life_loop, pictures
+from cogs import announce, assets, life_loop, pictures
 from cogs.announce import BEGIN_AGAIN
+from cogs.chores import ChoreButton
 from cogs.conversation import PokeButton
 from cogs.life_loop import BeginButton, LifeLoop
 from cogs.snacks import FeedButton
@@ -66,6 +67,9 @@ WISP_ID = 5000
 WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 FULL_GAP = rules.MAX_CREDITED_GAP
+NAP_TIME = datetime(2026, 10, 22, 10, 0, tzinfo=UTC)
+# Every tick in these tests comes before it, so no tantrum interrupts them.
+LATE_TANTRUM = datetime(2026, 10, 22, 23, 59, tzinfo=UTC)
 
 # ---
 # Fakes
@@ -197,6 +201,7 @@ async def lay(
     life.phase = phase
     life.health = health
     life.phase_seconds = phase_seconds
+    life.tantrum_due_at = LATE_TANTRUM
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = NOW - timedelta(hours=1)
@@ -710,6 +715,7 @@ def stage_art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         (stages / f"{name}.png").write_bytes(b"png")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
     return stages
 
 
@@ -1154,6 +1160,62 @@ async def test_a_frozen_child_gets_his_cold_scheduled_but_not_started(
 
 
 # ---
+# Chores
+# ---
+
+
+async def test_the_tick_posts_a_due_nap(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot, gap=NOW - NAP_TIME + rules.TICK_EVERY)
+    server.house.send.return_value = MagicMock(spec=discord.Message, id=4321)
+
+    await cog.run_tick(NAP_TIME)
+
+    (nap_post,) = [
+        call for call in server.house.send.await_args_list if "view" in call.kwargs
+    ]
+    (button,) = nap_post.kwargs["view"].children
+    assert isinstance(button, ChoreButton)
+    assert (button.item.label, button.item.custom_id) == (
+        "Lights off",
+        f"wisp:chore:nap:{life.id}",
+    )
+    assert nap_post.kwargs["allowed_mentions"].to_dict() == (
+        discord.AllowedMentions.none().to_dict()
+    )
+    napping = await current_life(bot)
+    assert napping.nap_left > 0
+    assert napping.nap_message_id == 4321
+
+
+async def test_nothing_posts_while_frozen(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot, frozen=True)
+    await lay(bot, gap=NOW - NAP_TIME + rules.TICK_EVERY)
+
+    await cog.run_tick(NAP_TIME)
+
+    server.house.send.assert_not_awaited()
+    assert (await current_life(bot)).nap_left == 0.0
+
+
+async def test_he_does_not_go_quiet_while_napping(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    life = await lay(bot, gap=timedelta(minutes=5))
+    life.nap_left = rules.NAP_FOR.total_seconds()
+    await bot.lives.save(GUILD_ID, life)
+
+    await cog.run_tick(NOW)
+
+    server.house.send.assert_not_awaited()
+
+
+# ---
 # Quiet
 # ---
 
@@ -1435,7 +1497,7 @@ async def test_cog_is_registered_and_set_up(
 
     await life_loop.setup(bot)
 
-    assert "cogs.life_loop" in app.EXTENSIONS
+    assert app.EXTENSIONS.index("cogs.chores") < app.EXTENSIONS.index("cogs.life_loop")
     (added,) = add_cog.await_args.args
     assert isinstance(added, LifeLoop)
     add_dynamic_items.assert_called_once_with(BeginButton)

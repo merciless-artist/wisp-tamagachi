@@ -25,10 +25,12 @@ from cogs.announce import (
     BEGIN_ID,
     begin_again,
     begin_view,
+    edit_in_house,
     ending_image,
     general_news,
     lay_first_egg,
     post_events,
+    post_in_house,
     show_in_thread,
 )
 from cogs.pictures import life_image
@@ -555,6 +557,58 @@ async def test_unreachable_studio_is_posted_in_the_house_not_raised(
     server.house.send.assert_awaited_once()
     (report,) = server.house.send.await_args.args
     assert report.startswith("Error in updating the status card: StudioError")
+
+
+# ---
+# Posting and editing in the House
+# ---
+
+
+async def test_post_in_house_returns_the_message_or_none(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    posted = MagicMock(spec=discord.Message)
+    server.house.send.return_value = posted
+
+    assert await post_in_house(bot, GUILD_ID, "hello") is posted
+
+    server.house.send.side_effect = [
+        discord.HTTPException(MagicMock(status=500), "boom"),
+        None,
+    ]
+    assert await post_in_house(bot, GUILD_ID, "hello") is None
+    report = server.house.send.await_args.args[0]
+    assert report.startswith("Error in posting to Wisp's House: HTTPException")
+
+    await bot.settings.update(GUILD_ID, house_channel_id=None)
+    assert await post_in_house(bot, GUILD_ID, "hello") is None
+
+
+async def test_edit_in_house_takes_the_buttons_away_without_pinging(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    post = MagicMock(spec=discord.Message)
+    post.edit = AsyncMock()
+    server.house.fetch_message = AsyncMock(return_value=post)
+
+    await edit_in_house(bot, GUILD_ID, 55, "new words")
+
+    server.house.fetch_message.assert_awaited_once_with(55)
+    post.edit.assert_awaited_once()
+    kwargs = post.edit.await_args.kwargs
+    assert (kwargs["content"], kwargs["view"]) == ("new words", None)
+    assert sends_without_pinging(kwargs)
+
+
+async def test_edit_in_house_reports_a_missing_message(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.house.fetch_message = AsyncMock(side_effect=not_found())
+
+    await edit_in_house(bot, GUILD_ID, 55, "new words")
+
+    (report,) = server.house.send.await_args.args
+    assert report.startswith("Error in editing a post in Wisp's House: NotFound")
 
 
 # ---

@@ -3,6 +3,7 @@
 Staff set how many meal points each kind of track is worth with !wisp food.
 """
 
+import random
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
@@ -18,6 +19,7 @@ from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
 from db.settings import meal_points
 from wisp.bond import daily_meal_cap, meal_grant
+from wisp.chores import schedule_mess
 from wisp.life import Event, Mood, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.links import ShareLink, Track, TrackKind, find_track
@@ -40,10 +42,14 @@ _MOOD_EMOJIS: Final = {
 
 
 class Feeding(commands.Cog):
-    """Turns tracks posted by qualifying members into meals for Wisp."""
+    """Turns tracks posted by qualifying members into meals for Wisp.
+
+    `rng` picks when the mess a fed track makes is due.
+    """
 
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
+        self.rng = random.Random()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -111,7 +117,10 @@ class Feeding(commands.Cog):
         message_id: int,
         now: datetime,
     ) -> tuple[list[Event], Mood] | None:
-        """Record a feed worth `points` and apply it; None when nothing was fed."""
+        """Record a feed worth `points` and apply it; None when nothing was fed.
+
+        A fed track also makes a mess due, when one may come.
+        """
         bot = self.bot
         async with bot.guild_lock(guild_id):
             if (await bot.players.get(guild_id, user_id)).is_banned(now):
@@ -135,6 +144,7 @@ class Feeding(commands.Cog):
             if bond:
                 await bot.players.add_bond(guild_id, user_id, bond)
             events = feed(life, grant, user_id, now)
+            schedule_mess(life, self.rng)
             await bot.lives.save(guild_id, life)
             return events, mood(life)
 

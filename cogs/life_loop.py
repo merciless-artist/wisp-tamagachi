@@ -27,6 +27,7 @@ from cogs.announce import (
 from cogs.assets import nap_image
 from cogs.badges import sweep_badges
 from cogs.channels import where_of
+from cogs.chores import post_chores
 from cogs.groups import require_guild
 from cogs.pictures import life_image
 from cogs.players import (
@@ -43,11 +44,13 @@ from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.card import WAITING
+from wisp.chores import ChoreEvent, is_napping, tick_chores
 from wisp.life import (
     Event,
     EventKind,
     Life,
     Phase,
+    credited_gap,
     is_over,
     jump_to,
     ready_to_pass_on,
@@ -112,7 +115,7 @@ class LifeLoop(commands.Cog):
     """Ticks every guild's Wisp, announces what happens and keeps the status card.
 
     `rng` picks his favorite snack when he hatches, his favorite song of
-    each day and when his childhood cold is due.
+    each day, when his childhood cold is due and when he throws a tantrum.
     """
 
     def __init__(self, bot: "WispBot") -> None:
@@ -170,15 +173,19 @@ class LifeLoop(commands.Cog):
         if guild is None:
             return
         frozen = settings.frozen
-        events: list[Event] | None = None
+        ticked: Life | None = None
+        events: list[Event] = []
+        chores: list[ChoreEvent] = []
         async with bot.guild_lock(guild_id):
             life = await bot.lives.current(guild_id)
             if life is not None and not is_over(life):
-                events = await self._advance(guild_id, life, now, frozen)
-        if events is None:
+                events, chores = await self._advance(guild_id, life, now, frozen)
+                ticked = life
+        if ticked is None:
             await lay_first_egg(bot, guild_id, now)
         else:
             await post_events(bot, guild_id, events)
+            await post_chores(bot, guild_id, ticked, chores)
         await sweep_badges(bot, guild_id, now)
         current = await bot.lives.current(guild_id)
         if current is None:
@@ -192,12 +199,14 @@ class LifeLoop(commands.Cog):
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool
-    ) -> list[Event]:
-        """Tick a life and save it, even when frozen; return what happened.
+    ) -> tuple[list[Event], list[ChoreEvent]]:
+        """Tick a life and its chores and save it, even when frozen.
 
-        A young Wisp's cold is scheduled first, so one already due starts on
-        this tick. A Wisp who hatches picks his favorite snack, never the free
-        one, or its line would answer every member's daily free snack.
+        Returns what happened to him and what his chores did. A young Wisp's
+        cold is scheduled first, so one already due starts on this tick. A
+        Wisp who hatches picks his favorite snack, never the free one, or its
+        line would answer every member's daily free snack. His chores count
+        the same time his meters do.
         """
         caretakers = people = 0
         if (
@@ -212,6 +221,7 @@ class LifeLoop(commands.Cog):
                 guild_id, now - PEOPLE_WINDOW
             )
         schedule_cold(life, self.rng)
+        elapsed = credited_gap(life, now, frozen=frozen)
         events = tick(
             life,
             now,
@@ -221,8 +231,9 @@ class LifeLoop(commands.Cog):
         )
         if any(event.kind is EventKind.HATCHED for event in events):
             life.favorite_snack = self.rng.choice(PAID_SNACKS).key
+        chores = tick_chores(life, now, elapsed, self.rng, frozen=frozen)
         await self.bot.lives.save(guild_id, life)
-        return events
+        return events, chores
 
     # ---
     # Quiet
@@ -231,12 +242,20 @@ class LifeLoop(commands.Cog):
     async def _speak_if_quiet(
         self, guild_id: int, life: Life, frozen: bool, now: datetime
     ) -> None:
-        """Say one quiet line per stretch of no interaction; speak again after one."""
+        """Say one quiet line per stretch of no interaction; speak again after one.
+
+        He says nothing while frozen, napping or not alive.
+        """
         people = await self.bot.activity_log.people_since(guild_id, now - QUIET_AFTER)
         if people:
             self._quiet_announced.discard(guild_id)
             return
-        if frozen or life.phase is not Phase.ALIVE or guild_id in self._quiet_announced:
+        if (
+            frozen
+            or life.phase is not Phase.ALIVE
+            or is_napping(life)
+            or guild_id in self._quiet_announced
+        ):
             return
         self._quiet_announced.add(guild_id)
         await say_in_house(
