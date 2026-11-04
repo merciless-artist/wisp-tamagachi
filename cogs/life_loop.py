@@ -44,12 +44,23 @@ from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.card import WAITING
-from wisp.chores import ChoreEvent, is_napping, tick_chores
+from wisp.chores import (
+    ChoreEvent,
+    ChoreEventKind,
+    is_napping,
+    is_open,
+    open_mess,
+    open_tantrum,
+    run_out,
+    start_nap,
+    tick_chores,
+)
 from wisp.life import (
     Event,
     EventKind,
     Life,
     Phase,
+    catch_sniffles,
     credited_gap,
     is_over,
     jump_to,
@@ -59,7 +70,14 @@ from wisp.life import (
     tick,
 )
 from wisp.lines import Moment
-from wisp.rules import PAID_SNACKS, PEOPLE_WINDOW, QUIET_AFTER, TICK_EVERY, Stage
+from wisp.rules import (
+    PAID_SNACKS,
+    PEOPLE_WINDOW,
+    QUIET_AFTER,
+    TICK_EVERY,
+    Chore,
+    Stage,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -104,6 +122,49 @@ def _tested(step: str) -> str:
     if step == _STARVE:
         return "♪ Test: Wisp has starved."
     return f"♪ Test: Wisp is in his {_TEST_STAGES[step].label} stage now."
+
+
+# ---
+# Testing a chore
+# ---
+
+_TEST_CHORES: Final = ("mess", "tantrum", "nap", "cold", "late")
+_OPENERS: Final = {"mess": open_mess, "tantrum": open_tantrum, "nap": start_nap}
+_CHORE_USAGE: Final = f"<{'|'.join(_TEST_CHORES)}>"
+_UNFREEZE_CHORES_FIRST: Final = (
+    "♪ Unfreeze Wisp first: his chores only run while time passes."
+)
+_NOT_ALIVE_FOR_CHORE: Final = "♪ Wisp has to be hatched and alive to test a chore."
+_CHORE_WAITING: Final = "♪ That chore is already waiting in the House."
+_ALREADY_SICK: Final = "♪ Wisp is already sick."
+_NOTHING_TO_RUN_OUT: Final = "♪ No chore is waiting to run out."
+_CHORE_TESTED: Final = {
+    "mess": "♪ Test: Wisp made a mess.",
+    "tantrum": "♪ Test: Wisp is having a tantrum.",
+    "nap": "♪ Test: Wisp is taking a nap.",
+    "cold": "♪ Test: Wisp caught a cold.",
+    "late": "♪ Test: every waiting chore ran out.",
+}
+
+
+def _test_chore_step(argument: str) -> str:
+    """Accept a chore to test as typed, in any case."""
+    step = argument.lower()
+    if step not in _TEST_CHORES:
+        raise commands.BadArgument(f"Not a chore: {argument}")
+    return step
+
+
+def _begin_chore(life: Life, step: str) -> list[ChoreEvent] | str:
+    """Start the chore `step` names; the refusal to say when it cannot start."""
+    if step == "cold":
+        return (
+            [ChoreEvent(ChoreEventKind.SNIFFLES)]
+            if catch_sniffles(life)
+            else _ALREADY_SICK
+        )
+    waiting = is_napping(life) if step == "nap" else is_open(life, Chore(step))
+    return _CHORE_WAITING if waiting else [_OPENERS[step](life)]
 
 
 # ---
@@ -300,6 +361,55 @@ class LifeLoop(commands.Cog):
         await post_events(bot, guild_id, events)
         await self._tick_guild(guild_id, now)
         await reply(ctx, _tested(step))
+
+    # ---
+    # Testing a chore
+    # ---
+
+    @commands.command(name="test_chore", usage=_CHORE_USAGE)
+    async def test_chore(
+        self, ctx: StaffContext, step: Annotated[str, _test_chore_step]
+    ) -> None:
+        """Make Wisp do a chore now, or run the waiting ones out, to test it.
+
+        A mess, tantrum or nap is the one his tick opens, posted the same way.
+        Late fast-forwards counted time so every waiting chore ends the way it
+        does for real. Chores only run while time passes, so he must be
+        unfrozen.
+        """
+        bot = self.bot
+        guild_id = guild_of(ctx).id
+        now = discord.utils.utcnow()
+        if (await bot.settings.get(guild_id)).frozen:
+            await reply(ctx, _UNFREEZE_CHORES_FIRST)
+            return
+        result = await self._run_chore_test(guild_id, step, now)
+        if isinstance(result, str):
+            await reply(ctx, result)
+            return
+        life, events = result
+        await post_chores(bot, guild_id, life, events)
+        await self._tick_guild(guild_id, now)
+        await reply(ctx, _CHORE_TESTED[step])
+
+    async def _run_chore_test(
+        self, guild_id: int, step: str, now: datetime
+    ) -> tuple[Life, list[ChoreEvent]] | str:
+        """Do the test under the guild lock and save it, or say why it cannot be."""
+        async with self.bot.guild_lock(guild_id):
+            life = await self.bot.lives.current(guild_id)
+            if life is None or life.phase is not Phase.ALIVE:
+                return _NOT_ALIVE_FOR_CHORE
+            if step != "late":
+                outcome = _begin_chore(life, step)
+            elif (late := run_out(life)).total_seconds() > 0:
+                outcome = tick_chores(life, now, late, self.rng, frozen=False)
+            else:
+                outcome = _NOTHING_TO_RUN_OUT
+            if isinstance(outcome, str):
+                return outcome
+            await self.bot.lives.save(guild_id, life)
+            return life, outcome
 
 
 # ---

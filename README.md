@@ -204,6 +204,18 @@ where the command was used.
 - `!wisp begin` does what the Begin again button does, for when no button
   can be pressed: it lays the next egg after an ending, or answers
   `♪ Wisp is already here.`
+- `!wisp test_chore <mess|tantrum|nap|cold|late>` shows a chore without waiting
+  for one. It needs a living, unfrozen Wisp, and refuses a chore that is
+  already waiting.
+  - `mess`: he makes the mess of his stage (poop for a Baby, a zit breakout
+    for a Teen, ...) with its button.
+  - `tantrum`: he throws a tantrum with the Scold button.
+  - `nap`: he dozes off with the Lights off button.
+  - `cold`: he catches a cold, unless he is already sick.
+  - `late`: every waiting chore runs out at once, the way it does when nobody
+    helps: a left mess gives him a cold, a missed tantrum or missed lights
+    cost Mood.
+  - Tip: `!wisp test_lifestage baby` first shows the poop.
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.

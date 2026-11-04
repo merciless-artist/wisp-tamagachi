@@ -140,6 +140,11 @@ def start_nap(life: Life) -> ChoreEvent:
     return ChoreEvent(ChoreEventKind.NAP)
 
 
+def run_out(life: Life) -> timedelta:
+    """The counted time until every open window has run out; zero if none is open."""
+    return timedelta(seconds=max(life.mess_left, life.tantrum_left, life.lights_left))
+
+
 def do_chore(life: Life, chore: Chore) -> bool:
     """Close an open chore; a cleanup also fills Wellbeing.
 

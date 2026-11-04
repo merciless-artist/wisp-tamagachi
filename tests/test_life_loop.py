@@ -2047,3 +2047,247 @@ def test_test_lifestage_is_a_command_of_the_life_loop(cog: LifeLoop) -> None:
     assert command.usage == (
         "<baby|child|teen|adult|rockstar|oldfogey|farewell|starve>"
     )
+
+
+# ---
+# Testing a chore
+# ---
+
+NO_ONE_WAITING = "♪ No chore is waiting to run out."
+ALREADY_WAITING = "♪ That chore is already waiting in the House."
+
+
+async def type_chore(cog: LifeLoop, server: FakeServer, step: str) -> None:
+    """Type `!wisp test_chore <step>` as staff in Wisp's House."""
+    command = cog.test_chore
+    command.cog = cog
+    await command(staff_context(server, cog.bot), step)
+
+
+def numbered_posts(server: FakeServer) -> dict[int, MagicMock]:
+    """Make the House hand out posts with ids and find them again to edit."""
+    posts: dict[int, MagicMock] = {}
+
+    async def send(text: str, **_kwargs: Any) -> MagicMock:
+        post = MagicMock(spec=discord.Message)
+        post.id = 9000 + len(posts)
+        post.content = text
+        post.edit = AsyncMock()
+        posts[post.id] = post
+        return post
+
+    async def fetch(message_id: int) -> MagicMock:
+        return posts[message_id]
+
+    server.house.send = AsyncMock(side_effect=send)
+    server.house.fetch_message = AsyncMock(side_effect=fetch)
+    return posts
+
+
+async def lay_awake(bot: app.WispBot, stage: Stage = Stage.BABY) -> Life:
+    """A living Wisp with a member's visit just now, so he says nothing quiet."""
+    life = await lay(bot, stage=stage, gap=timedelta(0))
+    await interact(bot, life, NOW)
+    return life
+
+
+def sent_picture(sent: Any) -> str:
+    file: discord.File = sent.kwargs["file"]
+    file.close()
+    return file.filename
+
+
+def sent_button_label(sent: Any) -> str:
+    (child,) = sent.kwargs["view"].children
+    assert isinstance(child, discord.ui.DynamicItem)
+    label = child.item.label
+    assert label is not None
+    return label
+
+
+@pytest.mark.parametrize(
+    ("stage", "picture", "label"),
+    [
+        (Stage.BABY, "poop.gif", "Clean up"),
+        (Stage.TEEN, "pimple.gif", "Hand him face wash"),
+    ],
+)
+async def test_test_chore_mess_posts_the_mess_of_his_stage(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    stage: Stage,
+    picture: str,
+    label: str,
+) -> None:
+    await configure(bot)
+    await lay_awake(bot, stage)
+    numbered_posts(server)
+
+    await type_chore(cog, server, "mess")
+
+    posted, answer = server.house.send.await_args_list
+    assert sent_picture(posted) == picture
+    assert sent_button_label(posted) == label
+    assert answer.args[0] == "♪ Test: Wisp made a mess."
+    life = await current_life(bot)
+    assert life.mess_left > 0
+    assert life.mess_message_id == 9000
+
+
+@pytest.mark.parametrize(
+    ("step", "label", "answer"),
+    [
+        ("tantrum", "Scold", "♪ Test: Wisp is having a tantrum."),
+        ("nap", "Lights off", "♪ Test: Wisp is taking a nap."),
+    ],
+)
+async def test_test_chore_tantrum_and_nap_post_their_buttons(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    step: str,
+    label: str,
+    answer: str,
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    numbered_posts(server)
+
+    await type_chore(cog, server, step)
+
+    posted, said = server.house.send.await_args_list
+    assert sent_button_label(posted) == label
+    assert said.args[0] == answer
+    life = await current_life(bot)
+    assert (life.tantrum_message_id, life.nap_message_id) == (
+        (9000, None) if step == "tantrum" else (None, 9000)
+    )
+
+
+async def test_test_chore_cold_gives_him_a_cold_and_posts_it(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    numbered_posts(server)
+
+    await type_chore(cog, server, "cold")
+
+    posted, answer = server.house.send.await_args_list
+    assert sent_picture(posted) == "wispsick.gif"
+    assert answer.args[0] == "♪ Test: Wisp caught a cold."
+    assert (await current_life(bot)).sniffles_left == rules.SNIFFLES_FOR.total_seconds()
+
+
+async def test_test_chore_cold_refuses_a_sick_wisp(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    life = await lay_awake(bot)
+    life.sniffles_left = 100.0
+    await bot.lives.save(GUILD_ID, life)
+
+    await type_chore(cog, server, "cold")
+
+    assert house_texts(server) == ["♪ Wisp is already sick."]
+    assert (await current_life(bot)).sniffles_left == 100.0
+
+
+async def test_test_chore_late_runs_out_an_open_mess_into_a_cold(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    posts = numbered_posts(server)
+    await type_chore(cog, server, "mess")
+
+    await type_chore(cog, server, "late")
+
+    posts[9000].edit.assert_awaited_once()
+    assert posts[9000].edit.await_args.kwargs["view"] is None
+    cold = server.house.send.await_args_list[2]
+    assert sent_picture(cold) == "wispsick.gif"
+    assert server.house.send.await_args_list[-1].args[0] == (
+        "♪ Test: every waiting chore ran out."
+    )
+    life = await current_life(bot)
+    assert (life.mess_left, life.sniffles_left > 0) == (0.0, True)
+
+
+async def test_test_chore_refuses_an_open_chore_twice(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    numbered_posts(server)
+    await type_chore(cog, server, "mess")
+    await type_chore(cog, server, "tantrum")
+    await type_chore(cog, server, "nap")
+    server.house.send.reset_mock()
+
+    for step in ("mess", "tantrum", "nap"):
+        await type_chore(cog, server, step)
+
+    assert house_texts(server) == [ALREADY_WAITING] * 3
+
+
+async def test_test_chore_refuses_late_with_nothing_open(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+
+    await type_chore(cog, server, "late")
+
+    assert house_texts(server) == [NO_ONE_WAITING]
+
+
+async def test_test_chore_refuses_while_frozen(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot, frozen=True)
+    await lay_awake(bot)
+
+    for step in ("mess", "late"):
+        await type_chore(cog, server, step)
+
+    assert (
+        house_texts(server)
+        == ["♪ Unfreeze Wisp first: his chores only run while time passes."] * 2
+    )
+    assert (await current_life(bot)).mess_left == 0.0
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.DEAD])
+async def test_test_chore_needs_a_living_wisp(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    phase: Phase,
+) -> None:
+    await configure(bot)
+    await lay(bot, phase=phase, health=0.0)
+
+    await type_chore(cog, server, "mess")
+
+    assert house_texts(server) == [
+        "♪ Wisp has to be hatched and alive to test a chore."
+    ]
+    assert (await current_life(bot)).mess_left == 0.0
+
+
+@pytest.mark.parametrize(
+    ("typed", "step"), [("Mess", "mess"), ("LATE", "late"), ("cold", "cold")]
+)
+def test_test_chore_takes_any_case_and_rejects_unknown_steps(
+    cog: LifeLoop, typed: str, step: str
+) -> None:
+    assert life_loop._test_chore_step(typed) == step
+    with pytest.raises(commands.BadArgument):
+        life_loop._test_chore_step("dishes")
+    command = next(c for c in cog.get_commands() if c.name == "test_chore")
+    assert command.usage == "<mess|tantrum|nap|cold|late>"
