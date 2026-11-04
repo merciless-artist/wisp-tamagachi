@@ -94,14 +94,17 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     daily_cap = count(rules.DAILY_MEAL_CAP, "point")
     sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     sick_hours = rules.SICK_FOR // timedelta(hours=1)
-    egg_meals = count(rules.EGG_FOOD_NEEDED, "meal point")
-    chat_points = count(rules.CHAT_POINTS, "point")
-    play_points = count(rules.PLAY_POINTS, "point")
+    health_hours = rules.HEALTH_STRETCH // timedelta(hours=1)
+    mess_hours = rules.MESS_LEFT_FOR // timedelta(hours=1)
+    tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
+    lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
+    rockstar_days = rules.ROCKSTAR_MOOD_FOR // timedelta(days=1)
+    nap_times = ", ".join(f"{hour:02d}:00" for hour in sorted(rules.NAP_HOURS))
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "One Wisp for the server: share music and he grows from egg to "
-            "Rockstar. Neglected, he fades; staff start the next egg.",
+            "One Wisp for the server: share music and he grows. Neglected, he "
+            "fades.",
             SEPARATOR,
             "Who can feed him and earn points",
             "・Active Lounger or higher who opened /wisp board once",
@@ -109,25 +112,35 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "What counts",
             "・Suno and viibrmusic.com links in the track drop",
             *meals,
-            "・Each link feeds him once, ever, and earns leaderboard points",
+            "・Each link feeds him once and earns leaderboard points",
             f"・Your meals and snacks count up to {daily_cap} a day",
             "",
             "His meters",
-            "・Hunger: tracks and snacks. Drains daily; hangry when low, dies at 0",
-            f"・Happy: your first poke or chat each day earns {chat_points}. "
-            "Rockstar needs it high",
-            f"・Care: rhyme duels ({play_points}, {rules.PLAYS_PER_DAY} a day) and "
-            "gifts. Drains daily; low is lonely, never hurt",
+            f"・Health: tracks. Every {health_hours} h without one costs "
+            f"{rules.HEALTH_PENALTY:g}. Hangry when low, dies at 0",
+            f"・Wellbeing: chats ({rules.CHAT_CREDITS_PER_DAY} a day), snacks, "
+            "gifts, cleanups. Low is lonely, never hurt",
+            f"・Mood: duels ({rules.PLAYS_PER_DAY} a day) and pokes "
+            f"({rules.POKE_CREDITS_PER_DAY} a day). Rockstar needs "
+            f"{rules.ROCKSTAR_MOOD} for {rockstar_days} days",
+            "",
+            "Chores",
+            "・The first press earns WC",
+            f"・Clean up his mess in {mess_hours} h or he catches a cold; "
+            f"medicine ({rules.MEDICINE_COST} WC) cures it",
+            f"・Scold a tantrum in {tantrum_minutes} min or Mood drops "
+            f"{rules.TANTRUM_MOOD_PENALTY:g}",
+            f"・Lights off at naps ({nap_times} UTC) in {lights_minutes} min "
+            f"or Mood drops {rules.LIGHTS_MOOD_PENALTY:g}",
             "",
             "Your bond",
-            "・viibrmusic.com tracks, games, snacks and kept gifts build your bond",
+            "・Tracks, games, snacks and gifts build it",
             f"・After {count(rules.MEET_AFTER_DAYS, 'different day')} with him, "
             "he learns your name",
             f"・Tiers: {tiers}",
             "",
             "The ViiBR Vault",
-            "・/wisp vault spends WC on snacks and gifts. The board is its "
-            "pinned post",
+            "・/wisp vault spends WC on snacks and gifts",
             f"・Gifts cost {rules.GIFT_COST} WC and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
@@ -137,22 +150,19 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "",
             "His life",
             f"・Old Fogey around day {rules.OLD_FOGEY_AT_DAY}; around day "
-            f"{rules.FAREWELL_AT_DAY} he passes on, coal after a full life",
-            f"・The coal becomes an egg with {rules.COAL_EGG_FOOD} of its "
-            f"{egg_meals} fed",
+            f"{rules.FAREWELL_AT_DAY} he passes on and the coal becomes an egg, "
+            f"{rules.COAL_EGG_FOOD} of {rules.EGG_FOOD_NEEDED} fed",
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
             "Last Ember, unless he died of neglect",
-            f"・Once before Adult: Monster Pox for {sick_hours} h. Faster drain, "
-            f"he can't die, meals count up to {sick_cap} a day",
-            "・Be there as he grows to win a keepsake",
+            f"・Once before Adult: Monster Pox for {sick_hours} h. Bigger Health "
+            f"penalty, he can't die, meals count up to {sick_cap} a day",
             "",
             "Talking to Wisp",
             "・Mention or reply to him in Wisp's House. Talking earns no bond",
-            "・Adults chime in and remember you",
             "",
             "Fair play",
-            "・Fake links don't count; staff can strip points",
-            f"・Names max {count(rules.NAME_MAX, 'character')}",
+            "・Fake links don't count; staff can strip points. Names max "
+            f"{count(rules.NAME_MAX, 'character')}",
             f"{_ban_line()}. Staff can lift bans",
         ]
     )
@@ -835,18 +845,18 @@ async def rebuild_faq(ctx: StaffContext) -> None:
 
 @commands.command(name="freeze")
 async def freeze(ctx: StaffContext) -> None:
-    """Freeze Wisp so his meters stop draining."""
+    """Freeze Wisp so his meters and chores pause."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=True)
     await reply(
-        ctx, "♪ Wisp is frozen. His meters will not drain until you unfreeze him."
+        ctx, "♪ Wisp is frozen. His meters and chores pause until you unfreeze him."
     )
 
 
 @commands.command(name="unfreeze")
 async def unfreeze(ctx: StaffContext) -> None:
-    """Unfreeze Wisp so his meters drain normally."""
+    """Unfreeze Wisp so his meters and chores run again."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=False)
-    await reply(ctx, "♪ Wisp is unfrozen. His meters drain normally again.")
+    await reply(ctx, "♪ Wisp is unfrozen. His meters and chores run again.")
 
 
 def _http_link(argument: str) -> str:

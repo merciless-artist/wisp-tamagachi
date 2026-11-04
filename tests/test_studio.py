@@ -1726,6 +1726,20 @@ async def test_freeze_sets_flag(bot: app.WispBot, server: FakeServer) -> None:
     assert "unfrozen" in sent_text(ctx).lower()
 
 
+async def test_freezing_says_meters_and_chores_pause(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    ctx = make_ctx(server, bot)
+    await invoke(studio.freeze, ctx)
+    assert sent_text(ctx) == (
+        "♪ Wisp is frozen. His meters and chores pause until you unfreeze him."
+    )
+
+    ctx = make_ctx(server, bot)
+    await invoke(studio.unfreeze, ctx)
+    assert sent_text(ctx) == "♪ Wisp is unfrozen. His meters and chores run again."
+
+
 # ---
 # Members' slash group
 # ---
@@ -1805,9 +1819,42 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "COLLECTION_BOND_BONUS",
         "PLAYS_PER_DAY",
         "SICK_EXTRA_MEAL_CAP",
+        "CHAT_CREDITS_PER_DAY",
+        "POKE_CREDITS_PER_DAY",
+        "WELLBEING_PER_CHAT",
+        "WELLBEING_PER_SNACK",
+        "WELLBEING_PER_GIFT",
+        "WELLBEING_PER_CLEANUP",
+        "MOOD_PER_POKE",
+        "MOOD_PER_PLAY",
+        "ROCKSTAR_MOOD",
+        "MEDICINE_COST",
     ):
         monkeypatch.setattr(rules, name, 9999)
-    monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=9999))
+    for name in (
+        "HEALTH_PENALTY",
+        "WELLBEING_PENALTY",
+        "MOOD_PENALTY",
+        "TANTRUM_MOOD_PENALTY",
+        "LIGHTS_MOOD_PENALTY",
+    ):
+        monkeypatch.setattr(rules, name, 9999.0)
+    for name in (
+        "SICK_FOR",
+        "SNIFFLES_FOR",
+        "HEALTH_STRETCH",
+        "WELLBEING_STRETCH",
+        "MOOD_STRETCH",
+        "MESS_LEFT_FOR",
+        "ROCKSTAR_MOOD_FOR",
+    ):
+        monkeypatch.setattr(rules, name, timedelta(hours=9999))
+    for name in ("TANTRUM_WINDOW", "LIGHTS_WINDOW"):
+        monkeypatch.setattr(rules, name, timedelta(minutes=9999))
+    monkeypatch.setattr(
+        rules, "CHORE_POINTS", {chore: 9999 for chore in rules.CHORE_POINTS}
+    )
+    monkeypatch.setattr(rules, "NAP_HOURS", (22, 23, 21))
     monkeypatch.setattr(
         rules,
         "BOND_TIERS",
@@ -1869,15 +1916,58 @@ def test_rules_text_explains_the_three_meters(
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
-    hunger, happy, care = section.split("\n")
-    assert hunger.startswith("・Hunger: tracks and snacks")
-    assert "hangry" in hunger and "dies at 0" in hunger
-    assert "Full" not in text
-    assert happy.startswith("・Happy: your first poke or chat each day earns 1 point")
-    assert "people in 24 h" not in happy and "Rockstar" in happy
-    assert care.startswith("・Care: rhyme duels (1 point, 3 a day) and gifts")
-    assert "lonely" in care and "never hurt" in care
+    health, wellbeing, mood = section.split("\n")
+    assert health.startswith("・Health: tracks")
+    assert "Every 6 h without one costs 8" in health
+    assert "Hangry when low, dies at 0" in health
+    assert wellbeing.startswith("・Wellbeing: chats (3 a day), snacks, gifts, cleanups")
+    assert "lonely" in wellbeing and "never hurt" in wellbeing
+    assert mood.startswith("・Mood: duels (3 a day) and pokes (3 a day)")
+    assert "Rockstar needs 80 for 4 days" in mood
+    for old in ("Hunger", "Happy", "Care", "drain"):
+        assert old not in text, old
     assert "\nWho can feed him and earn points\n" in text
+
+
+def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(rules, "MEDICINE_COST", 13)
+    monkeypatch.setattr(rules, "MESS_LEFT_FOR", timedelta(hours=5))
+    monkeypatch.setattr(rules, "TANTRUM_MOOD_PENALTY", 17.0)
+
+    text = rules_text(rules.MEAL_POINTS)
+
+    section = text.split("\nChores\n")[1].split("\n\n")[0]
+    assert "The first press earns WC" in section
+    assert "Clean up his mess in 5 h or he catches a cold" in section
+    assert "medicine (13 WC) cures it" in section
+    assert "5 h" in section
+    assert "Scold a tantrum" in section and "Mood drops 17" in section
+    assert "Lights off" in section
+    for hour in rules.NAP_HOURS:
+        assert f"{hour:02d}:00" in section, hour
+    assert "UTC" in section
+
+
+def test_rules_text_chore_numbers_come_from_the_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "NAP_HOURS", (1, 9, 17))
+    monkeypatch.setattr(rules, "TANTRUM_WINDOW", timedelta(minutes=43))
+    monkeypatch.setattr(rules, "LIGHTS_WINDOW", timedelta(minutes=47))
+    monkeypatch.setattr(rules, "LIGHTS_MOOD_PENALTY", 53.0)
+    monkeypatch.setattr(rules, "HEALTH_STRETCH", timedelta(hours=59))
+    monkeypatch.setattr(rules, "HEALTH_PENALTY", 61.0)
+    monkeypatch.setattr(rules, "ROCKSTAR_MOOD", 67)
+    monkeypatch.setattr(rules, "ROCKSTAR_MOOD_FOR", timedelta(days=71))
+
+    text = rules_text(rules.MEAL_POINTS)
+
+    section = text.split("\nChores\n")[1].split("\n\n")[0]
+    for number in ("01:00", "09:00", "17:00", "43", "47", "53"):
+        assert number in section, number
+    meters = text.split("\nHis meters\n")[1].split("\n\n")[0]
+    for number in ("59", "61", "67", "71"):
+        assert number in meters, number
 
 
 def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
@@ -1893,9 +1983,10 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     pox = next(line for line in text.split("\n") if "Monster Pox" in line)
     assert "Once before Adult" in pox
     assert "Monster Pox for 36 h" in pox
+    assert "Bigger Health penalty" in pox
+    assert "faster drain" not in pox.lower()
     assert "he can't die" in pox
     assert "meals count up to 27 a day" in pox
-    assert "cold" not in text
 
 
 def test_rules_text_does_not_say_talking_earns_no_points() -> None:
