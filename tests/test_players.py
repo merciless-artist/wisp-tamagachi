@@ -317,14 +317,14 @@ async def test_chat_credit_needs_a_life(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
 
 
-async def test_the_happy_bar_shows_his_mood_meter(bot: app.WispBot) -> None:
+async def test_the_status_card_shows_his_mood_bar(bot: app.WispBot) -> None:
     life = await lay(bot)
     life.mood_meter = 35.0
 
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     lines = text.splitlines()
-    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(35.0, '', '')}"
+    assert lines[lines.index("> 𝄡 Mood") + 1] == f"> {bar(35.0, '', '')}"
 
 
 # ---
