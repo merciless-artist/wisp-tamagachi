@@ -1,5 +1,99 @@
 # Changelog
 
+## 2026-11-04 (Meters and chores)
+
+Built from `DOCS/specs/2026-11-02-meters-and-chores-design.md` and
+`DOCS/plans/2026-11-02-meters-and-chores.md`. Every number below lives in
+`wisp/rules.py`.
+
+### His three meters
+
+- **Health** (was Hunger/Full, still the `care` column): filled by tracks. Each
+  6 counted hours without a fed track costs 8 (Old Fogey 6, Monster Pox 1.5
+  times as much and never below 1). He dies at 0.
+- **Wellbeing** (was Care, still the `fondness` column): snacks +8 each (no
+  longer Health), gifts +8, cleanups +5, and the first 3 chats a day per
+  member +5 each. Each 6 counted hours without a chat or snack costs 10, 20
+  while he has a cold.
+- **Mood** (new, `mood_meter`, starts at 50): counted rhyme duels +10, the
+  first 3 pokes a day per member +5 each. Each 6 counted hours without a game
+  or poke costs 10. Missed tantrums and missed lights cost Mood too.
+- The meters no longer drain a little every tick; they only drop in those
+  6-hour steps (`*_stretch` columns count the counted seconds). Frozen and
+  offline time never count.
+- Rockstar now needs Mood 80 or more for 4 days (it used to read happiness from
+  the people around him).
+- The first chat or poke each day still earns 1 point, as before.
+
+### Chores (first press wins 2 WC)
+
+- **A mess:** 30 to 90 minutes after a fed track, at most one at a time and 6
+  hours apart. It grows up with him: poop for Baby and Child ("Clean up"), a
+  zit breakout for Teen ("Hand him face wash"), takeout and dirty dishes for
+  Adult ("Take out the trash"), the green room he trashed after a show for
+  Rockstar ("Clean the green room"), dentures that need a soak for Old Fogey
+  ("Soak his teeth"). Pictures: `poop.gif`, `pimple.gif`, `trash_adult.gif`,
+  `trash_rockstar.gif`, `dentures.gif`. A cleanup also adds 5 Wellbeing.
+  Left 6 hours, the post says so and he catches a cold.
+- **A tantrum:** once a day at a random awake time (never in the 20 minutes
+  before a nap or during one). Scold him within 15 minutes, or he loses 15
+  Mood and is spoiled (bratty in his AI voice) until UTC midnight.
+- **Naps:** 02:00, 10:00 and 18:00 UTC for an hour. Turn off the lights within
+  15 minutes, or he loses 10 Mood and wakes up cranky. While he naps he only
+  snores at mentions, never chimes in, and a poke wakes him early and cranky
+  (no Mood plus).
+- Buttons are persistent: they keep working after a redeploy, only for the
+  current life and the post that is still open, and a dead or departed Wisp's
+  old buttons pay nothing. Chore posts never ping.
+
+### The cold and medicine
+
+- A mess left too long gives him a cold for 48 counted hours (never while he
+  has Monster Pox or a cold already). It doubles the Wellbeing penalty and
+  never touches Health. His card shows `he has a cold・N h left` and his
+  picture becomes `wispsick.gif`. His AI voice gets stuffy and sneezy.
+- While he has a cold the Vault shows **Medicine** (10 WC, cures it at once,
+  buyer gets 3 WC back) with the new `medicine` app emoji. The thank-you post
+  shows `medicine.png`.
+
+### Staff
+
+- New `!wisp test_chore <mess|tantrum|nap|cold|late>` changes the real Wisp:
+  `mess`, `tantrum` and `nap` start that chore now, `cold` gives him a cold,
+  `late` fast-forwards chore time so every waiting chore runs out the way it
+  does for real. Refused while frozen or with no living Wisp. Tip: run
+  `!wisp test_lifestage baby`, then `!wisp test_chore mess`, to see the poop.
+- `!wisp freeze` / `unfreeze` now say the meters and chores pause and run.
+
+### Other
+
+- The status card's bars are Health, Wellbeing and Mood.
+- `/wispadmin` rules post, `DOCS/wisp_tamagotchi.html`, `DOCS/wisp_faq.html`,
+  README and `DOCS/BuildRulings.md` explain all of the above. To fit the rules
+  post in 2,000 characters a few old lines were cut ("Adults chime in and
+  remember you", "Be there as he grows to win a keepsake", the pinned-post hint,
+  "Staff can lift bans"); the FAQ still covers them.
+- `ASSETS/events/died.gif` (Myra's stitched death animation) now shows when he
+  dies of neglect; `died.png` stays as the fallback.
+- Storage: 18 columns added to `lives`, nothing renamed or dropped.
+- Key decisions (full list in `DOCS/BuildRulings.md`): chore presses don't
+  count as caretaking for growth; a chore whose post failed costs nothing;
+  tantrums never open into a nap.
+
+### For Myra
+
+- FAQ pictures to re-render (they still show Hunger/Happy/Care or drains):
+  `01_basics_2`, `01_basics_3`, `03_vault_2`, `04_lunchbox_2`, `06_growing_2`,
+  `06_growing_3`, `06_growing_4`, `07_talking_3`, `08_games_2`, `09_ending_1`,
+  `09_ending_2`. Maybe also `01_basics_1`, `03_vault_1`, `03_vault_3`
+  (their text gained chores, medicine or Wellbeing), and check `02_feeding_3`
+  and `04_lunchbox_3` by eye. The new "Chores, colds and medicine" FAQ section
+  has no pictures yet.
+- Nap pictures exist only for Baby and Child; Teen, Adult, Rockstar and Old
+  Fogey nap posts are text only until they get art (`NAP_STAGES`).
+- The new dance GIFs are in `ASSETS/dances/` but not live yet; posting them
+  instead of the dance emotes is the next feature.
+
 ## 2026-11-04 (The Rockstar tries very hard to be zen)
 
 - Myra, after his new Rockstar dance: he is "chillaxed like he is a rockstar
