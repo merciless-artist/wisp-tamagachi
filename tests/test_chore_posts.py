@@ -26,6 +26,7 @@ from wisp.chores import (
     open_mess,
     open_tantrum,
     start_nap,
+    wake,
 )
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
@@ -338,6 +339,46 @@ async def test_a_post_for_a_chore_already_done_is_not_remembered(
 
     server.house.send.assert_awaited_once()
     assert (await current_life(bot)).mess_message_id is None
+
+
+async def test_a_nap_a_poke_ends_right_after_the_post_leaves_no_button(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    start_nap(life)
+    await bot.lives.save(GUILD_ID, life)
+    send = server.house.send.side_effect
+
+    async def send_then_poke_awake(text: str, **kwargs: Any) -> Any:
+        post = await send(text, **kwargs)
+        napping = await current_life(bot)
+        wake(napping, discord.utils.utcnow())
+        await bot.lives.save(GUILD_ID, napping)
+        return post
+
+    server.house.send.side_effect = send_then_poke_awake
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.NAP)])
+
+    post = server.posts[FIRST_POST_ID]
+    post.edit.assert_awaited_once()
+    assert post.edit.await_args.kwargs["content"] == post.content
+    assert post.edit.await_args.kwargs["view"] is None
+    assert (await current_life(bot)).nap_message_id is None
+
+
+async def test_a_late_post_never_replaces_the_stored_post_id(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    older_id = 777
+    life = await open_chore(bot, Chore.NAP, older_id)
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.NAP)])
+
+    assert (await current_life(bot)).nap_message_id == older_id
+    late = server.posts[FIRST_POST_ID]
+    late.edit.assert_awaited_once()
+    assert late.edit.await_args.kwargs["view"] is None
 
 
 async def test_a_failed_chore_post_is_reported_and_not_remembered(

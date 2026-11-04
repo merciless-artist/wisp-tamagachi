@@ -28,6 +28,7 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp.bond import PickleStance
+from wisp.chores import start_nap
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -37,6 +38,7 @@ from wisp.rules import (
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
+    CRANKY_FOR,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
     POKE_SLEEP_AFTER,
@@ -55,6 +57,7 @@ BURRITO_THREAD_ID = 24
 TRACKS_ID = 25
 GENERAL_CHAT_ID = 26
 WISP_ID = 999
+NAP_POST_ID = 7000
 WISP_ROLE_ID = 998
 QUALIFYING_ROLE = 997
 FIRST = 1
@@ -104,6 +107,9 @@ class FakeServer:
 
     def __init__(self) -> None:
         self.house = make_channel(HOUSE_ID)
+        self.nap_post = MagicMock(spec=discord.Message)
+        self.nap_post.edit = AsyncMock()
+        self.house.fetch_message = AsyncMock(return_value=self.nap_post)
         tracks = make_channel(TRACKS_ID)
         tracks.name = "⏩｜track-drop"
         tracks.mention = f"<#{TRACKS_ID}>"
@@ -249,6 +255,15 @@ async def lay(
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = START - timedelta(days=19)
     return await bot.lives.insert(GUILD_ID, life)
+
+
+async def lay_napping(bot: app.WispBot, stage: Stage = Stage.ADULT) -> Life:
+    """A living Wisp asleep with the lights still on, shown by the post NAP_POST_ID."""
+    life = await lay(bot, stage)
+    start_nap(life)
+    life.nap_message_id = NAP_POST_ID
+    await bot.lives.save(GUILD_ID, life)
+    return life
 
 
 async def enroll(bot: app.WispBot, *user_ids: int) -> None:
@@ -1962,3 +1977,102 @@ async def test_a_failed_meeting_is_reported_and_the_mention_still_answered(
     (report,) = reports(server)
     assert report.startswith("Error in talking in Wisp's House: OperationalError")
     assert await points(bot, FIRST) == CHAT_POINTS
+
+
+# ---
+# Asleep in the House
+# ---
+
+WOKE_TEXT = f"♪ <@{FIRST}> woke Wisp up before the lights went off."
+
+
+async def test_a_mention_while_napping_gets_sleepy_noises_and_no_credit(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    db: Database,
+) -> None:
+    await lay_napping(bot)
+    await enroll(bot, FIRST)
+    before = await current(bot)
+    mention = message.to_wisp("wake up sleepyhead")
+
+    await cog.on_message(mention)
+
+    assert is_line(reply_text(mention), Moment.NAP_TALK)
+    ai.assert_not_awaited()
+    assert await db.fetchall(f"SELECT kind FROM {db.t('interactions')}") == []
+    assert (await current(bot)).wellbeing == before.wellbeing
+
+
+async def test_he_never_chimes_in_while_napping(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay_napping(bot)
+    cog.rng = FixedRandom(0.0)
+
+    await cog.on_message(message("this mix is wild"))
+
+    ai.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_poke_wakes_him_cranky_with_no_mood_plus(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    clock: Clock,
+    server: FakeServer,
+    poke: Press,
+    db: Database,
+) -> None:
+    await lay_napping(bot)
+    await enroll(bot, FIRST)
+    before = await current(bot)
+
+    await poke()
+
+    woken = await current(bot)
+    assert woken.nap_left == 0
+    assert woken.cranky_until == clock.now + CRANKY_FOR
+    assert woken.mood_meter == before.mood_meter
+    assert await db.fetchall(f"SELECT kind FROM {db.t('interactions')}") == []
+    (prompt,) = prompts(ai)
+    assert "woken up from a nap" in prompt.system
+    assert "this poke woke you up" in prompt.user
+    assert house_pictures(server) == [None]
+
+
+async def test_waking_him_with_the_lights_on_edits_the_lights_post(
+    bot: app.WispBot, server: FakeServer, poke: Press
+) -> None:
+    await lay_napping(bot)
+    before = await current(bot)
+
+    await poke()
+
+    server.house.fetch_message.assert_awaited_once_with(NAP_POST_ID)
+    server.nap_post.edit.assert_awaited_once()
+    kwargs = server.nap_post.edit.await_args.kwargs
+    assert kwargs["content"] == WOKE_TEXT
+    assert kwargs["view"] is None
+    assert kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert (await current(bot)).mood_meter == before.mood_meter
+
+
+async def test_waking_him_after_lights_off_leaves_that_post_alone(
+    bot: app.WispBot, server: FakeServer, poke: Press
+) -> None:
+    life = await lay_napping(bot)
+    life.lights_left = 0.0
+    await bot.lives.save(GUILD_ID, life)
+
+    await poke()
+
+    server.house.fetch_message.assert_not_awaited()
+    server.nap_post.edit.assert_not_awaited()
+    assert (await current(bot)).nap_left == 0

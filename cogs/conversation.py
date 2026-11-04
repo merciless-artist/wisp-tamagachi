@@ -16,6 +16,7 @@ from ai.prompt import Prompt
 from cogs.announce import post_in_house
 from cogs.assets import nap_image
 from cogs.channels import where_of
+from cogs.chores import wake_by_poke
 from cogs.groups import require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -30,6 +31,7 @@ from cogs.speech import POKE_ID, ai_reply, dances, expressions, poke_button
 from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
+from wisp.chores import is_napping
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
@@ -303,6 +305,9 @@ class Conversation(commands.Cog):
             return
         if not self.bot.talk.take_turn(guild.id, player.user_id, now):
             return
+        if is_napping(life):
+            await self._snore(message, guild, life)
+            return
         credited = False
         try:
             credited = await credit_chat(self.bot, guild.id, message.author, now)
@@ -322,6 +327,15 @@ class Conversation(commands.Cog):
             await _meet_after_chat(
                 self.bot, guild.id, guild, message.author, _CONTEXT, message.channel
             )
+
+    async def _snore(
+        self, message: discord.Message, guild: discord.Guild, life: Life
+    ) -> None:
+        """Answer a mention with a sleepy noise: no AI, no credit."""
+        try:
+            await _reply(message, self.bot.lines.pick(Moment.NAP_TALK, mood(life)))
+        except discord.HTTPException as error:
+            await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
 
     async def _talk(
         self,
@@ -398,6 +412,8 @@ class Conversation(commands.Cog):
         life = await self.bot.lives.current(guild.id)
         if life is None or talk_level(life) is not Talk.AI or not chimes_in(life.stage):
             return
+        if is_napping(life):
+            return
         if (await self.bot.players.get(guild.id, message.author.id)).is_banned(now):
             return
         if not self._chime_in_due(guild.id, now):
@@ -437,8 +453,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     """Poke Wisp: tag who poked him in the House, with his reaction.
 
     Banned members, a poke with nobody alive to take it and a member still
-    within TALK_COOLDOWN of their last answer are told privately instead. The
-    time from the press to the House post is logged.
+    within TALK_COOLDOWN of their last answer are told privately instead. A
+    poke on a napping Wisp wakes him cranky: it earns no credit and he answers
+    waking up. The time from the press to the House post is logged.
     """
     received = time.monotonic()
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -459,16 +476,21 @@ async def _poke(interaction: discord.Interaction) -> None:
     if not talk.take_turn(guild_id, user.id, now):
         await say_privately(interaction, _POKE_COOLING)
         return
+    woken = await wake_by_poke(bot, guild_id, user.id, now)
     credited = False
-    try:
-        credited = await credit_poke(bot, guild_id, user, now)
-    except pymysql.err.Error as error:
-        await bot.report_error(
-            interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
-        )
+    if woken is None:
+        try:
+            credited = await credit_poke(bot, guild_id, user, now)
+        except pymysql.err.Error as error:
+            await bot.report_error(
+                interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
+            )
     quiet_for = talk.quiet_for(guild_id, now)
     streak = talk.poke(guild_id, user.id, now)
     flavor = poke_flavor(mood(life), streak, quiet_for, talk.rng)
+    if woken is not None:
+        life = woken
+        flavor = PokeFlavor.WOKE_UP
     talk.stir(guild_id, now)
     name = player.name or user.display_name
     reaction = await _reaction(interaction, life, level, player, name, flavor, now)

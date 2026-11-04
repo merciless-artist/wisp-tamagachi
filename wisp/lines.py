@@ -612,11 +612,11 @@ _NAP_TALK = (
     "*snore*",
     "*zzz*",
     "*snore... snore*",
-    "*mumbles in his sleep*",
+    "*snrrk*",
     "*sleepy little hum*",
     "*soft snoring*",
     "*zzz... mmm... zzz*",
-    "*rolls over and snores*",
+    "*mmf*",
 )
 
 _MESS_CLEANED = (

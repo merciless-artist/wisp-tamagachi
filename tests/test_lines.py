@@ -199,6 +199,8 @@ def test_the_cold_lines_are_sneezy_not_spotty(moment: Moment) -> None:
 def test_nap_talk_is_only_sleepy_noises() -> None:
     for line in LINES[(Moment.NAP_TALK, Mood.HAPPY)]:
         assert line.startswith("*") and line.endswith("*"), line
+        assert len(line.strip("*").split()) <= 3, line
+        assert not {"he", "his", "in", "over", "and"} & set(line.strip("*").split())
 
 
 @pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)

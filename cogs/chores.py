@@ -7,6 +7,7 @@ post instead.
 """
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -26,9 +27,11 @@ from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
     do_chore,
+    is_napping,
     is_open,
     message_id,
     set_message_id,
+    wake,
 )
 from wisp.life import Life, mood
 from wisp.lines import Moment
@@ -172,7 +175,7 @@ async def post_chores(
                 view=chore_view(chore, life.id, life.stage),
             )
             if posted is not None:
-                await _remember(bot, guild_id, life.id, chore, posted.id)
+                await _remember(bot, guild_id, life.id, chore, posted)
         elif event.kind in _ENDED and event.message_id is not None:
             line = bot.lines.pick(moment, mood(life))
             await edit_in_house(bot, guild_id, event.message_id, line)
@@ -183,15 +186,59 @@ async def post_chores(
 
 
 async def _remember(
-    bot: "WispBot", guild_id: int, life_id: int, chore: Chore, posted_id: int
+    bot: "WispBot",
+    guild_id: int,
+    life_id: int,
+    chore: Chore,
+    posted: discord.Message,
 ) -> None:
-    """Store the post that shows `chore`, while that life still has it open."""
+    """Store the post that shows `chore`, while that life still has it open.
+
+    A post nobody can win any more (the life changed, the chore closed or a
+    newer post is already stored) keeps its words and loses its button.
+    """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if life is None or life.id != life_id or not is_open(life, chore):
+        if (
+            life is not None
+            and life.id == life_id
+            and is_open(life, chore)
+            and message_id(life, chore) is None
+        ):
+            set_message_id(life, chore, posted.id)
+            await bot.lives.save(guild_id, life)
             return
-        set_message_id(life, chore, posted_id)
+    await edit_in_house(bot, guild_id, posted.id, posted.content)
+
+
+# ---
+# Waking him
+# ---
+
+
+async def wake_by_poke(
+    bot: "WispBot", guild_id: int, user_id: int, now: datetime
+) -> Life | None:
+    """Wake him if he is napping, cranky and with no Mood penalty.
+
+    When the lights were still on, the nap post says who woke him and loses
+    its button once the guild lock is released. Returns the woken life, or
+    None when he was not asleep.
+    """
+    async with bot.guild_lock(guild_id):
+        life = await bot.lives.current(guild_id)
+        if life is None or not is_napping(life):
+            return None
+        lights_were_on = wake(life, now)
         await bot.lives.save(guild_id, life)
+    if lights_were_on and life.nap_message_id is not None:
+        await edit_in_house(
+            bot,
+            guild_id,
+            life.nap_message_id,
+            f"♪ <@{user_id}> woke Wisp up before the lights went off.",
+        )
+    return life
 
 
 # ---
