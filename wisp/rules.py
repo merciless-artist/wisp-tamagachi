@@ -131,6 +131,47 @@ SNIFFLES_FOR = timedelta(hours=48)
 SNIFFLES_PENALTY_MULTIPLIER = 2.0
 
 # ---
+# Chores
+# ---
+
+
+class Chore(StrEnum):
+    """The three chores members race to do in Wisp's House."""
+
+    MESS = "mess"
+    TANTRUM = "tantrum"
+    NAP = "nap"
+
+
+CHORE_POINTS: Final[dict[Chore, int]] = {
+    Chore.MESS: 2,
+    Chore.TANTRUM: 2,
+    Chore.NAP: 2,
+}
+# A fed track makes a mess due between MESS_DELAY_MIN and MESS_DELAY_MAX later,
+# when none is open or pending and MESS_GAP has passed since the last one
+# appeared. Left for MESS_LEFT_FOR it gives him a cold; a cleanup adds
+# WELLBEING_PER_CLEANUP.
+MESS_DELAY_MIN = timedelta(minutes=30)
+MESS_DELAY_MAX = timedelta(minutes=90)
+MESS_GAP = timedelta(hours=6)
+MESS_LEFT_FOR = timedelta(hours=6)
+WELLBEING_PER_CLEANUP = 5
+# About once a day he throws a tantrum while awake. Myra may stretch the window
+# while the server is small.
+TANTRUM_WINDOW = timedelta(minutes=15)
+TANTRUM_MOOD_PENALTY = 15.0
+# He naps for NAP_FOR from each of NAP_HOURS (UTC); the lights must go off
+# within LIGHTS_WINDOW, or he loses LIGHTS_MOOD_PENALTY Mood and is cranky for
+# CRANKY_FOR after the nap. A poke that wakes him makes him cranky for
+# CRANKY_FOR too.
+NAP_HOURS: Final = (2, 10, 18)
+NAP_FOR = timedelta(hours=1)
+LIGHTS_WINDOW = timedelta(minutes=15)
+LIGHTS_MOOD_PENALTY = 10.0
+CRANKY_FOR = timedelta(hours=1)
+
+# ---
 # Egg
 # ---
 

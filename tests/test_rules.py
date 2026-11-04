@@ -9,6 +9,7 @@ from wisp.rules import (
     BADGE_BY_KEY,
     BADGES,
     BOND_TIERS,
+    CHORE_POINTS,
     FAREWELL_AT_DAY,
     MEAL_POINTS,
     OLD_FOGEY_AT_DAY,
@@ -17,6 +18,7 @@ from wisp.rules import (
     SNACKS,
     STAGE_MIN_TIME,
     STAGE_RULES,
+    Chore,
     Stage,
     badge_name,
 )
@@ -53,6 +55,11 @@ def test_every_wisp_is_adult_before_old_age_and_gone_by_day_30() -> None:
 
 def test_every_track_kind_has_meal_points() -> None:
     assert set(MEAL_POINTS) == set(TrackKind)
+
+
+def test_every_chore_earns_points() -> None:
+    assert set(CHORE_POINTS) == set(Chore)
+    assert all(points > 0 for points in CHORE_POINTS.values())
 
 
 def test_stage_labels() -> None:
