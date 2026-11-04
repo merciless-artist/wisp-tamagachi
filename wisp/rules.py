@@ -74,6 +74,13 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 }
 
 # ---
+# Mood
+# ---
+
+MOOD_MAX = 100.0
+MOOD_START = 50.0
+
+# ---
 # Monster Pox, his childhood sickness (named "cold" in the code)
 # ---
 

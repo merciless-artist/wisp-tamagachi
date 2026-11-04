@@ -8,8 +8,7 @@ from wisp.rules import Stage
 
 # The columns keep their live names: `care` holds Life.health, `fondness` holds
 # Life.wellbeing and `high_happiness_since` holds Life.high_mood_since. The
-# cold's columns share their fields' names: `cold_due_at`, `cold_left` and
-# `had_cold`.
+# cold's, Mood's, stretches' and chores' columns share their fields' names.
 _COLUMNS = (
     "version",
     "phase",
@@ -35,6 +34,24 @@ _COLUMNS = (
     "cold_due_at",
     "cold_left",
     "had_cold",
+    "mood_meter",
+    "health_stretch",
+    "wellbeing_stretch",
+    "mood_stretch",
+    "sniffles_left",
+    "mess_in",
+    "mess_left",
+    "mess_gap",
+    "mess_message_id",
+    "tantrum_due_at",
+    "tantrum_left",
+    "tantrum_message_id",
+    "spoiled_until",
+    "nap_slot",
+    "nap_left",
+    "lights_left",
+    "nap_message_id",
+    "cranky_until",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -66,6 +83,24 @@ def _from_row(row: Row) -> Life:
         cold_due_at=from_db_time(row["cold_due_at"]),
         cold_left=row["cold_left"],
         had_cold=bool(row["had_cold"]),
+        mood_meter=row["mood_meter"],
+        health_stretch=row["health_stretch"],
+        wellbeing_stretch=row["wellbeing_stretch"],
+        mood_stretch=row["mood_stretch"],
+        sniffles_left=row["sniffles_left"],
+        mess_in=row["mess_in"],
+        mess_left=row["mess_left"],
+        mess_gap=row["mess_gap"],
+        mess_message_id=row["mess_message_id"],
+        tantrum_due_at=from_db_time(row["tantrum_due_at"]),
+        tantrum_left=row["tantrum_left"],
+        tantrum_message_id=row["tantrum_message_id"],
+        spoiled_until=from_db_time(row["spoiled_until"]),
+        nap_slot=from_db_time(row["nap_slot"]),
+        nap_left=row["nap_left"],
+        lights_left=row["lights_left"],
+        nap_message_id=row["nap_message_id"],
+        cranky_until=from_db_time(row["cranky_until"]),
     )
 
 
@@ -96,6 +131,24 @@ def _values(life: Life) -> tuple[Any, ...]:
         to_db_time(life.cold_due_at),
         life.cold_left,
         life.had_cold,
+        life.mood_meter,
+        life.health_stretch,
+        life.wellbeing_stretch,
+        life.mood_stretch,
+        life.sniffles_left,
+        life.mess_in,
+        life.mess_left,
+        life.mess_gap,
+        life.mess_message_id,
+        to_db_time(life.tantrum_due_at),
+        life.tantrum_left,
+        life.tantrum_message_id,
+        to_db_time(life.spoiled_until),
+        to_db_time(life.nap_slot),
+        life.nap_left,
+        life.lights_left,
+        life.nap_message_id,
+        to_db_time(life.cranky_until),
     )
 
 

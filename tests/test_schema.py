@@ -340,3 +340,67 @@ async def test_an_extra_column_is_only_a_warning(
         and "leftover" in record.getMessage()
         for record in caplog.records
     )
+
+
+METERS_AND_CHORES_COLUMNS = {
+    "mood_meter": "DOUBLE NOT NULL DEFAULT 50",
+    "health_stretch": "DOUBLE NOT NULL DEFAULT 0",
+    "wellbeing_stretch": "DOUBLE NOT NULL DEFAULT 0",
+    "mood_stretch": "DOUBLE NOT NULL DEFAULT 0",
+    "sniffles_left": "DOUBLE NOT NULL DEFAULT 0",
+    "mess_in": "DOUBLE NOT NULL DEFAULT 0",
+    "mess_left": "DOUBLE NOT NULL DEFAULT 0",
+    "mess_gap": "DOUBLE NOT NULL DEFAULT 0",
+    "mess_message_id": "BIGINT NULL",
+    "tantrum_due_at": "DATETIME NULL",
+    "tantrum_left": "DOUBLE NOT NULL DEFAULT 0",
+    "tantrum_message_id": "BIGINT NULL",
+    "spoiled_until": "DATETIME NULL",
+    "nap_slot": "DATETIME NULL",
+    "nap_left": "DOUBLE NOT NULL DEFAULT 0",
+    "lights_left": "DOUBLE NOT NULL DEFAULT 0",
+    "nap_message_id": "BIGINT NULL",
+    "cranky_until": "DATETIME NULL",
+}
+
+
+def test_the_meters_and_chores_columns_are_defined_and_added_to_live_tables() -> None:
+    definition = schema._DEFINITIONS["lives"]
+    added = schema._ADDED_COLUMNS["lives"]
+    defined = schema._defined_columns("lives")
+    for column, column_type in METERS_AND_CHORES_COLUMNS.items():
+        assert column in defined
+        assert added[column] == column_type
+        assert f"{column} {column_type}," in definition
+
+
+async def test_create_tables_adds_meters_and_chores_to_a_live_lives_table(
+    db: Database,
+) -> None:
+    lives = db.t("lives")
+    await LifeRepo(db).insert(1, new_egg(1, datetime(2026, 11, 2, tzinfo=UTC)))
+    await db.execute(
+        f"ALTER TABLE {lives} "
+        + ", ".join(f"DROP COLUMN {column}" for column in METERS_AND_CHORES_COLUMNS)
+    )
+    try:
+        await create_tables(db)
+
+        present = {
+            column["Field"]
+            for column in await db.fetchall(f"SHOW COLUMNS FROM {lives}")
+        }
+        assert set(METERS_AND_CHORES_COLUMNS) <= present
+        life = await LifeRepo(db).current(1)
+        assert life is not None
+        assert life.mood_meter == 50
+        assert life.nap_left == 0
+        assert life.mess_message_id is None
+    finally:
+        restored = await db.fetchall(f"SHOW COLUMNS FROM {lives}")
+        present = {column["Field"] for column in restored}
+        for column, column_type in schema._ADDED_COLUMNS["lives"].items():
+            if column not in present:
+                await db.execute(
+                    f"ALTER TABLE {lives} ADD COLUMN {column} {column_type}"
+                )

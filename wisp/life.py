@@ -27,6 +27,7 @@ from wisp.rules import (
     HEALTH_START,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
+    MOOD_START,
     OLD_FOGEY_AT_DAY,
     OLD_FOGEY_FULL_DRAIN_PER_DAY,
     ROCKSTAR_HAPPINESS,
@@ -110,6 +111,21 @@ class Life:
     His one childhood cold is due at `cold_due_at` (None until it is rolled),
     `cold_left` is the credited seconds of it still to go, and `had_cold`
     whether he has caught it, so he never catches it twice.
+
+    `mood_meter` is the Mood meter. `health_stretch`, `wellbeing_stretch` and
+    `mood_stretch` are the counted seconds each meter has spent in its current
+    stretch, and `sniffles_left` the counted seconds of his cold still to go.
+
+    The mess: `mess_in` counts down to the next one, `mess_left` and `mess_gap`
+    are counted seconds, and `mess_message_id` is the post that shows it.
+
+    The tantrum is due at `tantrum_due_at`, `tantrum_left` is its counted
+    seconds still to go and `tantrum_message_id` the post that shows it. He is
+    spoiled until `spoiled_until`.
+
+    The nap starts at `nap_slot`; `nap_left` and `lights_left` are counted
+    seconds, `nap_message_id` the post that shows it, and he is cranky until
+    `cranky_until`.
     """
 
     id: int | None
@@ -137,6 +153,24 @@ class Life:
     cold_due_at: datetime | None = None
     cold_left: float = 0.0
     had_cold: bool = False
+    mood_meter: float = MOOD_START
+    health_stretch: float = 0.0
+    wellbeing_stretch: float = 0.0
+    mood_stretch: float = 0.0
+    sniffles_left: float = 0.0
+    mess_in: float = 0.0
+    mess_left: float = 0.0
+    mess_gap: float = 0.0
+    mess_message_id: int | None = None
+    tantrum_due_at: datetime | None = None
+    tantrum_left: float = 0.0
+    tantrum_message_id: int | None = None
+    spoiled_until: datetime | None = None
+    nap_slot: datetime | None = None
+    nap_left: float = 0.0
+    lights_left: float = 0.0
+    nap_message_id: int | None = None
+    cranky_until: datetime | None = None
 
 
 # ---

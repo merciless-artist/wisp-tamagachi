@@ -1183,3 +1183,34 @@ async def test_a_badge_bought_again_retires_its_older_purchases(db: Database) ->
         PendingBadge(USER, "team_wisp", second, 2),
         PendingBadge(OTHER_USER, "egg_warmer", second, 2),
     ]
+
+
+async def test_meters_and_chores_round_trip(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    assert (life.mood_meter, life.nap_left, life.mess_message_id) == (50.0, 0.0, None)
+    life.mood_meter = 63.5
+    life.health_stretch = 11.5
+    life.wellbeing_stretch = 22.25
+    life.mood_stretch = 33.75
+    life.sniffles_left = 4000.5
+    life.mess_in = 1200.0
+    life.mess_left = 900.5
+    life.mess_gap = 300.25
+    life.mess_message_id = 1234567890123
+    life.tantrum_due_at = datetime(2026, 11, 2, 15, 30, tzinfo=UTC)
+    life.tantrum_left = 600.5
+    life.tantrum_message_id = 1234567890124
+    life.spoiled_until = datetime(2026, 11, 3, 9, 0, tzinfo=UTC)
+    life.nap_slot = datetime(2026, 11, 2, 18, 0, tzinfo=UTC)
+    life.nap_left = 1800.5
+    life.lights_left = 7200.5
+    life.nap_message_id = 1234567890125
+    life.cranky_until = datetime(2026, 11, 4, 6, 0, tzinfo=UTC)
+    await repo.save(GUILD, life)
+
+    loaded = await repo.current(GUILD)
+    assert loaded is not None
+    for field in dataclasses.fields(life):
+        assert getattr(loaded, field.name) == getattr(life, field.name), field.name
+    assert loaded.tantrum_due_at == datetime(2026, 11, 2, 15, 30, tzinfo=UTC)
