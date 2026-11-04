@@ -275,10 +275,10 @@ day also earns 1 Vault point, and the first 3 chats of the day fill his Wellbein
 Poking: the Poke Wisp button on the status card and on the House's new-egg
 posts pokes him at every stage. The House sees who poked him and his AI
 reaction (a pre-written line if the AI is down), which is usually a giggle,
-now and then a startle or a curious look; a quiet House or the small hours
-(UTC) wake him up, and a flurry of pokes or low Health annoy him. There are no
-sleepy hours: he naps at the timed naps (see His chores), and a poke then wakes
-him early and cranky. Pokes and mentions share one cooldown per member; a
+now and then a startle or a curious look; a House that has been quiet for
+2 hours wakes him up, and a flurry of pokes or low Health annoy him. He naps
+at the timed naps (see His chores), and a poke then wakes him early and
+cranky. Pokes and mentions share one cooldown per member; a
 member's first 3 pokes of the day fill his Mood and only the first poke or
 mention earns a point.
 

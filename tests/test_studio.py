@@ -1829,6 +1829,7 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "MOOD_PER_PLAY",
         "ROCKSTAR_MOOD",
         "MEDICINE_COST",
+        "CHAT_POINTS",
     ):
         monkeypatch.setattr(rules, name, 9999)
     for name in (
@@ -1937,7 +1938,7 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nChores\n")[1].split("\n\n")[0]
-    assert "The first press earns WC" in section
+    assert "First press wins WC" in section
     assert "Clean up his mess in 5 h or he catches a cold" in section
     assert "medicine (13 WC) cures it" in section
     assert "5 h" in section
@@ -1994,6 +1995,17 @@ def test_rules_text_does_not_say_talking_earns_no_points() -> None:
 
     assert "no bond or points" not in text
     assert "Talking earns no bond" in text
+    assert "・First chat or poke each day earns 1 point" in text
+
+
+def test_rules_text_chat_points_come_from_the_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rules, "CHAT_POINTS", 3)
+
+    assert "・First chat or poke each day earns 3 points" in rules_text(
+        rules.MEAL_POINTS
+    )
 
 
 def test_rules_text_explains_gifts_with_numbers_from_the_rules(

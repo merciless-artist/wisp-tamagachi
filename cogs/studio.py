@@ -95,6 +95,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     sick_hours = rules.SICK_FOR // timedelta(hours=1)
     health_hours = rules.HEALTH_STRETCH // timedelta(hours=1)
+    chat_points = count(rules.CHAT_POINTS, "point")
     mess_hours = rules.MESS_LEFT_FOR // timedelta(hours=1)
     tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
     lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
@@ -103,11 +104,10 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "One Wisp for the server: share music and he grows. Neglected, he "
-            "fades.",
+            "One Wisp per server: share music and he grows. Neglected, he " "fades.",
             SEPARATOR,
             "Who can feed him and earn points",
-            "・Active Lounger or higher who opened /wisp board once",
+            "・Active Lounger or higher who opened /wisp board",
             "",
             "What counts",
             "・Suno and viibrmusic.com links in the track drop",
@@ -125,7 +125,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"{rules.ROCKSTAR_MOOD} for {rockstar_days} days",
             "",
             "Chores",
-            "・The first press earns WC",
+            "・First press wins WC",
             f"・Clean up his mess in {mess_hours} h or he catches a cold; "
             f"medicine ({rules.MEDICINE_COST} WC) cures it",
             f"・Scold a tantrum in {tantrum_minutes} min or Mood drops "
@@ -159,11 +159,12 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "",
             "Talking to Wisp",
             "・Mention or reply to him in Wisp's House. Talking earns no bond",
+            f"・First chat or poke each day earns {chat_points}",
             "",
             "Fair play",
-            "・Fake links don't count; staff can strip points. Names max "
-            f"{count(rules.NAME_MAX, 'character')}",
-            f"{_ban_line()}. Staff can lift bans",
+            "・Fake links don't count; staff strip points. Names max "
+            f"{rules.NAME_MAX} chars",
+            f"{_ban_line()}",
         ]
     )
 
