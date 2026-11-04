@@ -613,8 +613,8 @@ _NAP_TALK = (
     "*zzz*",
     "*snore... snore*",
     "*snrrk*",
-    "*sleepy little hum*",
-    "*soft snoring*",
+    "*mmm... zzz*",
+    "*hmmf*",
     "*zzz... mmm... zzz*",
     "*mmf*",
 )

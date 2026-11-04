@@ -196,11 +196,38 @@ def test_the_cold_lines_are_sneezy_not_spotty(moment: Moment) -> None:
             assert word not in line
 
 
+_NOISE_WORD = re.compile(r"z+|h?m+f*|sn\w*rk|snor\w*")
+
+
+def is_sleepy_noise(line: str) -> bool:
+    """Whether `line` is a *-wrapped run of snore, zzz and mumble sounds only."""
+    if not (line.startswith("*") and line.endswith("*")):
+        return False
+    words = [word.strip(".,!?").lower() for word in line.strip("*").split()]
+    return bool(words) and all(_NOISE_WORD.fullmatch(word) for word in words)
+
+
 def test_nap_talk_is_only_sleepy_noises() -> None:
     for line in LINES[(Moment.NAP_TALK, Mood.HAPPY)]:
         assert line.startswith("*") and line.endswith("*"), line
-        assert len(line.strip("*").split()) <= 3, line
-        assert not {"he", "his", "in", "over", "and"} & set(line.strip("*").split())
+        assert is_sleepy_noise(line), line
+    assert len(LINES[(Moment.NAP_TALK, Mood.HAPPY)]) >= 6
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "*mumbles in his sleep*",
+        "*rolls over and snores*",
+        "*yawns loudly*",
+        "*turns around*",
+        "*sleepy little hum*",
+        "*soft snoring*",
+        "snore",
+    ],
+)
+def test_the_sleepy_noise_rule_rejects_narration(line: str) -> None:
+    assert not is_sleepy_noise(line)
 
 
 @pytest.mark.parametrize("moment", LONELY_TALK_MOMENTS)
