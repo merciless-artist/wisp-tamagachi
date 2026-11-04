@@ -1,4 +1,4 @@
-"""Tests for bond tiers, daily caps, meeting and happiness."""
+"""Tests for bond tiers, daily caps and meeting."""
 
 from datetime import UTC, datetime
 
@@ -7,7 +7,6 @@ import pytest
 from wisp.bond import (
     casual_bond_grant,
     daily_meal_cap,
-    happiness,
     meal_grant,
     should_meet,
     tier_for,
@@ -16,7 +15,6 @@ from wisp.life import Phase, new_egg
 from wisp.rules import (
     DAILY_CASUAL_BOND_CAP,
     DAILY_MEAL_CAP,
-    HAPPY_FULL_AT_PEOPLE,
     MEET_AFTER_DAYS,
     SICK_EXTRA_MEAL_CAP,
     SICK_FOR,
@@ -81,12 +79,3 @@ def test_meets_on_third_distinct_day_only_once() -> None:
     assert should_meet(3, met=False)
     assert should_meet(4, met=False)
     assert not should_meet(3, met=True)
-
-
-def test_happiness_full_at_five_people() -> None:
-    assert HAPPY_FULL_AT_PEOPLE == 5
-    assert happiness(0) == 0
-    assert happiness(1) == 20
-    assert happiness(2) == 40
-    assert happiness(5) == 100
-    assert happiness(12) == 100

@@ -803,23 +803,6 @@ async def test_chatted_today_is_once_per_utc_day(db: Database) -> None:
     assert await repo.chatted_today(OTHER_GUILD, USER, NOW) is False
 
 
-async def test_chatters_since_counts_only_chats(db: Database) -> None:
-    repo = ActivityRepo(db)
-    since = NOW - timedelta(hours=24)
-    chat = InteractionKind.CHAT
-    await repo.record_interaction(GUILD, 1, 1, chat, 0, 0, since - timedelta(hours=1))
-    await repo.record_interaction(GUILD, 1, 2, chat, 0, 0, since)
-    await repo.record_interaction(GUILD, 1, 2, chat, 0, 0, NOW)
-    await repo.record_interaction(GUILD, 1, 3, chat, 0, 0, NOW)
-    await repo.record_interaction(GUILD, 1, 4, InteractionKind.FEED, 10, 5, NOW)
-    await repo.record_interaction(GUILD, 1, 5, InteractionKind.PLAY, 3, 0, NOW)
-    await repo.record_interaction(OTHER_GUILD, 1, 6, chat, 0, 0, NOW)
-
-    assert await repo.chatters_since(GUILD, since) == 2
-    assert await repo.chatters_since(OTHER_GUILD, since) == 1
-    assert await repo.chatters_since(GUILD, NOW + timedelta(seconds=1)) == 0
-
-
 async def test_feeders_since_counts_only_feeding(db: Database) -> None:
     repo = ActivityRepo(db)
     since = NOW - timedelta(hours=24)

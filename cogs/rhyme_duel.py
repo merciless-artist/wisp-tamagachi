@@ -11,7 +11,7 @@ from cogs.players import can_feed, maybe_meet, say_privately
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
-from wisp.life import Life, Phase, add_care, add_growth, mood
+from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
 from wisp.rules import (
@@ -195,7 +195,7 @@ async def _record_play(
             )
             await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
             add_growth(life, GROWTH_PER_PLAY)
-            add_care(life, CARE_PER_PLAY)
+            change_meter(life, Meter.WELLBEING, CARE_PER_PLAY)
             await bot.lives.save(guild_id, life)
         return await bot.players.record_rhyme_score(guild_id, user_id, points)
 

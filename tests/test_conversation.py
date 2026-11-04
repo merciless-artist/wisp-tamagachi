@@ -1717,7 +1717,7 @@ async def test_poke_then_mention_credits_once(
     await poke(SECOND)
     assert await points(bot, SECOND) == CHAT_POINTS
     assert await points(bot, FIRST) == CHAT_POINTS
-    assert await bot.activity_log.chatters_since(GUILD_ID, START) == 2
+    assert await bot.activity_log.chatted_today(GUILD_ID, SECOND, START) is True
 
 
 async def test_a_mention_credits_the_days_first_chat(
@@ -1772,7 +1772,7 @@ async def test_a_member_who_cannot_feed_is_answered_without_credit(
     assert reply_text(said) == "hey you"
     assert private_reply(pressed) == "♪ You poked Wisp."
     assert await points(bot, FIRST) == 0
-    assert await bot.activity_log.chatters_since(GUILD_ID, START) == 0
+    assert await bot.activity_log.chatted_today(GUILD_ID, FIRST, START) is False
 
 
 async def test_a_failed_credit_is_reported_and_the_mention_still_answered(

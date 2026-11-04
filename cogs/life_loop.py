@@ -32,7 +32,6 @@ from cogs.pictures import life_image
 from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
-    current_happiness,
     report_failure,
     say_privately,
     status_text,
@@ -171,12 +170,11 @@ class LifeLoop(commands.Cog):
         if guild is None:
             return
         frozen = settings.frozen
-        happy = await current_happiness(bot, guild_id, now)
         events: list[Event] | None = None
         async with bot.guild_lock(guild_id):
             life = await bot.lives.current(guild_id)
             if life is not None and not is_over(life):
-                events = await self._advance(guild_id, life, now, frozen, happy)
+                events = await self._advance(guild_id, life, now, frozen)
         if events is None:
             await lay_first_egg(bot, guild_id, now)
         else:
@@ -186,14 +184,14 @@ class LifeLoop(commands.Cog):
         if current is None:
             return
         await self._speak_if_quiet(guild_id, current, frozen, now)
-        await show_status_card(bot, guild_id, current, now, happy)
+        await show_status_card(bot, guild_id, current, now)
         await refresh_house_panel(bot, guild_id, current)
         await refresh_vault(bot, guild_id)
         if not is_over(current):
             await pick_favorite_song(bot, guild, current, self.rng, now)
 
     async def _advance(
-        self, guild_id: int, life: Life, now: datetime, frozen: bool, happy: int
+        self, guild_id: int, life: Life, now: datetime, frozen: bool
     ) -> list[Event]:
         """Tick a life and save it, even when frozen; return what happened.
 
@@ -218,7 +216,6 @@ class LifeLoop(commands.Cog):
             life,
             now,
             frozen=frozen,
-            happiness=happy,
             caretakers=caretakers,
             people=people,
         )
@@ -292,7 +289,7 @@ class LifeLoop(commands.Cog):
 
 
 async def show_status_card(
-    bot: "WispBot", guild_id: int, life: Life, now: datetime, happy: int
+    bot: "WispBot", guild_id: int, life: Life, now: datetime
 ) -> None:
     """Show `life` in the Status post: his picture first, then the card.
 
@@ -308,7 +305,7 @@ async def show_status_card(
     if is_over(life):
         content, view, image = WAITING, begin_view(), ending_image(life)
     else:
-        content = await status_text(bot, guild_id, life, now, happy)
+        content = await status_text(bot, guild_id, life, now)
         view, image = status_view(), life_image(life)
     await show_status(
         bot, guild_id, content, view, image, clear_image=image is None and is_over(life)
@@ -379,8 +376,7 @@ async def _begin(interaction: discord.Interaction) -> None:
 
 async def _show_egg(bot: "WispBot", guild_id: int, egg: Life, now: datetime) -> None:
     """Show a new egg on the status card and House panel now, not on the next tick."""
-    happy = await current_happiness(bot, guild_id, now)
-    await show_status_card(bot, guild_id, egg, now, happy)
+    await show_status_card(bot, guild_id, egg, now)
     await refresh_house_panel(bot, guild_id, egg)
 
 

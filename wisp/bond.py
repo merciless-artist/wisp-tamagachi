@@ -1,4 +1,4 @@
-"""Bond tiers, daily caps, meeting and happiness. Pure rules, no storage."""
+"""Bond tiers, daily caps and meeting. Pure rules, no storage."""
 
 from enum import StrEnum
 
@@ -7,7 +7,6 @@ from wisp.rules import (
     BOND_TIERS,
     DAILY_CASUAL_BOND_CAP,
     DAILY_MEAL_CAP,
-    HAPPY_FULL_AT_PEOPLE,
     MEET_AFTER_DAYS,
     SICK_EXTRA_MEAL_CAP,
 )
@@ -49,9 +48,3 @@ def meal_grant(fed_today: int, points: int, cap: int) -> int:
 def should_meet(distinct_days: int, met: bool) -> bool:
     """Whether Wisp should now learn this member's name, once."""
     return not met and distinct_days >= MEET_AFTER_DAYS
-
-
-def happiness(distinct_people_24h: int) -> int:
-    """Happiness from 0 to 100, full once enough people cared in a day."""
-    share = distinct_people_24h / HAPPY_FULL_AT_PEOPLE
-    return round(min(share, 1.0) * 100)

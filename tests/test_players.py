@@ -22,7 +22,6 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
-from wisp.bond import happiness
 from wisp.card import bar
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
@@ -169,9 +168,7 @@ async def play_on_days(
 async def test_status_text_shows_the_card(bot: app.WispBot) -> None:
     life = await lay(bot)
 
-    text = await players.status_text(
-        bot, GUILD_ID, life, discord.utils.utcnow(), happiness(0)
-    )
+    text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
     assert f"tag <@{WISP_ID}> in his House to say hi!!" in text
@@ -206,7 +203,7 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
         )
         await log.record_feed(GUILD_ID, life.id, FIRST_USER, track, 1, index, fed_at)
 
-    text = await players.status_text(bot, GUILD_ID, life, now, happiness(0))
+    text = await players.status_text(bot, GUILD_ID, life, now)
 
     assert "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
     assert "> 𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks ・♪‿♫ ♪" in text.splitlines()
@@ -214,7 +211,7 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
 
 
 # ---
-# Chat credit and happiness
+# Chat credit
 # ---
 
 
@@ -305,42 +302,14 @@ async def test_chat_credit_needs_a_life_that_is_stored(bot: app.WispBot) -> None
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
 
 
-async def test_happy_counts_only_chatters(bot: app.WispBot) -> None:
+async def test_the_happy_bar_shows_his_mood_meter(bot: app.WispBot) -> None:
     life = await lay(bot)
-    assert life.id is not None
-    now = discord.utils.utcnow()
-    log = bot.activity_log
-    for user_id, kind in [
-        (FIRST_USER, InteractionKind.FEED),
-        (SECOND_USER, InteractionKind.SNACK),
-        (3, InteractionKind.CHAT),
-    ]:
-        await log.record_interaction(GUILD_ID, life.id, user_id, kind, 0, 0, now)
+    life.mood_meter = 35.0
 
-    happy = await players.current_happiness(bot, GUILD_ID, now)
-    assert happy == happiness(1)
-    text = await players.status_text(bot, GUILD_ID, life, now, happy)
+    text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
+
     lines = text.splitlines()
-    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(happiness(1), '', '')}"
-
-
-async def test_chats_older_than_a_day_do_not_make_him_happy(
-    bot: app.WispBot,
-) -> None:
-    life = await lay(bot)
-    assert life.id is not None
-    now = discord.utils.utcnow()
-    await bot.activity_log.record_interaction(
-        GUILD_ID,
-        life.id,
-        FIRST_USER,
-        InteractionKind.CHAT,
-        0,
-        0,
-        now - rules.HAPPINESS_WINDOW - timedelta(minutes=1),
-    )
-
-    assert await players.current_happiness(bot, GUILD_ID, now) == happiness(0)
+    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(35.0, '', '')}"
 
 
 # ---

@@ -115,8 +115,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "His meters",
             "・Hunger: tracks and snacks. Drains daily; hangry when low, dies at 0",
             f"・Happy: your first poke or chat each day earns {chat_points}. "
-            f"{rules.HAPPY_FULL_AT_PEOPLE} people in 24 h fill it; Rockstar "
-            "needs it high",
+            "Rockstar needs it high",
             f"・Care: rhyme duels ({play_points}, {rules.PLAYS_PER_DAY} a day) and "
             "gifts. Drains daily; low is lonely, never hurt",
             "",

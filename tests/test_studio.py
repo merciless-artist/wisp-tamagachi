@@ -1803,7 +1803,6 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "GIFT_COST",
         "BOND_PER_KEPT_GIFT",
         "COLLECTION_BOND_BONUS",
-        "HAPPY_FULL_AT_PEOPLE",
         "PLAYS_PER_DAY",
         "SICK_EXTRA_MEAL_CAP",
     ):
@@ -1865,7 +1864,6 @@ def test_rules_text_points_to_the_snack_pack_and_wisps_lunchbox() -> None:
 def test_rules_text_explains_the_three_meters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(rules, "HAPPY_FULL_AT_PEOPLE", 7)
     monkeypatch.setattr(rules, "PLAYS_PER_DAY", 3)
 
     text = rules_text(rules.MEAL_POINTS)
@@ -1876,7 +1874,7 @@ def test_rules_text_explains_the_three_meters(
     assert "hangry" in hunger and "dies at 0" in hunger
     assert "Full" not in text
     assert happy.startswith("・Happy: your first poke or chat each day earns 1 point")
-    assert "7 people in 24 h" in happy and "Rockstar" in happy
+    assert "people in 24 h" not in happy and "Rockstar" in happy
     assert care.startswith("・Care: rhyme duels (1 point, 3 a day) and gifts")
     assert "lonely" in care and "never hurt" in care
     assert "\nWho can feed him and earn points\n" in text
@@ -1954,7 +1952,6 @@ def test_rules_text_numbers_come_from_the_rules(
 ) -> None:
     monkeypatch.setattr(rules, "MEAL_POINTS", {TrackKind.VIIBR: 41, TrackKind.SUNO: 43})
     monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 47)
-    monkeypatch.setattr(rules, "HAPPY_FULL_AT_PEOPLE", 107)
     monkeypatch.setattr(rules, "PLAYS_PER_DAY", 109)
     monkeypatch.setattr(rules, "SICK_EXTRA_MEAL_CAP", 113)
     monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=127))
@@ -1980,6 +1977,6 @@ def test_rules_text_numbers_come_from_the_rules(
 
     for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103):
         assert str(number) in text, number
-    for number in (107, 109, 127, 160):
+    for number in (109, 127, 160):
         assert str(number) in text, number
     assert "permanent" in text

@@ -13,8 +13,8 @@ from wisp.links import Track, TrackKind
 class InteractionKind(StrEnum):
     """What a member did with Wisp.
 
-    FEED and GIFT are not casual play. CHAT is the day's first poke or mention:
-    it makes Wisp happy but is not caring for him.
+    FEED and GIFT are not casual play. CHAT is the day's first poke or mention,
+    which is not caring for him.
     """
 
     FEED = "feed"
@@ -128,10 +128,6 @@ class ActivityRepo:
         )
         assert row is not None
         return int(row["people"])
-
-    async def chatters_since(self, guild_id: int, since: datetime) -> int:
-        """Number of different members who chatted with Wisp since `since`."""
-        return await self._people_since((InteractionKind.CHAT,), guild_id, since)
 
     async def feeders_since(self, guild_id: int, since: datetime) -> int:
         """Number of different members who fed Wisp or gave a snack since `since`."""

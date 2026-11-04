@@ -12,6 +12,7 @@ from wisp.rules import (
     EGG_WARMTH,
     HATCHING_TIME,
     HEALTH_MAX,
+    MOOD_MAX,
     WELLBEING_MAX,
     Stage,
 )
@@ -21,7 +22,6 @@ NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 WISP_ID = 1560213420068966441
 HOUSE_ID = 1563693152882262026
 FACTS = CardFacts(
-    happiness=90,
     fed_today=3,
     viibr_tracks=6,
     suno_tracks=2,
@@ -86,6 +86,7 @@ def alive_life(**fields: object) -> Life:
     life.stage = life.peak_stage = Stage.BABY
     life.health = 55.0
     life.wellbeing = 65.0
+    life.mood_meter = 90.0
     life.hatched_at = NOW - timedelta(days=1, hours=3)
     for name, value in fields.items():
         setattr(life, name, value)
@@ -130,9 +131,10 @@ def test_the_card_is_myras_layout_byte_for_byte() -> None:
         stage=Stage.CHILD,
         wellbeing=WELLBEING_MAX,
         health=HEALTH_MAX,
+        mood_meter=40.0,
         hatched_at=NOW - timedelta(days=5, hours=1),
     )
-    facts = CardFacts(40, 2, 1, 1, WISP_ID, HOUSE_ID)
+    facts = CardFacts(2, 1, 1, WISP_ID, HOUSE_ID)
     ids = {
         "care_full": CARE_EMOJI,
         "happiness_full": HAPPY_EMOJI,
@@ -299,6 +301,17 @@ def test_day_counts_whole_days_since_hatching() -> None:
     assert card.split("\n")[1] == "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **12**・♫ ♪. ♫‿♪"
 
 
+@pytest.mark.parametrize(
+    ("mood_meter", "shown"), [(0.0, 0.0), (MOOD_MAX / 4, 25.0), (MOOD_MAX, 100.0)]
+)
+def test_the_happy_bar_shows_his_mood_meter(mood_meter: float, shown: float) -> None:
+    card = render_status(alive_life(mood_meter=mood_meter), NOW, FACTS, emoji)
+
+    lines = card.split("\n")
+    meter = emoji("happiness_full"), emoji("happiness_left")
+    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(shown, *meter)}"
+
+
 def test_no_house_channel_says_his_house() -> None:
     card = render_status(alive_life(), NOW, replace(FACTS, house_id=None), emoji)
 
@@ -382,11 +395,11 @@ def test_the_fullest_card_fits_one_message() -> None:
         stage=Stage.OLD_FOGEY,
         health=100.0,
         wellbeing=100.0,
+        mood_meter=100.0,
         cold_left=48 * 3600,
         hatched_at=NOW - timedelta(days=9999),
     )
     facts = CardFacts(
-        happiness=100,
         fed_today=99999,
         viibr_tracks=99999,
         suno_tracks=99999,

@@ -45,9 +45,12 @@ VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 # ---
 
 HEALTH_MAX = 100.0
-FULL_DRAIN_PER_DAY = 15.0
-OLD_FOGEY_FULL_DRAIN_PER_DAY = 10.0
 HEALTH_START = 50.0
+# Every HEALTH_STRETCH of counted time with no track fed costs HEALTH_PENALTY,
+# or OLD_FOGEY_HEALTH_PENALTY for an Old Fogey.
+HEALTH_STRETCH = timedelta(hours=6)
+HEALTH_PENALTY = 8.0
+OLD_FOGEY_HEALTH_PENALTY = 6.0
 HANGRY_BELOW = 30.0
 FADING_BELOW = 10.0
 
@@ -59,7 +62,10 @@ FADING_BELOW = 10.0
 # is lonely, which only changes how he talks.
 WELLBEING_MAX = 100.0
 WELLBEING_START = 50.0
-CARE_DRAIN_PER_DAY = 10.0
+# Every WELLBEING_STRETCH of counted time with no chat and no snack costs
+# WELLBEING_PENALTY.
+WELLBEING_STRETCH = timedelta(hours=6)
+WELLBEING_PENALTY = 10.0
 CARE_PER_PLAY = 10
 WELLBEING_PER_GIFT = 8
 LONELY_BELOW = 30.0
@@ -79,6 +85,9 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 
 MOOD_MAX = 100.0
 MOOD_START = 50.0
+# Every MOOD_STRETCH of counted time with no game and no poke costs MOOD_PENALTY.
+MOOD_STRETCH = timedelta(hours=6)
+MOOD_PENALTY = 10.0
 
 # ---
 # Monster Pox, his childhood sickness (named "cold" in the code)
@@ -91,8 +100,9 @@ COLD_EARLIEST = timedelta(days=1)
 COLD_LATEST = timedelta(days=7)
 # Credited time he stays sick.
 SICK_FOR = timedelta(hours=48)
-# While sick Full drains faster, never drops below SICK_FULL_FLOOR, and each
-# member's daily meal cap has room for SICK_EXTRA_MEAL_CAP more meal points.
+# While sick the Health penalty is SICK_DRAIN_MULTIPLIER times as big but never
+# takes Health below SICK_FULL_FLOOR, and each member's daily meal cap has room
+# for SICK_EXTRA_MEAL_CAP more meal points.
 SICK_DRAIN_MULTIPLIER = 1.5
 SICK_FULL_FLOOR = 1.0
 SICK_EXTRA_MEAL_CAP = 15
@@ -102,6 +112,15 @@ SICK_PICTURES: Final[dict[Stage, str]] = {
     Stage.CHILD: "sick_child.png",
     Stage.TEEN: "sick_teen.png",
 }
+
+# ---
+# A cold ("sniffles" in the code, so it is never mistaken for Monster Pox)
+# ---
+
+# Counted time a cold lasts; meanwhile the Wellbeing penalty is
+# SNIFFLES_PENALTY_MULTIPLIER times as big.
+SNIFFLES_FOR = timedelta(hours=48)
+SNIFFLES_PENALTY_MULTIPLIER = 2.0
 
 # ---
 # Egg
@@ -115,8 +134,6 @@ HATCHING_TIME = timedelta(hours=5)
 # ---
 # Growth
 # ---
-
-HAPPY_FULL_AT_PEOPLE = 5
 
 
 @dataclass(frozen=True)
@@ -146,8 +163,10 @@ OLD_FOGEY_AT_DAY = 24
 FAREWELL_AT_DAY = 30
 LAST_EMBER_GIFTS = 3
 
-ROCKSTAR_HAPPY_FOR = timedelta(days=4)
-ROCKSTAR_HAPPINESS = 80
+# An Adult whose Mood stays at ROCKSTAR_MOOD or more for ROCKSTAR_MOOD_FOR of
+# counted time becomes a Rockstar.
+ROCKSTAR_MOOD = 80
+ROCKSTAR_MOOD_FOR = timedelta(days=4)
 
 GROWTH_PER_PLAY = 2
 PLAYS_PER_DAY = 5
@@ -231,7 +250,6 @@ RHYME_LEADERBOARD_SIZE = 5
 
 MAX_CREDITED_GAP = timedelta(minutes=15)
 TICK_EVERY = timedelta(minutes=5)
-HAPPINESS_WINDOW = timedelta(hours=24)
 QUIET_AFTER = timedelta(hours=9)
 
 # The stages that have nap art, and so show it when he is woken or goes quiet.

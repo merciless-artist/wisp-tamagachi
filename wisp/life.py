@@ -1,8 +1,8 @@
-"""Wisp's life: eggs, hatching, health, wellbeing, his cold, stages and death.
+"""Wisp's life: eggs, hatching, his meters, Monster Pox, a cold, stages and death.
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
 callers pass the current time (timezone-aware UTC) into every call, and the
-one random roll, when his cold is due, takes the caller's rng.
+one random roll, when Monster Pox is due, takes the caller's rng.
 """
 
 import math
@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
 from wisp.rules import (
-    CARE_DRAIN_PER_DAY,
     COAL_EGG_FOOD,
     COLD_EARLIEST,
     COLD_LATEST,
@@ -20,29 +19,36 @@ from wisp.rules import (
     EGG_WARMTH,
     FADING_BELOW,
     FAREWELL_AT_DAY,
-    FULL_DRAIN_PER_DAY,
     HANGRY_BELOW,
     HATCHING_TIME,
     HEALTH_MAX,
+    HEALTH_PENALTY,
     HEALTH_START,
+    HEALTH_STRETCH,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
+    MOOD_MAX,
+    MOOD_PENALTY,
     MOOD_START,
+    MOOD_STRETCH,
     OLD_FOGEY_AT_DAY,
-    OLD_FOGEY_FULL_DRAIN_PER_DAY,
-    ROCKSTAR_HAPPINESS,
-    ROCKSTAR_HAPPY_FOR,
+    OLD_FOGEY_HEALTH_PENALTY,
+    ROCKSTAR_MOOD,
+    ROCKSTAR_MOOD_FOR,
     SICK_DRAIN_MULTIPLIER,
     SICK_FOR,
     SICK_FULL_FLOOR,
+    SNIFFLES_FOR,
+    SNIFFLES_PENALTY_MULTIPLIER,
     STAGE_MIN_TIME,
     STAGE_RULES,
     WELLBEING_MAX,
+    WELLBEING_PENALTY,
     WELLBEING_START,
+    WELLBEING_STRETCH,
     Stage,
 )
 
-_DAY_SECONDS = timedelta(days=1).total_seconds()
 _NEXT_STAGE = {
     Stage.BABY: Stage.CHILD,
     Stage.CHILD: Stage.TEEN,
@@ -72,6 +78,14 @@ class Mood(StrEnum):
     HAPPY = auto()
     HANGRY = auto()
     LONELY = auto()
+
+
+class Meter(StrEnum):
+    """The three meters members fill: Health, Wellbeing and Mood."""
+
+    HEALTH = auto()
+    WELLBEING = auto()
+    MOOD = auto()
 
 
 class EventKind(StrEnum):
@@ -224,8 +238,13 @@ def mood(life: Life) -> Mood:
 
 
 def is_sick(life: Life) -> bool:
-    """Whether he has his cold right now."""
+    """Whether he has Monster Pox right now."""
     return life.cold_left > 0
+
+
+def has_sniffles(life: Life) -> bool:
+    """Whether he has a cold right now."""
+    return life.sniffles_left > 0
 
 
 def age_days(life: Life, now: datetime) -> int:
@@ -244,12 +263,7 @@ def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Ev
     """Feed an egg or a living Wisp; ignored in every other phase."""
     if life.phase is Phase.EGG:
         return _feed_egg(life, meal_points, feeder_id, now)
-    if life.phase is Phase.ALIVE:
-        life.health = min(life.health + meal_points, HEALTH_MAX)
-        if life.health >= HANGRY_BELOW:
-            life.warned = None
-        elif life.health >= FADING_BELOW and life.warned is EventKind.FADING:
-            life.warned = EventKind.HUNGRY
+    change_meter(life, Meter.HEALTH, meal_points, ends_stretch=True)
     return []
 
 
@@ -259,16 +273,40 @@ def add_growth(life: Life, points: int) -> None:
         life.growth += points
 
 
-def add_care(life: Life, points: float) -> None:
-    """Add wellbeing, up to WELLBEING_MAX; it only counts while Wisp is alive.
+def change_meter(
+    life: Life, meter: Meter, amount: float, *, ends_stretch: bool = False
+) -> None:
+    """Move one meter by `amount`, kept between 0 and its max; only while alive.
 
-    Back at or above the lonely line, his next drop below it is announced.
+    `ends_stretch` starts that meter's empty stretch over, as a credited action
+    does. Health back above a warning line arms that warning again, and
+    Wellbeing back at or above the lonely line arms the lonely warning.
     """
     if life.phase is not Phase.ALIVE:
         return
-    life.wellbeing = min(life.wellbeing + points, WELLBEING_MAX)
-    if life.wellbeing >= LONELY_BELOW:
-        life.lonely_warned = False
+    match meter:
+        case Meter.HEALTH:
+            life.health = _clamped(life.health + amount, HEALTH_MAX)
+            if ends_stretch:
+                life.health_stretch = 0.0
+            if life.health >= HANGRY_BELOW:
+                life.warned = None
+            elif life.health >= FADING_BELOW and life.warned is EventKind.FADING:
+                life.warned = EventKind.HUNGRY
+        case Meter.WELLBEING:
+            life.wellbeing = _clamped(life.wellbeing + amount, WELLBEING_MAX)
+            if ends_stretch:
+                life.wellbeing_stretch = 0.0
+            if life.wellbeing >= LONELY_BELOW:
+                life.lonely_warned = False
+        case Meter.MOOD:
+            life.mood_meter = _clamped(life.mood_meter + amount, MOOD_MAX)
+            if ends_stretch:
+                life.mood_stretch = 0.0
+
+
+def _clamped(value: float, most: float) -> float:
+    return min(max(value, 0.0), most)
 
 
 def _feed_egg(
@@ -325,20 +363,49 @@ def _count_down_cold(life: Life, elapsed: timedelta) -> list[Event]:
 
 
 # ---
+# A cold
+# ---
+
+
+def catch_sniffles(life: Life) -> bool:
+    """Give a living Wisp a cold for SNIFFLES_FOR of counted time.
+
+    Returns False, and changes nothing, when he is not alive, already has a
+    cold or has Monster Pox.
+    """
+    if life.phase is not Phase.ALIVE or has_sniffles(life) or is_sick(life):
+        return False
+    life.sniffles_left = SNIFFLES_FOR.total_seconds()
+    return True
+
+
+def cure_sniffles(life: Life) -> bool:
+    """End his cold at once; returns whether he had one."""
+    had = has_sniffles(life)
+    life.sniffles_left = 0.0
+    return had
+
+
+# ---
 # Ticking time
 # ---
 
 
+def credited_gap(life: Life, now: datetime, *, frozen: bool) -> timedelta:
+    """How much of the time since his last tick counts.
+
+    None while frozen and none when the clock went backwards; after an outage
+    at most MAX_CREDITED_GAP.
+    """
+    if frozen:
+        return timedelta(0)
+    return max(min(now - life.last_tick_at, MAX_CREDITED_GAP), timedelta(0))
+
+
 def tick(
-    life: Life,
-    now: datetime,
-    *,
-    frozen: bool,
-    happiness: int,
-    caretakers: int,
-    people: int,
+    life: Life, now: datetime, *, frozen: bool, caretakers: int, people: int
 ) -> list[Event]:
-    """Advance a life to `now`, crediting at most MAX_CREDITED_GAP of time.
+    """Advance a life to `now`, counting only its `credited_gap`.
 
     `caretakers` cared for him this stage; `people` is how many he saw in the
     last PEOPLE_WINDOW, which sets how many caretakers growing up takes.
@@ -346,7 +413,7 @@ def tick(
     if is_over(life):
         return []
     gap = now - life.last_tick_at
-    elapsed = timedelta(0) if frozen else max(min(gap, MAX_CREDITED_GAP), timedelta(0))
+    elapsed = credited_gap(life, now, frozen=frozen)
     if life.high_mood_since is not None:
         life.high_mood_since += max(gap - elapsed, timedelta(0))
     life.last_tick_at = now
@@ -357,7 +424,7 @@ def tick(
         return _tick_egg(life, now)
     if life.phase is Phase.HATCHING:
         return _tick_hatching(life, now)
-    return _tick_alive(life, now, elapsed, happiness, caretakers, people)
+    return _tick_alive(life, now, elapsed, caretakers, people)
 
 
 def _enter(life: Life, phase: Phase) -> None:
@@ -380,27 +447,23 @@ def _tick_hatching(life: Life, now: datetime) -> list[Event]:
     life.stage = life.peak_stage = Stage.BABY
     life.health = HEALTH_START
     life.wellbeing = WELLBEING_START
+    life.mood_meter = MOOD_START
+    life.health_stretch = life.wellbeing_stretch = life.mood_stretch = 0.0
     life.hatched_at = life.stage_started_at = now
     return [Event(EventKind.HATCHED)]
 
 
 def _tick_alive(
-    life: Life,
-    now: datetime,
-    elapsed: timedelta,
-    happiness: int,
-    caretakers: int,
-    people: int,
+    life: Life, now: datetime, elapsed: timedelta, caretakers: int, people: int
 ) -> list[Event]:
-    """Advance a living Wisp; a due cold starts before anything else happens.
+    """Advance a living Wisp; due Monster Pox starts before anything else.
 
-    While sick he drains faster, but the drain never takes his Full below
-    SICK_FULL_FLOOR, so the cold cannot kill him.
+    Then each meter pays for an empty stretch that filled up. Monster Pox
+    makes the Health penalty bigger but never takes his Health below
+    SICK_FULL_FLOOR, so it cannot kill him.
     """
     events = _catch_due_cold(life, now)
-    days = elapsed.total_seconds() / _DAY_SECONDS
-    _drain_full(life, days)
-    life.wellbeing = max(life.wellbeing - CARE_DRAIN_PER_DAY * days, 0.0)
+    _penalties(life, elapsed.total_seconds())
     if life.health == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
@@ -410,22 +473,48 @@ def _tick_alive(
         life.ended_at = now
         return [Event(EventKind.FAREWELL)]
     events += _count_down_cold(life, elapsed)
+    life.sniffles_left = max(life.sniffles_left - elapsed.total_seconds(), 0.0)
     events += _warnings(life)
-    events += _grow(life, now, happiness, caretakers, people)
+    events += _grow(life, now, caretakers, people)
     return events
 
 
-def _drain_full(life: Life, days: float) -> None:
-    drain = (
-        OLD_FOGEY_FULL_DRAIN_PER_DAY
-        if life.stage is Stage.OLD_FOGEY
-        else FULL_DRAIN_PER_DAY
+def _penalties(life: Life, seconds: float) -> None:
+    """Add counted time to each meter's empty stretch; a full stretch costs it."""
+    life.health_stretch, health_due = _filled(
+        life.health_stretch, seconds, HEALTH_STRETCH
     )
-    floor = 0.0
-    if is_sick(life):
-        drain *= SICK_DRAIN_MULTIPLIER
-        floor = min(life.health, SICK_FULL_FLOOR)
-    life.health = max(life.health - drain * days, floor)
+    if health_due:
+        penalty = HEALTH_PENALTY
+        if life.stage is Stage.OLD_FOGEY:
+            penalty = OLD_FOGEY_HEALTH_PENALTY
+        floor = 0.0
+        if is_sick(life):
+            penalty *= SICK_DRAIN_MULTIPLIER
+            floor = min(life.health, SICK_FULL_FLOOR)
+        life.health = max(life.health - penalty, floor)
+    life.wellbeing_stretch, wellbeing_due = _filled(
+        life.wellbeing_stretch, seconds, WELLBEING_STRETCH
+    )
+    if wellbeing_due:
+        penalty = WELLBEING_PENALTY
+        if has_sniffles(life):
+            penalty *= SNIFFLES_PENALTY_MULTIPLIER
+        life.wellbeing = max(life.wellbeing - penalty, 0.0)
+    life.mood_stretch, mood_due = _filled(life.mood_stretch, seconds, MOOD_STRETCH)
+    if mood_due:
+        life.mood_meter = max(life.mood_meter - MOOD_PENALTY, 0.0)
+
+
+def _filled(stretch: float, seconds: float, length: timedelta) -> tuple[float, bool]:
+    """The stretch `seconds` longer, and whether that filled it.
+
+    A filled stretch starts over with whatever ran past its length.
+    """
+    stretch += seconds
+    if stretch < length.total_seconds():
+        return stretch, False
+    return stretch - length.total_seconds(), True
 
 
 def _warnings(life: Life) -> list[Event]:
@@ -447,9 +536,7 @@ def _warnings(life: Life) -> list[Event]:
 # ---
 
 
-def _grow(
-    life: Life, now: datetime, happiness: int, caretakers: int, people: int
-) -> list[Event]:
+def _grow(life: Life, now: datetime, caretakers: int, people: int) -> list[Event]:
     """Move a living Wisp up one stage, or into old age, when it is time."""
     stage = life.stage
     if (
@@ -459,7 +546,7 @@ def _grow(
         life.high_mood_since = None
         return [_advance(life, Stage.OLD_FOGEY, now, keep_peak=True)]
     if stage is Stage.ADULT:
-        if _kept_happy_long_enough(life, now, happiness):
+        if _kept_happy_long_enough(life, now):
             return [_advance(life, Stage.ROCKSTAR, now)]
         return []
     next_stage = _NEXT_STAGE.get(stage)
@@ -499,14 +586,14 @@ def _ready_for(
     )
 
 
-def _kept_happy_long_enough(life: Life, now: datetime, happiness: int) -> bool:
-    """Track the happiness streak and report whether it has lasted long enough."""
-    if happiness < ROCKSTAR_HAPPINESS:
+def _kept_happy_long_enough(life: Life, now: datetime) -> bool:
+    """Track the high Mood streak and report whether it has lasted long enough."""
+    if life.mood_meter < ROCKSTAR_MOOD:
         life.high_mood_since = None
         return False
     if life.high_mood_since is None:
         life.high_mood_since = now
-    return now - life.high_mood_since >= ROCKSTAR_HAPPY_FOR
+    return now - life.high_mood_since >= ROCKSTAR_MOOD_FOR
 
 
 # ---

@@ -13,11 +13,11 @@ from cogs.channels import where_of
 from cogs.groups import require_guild
 from db.activity import InteractionKind
 from db.players import Player
-from wisp.bond import happiness, should_meet
+from wisp.bond import should_meet
 from wisp.card import CardFacts, render_status
 from wisp.life import Life, Phase, add_growth
 from wisp.lines import Moment
-from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, HAPPINESS_WINDOW, NAME_MAX
+from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, NAME_MAX
 from wisp.text import USER_ERROR, count
 
 if TYPE_CHECKING:
@@ -36,9 +36,7 @@ CANNOT_FEED: Final = (
 # ---
 
 
-async def status_text(
-    bot: "WispBot", guild_id: int, life: Life, now: datetime, happy: int
-) -> str:
+async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) -> str:
     """Render the status card for a life that is not over.
 
     Fed today counts the members who fed Wisp or gave him a snack since UTC
@@ -54,7 +52,6 @@ async def status_text(
     viibr, suno = await bot.activity_log.tracks_today(guild_id, now)
     settings = await bot.settings.get(guild_id)
     facts = CardFacts(
-        happiness=happy,
         fed_today=await bot.activity_log.feeders_since(guild_id, today),
         viibr_tracks=viibr,
         suno_tracks=suno,
@@ -65,15 +62,8 @@ async def status_text(
 
 
 # ---
-# Happy and chat credit
+# Chat credit
 # ---
-
-
-async def current_happiness(bot: "WispBot", guild_id: int, now: datetime) -> int:
-    """How happy Wisp is: how many members chatted with him in the last day."""
-    return happiness(
-        await bot.activity_log.chatters_since(guild_id, now - HAPPINESS_WINDOW)
-    )
 
 
 async def credit_chat(
@@ -86,9 +76,8 @@ async def credit_chat(
     """Give a member the day's chat credit for poking or mentioning Wisp.
 
     The first poke or mention of the UTC day records a CHAT interaction, which
-    makes Wisp happy but earns no bond or growth, and gives CHAT_POINTS. Only a
-    member who is not banned and can feed Wisp earns it. Returns whether it was
-    given.
+    earns no bond or growth, and gives CHAT_POINTS. Only a member who is not
+    banned and can feed Wisp earns it. Returns whether it was given.
     """
     if life.id is None:
         return False

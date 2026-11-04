@@ -21,7 +21,7 @@ from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
 from wisp.gifts import GiftState, Outcome, collection_of, decide, with_article
-from wisp.life import Life, Phase, add_care, add_growth, mood
+from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
 from wisp.rules import (
     BOND_PER_KEPT_GIFT,
@@ -298,7 +298,7 @@ async def give_gift(
         0,
         now,
     )
-    add_care(life, WELLBEING_PER_GIFT)
+    change_meter(life, Meter.WELLBEING, WELLBEING_PER_GIFT)
     if kept:
         await bot.players.add_bond(guild_id, member.id, bond)
         add_growth(life, GROWTH_PER_BOND_MOMENT)

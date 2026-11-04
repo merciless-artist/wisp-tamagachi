@@ -17,6 +17,7 @@ from wisp.rules import (
     EGG_WARMTH,
     HATCHING_TIME,
     HEALTH_MAX,
+    MOOD_MAX,
     WELLBEING_MAX,
 )
 from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted
@@ -55,7 +56,6 @@ class CardFacts:
     """What the card shows besides the life itself.
 
     Attributes:
-        happiness: The Happy meter, 0 to 100.
         fed_today: Members who fed Wisp or gave him a snack today (UTC).
         viibr_tracks: ViiBR tracks fed today (UTC).
         suno_tracks: Suno tracks fed today (UTC).
@@ -63,7 +63,6 @@ class CardFacts:
         house_id: The House channel's ID, or None when none is set.
     """
 
-    happiness: int
     fed_today: int
     viibr_tracks: int
     suno_tracks: int
@@ -103,7 +102,7 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
             heading.append(f"{SUB_CLEF} he has Monster Pox・{hours} h left")
         bars = [
             *_meter("Care", life.wellbeing / WELLBEING_MAX * 100, CARE, emoji),
-            *_meter("Happy", facts.happiness, HAPPY, emoji),
+            *_meter("Happy", life.mood_meter / MOOD_MAX * 100, HAPPY, emoji),
             *_meter("Hunger", life.health / HEALTH_MAX * 100, HUNGER, emoji),
         ]
         return _card(heading, bars, "him", life.stage.label.upper(), facts)

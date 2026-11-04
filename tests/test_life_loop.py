@@ -38,8 +38,7 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
-from wisp.bond import happiness
-from wisp.card import WAITING, CardFacts, bar, render_status
+from wisp.card import WAITING, CardFacts, render_status
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -223,10 +222,9 @@ async def current_life(bot: app.WispBot) -> Life:
     return life
 
 
-def card_facts(happy: int, fed: int, viibr: int = 0, suno: int = 0) -> CardFacts:
+def card_facts(fed: int, viibr: int = 0, suno: int = 0) -> CardFacts:
     """What the live card shows for a guild configured by `configure`."""
     return CardFacts(
-        happiness=happy,
         fed_today=fed,
         viibr_tracks=viibr,
         suno_tracks=suno,
@@ -434,12 +432,12 @@ async def test_tick_edits_status_message(
 
     after = await current_life(bot)
     assert after.last_tick_at == NOW
-    assert after.health < 50.0
+    assert after.health_stretch == FULL_GAP.total_seconds()
     server.status.get_partial_message.assert_any_call(CARD_ID)
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
     assert kwargs["content"] == render_status(
-        after, NOW, card_facts(happiness(1), 1, viibr=2, suno=1), bot.emoji
+        after, NOW, card_facts(1, viibr=2, suno=1), bot.emoji
     )
     assert f"<@{WISP_ID}>" in kwargs["content"]
     assert f"<#{HOUSE_ID}>" in kwargs["content"]
@@ -465,24 +463,8 @@ async def test_fed_today_counts_only_the_current_utc_day(
 
     after = await current_life(bot)
     assert server.card_edit.await_args.kwargs["content"] == render_status(
-        after, NOW, card_facts(happiness(1), 1), bot.emoji
+        after, NOW, card_facts(1), bot.emoji
     )
-
-
-async def test_happy_counts_only_chatters(
-    cog: LifeLoop, bot: app.WispBot, server: FakeServer
-) -> None:
-    await configure(bot)
-    life = await lay(bot)
-    recently = NOW - timedelta(hours=2)
-    await interact(bot, life, recently, InteractionKind.FEED, user_id=2)
-    await interact(bot, life, recently, InteractionKind.SNACK, user_id=3)
-    await interact(bot, life, recently, InteractionKind.CHAT, user_id=4)
-
-    await cog.run_tick(NOW)
-
-    lines = server.card_edit.await_args.kwargs["content"].splitlines()
-    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(happiness(1), '', '')}"
 
 
 async def test_missing_status_message_is_reposted(
@@ -951,7 +933,7 @@ async def test_death_posts_died_then_asks_and_lays_no_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, health=0.01)
+    await lay(bot, health=0.0)
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + rules.TICK_EVERY)
@@ -1001,7 +983,7 @@ async def test_a_waiting_card_without_its_ending_picture_shows_none(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     await configure(bot)
-    await lay(bot, health=0.01)
+    await lay(bot, health=0.0)
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + rules.TICK_EVERY)
