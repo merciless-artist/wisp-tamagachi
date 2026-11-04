@@ -13,6 +13,7 @@ from wisp.rules import (
     HATCHING_TIME,
     HEALTH_MAX,
     MOOD_MAX,
+    SNIFFLES_FOR,
     WELLBEING_MAX,
     Stage,
 )
@@ -28,9 +29,9 @@ FACTS = CardFacts(
     wisp_id=WISP_ID,
     house_id=HOUSE_ID,
 )
-CARE_EMOJI = "<:care_full:1564443602506088480>"
-HAPPY_EMOJI = "<:happiness_full:1564443869204975626>"
-HUNGER_EMOJI = "<:full_full:1564444125976068186>"
+HEALTH_EMOJI = "<:full_full:1564444125976068186>"
+WELLBEING_EMOJI = "<:care_full:1564443602506088480>"
+MOOD_EMOJI = "<:happiness_full:1564443869204975626>"
 # Myra's card of 2026-10-31, byte for byte, with the real mention and House
 # link where her copy shows them as Discord displays them.
 MYRAS_CARD = "\n".join(
@@ -38,12 +39,12 @@ MYRAS_CARD = "\n".join(
         "> ",
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **5**・♫ ♪. ♫‿♪",
         "> ",
-        "> 𝄡 Care",
-        f"> {CARE_EMOJI * 10} │100%",
-        "> 𝄡 Happy",
-        f"> {HAPPY_EMOJI * 4} │40%",
-        "> 𝄡 Hunger",
-        f"> {HUNGER_EMOJI * 10} │100%",
+        "> 𝄡 Health",
+        f"> {HEALTH_EMOJI * 10} │100%",
+        "> 𝄡 Wellbeing",
+        f"> {WELLBEING_EMOJI * 10} │100%",
+        "> 𝄡 Mood",
+        f"> {MOOD_EMOJI * 4} │40%",
         "> ",
         "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪",
         "> ",
@@ -117,7 +118,7 @@ def tail(poke: str, stage: str) -> list[str]:
 def meters(card: str) -> list[str]:
     """The card's meter lines: from the first label to the blank line after."""
     lines = card.split("\n")
-    start = next(index for index, line in enumerate(lines) if line == "> 𝄡 Care")
+    start = next(index for index, line in enumerate(lines) if line == "> 𝄡 Health")
     return lines[start : lines.index(BLANK, start)]
 
 
@@ -136,9 +137,9 @@ def test_the_card_is_myras_layout_byte_for_byte() -> None:
     )
     facts = CardFacts(2, 1, 1, WISP_ID, HOUSE_ID)
     ids = {
-        "care_full": CARE_EMOJI,
-        "happiness_full": HAPPY_EMOJI,
-        "full_full": HUNGER_EMOJI,
+        "full_full": HEALTH_EMOJI,
+        "care_full": WELLBEING_EMOJI,
+        "happiness_full": MOOD_EMOJI,
     }
 
     card = render_status(life, NOW, facts, lambda name: ids.get(name, ""))
@@ -153,12 +154,12 @@ def test_a_living_baby_has_every_line_in_its_place() -> None:
         BLANK,
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
         BLANK,
-        "> 𝄡 Care",
-        f"> {pieces('care_full', 6)}{emoji('care_left')}│65%",
-        "> 𝄡 Happy",
-        f"> {pieces('happiness_full', 9)} │90%",
-        "> 𝄡 Hunger",
+        "> 𝄡 Health",
         f"> {pieces('full_full', 5)}{emoji('full_left')}│55%",
+        "> 𝄡 Wellbeing",
+        f"> {pieces('care_full', 6)}{emoji('care_left')}│65%",
+        "> 𝄡 Mood",
+        f"> {pieces('happiness_full', 9)} │90%",
         *tail("him", "𝐁𝐀𝐁𝐘"),
     ]
 
@@ -222,26 +223,28 @@ def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
     card = render_status(alive_life(), NOW, FACTS, no_emoji)
 
     assert meters(card) == [
-        "> 𝄡 Care",
-        ">  │65%",
-        "> 𝄡 Happy",
-        ">  │90%",
-        "> 𝄡 Hunger",
+        "> 𝄡 Health",
         ">  │55%",
+        "> 𝄡 Wellbeing",
+        ">  │65%",
+        "> 𝄡 Mood",
+        ">  │90%",
     ]
     assert "<:" not in card
 
 
-def test_the_bars_are_care_happy_then_hunger_in_their_meters() -> None:
-    card = render_status(alive_life(health=100.0, wellbeing=0.0), NOW, FACTS, emoji)
+def test_the_bars_are_health_wellbeing_then_mood_in_their_meters() -> None:
+    life = alive_life(health=HEALTH_MAX, wellbeing=0.0, mood_meter=MOOD_MAX / 4)
+
+    card = render_status(life, NOW, FACTS, emoji)
 
     assert meters(card) == [
-        "> 𝄡 Care",
-        ">  │0%",
-        "> 𝄡 Happy",
-        f"> {pieces('happiness_full', 9)} │90%",
-        "> 𝄡 Hunger",
+        "> 𝄡 Health",
         f"> {pieces('full_full', 10)} │100%",
+        "> 𝄡 Wellbeing",
+        ">  │0%",
+        "> 𝄡 Mood",
+        f"> {pieces('happiness_full', 2)}{emoji('happiness_left')}│25%",
     ]
 
 
@@ -304,12 +307,12 @@ def test_day_counts_whole_days_since_hatching() -> None:
 @pytest.mark.parametrize(
     ("mood_meter", "shown"), [(0.0, 0.0), (MOOD_MAX / 4, 25.0), (MOOD_MAX, 100.0)]
 )
-def test_the_happy_bar_shows_his_mood_meter(mood_meter: float, shown: float) -> None:
+def test_the_mood_bar_shows_his_mood_meter(mood_meter: float, shown: float) -> None:
     card = render_status(alive_life(mood_meter=mood_meter), NOW, FACTS, emoji)
 
     lines = card.split("\n")
     meter = emoji("happiness_full"), emoji("happiness_left")
-    assert lines[lines.index("> 𝄡 Happy") + 1] == f"> {bar(shown, *meter)}"
+    assert lines[lines.index("> 𝄡 Mood") + 1] == f"> {bar(shown, *meter)}"
 
 
 def test_no_house_channel_says_his_house() -> None:
@@ -377,12 +380,50 @@ def test_a_sick_card_says_hours_left_under_the_day(
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
         f"> 𝄡𝄚𝄂 he has Monster Pox・{hours} h left",
         BLANK,
-        "> 𝄡 Care",
+        "> 𝄡 Health",
     ]
 
 
 def test_a_well_wisp_has_no_sick_line() -> None:
     assert "Monster Pox" not in render_status(alive_life(), NOW, FACTS, emoji)
+
+
+# ---
+# Cold
+# ---
+
+
+@pytest.mark.parametrize(
+    ("sniffles_left", "hours"),
+    [(129600.0, 36), (129599.0, 36), (3600.0, 1), (1.0, 1)],
+)
+def test_a_card_with_a_cold_says_hours_left_under_the_day(
+    sniffles_left: float, hours: int
+) -> None:
+    card = render_status(alive_life(sniffles_left=sniffles_left), NOW, FACTS, emoji)
+
+    assert card.split("\n")[:5] == [
+        BLANK,
+        "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
+        f"> 𝄡𝄚𝄂 he has a cold・{hours} h left",
+        BLANK,
+        "> 𝄡 Health",
+    ]
+
+
+def test_a_well_wisp_has_no_cold_line() -> None:
+    assert "a cold" not in render_status(alive_life(), NOW, FACTS, emoji)
+
+
+def test_a_wisp_with_the_pox_and_a_cold_shows_both_lines() -> None:
+    life = alive_life(cold_left=3600.0, sniffles_left=7200.0)
+
+    lines = render_status(life, NOW, FACTS, emoji).split("\n")
+
+    assert lines[2:4] == [
+        "> 𝄡𝄚𝄂 he has Monster Pox・1 h left",
+        "> 𝄡𝄚𝄂 he has a cold・2 h left",
+    ]
 
 
 # ---
@@ -397,6 +438,7 @@ def test_the_fullest_card_fits_one_message() -> None:
         wellbeing=100.0,
         mood_meter=100.0,
         cold_left=48 * 3600,
+        sniffles_left=SNIFFLES_FOR.total_seconds(),
         hatched_at=NOW - timedelta(days=9999),
     )
     facts = CardFacts(
@@ -410,5 +452,6 @@ def test_the_fullest_card_fits_one_message() -> None:
     card = render_status(life, NOW, facts, lambda name: f"<a:{name}:{2**64 - 1}>")
 
     assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "Monster Pox" in card
+    assert "a cold" in card
     assert card.count("_full:") == 30
     assert text_length(card) <= MESSAGE_LIMIT
