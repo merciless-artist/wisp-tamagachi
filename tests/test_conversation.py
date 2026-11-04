@@ -1889,6 +1889,7 @@ async def test_a_failed_credit_is_reported_and_the_poke_still_answered(
     assert private_reply(pressed) == "♪ You poked Wisp."
     posted = [str(call.args[0]) for call in server.house.send.await_args_list]
     assert any(text.startswith(f"♪ <@{FIRST}> poked Wisp") for text in posted)
+    assert await points(bot, FIRST) == 0
 
 
 # ---
