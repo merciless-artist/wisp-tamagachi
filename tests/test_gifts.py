@@ -643,17 +643,19 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
 
 
 @pytest.mark.parametrize("roll", [KEEP, PASS])
-async def test_every_gift_attempt_adds_care(
+async def test_every_gift_bought_adds_eight_wellbeing_without_ending_its_stretch(
     bot: app.WispBot, cog: Gifts, roll: float
 ) -> None:
-    await lay(bot)
+    life = await lay(bot)
+    life.wellbeing_stretch = 5400.0
+    await bot.lives.save(GUILD_ID, life)
     cog.rng = FixedRandom(roll)
     say(bot)
 
     await give(bot, "alien_blue")
-    assert (
-        await current_life(bot)
-    ).wellbeing == rules.WELLBEING_START + rules.WELLBEING_PER_GIFT
+    after = await current_life(bot)
+    assert after.wellbeing == rules.WELLBEING_START + rules.WELLBEING_PER_GIFT == 58.0
+    assert after.wellbeing_stretch == 5400.0
 
     cog.rng = FixedRandom(KEEP)
     await give(bot, "book_red", OTHER_USER_ID)

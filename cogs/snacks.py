@@ -67,7 +67,7 @@ from wisp.bond import (
     tier_for,
 )
 from wisp.gifts import GiftState
-from wisp.life import Life, Mood, Phase, add_growth, feed, is_over, mood
+from wisp.life import Life, Meter, Mood, Phase, add_growth, change_meter, is_over, mood
 from wisp.lines import Moment
 from wisp.rules import (
     BADGE_BY_KEY,
@@ -80,6 +80,7 @@ from wisp.rules import (
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
+    WELLBEING_PER_SNACK,
     Badge,
     Gift,
     GiftCollection,
@@ -174,8 +175,8 @@ _Action = Callable[[discord.Interaction], Awaitable[None]]
 # ---
 
 
-def _hunger_gain(snack: Snack) -> str:
-    return f"hunger +{snack.meal}"
+def _wellbeing_gain() -> str:
+    return f"wellbeing +{WELLBEING_PER_SNACK}"
 
 
 def _coins(bot: "WispBot", text: str) -> str:
@@ -467,7 +468,7 @@ async def _vault(
     """
     gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     snack_options = [
-        _option(bot, snack, snack.name, f"{snack.cost} WC ・ {_hunger_gain(snack)}")
+        _option(bot, snack, snack.name, f"{snack.cost} WC ・ {_wellbeing_gain()}")
         for snack in _MENU
     ]
     player = await bot.players.get(guild_id, user_id)
@@ -1016,11 +1017,10 @@ def vault_view() -> discord.ui.View:
 
 @dataclass(frozen=True)
 class _Meal:
-    """A snack Wisp has eaten: his life, the feeder and the meal points it gave."""
+    """A snack Wisp has eaten: his life and the feeder."""
 
     life: Life
     player: Player
-    points: int
 
 
 async def _eat(
@@ -1058,13 +1058,13 @@ async def _eat(
     bond = casual_bond_grant(
         await log.casual_bond_today(guild_id, user_id, now), BOND_PER_SNACK
     )
-    feed(life, points, user_id, now)
+    change_meter(life, Meter.WELLBEING, WELLBEING_PER_SNACK, ends_stretch=True)
     add_growth(life, snack.growth)
     if bond:
         await bot.players.add_bond(guild_id, user_id, bond)
     await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
     await bot.lives.save(guild_id, life)
-    return _Meal(life, player, points)
+    return _Meal(life, player)
 
 
 def _moment(snack: Snack) -> Moment:
@@ -1108,11 +1108,10 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
         return
-    text = f"♪ Wisp ate your {snack.name} ・ hunger +{meal.points}"
-    if meal.points < snack.meal:
-        text += " (daily meal limit)"
     await interaction.edit_original_response(
-        content=text, view=None, allowed_mentions=_NO_PING
+        content=f"♪ Wisp ate your {snack.name} ・ {_wellbeing_gain()}",
+        view=None,
+        allowed_mentions=_NO_PING,
     )
     emoji = bot.emoji(snack.emoji_name)
     moment, gif_name = _reaction(
@@ -1134,14 +1133,14 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> Menu | None
     """A menu of what the member can feed Wisp now, or None when nothing."""
     owned = await bot.activity_log.inventory(guild_id, user_id)
     options = [
-        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _hunger_gain(snack))
+        _option(bot, snack, f"{snack.name} x{owned[snack.key]}", _wellbeing_gain())
         for snack in _MENU
         if snack.key in owned
     ]
     if not await bot.activity_log.free_snack_used_today(
         guild_id, user_id, discord.utils.utcnow()
     ):
-        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _hunger_gain(_FREE))
+        free = _option(bot, _FREE, f"{_FREE.name} (free today)", _wellbeing_gain())
         options.insert(0, free)
     if not options:
         return None

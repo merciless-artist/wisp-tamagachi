@@ -277,6 +277,25 @@ async def test_viibr_track_feeds_five_and_forwards(
     server.house.send.assert_not_awaited()
 
 
+async def test_a_fed_track_fills_health_and_restarts_its_stretch(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    ready.health_stretch = 10800.0
+    ready.wellbeing_stretch = 10800.0
+    await bot.lives.save(GUILD_ID, ready)
+
+    await cog.on_message(message(f"new one {VIIBR_URL}"))
+
+    life = await current_life(bot)
+    assert life.health == ready.health + 5.0
+    assert life.health_stretch == 0.0
+    assert life.wellbeing_stretch == 10800.0
+    assert life.wellbeing == ready.wellbeing
+
+
 async def test_forward_line_uses_chosen_name_and_hangry_mood(
     cog: Feeding,
     bot: app.WispBot,

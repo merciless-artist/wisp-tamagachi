@@ -58,7 +58,7 @@ FADING_BELOW = 10.0
 # Wellbeing
 # ---
 
-# Filled by counted Rhyme Duels and every gift bought; below LONELY_BELOW he
+# Filled by snacks and every gift bought; below LONELY_BELOW he
 # is lonely, which only changes how he talks.
 WELLBEING_MAX = 100.0
 WELLBEING_START = 50.0
@@ -66,8 +66,9 @@ WELLBEING_START = 50.0
 # WELLBEING_PENALTY.
 WELLBEING_STRETCH = timedelta(hours=6)
 WELLBEING_PENALTY = 10.0
-CARE_PER_PLAY = 10
 WELLBEING_PER_GIFT = 8
+WELLBEING_PER_SNACK = 8
+MOOD_PER_PLAY = 10
 LONELY_BELOW = 30.0
 # The pictures in ASSETS/moments his lonely post picks from, by stage.
 LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {

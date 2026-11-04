@@ -27,8 +27,8 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import (
     BOND_PER_PLAY,
-    CARE_PER_PLAY,
     GROWTH_PER_PLAY,
+    MOOD_PER_PLAY,
     PLAY_POINTS,
     PLAYS_PER_DAY,
     RHYME_TURN,
@@ -603,17 +603,21 @@ async def test_a_duel_by_someone_who_cannot_feed_keeps_only_the_score(
     assert current.growth == life.growth
 
 
-async def test_a_counted_duel_adds_care(
+async def test_a_counted_duel_adds_ten_mood_and_restarts_its_stretch(
     bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
 ) -> None:
     life = await lay(bot)
+    life.mood_stretch = 7200.0
+    await bot.lives.save(GUILD_ID, life)
     wisp_says(None)
 
     await duel(bot, server, said("choir"))
 
     current = await bot.lives.current(GUILD_ID)
     assert current is not None
-    assert current.wellbeing == life.wellbeing + CARE_PER_PLAY
+    assert current.mood_meter == life.mood_meter + MOOD_PER_PLAY == 60.0
+    assert current.mood_stretch == 0.0
+    assert current.wellbeing == life.wellbeing
 
 
 async def test_a_counted_duel_pays_one_point(

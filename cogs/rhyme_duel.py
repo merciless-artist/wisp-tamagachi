@@ -16,8 +16,8 @@ from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
 from wisp.rules import (
     BOND_PER_PLAY,
-    CARE_PER_PLAY,
     GROWTH_PER_PLAY,
+    MOOD_PER_PLAY,
     PLAY_POINTS,
     PLAYS_PER_DAY,
     RHYME_THREAD_ARCHIVE_MINUTES,
@@ -195,7 +195,7 @@ async def _record_play(
             )
             await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
             add_growth(life, GROWTH_PER_PLAY)
-            change_meter(life, Meter.WELLBEING, CARE_PER_PLAY)
+            change_meter(life, Meter.MOOD, MOOD_PER_PLAY, ends_stretch=True)
             await bot.lives.save(guild_id, life)
         return await bot.players.record_rhyme_score(guild_id, user_id, points)
 
