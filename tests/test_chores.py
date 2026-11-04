@@ -28,6 +28,7 @@ from wisp.rules import (
     MOOD_START,
     NAP_HOURS,
     SICK_FOR,
+    TANTRUM_WINDOW,
     TICK_EVERY,
     Chore,
     Stage,
@@ -35,6 +36,7 @@ from wisp.rules import (
 
 T0 = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
 DAY = datetime(2026, 11, 2, tzinfo=UTC)
+QUIET_BEFORE_NAP = TANTRUM_WINDOW + TICK_EVERY
 NEVER = T0 + timedelta(days=365)
 POST = 77
 
@@ -270,9 +272,10 @@ def test_next_tantrum_is_always_awake(after: datetime) -> None:
         due = next_tantrum(after, random.Random(seed))
         assert after <= due < after + timedelta(days=2)
         for nap in _naps_around(due):
-            assert not (
-                nap - timedelta(minutes=15) <= due < nap + timedelta(hours=1)
-            ), (seed, due)
+            assert not (nap - QUIET_BEFORE_NAP <= due < nap + timedelta(hours=1)), (
+                seed,
+                due,
+            )
 
 
 def test_next_tantrum_moves_to_the_next_day_when_today_has_no_awake_time_left(
@@ -282,7 +285,7 @@ def test_next_tantrum_moves_to_the_next_day_when_today_has_no_awake_time_left(
     for seed in range(50):
         due = next_tantrum(utc(23, 30), random.Random(seed))
         assert (
-            datetime(2026, 11, 3, tzinfo=UTC) <= due < utc(22, 45) + timedelta(days=1)
+            datetime(2026, 11, 3, tzinfo=UTC) <= due < utc(22, 40) + timedelta(days=1)
         )
 
 
@@ -303,6 +306,33 @@ def test_a_tantrum_due_during_a_nap_waits_until_he_wakes() -> None:
     assert not is_open(life, Chore.TANTRUM)
     assert run(life, utc(11)) == [event(ChoreEventKind.TANTRUM)]
     assert not is_napping(life)
+
+
+def test_a_tantrum_due_at_the_last_awake_moment_closes_before_the_nap() -> None:
+    due = utc(10) - QUIET_BEFORE_NAP - timedelta(microseconds=1)
+    life = alive(at=utc(9, 35), nap_slot=None, tantrum_due_at=due)
+    assert tick_at(life, due) == [event(ChoreEventKind.TANTRUM)]
+    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert not is_open(life, Chore.TANTRUM)
+    assert is_napping(life)
+
+
+def test_a_tantrum_due_during_an_outage_waits_out_the_nap_coming() -> None:
+    life = alive(at=utc(9), nap_slot=None, tantrum_due_at=utc(9, 20))
+    assert tick_at(life, utc(9, 45)) == []
+    assert not is_open(life, Chore.TANTRUM)
+    assert life.tantrum_due_at is not None
+    assert utc(11) <= life.tantrum_due_at < DAY + timedelta(days=1)
+    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert event(ChoreEventKind.TANTRUM) in run(life, utc(23, 55))
+
+
+def test_a_tantrum_closing_on_the_naps_first_tick_lets_the_nap_start() -> None:
+    life = alive(at=utc(9, 45), nap_slot=None)
+    open_tantrum(life)
+    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert not is_open(life, Chore.TANTRUM)
+    assert is_napping(life)
 
 
 def test_a_due_time_from_an_earlier_day_is_rolled_again() -> None:

@@ -24,11 +24,13 @@ from wisp.rules import (
     NAP_HOURS,
     TANTRUM_MOOD_PENALTY,
     TANTRUM_WINDOW,
+    TICK_EVERY,
     WELLBEING_PER_CLEANUP,
     Chore,
 )
 
 _MICROSECOND = timedelta(microseconds=1)
+_QUIET_BEFORE_NAP = TANTRUM_WINDOW + TICK_EVERY
 
 # ---
 # Types
@@ -188,18 +190,27 @@ def latest_nap_start(now: datetime) -> datetime:
     return max(start for start in starts if start <= now)
 
 
-def _awake_windows(day: datetime) -> list[tuple[datetime, datetime]]:
-    """The UTC day from `day`, minus every nap and the TANTRUM_WINDOW before it.
-
-    Naps starting the day before and the day after count too, clipped to the day.
-    """
-    end_of_day = day + timedelta(days=1)
-    starts = [
+def _nap_starts(day: datetime) -> list[datetime]:
+    """Every nap start of the UTC day from `day`, the day before and the day after."""
+    return [
         day + timedelta(days=offset, hours=hour)
         for offset in (-1, 0, 1)
         for hour in NAP_HOURS
     ]
-    busy = sorted((start - TANTRUM_WINDOW, start + NAP_FOR) for start in starts)
+
+
+def _awake_windows(day: datetime) -> list[tuple[datetime, datetime]]:
+    """The UTC day from `day`, minus every nap and the quiet time before it.
+
+    The quiet time, _QUIET_BEFORE_NAP, is TANTRUM_WINDOW plus TICK_EVERY: a
+    tantrum opens on the first tick at or after its due time, up to TICK_EVERY
+    late, and must still close before the nap's first tick. Naps starting the
+    day before and the day after count too, clipped to the day.
+    """
+    end_of_day = day + timedelta(days=1)
+    busy = sorted(
+        (start - _QUIET_BEFORE_NAP, start + NAP_FOR) for start in _nap_starts(day)
+    )
     windows: list[tuple[datetime, datetime]] = []
     cursor = day
     for begin, end in busy:
@@ -231,6 +242,19 @@ def next_tantrum(after: datetime, rng: random.Random) -> datetime:
     return begin + offset * _MICROSECOND
 
 
+def _is_awake(now: datetime) -> bool:
+    """Whether `now` is in one of its UTC day's awake windows."""
+    return any(begin <= now < end for begin, end in _awake_windows(_midnight(now)))
+
+
+def _is_nap_coming(now: datetime) -> bool:
+    """Whether `now` is in the quiet time just before a nap starts."""
+    return any(
+        start - _QUIET_BEFORE_NAP <= now < start
+        for start in _nap_starts(_midnight(now))
+    )
+
+
 # ---
 # Ticking time
 # ---
@@ -247,8 +271,10 @@ def tick_chores(
     """Advance his chores by `elapsed` of counted time, then start any that are due.
 
     A nap start that falls while he is frozen, or more than MAX_CREDITED_GAP
-    before this tick, is skipped. No nap starts over an open tantrum, and no
-    tantrum during a nap; a tantrum due then waits until he wakes.
+    before this tick, is skipped. No nap starts over an open tantrum. A due
+    tantrum opens only while he is awake and outside a nap's time; one due
+    during a nap waits for its end, and one that comes due in the quiet time
+    before a nap (after an outage) is rolled again for after it.
     """
     if life.phase is not Phase.ALIVE:
         return []
@@ -274,9 +300,12 @@ def tick_chores(
     due = life.tantrum_due_at
     if due is None or due.date() < now.date():
         due = life.tantrum_due_at = next_tantrum(now, rng)
-    if not is_napping(life) and not is_open(life, Chore.TANTRUM) and due <= now:
-        events.append(open_tantrum(life))
-        life.tantrum_due_at = next_tantrum(_midnight(now) + timedelta(days=1), rng)
+    if due <= now and not is_napping(life) and not is_open(life, Chore.TANTRUM):
+        if _is_awake(now):
+            events.append(open_tantrum(life))
+            life.tantrum_due_at = next_tantrum(_midnight(now) + timedelta(days=1), rng)
+        elif _is_nap_coming(now):
+            life.tantrum_due_at = next_tantrum(now, rng)
     return events
 
 
