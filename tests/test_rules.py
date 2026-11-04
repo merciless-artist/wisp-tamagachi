@@ -1,5 +1,7 @@
 """Sanity checks on the rule tables."""
 
+from datetime import timedelta
+
 import pytest
 
 from wisp.links import TrackKind
@@ -7,10 +9,13 @@ from wisp.rules import (
     BADGE_BY_KEY,
     BADGES,
     BOND_TIERS,
+    FAREWELL_AT_DAY,
     MEAL_POINTS,
+    OLD_FOGEY_AT_DAY,
     RHYME_SKILL,
     RHYME_SURE_TURNS,
     SNACKS,
+    STAGE_MIN_TIME,
     STAGE_RULES,
     Stage,
     badge_name,
@@ -35,7 +40,15 @@ def test_only_the_daily_snack_is_free() -> None:
 def test_stage_requirements_rise_with_each_stage() -> None:
     ordered = [STAGE_RULES[stage] for stage in (Stage.CHILD, Stage.TEEN, Stage.ADULT)]
     for lower, higher in zip(ordered, ordered[1:]):
-        assert all(low < high for low, high in zip(lower, higher))
+        assert lower.growth < higher.growth
+        assert lower.share < higher.share
+        assert lower.by_day < higher.by_day
+
+
+def test_every_wisp_is_adult_before_old_age_and_gone_by_day_30() -> None:
+    assert STAGE_RULES[Stage.ADULT].by_day < OLD_FOGEY_AT_DAY < FAREWELL_AT_DAY
+    assert FAREWELL_AT_DAY == 30
+    assert STAGE_MIN_TIME == timedelta(days=3)
 
 
 def test_every_track_kind_has_meal_points() -> None:

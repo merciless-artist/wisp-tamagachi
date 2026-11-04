@@ -5,6 +5,7 @@ callers pass the current time (timezone-aware UTC) into every call, and the
 one random roll, when his cold is due, takes the caller's rng.
 """
 
+import math
 import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -35,6 +36,7 @@ from wisp.rules import (
     SICK_DRAIN_MULTIPLIER,
     SICK_FOR,
     SICK_FULL_FLOOR,
+    STAGE_MIN_TIME,
     STAGE_RULES,
     Stage,
 )
@@ -294,9 +296,19 @@ def _count_down_cold(life: Life, elapsed: timedelta) -> list[Event]:
 
 
 def tick(
-    life: Life, now: datetime, *, frozen: bool, happiness: int, caretakers: int
+    life: Life,
+    now: datetime,
+    *,
+    frozen: bool,
+    happiness: int,
+    caretakers: int,
+    people: int,
 ) -> list[Event]:
-    """Advance a life to `now`, crediting at most MAX_CREDITED_GAP of time."""
+    """Advance a life to `now`, crediting at most MAX_CREDITED_GAP of time.
+
+    `caretakers` cared for him this stage; `people` is how many he saw in the
+    last PEOPLE_WINDOW, which sets how many caretakers growing up takes.
+    """
     if is_over(life):
         return []
     gap = now - life.last_tick_at
@@ -311,7 +323,7 @@ def tick(
         return _tick_egg(life, now)
     if life.phase is Phase.HATCHING:
         return _tick_hatching(life, now)
-    return _tick_alive(life, now, elapsed, happiness, caretakers)
+    return _tick_alive(life, now, elapsed, happiness, caretakers, people)
 
 
 def _enter(life: Life, phase: Phase) -> None:
@@ -344,6 +356,7 @@ def _tick_alive(
     elapsed: timedelta,
     happiness: int,
     caretakers: int,
+    people: int,
 ) -> list[Event]:
     """Advance a living Wisp; a due cold starts before anything else happens.
 
@@ -364,7 +377,7 @@ def _tick_alive(
         return [Event(EventKind.FAREWELL)]
     events += _count_down_cold(life, elapsed)
     events += _warnings(life)
-    events += _grow(life, now, happiness, caretakers)
+    events += _grow(life, now, happiness, caretakers, people)
     return events
 
 
@@ -400,8 +413,10 @@ def _warnings(life: Life) -> list[Event]:
 # ---
 
 
-def _grow(life: Life, now: datetime, happiness: int, caretakers: int) -> list[Event]:
-    """Move a living Wisp up one stage, or into old age, when it has earned it."""
+def _grow(
+    life: Life, now: datetime, happiness: int, caretakers: int, people: int
+) -> list[Event]:
+    """Move a living Wisp up one stage, or into old age, when it is time."""
     stage = life.stage
     if (
         stage in (Stage.ADULT, Stage.ROCKSTAR)
@@ -414,7 +429,7 @@ def _grow(life: Life, now: datetime, happiness: int, caretakers: int) -> list[Ev
             return [_advance(life, Stage.ROCKSTAR, now)]
         return []
     next_stage = _NEXT_STAGE.get(stage)
-    if next_stage is not None and _met_requirements(life, next_stage, now, caretakers):
+    if next_stage is not None and _ready_for(life, next_stage, now, caretakers, people):
         return [_advance(life, next_stage, now)]
     return []
 
@@ -430,12 +445,23 @@ def _advance(
     return Event(kind, stage)
 
 
-def _met_requirements(life: Life, stage: Stage, now: datetime, caretakers: int) -> bool:
-    min_age, min_growth, min_caretakers = STAGE_RULES[stage]
+def caretakers_needed(stage: Stage, people: int) -> int:
+    """Caretakers growing into `stage` takes when he saw `people` people lately."""
+    return max(math.ceil(people * STAGE_RULES[stage].share), 1)
+
+
+def _ready_for(
+    life: Life, stage: Stage, now: datetime, caretakers: int, people: int
+) -> bool:
+    """Whether he earned `stage`, or reached the day he grows into it anyway."""
+    rule = STAGE_RULES[stage]
+    if age_days(life, now) >= rule.by_day:
+        return True
     return (
-        age_days(life, now) >= min_age
-        and life.growth >= min_growth
-        and caretakers >= min_caretakers
+        life.stage_started_at is not None
+        and now - life.stage_started_at >= STAGE_MIN_TIME
+        and life.growth >= rule.growth
+        and caretakers >= caretakers_needed(stage, people)
     )
 
 
@@ -447,3 +473,49 @@ def _kept_happy_long_enough(life: Life, now: datetime, happiness: int) -> bool:
     if life.high_happiness_since is None:
         life.high_happiness_since = now
     return now - life.high_happiness_since >= ROCKSTAR_HAPPY_FOR
+
+
+# ---
+# Staff tests
+# ---
+
+
+def _jump_age(stage: Stage) -> int:
+    """How many days old a Wisp put straight into `stage` is.
+
+    Old enough for that stage, and short of the day he must grow out of it.
+    """
+    if stage is Stage.BABY:
+        return 0
+    if stage is Stage.OLD_FOGEY:
+        return OLD_FOGEY_AT_DAY
+    if stage is Stage.ROCKSTAR:
+        return STAGE_RULES[Stage.ADULT].by_day
+    return STAGE_RULES[stage].by_day
+
+
+def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
+    """Put a living Wisp straight into `stage`, for staff testing it.
+
+    His age is set to match, so he stays in the stage until he grows out of
+    it on his own. An Old Fogey jumped to from a young stage is counted as
+    having been an Adult. Returns the event to announce; a Baby has none.
+    """
+    life.hatched_at = now - timedelta(days=_jump_age(stage))
+    life.high_happiness_since = None
+    keep_peak = stage is Stage.OLD_FOGEY
+    if keep_peak and life.peak_stage not in (Stage.ADULT, Stage.ROCKSTAR):
+        life.peak_stage = Stage.ADULT
+    event = _advance(life, stage, now, keep_peak=keep_peak)
+    return None if stage is Stage.BABY else event
+
+
+def ready_to_pass_on(life: Life, now: datetime) -> None:
+    """Make a living Wisp an Old Fogey on his farewell day; his next tick ends it."""
+    jump_to(life, Stage.OLD_FOGEY, now)
+    life.hatched_at = now - timedelta(days=FAREWELL_AT_DAY)
+
+
+def starve(life: Life) -> None:
+    """Empty a living Wisp's Full; his next tick, even a sick one, ends his life."""
+    life.full = 0.0

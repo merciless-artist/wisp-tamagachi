@@ -52,7 +52,7 @@ line while he is sick. All the numbers are starting values in `wisp/rules.py`.
   Five different people in 24 hours is full. A chat counts toward Wisp learning
   a member's name, but not toward bond, growth, caretakers, the "fed by" line
   or the stage-up keepsake. Staying very happy as an Adult (80 or more for
-  seven days) is what makes him a Rockstar.
+  four days) is what makes him a Rockstar.
 - **Care** is rhyme duels and gifts. It starts at 50 when he hatches and drains
   10 a day. Each rhyme duel that counts as play adds 10 and pays 1 Vault point
   (at most 5 a day per member), and every gift bought adds 8, kept or not.

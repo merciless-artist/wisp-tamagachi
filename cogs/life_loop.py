@@ -8,7 +8,7 @@ import random
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Annotated, Final
 
 import discord
 import pymysql
@@ -44,9 +44,20 @@ from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.card import WAITING
-from wisp.life import Event, EventKind, Life, Phase, is_over, schedule_cold, tick
+from wisp.life import (
+    Event,
+    EventKind,
+    Life,
+    Phase,
+    is_over,
+    jump_to,
+    ready_to_pass_on,
+    schedule_cold,
+    starve,
+    tick,
+)
 from wisp.lines import Moment
-from wisp.rules import PAID_SNACKS, QUIET_AFTER, TICK_EVERY
+from wisp.rules import PAID_SNACKS, PEOPLE_WINDOW, QUIET_AFTER, TICK_EVERY, Stage
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -55,6 +66,43 @@ _BEGIN_CONTEXT: Final = "the Begin again button"
 _STAFF_ONLY: Final = "♪ Only staff can start a new Wisp."
 _ALREADY_HERE: Final = "♪ Wisp is already here."
 _ON_ITS_WAY: Final = "♪ A new egg is on its way."
+
+# ---
+# Testing a life stage
+# ---
+
+_TEST_STAGES: Final = {
+    "baby": Stage.BABY,
+    "child": Stage.CHILD,
+    "teen": Stage.TEEN,
+    "adult": Stage.ADULT,
+    "rockstar": Stage.ROCKSTAR,
+    "oldfogey": Stage.OLD_FOGEY,
+}
+_FAREWELL: Final = "farewell"
+_STARVE: Final = "starve"
+_ENDINGS: Final = (_FAREWELL, _STARVE)
+_TEST_USAGE: Final = f"<{'|'.join([*_TEST_STAGES, *_ENDINGS])}>"
+_UNFREEZE_FIRST: Final = "♪ Unfreeze Wisp first: his life only ends while time passes."
+_NOT_ALIVE: Final = "♪ Wisp has to be hatched and alive to test a life stage."
+
+
+def _test_step(argument: str) -> str:
+    """Accept a stage or an ending as typed, in any case."""
+    step = argument.lower()
+    if step not in _TEST_STAGES and step not in _ENDINGS:
+        raise commands.BadArgument(f"Not a life stage: {argument}")
+    return step
+
+
+def _tested(step: str) -> str:
+    """The answer once a test step is done."""
+    if step == _FAREWELL:
+        return "♪ Test: Wisp has said his farewell."
+    if step == _STARVE:
+        return "♪ Test: Wisp has starved."
+    return f"♪ Test: Wisp is in his {_TEST_STAGES[step].label} stage now."
+
 
 # ---
 # Loop
@@ -153,7 +201,7 @@ class LifeLoop(commands.Cog):
         this tick. A Wisp who hatches picks his favorite snack, never the free
         one, or its line would answer every member's daily free snack.
         """
-        caretakers = 0
+        caretakers = people = 0
         if (
             life.phase is Phase.ALIVE
             and life.id is not None
@@ -162,8 +210,18 @@ class LifeLoop(commands.Cog):
             caretakers = await self.bot.activity_log.caretakers(
                 guild_id, life.id, life.stage_started_at
             )
+            people = await self.bot.activity_log.people_since(
+                guild_id, now - PEOPLE_WINDOW
+            )
         schedule_cold(life, self.rng)
-        events = tick(life, now, frozen=frozen, happiness=happy, caretakers=caretakers)
+        events = tick(
+            life,
+            now,
+            frozen=frozen,
+            happiness=happy,
+            caretakers=caretakers,
+            people=people,
+        )
         if any(event.kind is EventKind.HATCHED for event in events):
             life.favorite_snack = self.rng.choice(PAID_SNACKS).key
         await self.bot.lives.save(guild_id, life)
@@ -187,6 +245,45 @@ class LifeLoop(commands.Cog):
         await say_in_house(
             self.bot, guild_id, Moment.QUIET, life, image=nap_image(life.stage)
         )
+
+    # ---
+    # Testing a life stage
+    # ---
+
+    @commands.command(name="test_lifestage", usage=_TEST_USAGE)
+    async def test_lifestage(
+        self, ctx: StaffContext, step: Annotated[str, _test_step]
+    ) -> None:
+        """Jump the real Wisp to a life stage, or end his life, to test it.
+
+        A stage is announced like a real one and his card, House panel and
+        Vault catch up at once. Farewell and starve end his life through his
+        own tick, so they need him unfrozen.
+        """
+        bot = self.bot
+        guild_id = guild_of(ctx).id
+        now = discord.utils.utcnow()
+        if step in _ENDINGS and (await bot.settings.get(guild_id)).frozen:
+            await reply(ctx, _UNFREEZE_FIRST)
+            return
+        events: list[Event] = []
+        async with bot.guild_lock(guild_id):
+            life = await bot.lives.current(guild_id)
+            if life is not None and life.phase is Phase.ALIVE:
+                if step == _FAREWELL:
+                    ready_to_pass_on(life, now)
+                elif step == _STARVE:
+                    starve(life)
+                else:
+                    event = jump_to(life, _TEST_STAGES[step], now)
+                    events = [] if event is None else [event]
+                await bot.lives.save(guild_id, life)
+        if life is None or life.phase is not Phase.ALIVE:
+            await reply(ctx, _NOT_ALIVE)
+            return
+        await post_events(bot, guild_id, events)
+        await self._tick_guild(guild_id, now)
+        await reply(ctx, _tested(step))
 
 
 # ---

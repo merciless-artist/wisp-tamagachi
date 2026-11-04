@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-11-03 (Wisp grows up or dies within 30 days; staff can test a stage)
+
+- Myra: "he has to advance or die", "30 days tops", and the caretakers he
+  needs should depend on the people he actually sees. Growing up
+  (`STAGE_RULES`, now a `StageRule` of growth, share and deadline day) takes:
+  at least 3 days in the stage before (`STAGE_MIN_TIME`), the growth points
+  as before (20, 60, 150), and caretakers this stage numbering a share of the
+  people he saw in the last 7 days (`PEOPLE_WINDOW`), rounded up and at least
+  one: a quarter for Child, half for Teen, three quarters for Adult. The old
+  minimum ages (5, 11, 16 days) and fixed caretaker counts (3, 5, 8) are gone.
+- On day 7, 13 and 20 he grows into Child, Teen and Adult no matter what, so
+  every Wisp is an Adult before Old Fogey (day 24) and says his farewell by
+  day 30, unless he starves first. Before, a Wisp who never got 8 caretakers
+  stayed a Child or Teen forever.
+- Monster Pox now comes 1 to 7 days after hatching (`COLD_LATEST` was 12), so
+  it still comes and goes before the earliest Adult (day 9).
+- New staff command `!wisp test_lifestage <baby|child|teen|adult|rockstar|
+  oldfogey|farewell|starve>`. It changes the real Wisp: a stage sets his age
+  to match (so he stays in it until he grows on his own), is announced like
+  a real one, and his card, House panel and Vault catch up at once. Farewell
+  and starve end his life through his own tick, so they need him unfrozen.
+- Backup taken first: `ARCHIVE/WISP_BACKUP_2026-11-03_before_lifestage` (code
+  at 8c772d3 and every live `wisp_` table as JSON).
+
 ## 2026-11-02 (Wisp dances a lot, and the Child dances too)
 
 - Myra wants Wisp to dance a lot. The reaction rules in `wisp/voice.py` now

@@ -78,9 +78,10 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
 # ---
 
 # Once per life he catches Monster Pox, due a random time between COLD_EARLIEST
-# and COLD_LATEST after hatching. Adult needs 16 days, so it comes first.
+# and COLD_LATEST after hatching. Adult takes at least 9 days (three stages of
+# STAGE_MIN_TIME), so it comes and goes first.
 COLD_EARLIEST = timedelta(days=1)
-COLD_LATEST = timedelta(days=12)
+COLD_LATEST = timedelta(days=7)
 # Credited time he stays sick.
 SICK_FOR = timedelta(hours=48)
 # While sick Full drains faster, never drops below SICK_FULL_FLOOR, and each
@@ -110,12 +111,29 @@ HATCHING_TIME = timedelta(hours=5)
 
 HAPPY_FULL_AT_PEOPLE = 5
 
-# Per stage: (minimum age in days, growth points, distinct caretakers).
-STAGE_RULES: dict[Stage, tuple[int, int, int]] = {
-    Stage.CHILD: (5, 20, 3),
-    Stage.TEEN: (11, 60, 5),
-    Stage.ADULT: (16, 150, 8),
+
+@dataclass(frozen=True)
+class StageRule:
+    """What growing into a stage takes.
+
+    He needs `growth` points and caretakers this stage numbering `share` of
+    the people he saw in the last PEOPLE_WINDOW (rounded up, at least one),
+    after at least STAGE_MIN_TIME in the stage before. On day `by_day` he
+    grows into it no matter what.
+    """
+
+    growth: int
+    share: float
+    by_day: int
+
+
+STAGE_RULES: dict[Stage, StageRule] = {
+    Stage.CHILD: StageRule(growth=20, share=0.25, by_day=7),
+    Stage.TEEN: StageRule(growth=60, share=0.5, by_day=13),
+    Stage.ADULT: StageRule(growth=150, share=0.75, by_day=20),
 }
+STAGE_MIN_TIME = timedelta(days=3)
+PEOPLE_WINDOW = timedelta(days=7)
 
 OLD_FOGEY_AT_DAY = 24
 FAREWELL_AT_DAY = 30

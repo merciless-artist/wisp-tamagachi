@@ -1841,3 +1841,163 @@ async def test_a_restart_between_the_egg_and_the_badges_is_healed_on_the_next_ti
     member.remove_roles.assert_awaited_once_with(role, reason="Wisp v1's life ended")
     assert await bot.badges.pending(GUILD_ID) == []
     assert house_reports(server) == []
+
+
+# ---
+# Testing a life stage
+# ---
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(discord.utils, "utcnow", lambda: NOW)
+
+
+async def type_lifestage(cog: LifeLoop, server: FakeServer, step: str) -> None:
+    """Type `!wisp test_lifestage <step>` as staff in Wisp's House.
+
+    The cog is never added to the bot here, so the command is bound to it by
+    hand, as adding it would.
+    """
+    command = cog.test_lifestage
+    command.cog = cog
+    await command(staff_context(server, cog.bot), step)
+
+
+@pytest.mark.parametrize(
+    ("step", "stage", "age"),
+    [
+        ("child", Stage.CHILD, rules.STAGE_RULES[Stage.CHILD].by_day),
+        ("teen", Stage.TEEN, rules.STAGE_RULES[Stage.TEEN].by_day),
+        ("adult", Stage.ADULT, rules.STAGE_RULES[Stage.ADULT].by_day),
+        ("rockstar", Stage.ROCKSTAR, rules.STAGE_RULES[Stage.ADULT].by_day),
+        ("oldfogey", Stage.OLD_FOGEY, rules.OLD_FOGEY_AT_DAY),
+    ],
+)
+async def test_test_lifestage_jumps_the_real_wisp_and_announces_it(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    step: str,
+    stage: Stage,
+    age: int,
+) -> None:
+    await configure(bot)
+    life = await lay(bot, full=80.0)
+
+    await type_lifestage(cog, server, step)
+
+    jumped = await current_life(bot)
+    assert (jumped.id, jumped.phase, jumped.stage) == (life.id, Phase.ALIVE, stage)
+    assert jumped.hatched_at == NOW - timedelta(days=age)
+    assert jumped.stage_started_at == NOW
+    *announced, answer = house_texts(server)
+    assert announced
+    assert answer == f"♪ Test: Wisp is in his {stage.label} stage now."
+    assert button_ids(server.card_edit.await_args.kwargs["view"]) == [
+        "wisp:feed",
+        "wisp:poke",
+    ]
+
+
+async def test_test_lifestage_baby_is_not_announced(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    teen = await lay(bot, full=80.0, stage=Stage.TEEN)
+    await interact(bot, teen, NOW)
+
+    await type_lifestage(cog, server, "baby")
+
+    baby = await current_life(bot)
+    assert (baby.stage, baby.peak_stage, baby.hatched_at) == (
+        Stage.BABY,
+        Stage.BABY,
+        NOW,
+    )
+    assert house_texts(server) == ["♪ Test: Wisp is in his Baby stage now."]
+
+
+@pytest.mark.parametrize(
+    ("step", "phase", "answer"),
+    [
+        ("farewell", Phase.PASSED, "♪ Test: Wisp has said his farewell."),
+        ("starve", Phase.DEAD, "♪ Test: Wisp has starved."),
+    ],
+)
+async def test_test_lifestage_ends_his_life_through_his_own_tick(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    step: str,
+    phase: Phase,
+    answer: str,
+) -> None:
+    await configure(bot)
+    await lay(bot, full=80.0, stage=Stage.CHILD)
+
+    await type_lifestage(cog, server, step)
+
+    ended = await current_life(bot)
+    assert ended.phase is phase
+    texts = house_texts(server)
+    assert BEGIN_AGAIN in texts
+    assert texts[-1] == answer
+    assert button_ids(server.card_edit.await_args.kwargs["view"]) == ["wisp:begin"]
+
+
+async def test_test_lifestage_will_not_end_a_frozen_wisp(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot, frozen=True)
+    await lay(bot, full=80.0)
+
+    await type_lifestage(cog, server, "starve")
+
+    life = await current_life(bot)
+    assert (life.phase, life.full) == (Phase.ALIVE, 80.0)
+    assert house_texts(server) == [
+        "♪ Unfreeze Wisp first: his life only ends while time passes."
+    ]
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.DEAD])
+async def test_test_lifestage_needs_a_living_wisp(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    phase: Phase,
+) -> None:
+    await configure(bot)
+    life = await lay(bot, phase=phase, full=0.0)
+
+    await type_lifestage(cog, server, "teen")
+
+    after = await current_life(bot)
+    assert (after.phase, after.stage) == (phase, life.stage)
+    assert house_texts(server) == [
+        "♪ Wisp has to be hatched and alive to test a life stage."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("typed", "step"),
+    [("OldFogey", "oldfogey"), ("TEEN", "teen"), ("starve", "starve")],
+)
+def test_test_lifestage_reads_any_case(typed: str, step: str) -> None:
+    assert life_loop._test_step(typed) == step
+
+
+def test_test_lifestage_turns_away_anything_else() -> None:
+    with pytest.raises(commands.BadArgument):
+        life_loop._test_step("toddler")
+
+
+def test_test_lifestage_is_a_command_of_the_life_loop(cog: LifeLoop) -> None:
+    command = next(c for c in cog.get_commands() if c.name == "test_lifestage")
+    assert command.usage == (
+        "<baby|child|teen|adult|rockstar|oldfogey|farewell|starve>"
+    )
