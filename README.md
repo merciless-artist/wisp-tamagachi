@@ -214,8 +214,13 @@ where the command was used.
   - `cold`: he catches a cold, unless he is already sick.
   - `late`: every waiting chore runs out at once, the way it does when nobody
     helps: a left mess gives him a cold, a missed tantrum or missed lights
-    cost Mood.
-  - Tip: `!wisp test_lifestage baby` first shows the poop.
+    cost Mood. The same time also counts down a nap he is taking.
+  - Tip: run `!wisp test_lifestage baby`, then `!wisp test_chore mess`, to see
+    the poop (a mess is the one of his current stage).
+- `!wisp test_lifestage <baby|child|teen|adult|rockstar|oldfogey|farewell|starve>`
+  moves the real Wisp to a life stage, announced like a real one, to test it.
+  It changes the real Wisp. `farewell` and `starve` end his life and need him
+  unfrozen; `!wisp begin` starts over afterwards.
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.

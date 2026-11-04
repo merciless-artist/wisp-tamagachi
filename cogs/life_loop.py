@@ -380,9 +380,6 @@ class LifeLoop(commands.Cog):
         bot = self.bot
         guild_id = guild_of(ctx).id
         now = discord.utils.utcnow()
-        if (await bot.settings.get(guild_id)).frozen:
-            await reply(ctx, _UNFREEZE_CHORES_FIRST)
-            return
         result = await self._run_chore_test(guild_id, step, now)
         if isinstance(result, str):
             await reply(ctx, result)
@@ -395,8 +392,13 @@ class LifeLoop(commands.Cog):
     async def _run_chore_test(
         self, guild_id: int, step: str, now: datetime
     ) -> tuple[Life, list[ChoreEvent]] | str:
-        """Do the test under the guild lock and save it, or say why it cannot be."""
+        """Do the test under the guild lock and save it, or say why it cannot be.
+
+        Frozen is read under the lock, so a freeze that lands first is honored.
+        """
         async with self.bot.guild_lock(guild_id):
+            if (await self.bot.settings.get(guild_id)).frozen:
+                return _UNFREEZE_CHORES_FIRST
             life = await self.bot.lives.current(guild_id)
             if life is None or life.phase is not Phase.ALIVE:
                 return _NOT_ALIVE_FOR_CHORE

@@ -2217,6 +2217,92 @@ async def test_test_chore_late_runs_out_an_open_mess_into_a_cold(
     assert (life.mess_left, life.sniffles_left > 0) == (0.0, True)
 
 
+def lines_in_any_mood(moment: Moment) -> set[str]:
+    return {
+        line for (said, _), lines in LINES.items() if said is moment for line in lines
+    }
+
+
+async def test_test_chore_late_runs_out_a_tantrum_and_spoils_him(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    posts = numbered_posts(server)
+    await type_chore(cog, server, "tantrum")
+    mood_before = (await current_life(bot)).mood_meter
+
+    await type_chore(cog, server, "late")
+
+    edit = posts[9000].edit.await_args.kwargs
+    assert edit["content"] in lines_in_any_mood(Moment.TANTRUM_MISSED)
+    assert edit["view"] is None
+    life = await current_life(bot)
+    assert life.mood_meter == mood_before - rules.TANTRUM_MOOD_PENALTY
+    assert life.spoiled_until == datetime(2026, 10, 23, tzinfo=UTC)
+
+
+async def test_test_chore_late_runs_out_the_lights_and_makes_him_cranky(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    posts = numbered_posts(server)
+    await type_chore(cog, server, "nap")
+    mood_before = (await current_life(bot)).mood_meter
+
+    await type_chore(cog, server, "late")
+
+    edit = posts[9000].edit.await_args.kwargs
+    assert edit["content"] in lines_in_any_mood(Moment.LIGHTS_MISSED)
+    assert edit["view"] is None
+    life = await current_life(bot)
+    assert life.mood_meter == mood_before - rules.LIGHTS_MOOD_PENALTY
+    assert life.cranky_until == (
+        NOW + rules.NAP_FOR - rules.LIGHTS_WINDOW + rules.CRANKY_FOR
+    )
+    assert life.nap_left == (rules.NAP_FOR - rules.LIGHTS_WINDOW).total_seconds()
+
+
+class WatchedLock(asyncio.Lock):
+    """A guild lock that says when someone starts waiting for it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.wanted = asyncio.Event()
+
+    async def acquire(self) -> bool:
+        self.wanted.set()
+        return await super().acquire()
+
+
+async def test_test_chore_reads_frozen_under_the_guild_lock(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    frozen_clock: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await configure(bot)
+    await lay_awake(bot)
+    numbered_posts(server)
+    lock = WatchedLock()
+    monkeypatch.setattr(bot, "guild_lock", lambda _guild_id: lock)
+    await lock.acquire()
+    lock.wanted.clear()
+
+    typed = asyncio.create_task(type_chore(cog, server, "mess"))
+    await lock.wanted.wait()
+    await bot.settings.update(GUILD_ID, frozen=True)
+    lock.release()
+    await typed
+
+    assert house_texts(server) == [
+        "♪ Unfreeze Wisp first: his chores only run while time passes."
+    ]
+    assert (await current_life(bot)).mess_left == 0.0
+
+
 async def test_test_chore_refuses_an_open_chore_twice(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
 ) -> None:
