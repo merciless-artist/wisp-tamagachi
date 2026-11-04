@@ -21,6 +21,7 @@ from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
     credit_chat,
+    credit_poke,
     maybe_meet,
     report_failure,
     say_privately,
@@ -235,8 +236,9 @@ async def _prompt(
 class Conversation(commands.Cog):
     """Wisp in his House: he answers when spoken to and sometimes chimes in.
 
-    Talking to him earns no bond. A member's first mention or poke of the UTC
-    day also records a chat, which makes him happy and earns a Vault point.
+    Talking to him earns no bond. A member's first three mentions of the UTC
+    day each fill his Wellbeing and their first three pokes his Mood; the
+    day's first credit of either kind also earns a Vault point.
     The recent chat and the talk cooldown live in `bot.talk`, shared with pokes.
     """
 
@@ -302,7 +304,7 @@ class Conversation(commands.Cog):
             return
         credited = False
         try:
-            credited = await credit_chat(self.bot, guild.id, message.author, life, now)
+            credited = await credit_chat(self.bot, guild.id, message.author, now)
         except pymysql.err.Error as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
         try:
@@ -458,7 +460,7 @@ async def _poke(interaction: discord.Interaction) -> None:
         return
     credited = False
     try:
-        credited = await credit_chat(bot, guild_id, user, life, now)
+        credited = await credit_poke(bot, guild_id, user, now)
     except pymysql.err.Error as error:
         await bot.report_error(
             interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)

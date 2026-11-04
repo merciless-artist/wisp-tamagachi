@@ -786,21 +786,42 @@ async def test_people_and_caretakers_since(db: Database) -> None:
     assert await repo.caretakers(GUILD, 2, since) == 1
 
 
-async def test_chatted_today_is_once_per_utc_day(db: Database) -> None:
+async def test_chats_and_pokes_today_count_their_own_kind(db: Database) -> None:
     repo = ActivityRepo(db)
-    assert await repo.chatted_today(GUILD, USER, NOW) is False
+    assert (await repo.chats_today(GUILD, USER, NOW)) == 0
+    assert (await repo.pokes_today(GUILD, USER, NOW)) == 0
 
-    await repo.record_interaction(GUILD, 1, USER, InteractionKind.CHAT, 0, 0, NOW)
-    await repo.record_interaction(GUILD, 1, OTHER_USER, InteractionKind.PLAY, 0, 0, NOW)
+    chat, poke = InteractionKind.CHAT, InteractionKind.POKE
+    await repo.record_interaction(GUILD, 1, USER, chat, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, USER, chat, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, USER, poke, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, OTHER_USER, poke, 0, 0, NOW)
     await repo.record_interaction(
-        GUILD, 1, 3, InteractionKind.CHAT, 0, 0, MIDNIGHT - timedelta(seconds=1)
+        GUILD, 1, USER, chat, 0, 0, MIDNIGHT - timedelta(seconds=1)
     )
 
-    assert await repo.chatted_today(GUILD, USER, NOW) is True
-    assert await repo.chatted_today(GUILD, USER, MIDNIGHT + timedelta(days=1)) is False
-    assert await repo.chatted_today(GUILD, OTHER_USER, NOW) is False
-    assert await repo.chatted_today(GUILD, 3, NOW) is False
-    assert await repo.chatted_today(OTHER_GUILD, USER, NOW) is False
+    assert await repo.chats_today(GUILD, USER, NOW) == 2
+    assert await repo.pokes_today(GUILD, USER, NOW) == 1
+    assert await repo.chats_today(GUILD, USER, MIDNIGHT + timedelta(days=1)) == 0
+    assert await repo.pokes_today(GUILD, OTHER_USER, NOW) == 1
+    assert await repo.chats_today(GUILD, OTHER_USER, NOW) == 0
+    assert await repo.chats_today(OTHER_GUILD, USER, NOW) == 0
+
+
+async def test_pokes_and_chats_are_not_caring(db: Database) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(hours=24)
+    await repo.record_interaction(GUILD, 1, 1, InteractionKind.POKE, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, 2, InteractionKind.CHAT, 0, 0, NOW)
+
+    assert await repo.caretakers(GUILD, 1, since) == 0
+    assert await repo.latest_interactor(GUILD, 1) is None
+
+    await repo.record_interaction(GUILD, 1, 3, InteractionKind.PLAY, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, 4, InteractionKind.POKE, 0, 0, NOW)
+
+    assert await repo.caretakers(GUILD, 1, since) == 1
+    assert await repo.latest_interactor(GUILD, 1) == 3
 
 
 async def test_feeders_since_counts_only_feeding(db: Database) -> None:

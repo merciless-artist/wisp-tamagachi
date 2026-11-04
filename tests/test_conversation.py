@@ -1684,58 +1684,134 @@ async def test_poke_button_survives_restart(
 # ---
 
 
-async def test_poke_then_mention_credits_once(
+async def mention_times(
+    cog: Conversation,
+    clock: Clock,
+    message: MessageFactory,
+    times: int,
+    user_id: int = FIRST,
+) -> None:
+    for _ in range(times):
+        await cog.on_message(message.to_wisp("hello", author=MEMBERS[user_id]))
+        clock.advance(TALK_COOLDOWN)
+
+
+async def poke_times(clock: Clock, poke: Press, times: int) -> None:
+    for _ in range(times):
+        await poke()
+        clock.advance(TALK_COOLDOWN)
+
+
+async def current(bot: app.WispBot) -> Life:
+    life = await bot.lives.current(GUILD_ID)
+    assert life is not None
+    return life
+
+
+async def test_the_first_three_mentions_a_day_add_five_wellbeing_each(
+    cog: Conversation,
+    bot: app.WispBot,
+    clock: Clock,
+    message: MessageFactory,
+    db: Database,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    await mention_times(cog, clock, message, 4)
+
+    assert (await current(bot)).wellbeing == 65.0
+    rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
+    assert rows == [{"kind": "chat"}] * 3
+
+
+async def test_a_fourth_mention_does_not_restart_the_wellbeing_stretch(
+    cog: Conversation, bot: app.WispBot, clock: Clock, message: MessageFactory
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    await mention_times(cog, clock, message, 3)
+    life = await current(bot)
+    life.wellbeing_stretch = 3600.0
+    await bot.lives.save(GUILD_ID, life)
+
+    await mention_times(cog, clock, message, 1)
+
+    assert (await current(bot)).wellbeing_stretch == 3600.0
+
+
+async def test_the_first_three_pokes_a_day_add_five_mood_each(
+    bot: app.WispBot, clock: Clock, poke: Press, db: Database
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    await poke_times(clock, poke, 4)
+
+    assert (await current(bot)).mood_meter == 65.0
+    rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
+    assert rows == [{"kind": "poke"}] * 3
+
+
+async def test_the_chat_point_is_paid_once_a_day_across_chats_and_pokes(
     cog: Conversation,
     bot: app.WispBot,
     clock: Clock,
     message: MessageFactory,
     poke: Press,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    await mention_times(cog, clock, message, 1)
+    await poke_times(clock, poke, 1)
+    await mention_times(cog, clock, message, 1)
+    await poke_times(clock, poke, 1)
+
+    assert await points(bot, FIRST) == CHAT_POINTS
+    assert await bot.activity_log.chats_today(GUILD_ID, FIRST, clock.now) == 2
+    assert await bot.activity_log.pokes_today(GUILD_ID, FIRST, clock.now) == 2
+
+
+async def test_a_member_who_cannot_feed_earns_no_credit_and_restarts_nothing(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    poke: Press,
+    clock: Clock,
     db: Database,
 ) -> None:
     life = await lay(bot)
-    await enroll(bot, FIRST, SECOND)
+    life.wellbeing_stretch = life.mood_stretch = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+    said = message.to_wisp("hello")
 
-    await poke(FIRST)
+    await cog.on_message(said)
     clock.advance(TALK_COOLDOWN)
-    await cog.on_message(message.to_wisp("hi again"))
+    pressed = await poke()
 
-    rows = await db.fetchall(
-        f"SELECT user_id, life_id, kind, bond, meal_points FROM "
-        f"{db.t('interactions')}"
-    )
-    assert rows == [
-        {
-            "user_id": FIRST,
-            "life_id": life.id,
-            "kind": "chat",
-            "bond": 0,
-            "meal_points": 0,
-        }
-    ]
-    assert await points(bot, FIRST) == CHAT_POINTS
-
-    await poke(SECOND)
-    assert await points(bot, SECOND) == CHAT_POINTS
-    assert await points(bot, FIRST) == CHAT_POINTS
-    assert await bot.activity_log.chatted_today(GUILD_ID, SECOND, START) is True
+    assert reply_text(said) == "hey you"
+    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
+    after = await current(bot)
+    assert (after.wellbeing, after.mood_meter) == (50.0, 50.0)
+    assert (after.wellbeing_stretch, after.mood_stretch) == (1800.0, 1800.0)
+    assert await points(bot, FIRST) == 0
 
 
-async def test_a_mention_credits_the_days_first_chat(
-    cog: Conversation,
-    bot: app.WispBot,
-    clock: Clock,
-    message: MessageFactory,
-    poke: Press,
+async def test_credits_start_again_at_utc_midnight(
+    cog: Conversation, bot: app.WispBot, clock: Clock, message: MessageFactory
 ) -> None:
-    await lay(bot, Stage.EGG, Phase.EGG)
+    await lay(bot)
     await enroll(bot, FIRST)
+    clock.now = datetime(2026, 10, 23, 23, 50, tzinfo=UTC)
 
-    await cog.on_message(message.to_wisp("hello"))
-    clock.advance(TALK_COOLDOWN)
-    await poke(FIRST)
+    await mention_times(cog, clock, message, 3)
+    clock.now = datetime(2026, 10, 24, 0, 5, tzinfo=UTC)
+    await mention_times(cog, clock, message, 1)
 
-    assert await points(bot, FIRST) == CHAT_POINTS
-    assert await bot.activity_log.chatted_today(GUILD_ID, FIRST, START) is True
+    assert (await current(bot)).wellbeing == 70.0
 
 
 async def test_chatting_earns_no_bond_growth_or_caretaking(
@@ -1772,7 +1848,6 @@ async def test_a_member_who_cannot_feed_is_answered_without_credit(
     assert reply_text(said) == "hey you"
     assert private_reply(pressed) == "♪ You poked Wisp."
     assert await points(bot, FIRST) == 0
-    assert await bot.activity_log.chatted_today(GUILD_ID, FIRST, START) is False
 
 
 async def test_a_failed_credit_is_reported_and_the_mention_still_answered(

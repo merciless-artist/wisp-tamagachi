@@ -215,24 +215,41 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
 # ---
 
 
-async def test_chat_credit_is_once_a_day(bot: app.WispBot) -> None:
-    life = await lay(bot)
+async def test_chat_credit_stops_after_three_a_day(bot: app.WispBot) -> None:
+    await lay(bot)
     await enroll(bot)
     member = make_member()
 
-    assert await players.credit_chat(bot, GUILD_ID, member, life, NOW) is True
+    for hours in range(3):
+        later = NOW + timedelta(hours=hours)
+        assert await players.credit_chat(bot, GUILD_ID, member, later) is True
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.balance, player.lifetime_points) == (rules.CHAT_POINTS,) * 2
 
-    later = NOW + timedelta(hours=5)
-    assert await players.credit_chat(bot, GUILD_ID, member, life, later) is False
-    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == rules.CHAT_POINTS
-
+    assert await players.credit_chat(bot, GUILD_ID, member, NOW) is False
     tomorrow = NOW.replace(hour=0, minute=0) + timedelta(days=1)
-    assert await players.credit_chat(bot, GUILD_ID, member, life, tomorrow) is True
+    assert await players.credit_chat(bot, GUILD_ID, member, tomorrow) is True
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == (
         2 * rules.CHAT_POINTS
     )
+
+
+async def test_chats_and_pokes_have_their_own_three(bot: app.WispBot) -> None:
+    await lay(bot)
+    await enroll(bot)
+    member = make_member()
+
+    for _ in range(rules.CHAT_CREDITS_PER_DAY):
+        assert await players.credit_chat(bot, GUILD_ID, member, NOW) is True
+    for _ in range(rules.POKE_CREDITS_PER_DAY):
+        assert await players.credit_poke(bot, GUILD_ID, member, NOW) is True
+
+    assert await players.credit_chat(bot, GUILD_ID, member, NOW) is False
+    assert await players.credit_poke(bot, GUILD_ID, member, NOW) is False
+    life = await bot.lives.current(GUILD_ID)
+    assert life is not None
+    assert life.wellbeing == 50.0 + 3 * rules.WELLBEING_PER_CHAT
+    assert life.mood_meter == 50.0 + 3 * rules.MOOD_PER_POKE
 
 
 async def test_chat_credit_records_a_chat_with_no_bond_or_meal(
@@ -241,19 +258,22 @@ async def test_chat_credit_records_a_chat_with_no_bond_or_meal(
     life = await lay(bot)
     await enroll(bot)
 
-    await players.credit_chat(bot, GUILD_ID, make_member(), life, NOW)
+    await players.credit_chat(bot, GUILD_ID, make_member(), NOW)
+    await players.credit_poke(bot, GUILD_ID, make_member(), NOW)
 
     rows = await db.fetchall(
-        f"SELECT user_id, life_id, kind, bond, meal_points FROM {db.t('interactions')}"
+        f"SELECT user_id, life_id, kind, bond, meal_points FROM {db.t('interactions')} "
+        "ORDER BY id"
     )
     assert rows == [
         {
             "user_id": FIRST_USER,
             "life_id": life.id,
-            "kind": InteractionKind.CHAT.value,
+            "kind": kind.value,
             "bond": 0,
             "meal_points": 0,
         }
+        for kind in (InteractionKind.CHAT, InteractionKind.POKE)
     ]
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).bond == 0
 
@@ -274,7 +294,7 @@ async def test_only_feeders_get_chat_credit(
     activated: bool,
     banned: bool,
 ) -> None:
-    life = await lay(bot)
+    await lay(bot)
     await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
     if activated:
         await bot.players.activate(GUILD_ID, FIRST_USER, NOW)
@@ -283,22 +303,17 @@ async def test_only_feeders_get_chat_credit(
             GUILD_ID, FIRST_USER, 1, NOW + timedelta(days=1), False
         )
 
-    given = await players.credit_chat(
-        bot, GUILD_ID, make_member(roles=roles), life, NOW
-    )
+    given = await players.credit_chat(bot, GUILD_ID, make_member(roles=roles), NOW)
 
     assert given is False
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
 
 
-async def test_chat_credit_needs_a_life_that_is_stored(bot: app.WispBot) -> None:
+async def test_chat_credit_needs_a_life(bot: app.WispBot) -> None:
     await enroll(bot)
-    unsaved = make_life(1, Phase.ALIVE, hatched_ago=timedelta(hours=1))
 
-    assert (
-        await players.credit_chat(bot, GUILD_ID, make_member(), unsaved, NOW) is False
-    )
+    assert await players.credit_chat(bot, GUILD_ID, make_member(), NOW) is False
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
 
 

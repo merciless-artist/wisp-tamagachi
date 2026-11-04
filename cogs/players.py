@@ -15,9 +15,17 @@ from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import should_meet
 from wisp.card import CardFacts, render_status
-from wisp.life import Life, Phase, add_growth
+from wisp.life import Life, Meter, Phase, add_growth, change_meter
 from wisp.lines import Moment
-from wisp.rules import CHAT_POINTS, GROWTH_PER_BOND_MOMENT, NAME_MAX
+from wisp.rules import (
+    CHAT_CREDITS_PER_DAY,
+    CHAT_POINTS,
+    GROWTH_PER_BOND_MOMENT,
+    MOOD_PER_POKE,
+    NAME_MAX,
+    POKE_CREDITS_PER_DAY,
+    WELLBEING_PER_CHAT,
+)
 from wisp.text import USER_ERROR, count
 
 if TYPE_CHECKING:
@@ -70,26 +78,81 @@ async def credit_chat(
     bot: "WispBot",
     guild_id: int,
     member: discord.User | discord.Member,
-    life: Life,
     now: datetime,
 ) -> bool:
-    """Give a member the day's chat credit for poking or mentioning Wisp.
+    """Credit a member's mention of Wisp: Wellbeing for the first few of the day.
 
-    The first poke or mention of the UTC day records a CHAT interaction, which
-    earns no bond or growth, and gives CHAT_POINTS. Only a member who is not
-    banned and can feed Wisp earns it. Returns whether it was given.
+    Returns whether it was credited; see `_credit`.
     """
-    if life.id is None:
-        return False
-    player = await bot.players.get(guild_id, member.id)
-    if player.is_banned(now) or not await can_feed(bot, guild_id, member):
-        return False
-    if await bot.activity_log.chatted_today(guild_id, member.id, now):
-        return False
-    await bot.activity_log.record_interaction(
-        guild_id, life.id, member.id, InteractionKind.CHAT, 0, 0, now
+    return await _credit(
+        bot,
+        guild_id,
+        member,
+        InteractionKind.CHAT,
+        Meter.WELLBEING,
+        WELLBEING_PER_CHAT,
+        CHAT_CREDITS_PER_DAY,
+        now,
     )
-    await bot.players.add_points(guild_id, member.id, CHAT_POINTS)
+
+
+async def credit_poke(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    now: datetime,
+) -> bool:
+    """Credit a member's poke of Wisp: Mood for the first few of the day.
+
+    Returns whether it was credited; see `_credit`.
+    """
+    return await _credit(
+        bot,
+        guild_id,
+        member,
+        InteractionKind.POKE,
+        Meter.MOOD,
+        MOOD_PER_POKE,
+        POKE_CREDITS_PER_DAY,
+        now,
+    )
+
+
+async def _credit(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    kind: InteractionKind,
+    meter: Meter,
+    amount: float,
+    per_day: int,
+    now: datetime,
+) -> bool:
+    """Record one credited chat or poke, fill its meter and pay the day's point.
+
+    A credit records an interaction of `kind`, which earns no bond or growth,
+    moves `meter` by `amount` and restarts that meter's stretch. It is given
+    only while Wisp has a life, to a member who is not banned and can feed him,
+    and only until the member has had `per_day` of that kind on the UTC day of
+    `now`. The first credit of the day, of either kind, also pays CHAT_POINTS.
+    """
+    async with bot.guild_lock(guild_id):
+        life = await bot.lives.current(guild_id)
+        if life is None or life.id is None:
+            return False
+        player = await bot.players.get(guild_id, member.id)
+        if player.is_banned(now) or not await can_feed(bot, guild_id, member):
+            return False
+        log = bot.activity_log
+        chats = await log.chats_today(guild_id, member.id, now)
+        pokes = await log.pokes_today(guild_id, member.id, now)
+        if (chats if kind is InteractionKind.CHAT else pokes) >= per_day:
+            return False
+        await log.record_interaction(guild_id, life.id, member.id, kind, 0, 0, now)
+        change_meter(life, meter, amount, ends_stretch=True)
+        await bot.lives.save(guild_id, life)
+        if chats + pokes == 0:
+            await bot.players.add_points(guild_id, member.id, CHAT_POINTS)
     return True
 
 

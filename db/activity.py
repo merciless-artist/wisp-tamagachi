@@ -13,8 +13,8 @@ from wisp.links import Track, TrackKind
 class InteractionKind(StrEnum):
     """What a member did with Wisp.
 
-    FEED and GIFT are not casual play. CHAT is the day's first poke or mention,
-    which is not caring for him.
+    FEED and GIFT are not casual play. CHAT is a credited mention and POKE a
+    credited poke; neither is caring for him.
     """
 
     FEED = "feed"
@@ -23,9 +23,11 @@ class InteractionKind(StrEnum):
     PLAY = "play"
     GIFT = "gift"
     CHAT = "chat"
+    POKE = "poke"
 
 
 _CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)
+_TALK = (InteractionKind.CHAT, InteractionKind.POKE)
 _FEEDING = (
     InteractionKind.FEED,
     InteractionKind.SNACK,
@@ -149,13 +151,14 @@ class ActivityRepo:
     async def caretakers(self, guild_id: int, life_id: int, since: datetime) -> int:
         """Number of different members who cared for one life since `since`.
 
-        Chatting is not caring.
+        Chatting and poking are not caring.
         """
         row = await self._db.fetchone(
             f"SELECT COUNT(DISTINCT user_id) AS people FROM "
             f"{self._db.t('interactions')} "
-            "WHERE guild_id = %s AND life_id = %s AND at >= %s AND kind <> %s",
-            (guild_id, life_id, to_db_time(since), InteractionKind.CHAT.value),
+            "WHERE guild_id = %s AND life_id = %s AND at >= %s "
+            "AND kind NOT IN (%s, %s)",
+            (guild_id, life_id, to_db_time(since), *(kind.value for kind in _TALK)),
         )
         assert row is not None
         return int(row["people"])
@@ -163,13 +166,13 @@ class ActivityRepo:
     async def latest_interactor(self, guild_id: int, life_id: int) -> int | None:
         """The member who last cared for one life in any way, or None.
 
-        Chatting is not caring.
+        Chatting and poking are not caring.
         """
         row = await self._db.fetchone(
             f"SELECT user_id FROM {self._db.t('interactions')} "
-            "WHERE guild_id = %s AND life_id = %s AND kind <> %s "
+            "WHERE guild_id = %s AND life_id = %s AND kind NOT IN (%s, %s) "
             "ORDER BY at DESC, id DESC LIMIT 1",
-            (guild_id, life_id, InteractionKind.CHAT.value),
+            (guild_id, life_id, *(kind.value for kind in _TALK)),
         )
         return None if row is None else int(row["user_id"])
 
@@ -232,11 +235,13 @@ class ActivityRepo:
             await self._count_today(InteractionKind.FREE_SNACK, guild_id, user_id, now)
         )
 
-    async def chatted_today(self, guild_id: int, user_id: int, now: datetime) -> bool:
-        """Whether the member has had today's chat credit on the UTC day of `now`."""
-        return bool(
-            await self._count_today(InteractionKind.CHAT, guild_id, user_id, now)
-        )
+    async def chats_today(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Credited mentions the member has made on the UTC day of `now`."""
+        return await self._count_today(InteractionKind.CHAT, guild_id, user_id, now)
+
+    async def pokes_today(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Credited pokes the member has made on the UTC day of `now`."""
+        return await self._count_today(InteractionKind.POKE, guild_id, user_id, now)
 
     async def tracks_today(self, guild_id: int, now: datetime) -> tuple[int, int]:
         """Return (ViiBR, Suno) tracks fed on the UTC day of `now`."""
