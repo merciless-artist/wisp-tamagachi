@@ -191,6 +191,11 @@ MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
 # The pictures in ASSETS/moments for a cold, its medicine and a tantrum.
 SNIFFLES_PICTURE: Final = "wispsick.gif"
 MEDICINE_PICTURE: Final = "medicine.png"
+# Medicine in the Vault cures his cold for MEDICINE_COST and pays the buyer
+# MEDICINE_POINTS.
+MEDICINE_COST = 10
+MEDICINE_POINTS = 3
+MEDICINE_EMOJI: Final = "medicine"
 TANTRUM_PICTURES: Final[dict[Stage, str]] = {
     Stage.BABY: "tantrum_baby.gif",
     Stage.CHILD: "grumpy.gif",

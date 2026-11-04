@@ -1345,6 +1345,127 @@ async def test_simultaneous_feeds_both_count(bot: app.WispBot) -> None:
 
 
 # ---
+# Medicine
+# ---
+
+
+async def catch_cold(bot: app.WispBot) -> None:
+    life = await current_life(bot)
+    life.sniffles_left = rules.SNIFFLES_FOR.total_seconds()
+    await bot.lives.save(GUILD_ID, life)
+
+
+async def medicine_select(
+    bot: app.WispBot, user_id: int = USER_ID
+) -> discord.ui.Select[Any]:
+    interaction = make_interaction(bot, user_id)
+    await run(snacks.wisp_vault, interaction)
+    view = interaction.followup.send.await_args.kwargs["view"]
+    (select,) = [
+        found
+        for found in layout_selects(view)
+        if found.placeholder == "Give Wisp medicine"
+    ]
+    return select
+
+
+async def test_medicine_shows_in_the_vault_only_while_he_has_a_cold(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    well, _ = await open_vault(bot)
+    await catch_cold(bot)
+    sick, _ = await open_vault(bot)
+
+    well_view = well.followup.send.await_args.kwargs["view"]
+    sick_view = sick.followup.send.await_args.kwargs["view"]
+    assert "Medicine" not in layout_text(well_view)
+    assert "Give Wisp medicine" not in layout_order(well_view)
+    sections = [line for line in layout_text(sick_view).splitlines() if "**" in line]
+    assert sections.index("║𝄡𝄚𝄂𝄆 **Medicine**") == 1
+    assert sections[0] == "║𝄡𝄚𝄂𝄆 **Snacks**"
+    order = layout_order(sick_view)
+    assert order.index("Buy a snack") + 2 == order.index("Give Wisp medicine")
+    select = next(
+        found
+        for found in layout_selects(sick_view)
+        if found.placeholder == "Give Wisp medicine"
+    )
+    assert option_values(select) == ["medicine"]
+    assert select.options[0].description == "10 WC ・ cures his cold"
+
+
+async def test_buying_medicine_cures_him_and_pays_three(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    select = await medicine_select(bot)
+
+    interaction = await choose(bot, select, "medicine")
+
+    assert (await current_life(bot)).sniffles_left == 0
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == -10 + 10 + 3
+    assert reply_text(interaction).startswith("♪ You gave Wisp his medicine ・ +3 WC")
+    post = server.house.send.await_args
+    assert post.kwargs["file"].filename == "medicine.png"
+    assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
+async def test_a_second_buyer_is_refused_before_paying(bot: app.WispBot) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    for user in (USER_ID, OTHER_USER_ID):
+        await bot.players.add_points(GUILD_ID, user, 10)
+    first = await medicine_select(bot, USER_ID)
+    second = await medicine_select(bot, OTHER_USER_ID)
+
+    await choose(bot, first, "medicine", USER_ID)
+    refused = await choose(bot, second, "medicine", OTHER_USER_ID)
+
+    assert (await bot.players.get(GUILD_ID, OTHER_USER_ID)).balance == 10
+    assert "♪ Wisp doesn't have a cold right now." in reply_text(refused)
+
+
+async def test_two_buyers_at_once_pay_once(bot: app.WispBot) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    for user in (USER_ID, OTHER_USER_ID):
+        await bot.players.add_points(GUILD_ID, user, 10)
+    first = await medicine_select(bot, USER_ID)
+    second = await medicine_select(bot, OTHER_USER_ID)
+
+    await asyncio.gather(
+        choose(bot, first, "medicine", USER_ID),
+        choose(bot, second, "medicine", OTHER_USER_ID),
+    )
+
+    balances = sorted(
+        [
+            (await bot.players.get(GUILD_ID, USER_ID)).balance,
+            (await bot.players.get(GUILD_ID, OTHER_USER_ID)).balance,
+        ]
+    )
+    assert balances == [3, 10]
+
+
+async def test_medicine_needs_enough_coins(bot: app.WispBot) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    await bot.players.add_points(GUILD_ID, USER_ID, 9)
+    select = await medicine_select(bot)
+    pick = say(bot, "not enough points for that one")
+
+    interaction = await choose(bot, select, "medicine")
+
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 9
+    assert (await current_life(bot)).sniffles_left > 0
+    pick.assert_any_call(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY, name="Member1")
+    assert "not enough points for that one" in reply_text(interaction)
+
+
+# ---
 # Wisp's House
 # ---
 

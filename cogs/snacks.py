@@ -12,7 +12,7 @@ import aiohttp
 import discord
 
 from cogs.announce import post_in_house, say_in_house
-from cogs.assets import ASSETS_DIR
+from cogs.assets import ASSETS_DIR, moment_image
 from cogs.badges import (
     Offer,
     badge_offers,
@@ -67,7 +67,18 @@ from wisp.bond import (
     tier_for,
 )
 from wisp.gifts import GiftState
-from wisp.life import Life, Meter, Mood, Phase, add_growth, change_meter, is_over, mood
+from wisp.life import (
+    Life,
+    Meter,
+    Mood,
+    Phase,
+    add_growth,
+    change_meter,
+    cure_sniffles,
+    has_sniffles,
+    is_over,
+    mood,
+)
 from wisp.lines import Moment
 from wisp.rules import (
     BADGE_BY_KEY,
@@ -77,6 +88,10 @@ from wisp.rules import (
     GIFT_BY_KEY,
     MAGAZINE_BY_KEY,
     MAGAZINE_COST,
+    MEDICINE_COST,
+    MEDICINE_EMOJI,
+    MEDICINE_PICTURE,
+    MEDICINE_POINTS,
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
@@ -119,6 +134,7 @@ _NO_SNACKS: Final = (
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
 _FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
+_NO_COLD: Final = "♪ Wisp doesn't have a cold right now."
 _BADGE_NOT_READY: Final = (
     "♪ That badge isn't ready yet. Staff can set it up with !wisp setup."
 )
@@ -307,6 +323,27 @@ class MagazineSelect(discord.ui.Select[Any]):
         await self._on_choice(interaction, MAGAZINE_BY_KEY[self.values[0]])
 
 
+class MedicineSelect(discord.ui.Select[Any]):
+    """The Vault's select with the one medicine, shown while Wisp has a cold."""
+
+    def __init__(self, bot: "WispBot") -> None:
+        super().__init__(
+            placeholder="Give Wisp medicine",
+            options=[
+                discord.SelectOption(
+                    label="Medicine",
+                    value="medicine",
+                    description=f"{MEDICINE_COST} WC ・ cures his cold",
+                    emoji=bot.emojis_by_name.get(MEDICINE_EMOJI),
+                )
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Give Wisp his medicine."""
+        await _give_medicine(interaction)
+
+
 class Menu(discord.ui.View):
     """An ephemeral menu of selects; a failure is reported as `context`."""
 
@@ -372,9 +409,10 @@ class VaultLayout(discord.ui.LayoutView):
 
 @dataclass(frozen=True)
 class _VaultMenus:
-    """The Vault's selects: snacks, then any badges, magazines, collections, gifts."""
+    """The Vault's selects: snacks, then any medicine, badges, magazines, gifts."""
 
     snacks: discord.ui.Select[Any]
+    medicine: discord.ui.Select[Any] | None
     badges: discord.ui.Select[Any] | None
     magazines: discord.ui.Select[Any] | None
     collections: discord.ui.Select[Any] | None
@@ -425,6 +463,21 @@ def _vault_pieces(
             VAULT_WIDTH,
         ),
     ]
+    medicine = (
+        []
+        if menus.medicine is None
+        else wrapped(
+            [
+                SECTION_BREAK,
+                heading("Medicine"),
+                item(
+                    f"cures his cold│{bot.emoji(MEDICINE_EMOJI)}・"
+                    f"{_coins(bot, f'{MEDICINE_COST} WC')}"
+                ),
+            ],
+            VAULT_WIDTH,
+        )
+    )
     badges = wrapped([SECTION_BREAK, *badge_section(bot, offers)], VAULT_WIDTH)
     covers = (
         []
@@ -433,7 +486,9 @@ def _vault_pieces(
     )
     # Joined as one text, so the newlines between the text displays are
     # counted too: a small safety margin on purpose.
-    rest = "\n".join([*told, *snacks, *badges, *covers, SECTION_BREAK, *close])
+    rest = "\n".join(
+        [*told, *snacks, *medicine, *badges, *covers, SECTION_BREAK, *close]
+    )
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
     cover_menus = [] if menus.magazines is None else [menus.magazines]
@@ -441,6 +496,7 @@ def _vault_pieces(
         *([_VaultPiece(told)] if told else []),
         _VaultPiece(picture=_VAULT_HEADER),
         _VaultPiece(snacks, [menus.snacks]),
+        *([_VaultPiece(medicine, [menus.medicine])] if menus.medicine else []),
         _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
         *([_VaultPiece(covers, cover_menus)] if covers else []),
         _VaultPiece(
@@ -460,7 +516,8 @@ async def _vault(
 ) -> VaultLayout:
     """The Vault, after an optional note, with its menus between its sections.
 
-    The snack select follows the snacks, the badge select the badges when the
+    The snack select follows the snacks, the medicine select the medicine
+    while Wisp has a cold, the badge select the badges when the
     member can get a badge now, the magazine select the magazines while Wisp
     is a Rockstar and the member lacks a cover, and the collection select the
     gifts when a gift can be given today. With a picked `collection` that can
@@ -472,6 +529,7 @@ async def _vault(
         for snack in _MENU
     ]
     player = await bot.players.get(guild_id, user_id)
+    life = await bot.lives.current(guild_id)
     offers = await badge_offers(bot, guild_id, user_id, player.bond)
     badge_choices = badge_options(bot, offers)
     magazines = await magazines_owned(bot, guild_id, user_id)
@@ -480,6 +538,9 @@ async def _vault(
     gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
     menus = _VaultMenus(
         snacks=SnackSelect(snack_options, "Buy a snack", _buy),
+        medicine=(
+            MedicineSelect(bot) if life is not None and has_sniffles(life) else None
+        ),
         badges=BadgeSelect(badge_choices, _get_badge) if badge_choices else None,
         magazines=(
             MagazineSelect(magazine_choices, _get_magazine)
@@ -826,6 +887,68 @@ async def _take_magazine(
 
 def _already_own(magazine: Magazine, life: Life) -> str:
     return f"♪ You already have the {magazine.name} for Wisp v{life.version}."
+
+
+async def _give_medicine(interaction: discord.Interaction) -> None:
+    """Spend the member's points on Wisp's medicine, which cures his cold.
+
+    The Vault is shown again under the result, or under the reason it was
+    refused. A cure is announced in his House, pinging nobody. If the
+    confirmation fails, the error posted says the medicine went through.
+    """
+    bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
+    user = interaction.user
+    await interaction.response.defer()
+    try:
+        async with bot.guild_lock(guild_id):
+            life, player = await _take_medicine(
+                bot, guild_id, user, discord.utils.utcnow()
+            )
+    except Refusal as refusal:
+        await _confirm(interaction, str(refusal), "showing refused medicine")
+        return
+    await _confirm(
+        interaction,
+        f"♪ You gave Wisp his medicine ・ +{MEDICINE_POINTS} WC",
+        "confirming medicine (the medicine went through)",
+    )
+    await say_in_house(
+        bot,
+        guild_id,
+        Moment.MEDICINE,
+        life,
+        name=player.name or user.display_name,
+        image=moment_image(MEDICINE_PICTURE),
+    )
+
+
+async def _take_medicine(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    now: datetime,
+) -> tuple[Life, Player]:
+    """Sell the member medicine and cure Wisp. Call this under the guild lock.
+
+    Returns the cured life and the buyer.
+
+    Raises:
+        Refusal: The member is banned or cannot feed Wisp, Wisp is not alive
+            with a cold, or the member is short of points. Nothing is spent
+            then.
+    """
+    player = await check_member(bot, guild_id, member, now)
+    life = await bot.lives.current(guild_id)
+    if life is None or life.phase is not Phase.ALIVE or not has_sniffles(life):
+        raise Refusal(_NO_COLD)
+    if not await bot.players.spend(guild_id, member.id, MEDICINE_COST):
+        name = player.name or member.display_name
+        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+    cure_sniffles(life)
+    await bot.lives.save(guild_id, life)
+    await bot.players.add_points(guild_id, member.id, MEDICINE_POINTS)
+    return life, player
 
 
 async def _pick_collection(
