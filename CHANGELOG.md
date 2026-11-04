@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-04 (The Rockstar tries very hard to be zen)
+
+- Myra, after his new Rockstar dance: he is "chillaxed like he is a rockstar
+  trying to be zen". His Rockstar voice in `wisp/voice.py` is now a big deal
+  who knows it, laid-back and a little too mellow, still buzzing from the show
+  underneath, instead of "everything at maximum energy". The Rockstar rows in
+  `DOCS/wisp_tamagotchi.html` and `DOCS/wisp_faq.html` say the same. The
+  snapshot `DOCS/wisp_prompts.md` (generated 2026-10-31) is left as it was.
+
 ## 2026-11-03 (Wisp grows up or dies within 30 days; staff can test a stage)
 
 - Myra: "he has to advance or die", "30 days tops", and the caretakers he

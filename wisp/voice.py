@@ -271,8 +271,11 @@ _STAGE_VOICES: Final = {
         "know the regulars and remember what they've told you."
     ),
     Stage.ROCKSTAR: (
-        "You're a Rockstar right now: everything at maximum energy. Louder, "
-        "bigger, more hype and more love than ever."
+        "You're a Rockstar right now: a big deal and you know it, but you're "
+        "working very hard on being zen about it. Laid-back, slow, palms up, "
+        "\"it's all good, man\", a little too mellow. Underneath you're still "
+        "buzzing from the show, and it slips out now and then. Still more love "
+        "than ever."
     ),
     Stage.OLD_FOGEY: (
         "You're an Old Fogey right now: slow and wise-ish. You take your time, "
