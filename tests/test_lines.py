@@ -29,6 +29,17 @@ LONGEST_FIELDS = {
     "gift": "Future Is Bright Affirmation Card",
     "collection": "Affirmation Cards",
 }
+COLD_WORDS = (
+    "cold",
+    "sniff",
+    "sneez",
+    "achoo",
+    "stuffy",
+    "nose",
+    "clogged",
+    "sick",
+    "medicine",
+)
 ONE_MOOD_MOMENTS = {
     Moment.HUNGRY,
     Moment.FADING,
@@ -188,12 +199,33 @@ def test_the_chore_and_cold_moments_take_the_fields_they_should() -> None:
         assert FIELDS[moment] == ({"name"} if moment in named else set())
 
 
-@pytest.mark.parametrize("moment", [Moment.SNIFFLES, Moment.MEDICINE])
+@pytest.mark.parametrize("moment", [Moment.SNIFFLES, Moment.MEDICINE, Moment.MESS_LEFT])
 def test_the_cold_lines_are_sneezy_not_spotty(moment: Moment) -> None:
     lines = [line.lower() for line in LINES[(moment, Mood.HAPPY)]]
     for line in lines:
         for word in ("spot", "itch", "scratch"):
             assert word not in line
+
+
+def test_the_mess_left_lines_promise_no_cold() -> None:
+    """He may have Monster Pox or a cold already; the cold has its own post."""
+    for line in LINES[(Moment.MESS_LEFT, Mood.HAPPY)]:
+        for word in COLD_WORDS:
+            assert word not in line.lower(), line
+
+
+def test_the_missed_lights_lines_say_he_is_still_trying_to_sleep() -> None:
+    """The lights window closes 45 minutes before he wakes up."""
+    for line in LINES[(Moment.LIGHTS_MISSED, Mood.HAPPY)]:
+        lowered = line.lower()
+        assert "light" in lowered and "wake up" in lowered, line
+        for words in ("awake", "i'm up", "whole time", "slept", "nap ever", "bad nap"):
+            assert words not in lowered, line
+
+
+def test_no_line_talks_about_a_meter() -> None:
+    for _, line in every_line():
+        assert not re.search(r"\bmeter", line), line
 
 
 _NOISE_WORD = re.compile(r"z+|h?m+f*|sn\w*rk|snor\w*")

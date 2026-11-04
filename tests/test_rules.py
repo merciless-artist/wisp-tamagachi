@@ -1,9 +1,10 @@
 """Sanity checks on the rule tables."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from wisp.chores import _awake_windows
 from wisp.links import TrackKind
 from wisp.rules import (
     BADGE_BY_KEY,
@@ -11,7 +12,9 @@ from wisp.rules import (
     BOND_TIERS,
     CHORE_POINTS,
     FAREWELL_AT_DAY,
+    LIGHTS_WINDOW,
     MEAL_POINTS,
+    NAP_FOR,
     OLD_FOGEY_AT_DAY,
     RHYME_SKILL,
     RHYME_SURE_TURNS,
@@ -60,6 +63,17 @@ def test_every_track_kind_has_meal_points() -> None:
 def test_every_chore_earns_points() -> None:
     assert set(CHORE_POINTS) == set(Chore)
     assert all(points > 0 for points in CHORE_POINTS.values())
+
+
+def test_the_lights_must_go_off_before_the_nap_ends() -> None:
+    assert LIGHTS_WINDOW < NAP_FOR
+
+
+def test_every_utc_day_has_awake_time_for_a_tantrum() -> None:
+    day = datetime(2026, 11, 2, tzinfo=UTC)
+    windows = _awake_windows(day)
+    assert windows
+    assert sum((end - begin for begin, end in windows), timedelta()) > timedelta()
 
 
 def test_stage_labels() -> None:

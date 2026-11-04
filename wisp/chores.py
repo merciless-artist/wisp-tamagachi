@@ -166,12 +166,13 @@ def do_chore(life: Life, chore: Chore) -> bool:
 def wake(life: Life, now: datetime) -> bool:
     """End his nap at once and leave him cranky, with no Mood penalty.
 
-    Returns whether the lights were still on.
+    He stays cranky for at least CRANKY_FOR, longer when missed lights already
+    made him so. Returns whether the lights were still on.
     """
     lights_were_on = is_open(life, Chore.NAP)
     life.nap_left = 0.0
     life.lights_left = 0.0
-    life.cranky_until = now + CRANKY_FOR
+    life.cranky_until = max(life.cranky_until or now, now + CRANKY_FOR)
     return lights_were_on
 
 
@@ -348,7 +349,7 @@ def _tick_tantrum(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]
 
 
 def _tick_nap(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]:
-    """Count down his nap and its lights window.
+    """Count down his nap and its lights window, which closes by the nap's end.
 
     Posted lights nobody turned off cost Mood and leave him cranky for
     CRANKY_FOR after the rest of the nap.
@@ -358,7 +359,7 @@ def _tick_nap(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]:
     life.nap_left = max(life.nap_left - seconds, 0.0)
     if not is_open(life, Chore.NAP):
         return []
-    life.lights_left = max(life.lights_left - seconds, 0.0)
+    life.lights_left = min(max(life.lights_left - seconds, 0.0), life.nap_left)
     if is_open(life, Chore.NAP) or life.nap_message_id is None:
         return []
     change_meter(life, Meter.MOOD, -LIGHTS_MOOD_PENALTY)

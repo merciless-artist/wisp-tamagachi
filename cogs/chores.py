@@ -33,7 +33,7 @@ from wisp.chores import (
     set_message_id,
     wake,
 )
-from wisp.life import Life, mood
+from wisp.life import Life, Phase, mood
 from wisp.lines import Moment
 from wisp.rules import (
     CHORE_POINTS,
@@ -150,15 +150,21 @@ def _picture(chore: Chore, stage: Stage) -> Path | None:
             return nap_image(stage)
 
 
+def _mess_named(stage: Stage) -> str:
+    """The first line of a mess post: what the mess is at `stage`."""
+    return f"♪ Wisp's mess: {MESSES[stage][0]}.\n"
+
+
 async def post_chores(
     bot: "WispBot", guild_id: int, life: Life, events: list[ChoreEvent]
 ) -> None:
     """Show what his chores did in Wisp's House, pinging nobody.
 
     A new mess, tantrum or nap is posted with its picture and button, and the
-    post is remembered on the life. A mess left too long, a missed tantrum
-    and missed lights edit their own post with his line and take its button
-    away. Catching a cold is posted with his sick picture.
+    post is remembered on the life; a mess post first names the mess of his
+    stage. A mess left too long, a missed tantrum and missed lights edit
+    their own post with his line and take its button away. Catching a cold
+    is posted with his sick picture.
     """
     if life.id is None:
         return
@@ -171,6 +177,7 @@ async def post_chores(
                 guild_id,
                 moment,
                 life,
+                prefix=_mess_named(life.stage) if chore is Chore.MESS else "",
                 image=_picture(chore, life.stage),
                 view=chore_view(chore, life.id, life.stage),
             )
@@ -295,13 +302,14 @@ async def _take(
     """Do the chore for `user_id` if `post` still shows it open on the current life.
 
     Returns the life it was done for, or None when someone already did it,
-    the post is an older one or the life has moved on.
+    the post is an older one, the life has moved on or he is no longer alive.
     """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
         if (
             life is None
             or life.id != life_id
+            or life.phase is not Phase.ALIVE
             or not is_open(life, chore)
             or message_id(life, chore) != post.id
         ):

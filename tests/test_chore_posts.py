@@ -4,8 +4,9 @@ Discord objects are fakes; the repositories are the real ones.
 """
 
 import asyncio
+import random
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,14 +24,16 @@ from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
     is_open,
+    latest_nap_start,
     open_mess,
     open_tantrum,
     start_nap,
+    tick_chores,
     wake,
 )
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
-from wisp.rules import TANTRUM_PICTURES, Chore, Stage
+from wisp.rules import MESS_LEFT_FOR, SICK_FOR, TANTRUM_PICTURES, Chore, Stage
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -43,6 +46,18 @@ POST_TEXT = "a chore post"
 NO_PING = discord.AllowedMentions.none().to_dict()
 ALREADY_DONE = "♪ Someone already took care of that."
 CANNOT_EARN = "♪ Only members who can feed Wisp earn points."
+LATER = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
+COLD_WORDS = (
+    "cold",
+    "sniff",
+    "sneez",
+    "achoo",
+    "stuffy",
+    "nose",
+    "clogged",
+    "sick",
+    "medicine",
+)
 
 # ---
 # Fakes
@@ -234,7 +249,9 @@ async def test_a_mess_posts_poop_gif_and_a_clean_up_button_without_pings(
     await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.MESS)])
 
     (sent,) = server.house.send.await_args_list
-    assert sent.args[0] in lines(Moment.MESS)
+    head, line = sent.args[0].split("\n")
+    assert head == "♪ Wisp's mess: poop."
+    assert line in lines(Moment.MESS)
     assert filename(sent.kwargs) == "poop.gif"
     assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
     button = only_button(sent.kwargs["view"])
@@ -262,6 +279,27 @@ async def test_a_teen_mess_is_a_zit_breakout_with_a_face_wash_button(
         "Hand him face wash",
         f"wisp:chore:mess:{life.id}",
     )
+
+
+@pytest.mark.parametrize(
+    ("stage", "head"),
+    [
+        (Stage.BABY, "♪ Wisp's mess: poop."),
+        (Stage.TEEN, "♪ Wisp's mess: a zit breakout."),
+        (Stage.OLD_FOGEY, "♪ Wisp's mess: dentures that need a soak."),
+    ],
+)
+async def test_a_mess_post_names_the_mess_of_his_stage(
+    bot: app.WispBot, server: FakeServer, stage: Stage, head: str
+) -> None:
+    life = await lay(bot, stage)
+    open_mess(life)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.MESS)])
+
+    (sent,) = server.house.send.await_args_list
+    assert sent.args[0].split("\n")[0] == head
 
 
 @pytest.mark.parametrize("picture", ["missing.gif", None])
@@ -438,6 +476,28 @@ async def test_a_mess_left_too_long_edits_its_post_and_posts_the_cold(
     assert filename(sent.kwargs) == "wispsick.gif"
     assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
     assert "view" not in sent.kwargs
+
+
+async def test_a_mess_left_while_he_has_monster_pox_promises_no_cold(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    life.cold_left = SICK_FOR.total_seconds()
+    life.nap_slot = latest_nap_start(LATER)
+    life.tantrum_due_at = LATER + timedelta(days=1)
+    open_mess(life)
+    post = make_post(FIRST_POST_ID - 1)
+    server.posts[post.id] = post
+    life.mess_message_id = post.id
+
+    events = tick_chores(life, LATER, MESS_LEFT_FOR, random.Random(1), frozen=False)
+    await post_chores(bot, GUILD_ID, life, events)
+
+    assert events == [ChoreEvent(ChoreEventKind.MESS_LEFT, post.id)]
+    edited = post.edit.await_args.kwargs["content"]
+    assert edited in lines(Moment.MESS_LEFT)
+    assert not [word for word in COLD_WORDS if word in edited.lower()]
+    server.house.send.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
@@ -627,6 +687,25 @@ async def test_a_button_from_another_life_is_already_done(bot: app.WispBot) -> N
     assert private_replies(pressed) == [ALREADY_DONE]
     assert is_open(await current_life(bot), Chore.MESS)
     assert await points(bot, USER_ID) == 0
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.PASSED])
+async def test_a_mess_left_open_when_his_life_ended_pays_nothing(
+    bot: app.WispBot, phase: Phase
+) -> None:
+    life = await open_chore(bot, Chore.MESS)
+    assert life.id is not None
+    life.phase = phase
+    await bot.lives.save(GUILD_ID, life)
+    post = make_post(FIRST_POST_ID)
+
+    pressed = await press(bot, Chore.MESS, life.id, post)
+
+    assert private_replies(pressed) == [ALREADY_DONE]
+    assert await points(bot, USER_ID) == 0
+    after = await current_life(bot)
+    assert (after.phase, is_open(after, Chore.MESS)) == (phase, True)
+    post.edit.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

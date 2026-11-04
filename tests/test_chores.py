@@ -492,6 +492,29 @@ def test_wake_ends_the_nap_and_says_whether_the_lights_were_on(
     assert life.cranky_until == T0 + timedelta(hours=1)
 
 
+def test_a_poke_after_missed_lights_never_shortens_the_crankiness() -> None:
+    life = _napping_at_ten()
+    set_message_id(life, Chore.NAP, POST)
+    run(life, utc(10, 15))
+    cranky_until = life.cranky_until
+    assert cranky_until == utc(12)
+    assert wake(life, utc(10, 20)) is False
+    assert life.cranky_until == cranky_until
+
+
+def test_a_lights_window_never_outlasts_the_nap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wisp.chores.LIGHTS_WINDOW", timedelta(hours=2))
+    life = _napping_at_ten()
+    set_message_id(life, Chore.NAP, POST)
+    assert run(life, utc(10, 55)) == []
+    assert run(life, utc(11)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    assert not is_napping(life)
+    assert not is_open(life, Chore.NAP)
+    assert life.cranky_until == utc(12)
+
+
 def test_no_nap_starts_over_an_open_tantrum() -> None:
     life = alive(at=utc(9, 55), nap_slot=None)
     open_tantrum(life)

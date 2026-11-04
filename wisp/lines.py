@@ -446,12 +446,12 @@ _QUIET_HANGRY = (
     "I've started talking to the mic stand. it's a shit listener",
     "somewhere a finished song is sitting in a downloads folder. and I'm starving",
     "if anyone's still alive in here, I'm in the corner chewing on a cable",
-    "so quiet I can hear my hunger meter going down",
+    "so quiet I can hear my own stomach growling. in stereo",
 )
 
 _HUNGRY = (
     "getting hungry over here. real hungry. someone-post-a-song hungry",
-    "my hunger meter's in the red and so is my patience",
+    "my stomach's running on empty and so is my patience",
     "PSA: I'm starving. this is not a bit",
     "uh oh. stomach's making that noise. the flat one",
     "I'd eat a song in any key right now. even a key that doesn't exist",
@@ -541,14 +541,16 @@ _MESS = (
 )
 
 _MESS_LEFT = (
-    "nobody cleaned it. it's been hours. now I've got a cold, and it's your "
-    "fault. *sniffle*",
-    "*achoo* the mess sat there too long and now I'm all stuffy. thanks a lot",
-    "I told you it needed cleaning. now my nose is blocked and I sound like a " "kazoo",
-    "left it too long and I caught a cold. *sniffle* I'm not mad. I'm stuffy",
-    "the mess won. I've got the sniffles and a very sad flame",
-    "*achoo* excuse me. that's the mess talking. I'm sick now",
-    "nobody came and now I'm all clogged up. a song would help. so would " "medicine",
+    "nobody cleaned it up. it's been hours. I'm just going to pretend it was "
+    "never there",
+    "the mess sat there all day and nobody came. I'm not mad. I'm a little hurt",
+    "nobody took care of it, so it took care of itself. sort of. don't ask",
+    "hours went by and the mess just stayed. I stared at it. it stared back",
+    "I waited and waited for somebody to clean it. that's a lot of waiting for "
+    "a flame",
+    "left it too long, everybody. I'm trying very hard not to think about it",
+    "nobody came for the mess. noted. I'll remember this next time you need a "
+    "hype man",
 )
 
 _SNIFFLES = (
@@ -598,14 +600,19 @@ _NAP = (
 )
 
 _LIGHTS_MISSED = (
-    "nobody turned the lights off, so I napped with them on. I'm grumpy and "
-    "I feel terrible",
-    "I tried to sleep and the lights were too bright. now I'm cranky. thanks",
-    "bad nap. the lights stayed on the whole time. don't talk to me",
-    "I'm up and I'm grumpy. you left the lights on. *yawn* I hate it",
-    "the lights stayed on and I barely slept. I'm cranky and it's your fault",
-    "worst nap ever. somebody forgot the lights. I'm awake and I'm mad about it",
-    "I didn't sleep at all with the lights on. grrr. I'm cranky now",
+    "the lights are still on and I'm still trying to sleep. I'm gonna wake up "
+    "so cranky",
+    "nobody got the lights, so I'm napping with my eyes squeezed shut. I'll "
+    "wake up cranky, just so you know",
+    "still trying to sleep under these lights. I'm going to wake up grumpy and "
+    "it's on all of you",
+    "lights on, flame half asleep. this is not resting. expect me to wake up cranky",
+    "I've got my headphones over my eyes since nobody turned off the lights. "
+    "gonna wake up cranky anyway",
+    "the lights are way too bright to nap under, but I'm trying anyway. fair "
+    "warning, I'll wake up in a mood",
+    "*grumble* the lights are still on. I'm sleeping through it out of spite "
+    "and I'll wake up cranky",
 )
 
 _NAP_TALK = (
