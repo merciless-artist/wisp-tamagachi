@@ -187,7 +187,7 @@ async def lay(
     bot: app.WispBot,
     *,
     phase: Phase = Phase.ALIVE,
-    full: float = 50.0,
+    health: float = 50.0,
     version: int = 1,
     gap: timedelta = FULL_GAP,
     phase_seconds: float = 0.0,
@@ -196,7 +196,7 @@ async def lay(
     """Insert a life whose last tick was `gap` before NOW."""
     life = new_egg(version, NOW - gap)
     life.phase = phase
-    life.full = full
+    life.health = health
     life.phase_seconds = phase_seconds
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = stage
@@ -434,7 +434,7 @@ async def test_tick_edits_status_message(
 
     after = await current_life(bot)
     assert after.last_tick_at == NOW
-    assert after.full < 50.0
+    assert after.health < 50.0
     server.status.get_partial_message.assert_any_call(CARD_ID)
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
@@ -951,7 +951,7 @@ async def test_death_posts_died_then_asks_and_lays_no_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, full=0.01)
+    await lay(bot, health=0.01)
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + rules.TICK_EVERY)
@@ -970,7 +970,7 @@ async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.PASSED, full=0.0)
+    await lay(bot, phase=Phase.PASSED, health=0.0)
 
     await cog.run_tick(NOW)
 
@@ -1001,7 +1001,7 @@ async def test_a_waiting_card_without_its_ending_picture_shows_none(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     await configure(bot)
-    await lay(bot, full=0.01)
+    await lay(bot, health=0.01)
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + rules.TICK_EVERY)
@@ -1018,7 +1018,7 @@ async def test_no_favorite_song_is_picked_while_waiting(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    dead = await lay(bot, phase=Phase.DEAD, full=0.0)
+    dead = await lay(bot, phase=Phase.DEAD, health=0.0)
     assert dead.id is not None
     await bot.activity_log.record_feed(
         GUILD_ID, dead.id, USER_ID, viibr_track(1), 5, 9, NOW - timedelta(days=1)
@@ -1035,7 +1035,7 @@ async def test_a_cold_egg_waits_and_the_next_egg_takes_the_next_version(
 ) -> None:
     await configure(bot)
     nearly_cold = rules.EGG_WARMTH.total_seconds() - 1
-    await lay(bot, phase=Phase.EGG, full=0.0, phase_seconds=nearly_cold)
+    await lay(bot, phase=Phase.EGG, health=0.0, phase_seconds=nearly_cold)
 
     await cog.run_tick(NOW)
 
@@ -1062,7 +1062,7 @@ async def test_an_ended_life_waits_through_every_tick(
     (tmp_path / "events").mkdir()
     (tmp_path / "events" / "died.png").write_bytes(b"png")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + FULL_GAP)
@@ -1083,7 +1083,7 @@ async def test_an_ended_life_at_tick_start_lays_nothing_and_gives_nothing(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    passed = await lay(bot, phase=Phase.PASSED, full=40.0)
+    passed = await lay(bot, phase=Phase.PASSED, health=40.0)
     assert passed.id is not None
     track = Track(TrackKind.VIIBR, "track", "https://viibrmusic.com/songs/track")
     await bot.activity_log.record_feed(
@@ -1101,12 +1101,12 @@ async def test_frozen_guild_does_not_drain(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot, frozen=True)
-    await lay(bot, full=50.0)
+    await lay(bot, health=50.0)
 
     await cog.run_tick(NOW)
 
     life = await current_life(bot)
-    assert life.full == 50.0
+    assert life.health == 50.0
     assert life.phase_seconds == 0.0
     assert life.last_tick_at == NOW
     server.house.send.assert_not_awaited()
@@ -1127,7 +1127,7 @@ class LowRng(random.Random):
 
 async def legacy_child(bot: app.WispBot) -> Life:
     """A Child hatched five days ago, saved before colds existed."""
-    life = await lay(bot, full=80.0, stage=Stage.CHILD)
+    life = await lay(bot, health=80.0, stage=Stage.CHILD)
     life.hatched_at = life.stage_started_at = NOW - timedelta(days=5)
     await bot.lives.save(GUILD_ID, life)
     return life
@@ -1250,24 +1250,26 @@ async def test_no_quiet_line_for_an_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.EGG, full=0.0)
+    await lay(bot, phase=Phase.EGG, health=0.0)
 
     await cog.run_tick(NOW)
 
     server.house.send.assert_not_awaited()
 
 
-@pytest.mark.parametrize(("full", "expected"), [(80.0, Mood.HAPPY), (5.0, Mood.HANGRY)])
+@pytest.mark.parametrize(
+    ("health", "expected"), [(80.0, Mood.HAPPY), (5.0, Mood.HANGRY)]
+)
 async def test_quiet_line_matches_his_mood(
     cog: LifeLoop,
     bot: app.WispBot,
     server: FakeServer,
     monkeypatch: pytest.MonkeyPatch,
-    full: float,
+    health: float,
     expected: Mood,
 ) -> None:
     await configure(bot)
-    await lay(bot, full=full, version=3)
+    await lay(bot, health=health, version=3)
     picked: list[tuple[Moment, Mood, dict[str, str]]] = []
 
     def pick(moment: Moment, mood: Mood, **fields: str) -> str:
@@ -1349,7 +1351,7 @@ async def test_guild_the_bot_cannot_see_is_skipped(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await configure(bot)
-    await lay(bot, full=50.0)
+    await lay(bot, health=50.0)
     monkeypatch.setattr(bot, "get_guild", lambda _id: None)
 
     await cog.run_tick(NOW)
@@ -1561,7 +1563,7 @@ async def test_a_staff_press_after_a_farewell_lays_the_coal_egg_halfway_hatched(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     panel = await with_panel(bot, server)
-    await lay(bot, phase=Phase.PASSED, full=0.0)
+    await lay(bot, phase=Phase.PASSED, health=0.0)
     await cog.run_tick(NOW)
     server.card_edit.reset_mock()
     server.starter_edit.reset_mock()
@@ -1600,7 +1602,7 @@ async def test_a_staff_press_after_a_death_lays_a_fresh_egg(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
 
     pressed = await press_begin(bot, server, staff_member())
 
@@ -1623,7 +1625,7 @@ async def test_every_kind_of_staff_may_begin_again(
     bot: app.WispBot, server: FakeServer, kind: str
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
     if kind == "owner":
         member = make_member(OWNER_ID)
     else:
@@ -1640,7 +1642,7 @@ async def test_anyone_else_is_refused_and_nothing_is_laid(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    dead = await lay(bot, phase=Phase.DEAD, full=0.0)
+    dead = await lay(bot, phase=Phase.DEAD, health=0.0)
     question = question_post()
 
     pressed = await press_begin(bot, server, make_member(), question)
@@ -1656,7 +1658,7 @@ async def test_two_staff_pressing_at_once_lay_one_egg(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
     question = question_post()
 
     first, second = await asyncio.gather(
@@ -1678,7 +1680,7 @@ async def test_a_second_press_finds_wisp_already_here(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.COLD, full=0.0)
+    await lay(bot, phase=Phase.COLD, health=0.0)
     question = question_post()
     await press_begin(bot, server, staff_member(), question)
 
@@ -1695,7 +1697,7 @@ async def test_a_stale_button_while_he_lives_lays_nothing(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    life = await lay(bot, full=80.0)
+    life = await lay(bot, health=80.0)
     question = question_post()
 
     pressed = await press_begin(bot, server, staff_member(), question)
@@ -1712,7 +1714,7 @@ async def test_a_question_that_cannot_be_edited_is_reported_and_the_egg_still_co
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
     question = question_post()
     question.edit.side_effect = discord.NotFound(
         MagicMock(status=404), "Unknown Message"
@@ -1730,7 +1732,7 @@ async def test_a_database_failure_is_reported_where_the_button_was_pressed(
     bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
     broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
     monkeypatch.setattr(bot.lives, "current", broken)
 
@@ -1753,7 +1755,7 @@ async def test_the_begin_again_button_survives_a_restart(
     )
     assert isinstance(restored, BeginButton)
     await configure(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0)
+    await lay(bot, phase=Phase.DEAD, health=0.0)
 
     pressed = await press_begin(bot, server, staff_member())
 
@@ -1774,7 +1776,7 @@ async def test_typing_begin_lays_the_next_egg(
     bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     await configure(bot)
-    await lay(bot, phase=Phase.PASSED, full=0.0)
+    await lay(bot, phase=Phase.PASSED, health=0.0)
 
     await life_loop.begin(staff_context(server, bot))
 
@@ -1793,7 +1795,7 @@ async def test_typing_begin_while_he_lives_lays_nothing(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    life = await lay(bot, full=80.0)
+    life = await lay(bot, health=80.0)
 
     await life_loop.begin(staff_context(server, bot))
 
@@ -1884,7 +1886,7 @@ async def test_test_lifestage_jumps_the_real_wisp_and_announces_it(
     age: int,
 ) -> None:
     await configure(bot)
-    life = await lay(bot, full=80.0)
+    life = await lay(bot, health=80.0)
 
     await type_lifestage(cog, server, step)
 
@@ -1905,7 +1907,7 @@ async def test_test_lifestage_baby_is_not_announced(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
 ) -> None:
     await configure(bot)
-    teen = await lay(bot, full=80.0, stage=Stage.TEEN)
+    teen = await lay(bot, health=80.0, stage=Stage.TEEN)
     await interact(bot, teen, NOW)
 
     await type_lifestage(cog, server, "baby")
@@ -1936,7 +1938,7 @@ async def test_test_lifestage_ends_his_life_through_his_own_tick(
     answer: str,
 ) -> None:
     await configure(bot)
-    await lay(bot, full=80.0, stage=Stage.CHILD)
+    await lay(bot, health=80.0, stage=Stage.CHILD)
 
     await type_lifestage(cog, server, step)
 
@@ -1952,12 +1954,12 @@ async def test_test_lifestage_will_not_end_a_frozen_wisp(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, frozen_clock: None
 ) -> None:
     await configure(bot, frozen=True)
-    await lay(bot, full=80.0)
+    await lay(bot, health=80.0)
 
     await type_lifestage(cog, server, "starve")
 
     life = await current_life(bot)
-    assert (life.phase, life.full) == (Phase.ALIVE, 80.0)
+    assert (life.phase, life.health) == (Phase.ALIVE, 80.0)
     assert house_texts(server) == [
         "♪ Unfreeze Wisp first: his life only ends while time passes."
     ]
@@ -1972,7 +1974,7 @@ async def test_test_lifestage_needs_a_living_wisp(
     phase: Phase,
 ) -> None:
     await configure(bot)
-    life = await lay(bot, phase=phase, full=0.0)
+    life = await lay(bot, phase=phase, health=0.0)
 
     await type_lifestage(cog, server, "teen")
 

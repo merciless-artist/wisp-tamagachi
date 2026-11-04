@@ -8,11 +8,11 @@ import pytest
 from wisp.card import WAITING, CardFacts, bar, render_status
 from wisp.life import Life, Phase, new_egg
 from wisp.rules import (
-    CARE_MAX,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
-    FULL_MAX,
     HATCHING_TIME,
+    HEALTH_MAX,
+    WELLBEING_MAX,
     Stage,
 )
 from wisp.text import MESSAGE_LIMIT, text_length
@@ -84,8 +84,8 @@ def alive_life(**fields: object) -> Life:
     life = new_egg(3, NOW - timedelta(days=4))
     life.phase = Phase.ALIVE
     life.stage = life.peak_stage = Stage.BABY
-    life.full = 55.0
-    life.care = 65.0
+    life.health = 55.0
+    life.wellbeing = 65.0
     life.hatched_at = NOW - timedelta(days=1, hours=3)
     for name, value in fields.items():
         setattr(life, name, value)
@@ -128,8 +128,8 @@ def meters(card: str) -> list[str]:
 def test_the_card_is_myras_layout_byte_for_byte() -> None:
     life = alive_life(
         stage=Stage.CHILD,
-        care=CARE_MAX,
-        full=FULL_MAX,
+        wellbeing=WELLBEING_MAX,
+        health=HEALTH_MAX,
         hatched_at=NOW - timedelta(days=5, hours=1),
     )
     facts = CardFacts(40, 2, 1, 1, WISP_ID, HOUSE_ID)
@@ -231,7 +231,7 @@ def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
 
 
 def test_the_bars_are_care_happy_then_hunger_in_their_meters() -> None:
-    card = render_status(alive_life(full=100.0, care=0.0), NOW, FACTS, emoji)
+    card = render_status(alive_life(health=100.0, wellbeing=0.0), NOW, FACTS, emoji)
 
     assert meters(card) == [
         "> 𝄡 Care",
@@ -380,8 +380,8 @@ def test_a_well_wisp_has_no_sick_line() -> None:
 def test_the_fullest_card_fits_one_message() -> None:
     life = alive_life(
         stage=Stage.OLD_FOGEY,
-        full=100.0,
-        care=100.0,
+        health=100.0,
+        wellbeing=100.0,
         cold_left=48 * 3600,
         hatched_at=NOW - timedelta(days=9999),
     )

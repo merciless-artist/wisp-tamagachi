@@ -186,7 +186,7 @@ def give_emojis(bot: app.WispBot, *names: str) -> None:
 async def lay(bot: app.WispBot, version: int = 1, phase: Phase = Phase.ALIVE) -> Life:
     life = new_egg(version, discord.utils.utcnow() - timedelta(days=1))
     life.phase = phase
-    life.full = 60.0
+    life.health = 60.0
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = Stage.TEEN
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()

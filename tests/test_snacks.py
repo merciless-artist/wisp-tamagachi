@@ -196,10 +196,12 @@ def emoji_text(name: str, index: int = 1) -> str:
     return f"<:{name}:{index}>"
 
 
-async def lay(bot: app.WispBot, phase: Phase = Phase.ALIVE, full: float = 50.0) -> Life:
+async def lay(
+    bot: app.WispBot, phase: Phase = Phase.ALIVE, health: float = 50.0
+) -> Life:
     life = new_egg(1, discord.utils.utcnow() - timedelta(days=1))
     life.phase = phase
-    life.full = full
+    life.health = health
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = Stage.BABY
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()
@@ -926,7 +928,7 @@ async def test_pressing_feed_lists_inventory_and_the_free_sine(
     assert labels["sinewave"] == "Sine Wave (free today)"
     descriptions = {option.value: option.description for option in select.options}
     assert descriptions == {
-        snack.key: f"hunger +{snack.full}"
+        snack.key: f"hunger +{snack.meal}"
         for snack in SNACKS
         if snack.key in ("sinewave", "cloudwave", "cheese")
     }
@@ -1025,14 +1027,14 @@ async def test_losing_the_role_after_the_menu_opened_blocks_eating(
 async def test_feed_takes_one_and_adds_full_growth_bond(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    await lay(bot, full=50.0)
+    await lay(bot, health=50.0)
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "spicywave", 2)
 
     interaction = await eat(bot, "spicywave")
 
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"spicywave": 1}
     life = await current_life(bot)
-    assert life.full == 50.0 + 8
+    assert life.health == 50.0 + 8
     assert life.growth == 2
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == rules.BOND_PER_SNACK
     now = discord.utils.utcnow()
@@ -1046,7 +1048,7 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
 
 
 async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
-    await lay(bot, full=50.0)
+    await lay(bot, health=50.0)
 
     first = await eat(bot, "sinewave")
 
@@ -1054,7 +1056,7 @@ async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
     assert await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     life = await current_life(bot)
-    assert (life.full, life.growth) == (52.0, 1)
+    assert (life.health, life.growth) == (52.0, 1)
     assert reply_text(first) == "♪ Wisp ate your Sine Wave ・ hunger +2"
 
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
@@ -1065,7 +1067,7 @@ async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
     await select.callback(again)
 
     assert "free Sine Wave" in reply_text(again)
-    assert (await current_life(bot)).full == 52.0
+    assert (await current_life(bot)).health == 52.0
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
 
 
@@ -1101,7 +1103,7 @@ async def test_casual_bond_capped_at_seven(bot: app.WispBot) -> None:
     now = discord.utils.utcnow()
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 7
     life = await current_life(bot)
-    assert (life.full, life.growth) == (55.0, 1)
+    assert (life.health, life.growth) == (55.0, 1)
 
 
 async def test_the_last_bond_point_of_the_day_still_lands(bot: app.WispBot) -> None:
@@ -1124,7 +1126,7 @@ async def test_the_last_bond_point_of_the_day_still_lands(bot: app.WispBot) -> N
 
 
 async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
-    life = await lay(bot, full=40.0)
+    life = await lay(bot, health=40.0)
     assert life.id is not None
     await bot.activity_log.record_interaction(
         GUILD_ID,
@@ -1139,7 +1141,7 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
     capped = await eat(bot, "cloudwave")
 
     life = await current_life(bot)
-    assert (life.full, life.growth) == (43.0, 1)
+    assert (life.health, life.growth) == (43.0, 1)
     assert (
         reply_text(capped)
         == "♪ Wisp ate your Cloud Wave ・ hunger +3 (daily meal limit)"
@@ -1149,7 +1151,7 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
 
 
 async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
-    life = await lay(bot, full=40.0)
+    life = await lay(bot, health=40.0)
     assert life.id is not None
     life.cold_left = rules.SICK_FOR.total_seconds()
     life.had_cold = True
@@ -1167,7 +1169,7 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
         "♪ Wisp ate your Cloud Wave ・ hunger +5",
         "♪ Wisp is full from you today. Save it for tomorrow.",
     ]
-    assert (await current_life(bot)).full == 55.0
+    assert (await current_life(bot)).health == 55.0
     cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == cap
 
@@ -1176,7 +1178,7 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
 async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
     bot: app.WispBot, server: FakeServer, db: Database, key: str
 ) -> None:
-    life = await lay(bot, full=40.0)
+    life = await lay(bot, health=40.0)
     assert life.id is not None
     await bot.activity_log.record_interaction(
         GUILD_ID,
@@ -1198,7 +1200,7 @@ async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
     rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
     assert rows == [{"kind": InteractionKind.FEED.value}]
     life = await current_life(bot)
-    assert (life.full, life.growth) == (40.0, 0)
+    assert (life.health, life.growth) == (40.0, 0)
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
     server.house.send.assert_not_awaited()
 
@@ -1207,7 +1209,7 @@ async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
 async def test_cannot_feed_egg_with_snacks(
     bot: app.WispBot, server: FakeServer, phase: Phase
 ) -> None:
-    await lay(bot, phase=phase, full=0.0)
+    await lay(bot, phase=phase, health=0.0)
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
     _, select = await open_feeding(bot)
 
@@ -1217,7 +1219,7 @@ async def test_cannot_feed_egg_with_snacks(
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     life = await current_life(bot)
-    assert (life.full, life.growth, life.egg_food) == (0.0, 0, 0)
+    assert (life.health, life.growth, life.egg_food) == (0.0, 0, 0)
     assert (
         await bot.activity_log.meal_points_today(
             GUILD_ID, USER_ID, discord.utils.utcnow()
@@ -1271,7 +1273,7 @@ async def test_ban_issued_after_the_menu_opened_blocks_feeding(
 
 
 async def test_simultaneous_feeds_both_count(bot: app.WispBot) -> None:
-    await lay(bot, full=40.0)
+    await lay(bot, health=40.0)
     for user in (USER_ID, OTHER_USER_ID):
         await bot.activity_log.add_snack(GUILD_ID, user, "cloudwave")
     selects = [(await open_feeding(bot, user))[1] for user in (USER_ID, OTHER_USER_ID)]
@@ -1282,7 +1284,7 @@ async def test_simultaneous_feeds_both_count(bot: app.WispBot) -> None:
     )
 
     life = await current_life(bot)
-    assert (life.full, life.growth) == (50.0, 2)
+    assert (life.health, life.growth) == (50.0, 2)
 
 
 # ---
@@ -1305,7 +1307,7 @@ async def test_simultaneous_feeds_both_count(bot: app.WispBot) -> None:
 async def test_snack_line_matches_the_snack(
     bot: app.WispBot, key: str, moment: Moment
 ) -> None:
-    await lay(bot, full=50.0)
+    await lay(bot, health=50.0)
     pick = say(bot)
 
     await eat(bot, key)
@@ -1318,7 +1320,7 @@ async def test_snack_line_matches_the_snack(
 async def test_his_favorite_snack_gets_its_own_line(
     bot: app.WispBot, server: FakeServer, key: str, stance: PickleStance | None
 ) -> None:
-    life = await lay(bot, full=50.0)
+    life = await lay(bot, health=50.0)
     life.favorite_snack = key
     await bot.lives.save(GUILD_ID, life)
     await bot.players.set_pickle_stance(GUILD_ID, USER_ID, stance)
@@ -1333,7 +1335,7 @@ async def test_his_favorite_snack_gets_its_own_line(
 async def test_a_snack_that_is_not_his_favorite_gets_the_usual_line(
     bot: app.WispBot,
 ) -> None:
-    life = await lay(bot, full=5.0)
+    life = await lay(bot, health=5.0)
     life.favorite_snack = "cheese"
     await bot.lives.save(GUILD_ID, life)
     pick = say(bot)
@@ -1344,7 +1346,7 @@ async def test_a_snack_that_is_not_his_favorite_gets_the_usual_line(
 
 
 async def test_his_favorite_snack_line_follows_his_mood(bot: app.WispBot) -> None:
-    life = await lay(bot, full=5.0)
+    life = await lay(bot, health=5.0)
     life.favorite_snack = "cloudwave"
     await bot.lives.save(GUILD_ID, life)
     pick = say(bot)
@@ -1389,7 +1391,7 @@ async def test_house_post_without_the_emoji_is_just_the_line(
 
 
 async def test_his_mood_after_the_snack_picks_the_line(bot: app.WispBot) -> None:
-    await lay(bot, full=5.0)
+    await lay(bot, health=5.0)
     hangry = say(bot)
 
     await eat(bot, "cloudwave")
@@ -1509,7 +1511,7 @@ async def test_feeding_lets_wisp_meet_the_member(
 async def test_a_refused_feed_does_not_meet_anyone(
     bot: app.WispBot, no_meeting: AsyncMock
 ) -> None:
-    await lay(bot, phase=Phase.EGG, full=0.0)
+    await lay(bot, phase=Phase.EGG, health=0.0)
 
     await eat(bot, "cloudwave")
 

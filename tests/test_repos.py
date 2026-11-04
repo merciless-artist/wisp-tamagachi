@@ -20,7 +20,7 @@ from db.settings import Settings, SettingsRepo
 from wisp.bond import PickleStance
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
-from wisp.rules import CARE_START, COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, Stage
+from wisp.rules import COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, WELLBEING_START, Stage
 
 GUILD = 100
 OTHER_GUILD = 200
@@ -328,13 +328,13 @@ async def test_life_insert_save_current_history(db: Database) -> None:
     second = await repo.insert(GUILD, new_egg(2, NOW + timedelta(days=3)))
     second.phase = Phase.ALIVE
     second.stage = second.peak_stage = Stage.CHILD
-    second.full = 42.5
+    second.health = 42.5
     second.growth = 9
     second.phase_seconds = 120.5
     second.hatch_started_at = NOW + timedelta(days=4)
     second.hatched_at = NOW + timedelta(days=5)
     second.stage_started_at = NOW + timedelta(days=6)
-    second.high_happiness_since = NOW + timedelta(days=7)
+    second.high_mood_since = NOW + timedelta(days=7)
     second.warned = EventKind.HUNGRY
     second.hatched_by = 77
     await repo.save(GUILD, second)
@@ -351,7 +351,7 @@ async def test_life_insert_save_current_history(db: Database) -> None:
 async def test_the_food_meter_is_stored_in_the_care_column(db: Database) -> None:
     repo = LifeRepo(db)
     life = await repo.insert(GUILD, new_egg(1, NOW))
-    life.full = 42.5
+    life.health = 42.5
     await repo.save(GUILD, life)
 
     row = await db.fetchone(
@@ -361,14 +361,30 @@ async def test_the_food_meter_is_stored_in_the_care_column(db: Database) -> None
     assert row["care"] == 42.5
     loaded = await repo.current(GUILD)
     assert loaded is not None
-    assert loaded.full == 42.5
+    assert loaded.health == 42.5
+
+
+async def test_health_and_wellbeing_keep_their_live_columns(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    life.health = 42.5
+    life.wellbeing = 17.0
+    await repo.save(GUILD, life)
+
+    row = await db.fetchone(
+        f"SELECT care, fondness FROM {db.t('lives')} WHERE id = %s", (life.id,)
+    )
+    assert row == {"care": 42.5, "fondness": 17.0}
+    loaded = await repo.current(GUILD)
+    assert loaded is not None
+    assert (loaded.health, loaded.wellbeing) == (42.5, 17.0)
 
 
 async def test_care_round_trips_through_the_fondness_column(db: Database) -> None:
     repo = LifeRepo(db)
     life = await repo.insert(GUILD, new_egg(1, NOW))
-    assert life.care == CARE_START
-    life.care = 23.5
+    assert life.wellbeing == WELLBEING_START
+    life.wellbeing = 23.5
     life.lonely_warned = True
     await repo.save(GUILD, life)
 
@@ -376,10 +392,10 @@ async def test_care_round_trips_through_the_fondness_column(db: Database) -> Non
         f"SELECT care, fondness, lonely_warned FROM {db.t('lives')} WHERE id = %s",
         (life.id,),
     )
-    assert row == {"care": life.full, "fondness": 23.5, "lonely_warned": 1}
+    assert row == {"care": life.health, "fondness": 23.5, "lonely_warned": 1}
     loaded = await repo.current(GUILD)
     assert loaded is not None
-    assert (loaded.care, loaded.lonely_warned) == (23.5, True)
+    assert (loaded.wellbeing, loaded.lonely_warned) == (23.5, True)
     loaded.lonely_warned = False
     await repo.save(GUILD, loaded)
     assert await repo.current(GUILD) == loaded

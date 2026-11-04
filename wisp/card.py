@@ -13,11 +13,11 @@ from typing import Final
 
 from wisp.life import Life, Phase, age_days, is_sick
 from wisp.rules import (
-    CARE_MAX,
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
-    FULL_MAX,
     HATCHING_TIME,
+    HEALTH_MAX,
+    WELLBEING_MAX,
 )
 from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted
 
@@ -102,9 +102,9 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
             hours = math.ceil(life.cold_left / _HOUR)
             heading.append(f"{SUB_CLEF} he has Monster Pox・{hours} h left")
         bars = [
-            *_meter("Care", life.care / CARE_MAX * 100, CARE, emoji),
+            *_meter("Care", life.wellbeing / WELLBEING_MAX * 100, CARE, emoji),
             *_meter("Happy", facts.happiness, HAPPY, emoji),
-            *_meter("Hunger", life.full / FULL_MAX * 100, HUNGER, emoji),
+            *_meter("Hunger", life.health / HEALTH_MAX * 100, HUNGER, emoji),
         ]
         return _card(heading, bars, "him", life.stage.label.upper(), facts)
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")

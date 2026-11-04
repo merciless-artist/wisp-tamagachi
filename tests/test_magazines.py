@@ -127,7 +127,7 @@ async def lay(
 ) -> Life:
     life = new_egg(version, discord.utils.utcnow() - timedelta(days=50))
     life.phase = phase
-    life.full = 60.0
+    life.health = 60.0
     if phase is not Phase.EGG:
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()

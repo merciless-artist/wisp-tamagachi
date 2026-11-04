@@ -6,9 +6,10 @@ from db.database import Database, Row, from_db_time, to_db_time
 from wisp.life import EventKind, Life, Phase
 from wisp.rules import Stage
 
-# The columns keep their live names: `care` holds Life.full (the food meter)
-# and `fondness` holds Life.care (the care meter). The cold's columns share
-# their fields' names: `cold_due_at`, `cold_left` and `had_cold`.
+# The columns keep their live names: `care` holds Life.health, `fondness` holds
+# Life.wellbeing and `high_happiness_since` holds Life.high_mood_since. The
+# cold's columns share their fields' names: `cold_due_at`, `cold_left` and
+# `had_cold`.
 _COLUMNS = (
     "version",
     "phase",
@@ -44,7 +45,7 @@ def _from_row(row: Row) -> Life:
         version=row["version"],
         phase=Phase(row["phase"]),
         stage=Stage(row["stage"]),
-        full=row["care"],
+        health=row["care"],
         egg_food=row["egg_food"],
         growth=row["growth"],
         laid_at=from_db_time(row["laid_at"]),
@@ -54,13 +55,13 @@ def _from_row(row: Row) -> Life:
         ended_at=from_db_time(row["ended_at"]),
         last_tick_at=from_db_time(row["last_tick_at"]),
         phase_seconds=row["phase_seconds"],
-        high_happiness_since=from_db_time(row["high_happiness_since"]),
+        high_mood_since=from_db_time(row["high_happiness_since"]),
         warned=EventKind(row["warned"]) if row["warned"] else None,
         hatched_by=row["hatched_by"],
         peak_stage=Stage(row["peak_stage"]),
         from_coal=bool(row["from_coal"]),
         favorite_snack=row["favorite_snack"],
-        care=row["fondness"],
+        wellbeing=row["fondness"],
         lonely_warned=bool(row["lonely_warned"]),
         cold_due_at=from_db_time(row["cold_due_at"]),
         cold_left=row["cold_left"],
@@ -74,7 +75,7 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.version,
         life.phase.value,
         life.stage.value,
-        life.full,
+        life.health,
         life.egg_food,
         life.growth,
         to_db_time(life.laid_at),
@@ -84,13 +85,13 @@ def _values(life: Life) -> tuple[Any, ...]:
         to_db_time(life.ended_at),
         to_db_time(life.last_tick_at),
         life.phase_seconds,
-        to_db_time(life.high_happiness_since),
+        to_db_time(life.high_mood_since),
         life.warned.value if life.warned else None,
         life.hatched_by,
         life.peak_stage.value,
         life.from_coal,
         life.favorite_snack,
-        life.care,
+        life.wellbeing,
         life.lonely_warned,
         to_db_time(life.cold_due_at),
         life.cold_left,

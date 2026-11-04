@@ -29,8 +29,6 @@ from wisp.life import (
 )
 from wisp.rules import (
     CARE_DRAIN_PER_DAY,
-    CARE_MAX,
-    CARE_START,
     COAL_EGG_FOOD,
     COLD_EARLIEST,
     COLD_LATEST,
@@ -38,9 +36,9 @@ from wisp.rules import (
     EGG_WARMTH,
     FAREWELL_AT_DAY,
     FULL_DRAIN_PER_DAY,
-    FULL_MAX,
-    HATCHED_FULL,
     HATCHING_TIME,
+    HEALTH_MAX,
+    HEALTH_START,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
@@ -53,6 +51,8 @@ from wisp.rules import (
     STAGE_MIN_TIME,
     STAGE_RULES,
     TICK_EVERY,
+    WELLBEING_MAX,
+    WELLBEING_START,
     Stage,
 )
 
@@ -61,7 +61,7 @@ FEEDER = 4242
 
 
 def alive(
-    full: float = HATCHED_FULL,
+    health: float = HEALTH_START,
     at: datetime = T0,
     stage: Stage = Stage.BABY,
     **fields: object,
@@ -71,7 +71,7 @@ def alive(
     life.phase = Phase.ALIVE
     life.stage = stage
     life.peak_stage = stage
-    life.full = full
+    life.health = health
     life.hatched_at = at
     life.stage_started_at = at
     for name, value in fields.items():
@@ -93,15 +93,15 @@ def run(
 ) -> list[Event]:
     """Tick `life` every `step` for `duration`, optionally topping meters up.
 
-    `fed` keeps the full meter topped up and `cared` the care meter.
+    `fed` keeps health topped up and `cared` keeps wellbeing topped up.
     """
     events: list[Event] = []
     end = life.last_tick_at + duration
     while life.last_tick_at < end:
         if fed:
-            life.full = FULL_MAX
+            life.health = HEALTH_MAX
         if cared:
-            life.care = CARE_MAX
+            life.wellbeing = WELLBEING_MAX
         events += tick(
             life,
             life.last_tick_at + step,
@@ -181,7 +181,7 @@ def test_hatching_finishes_after_five_hours_at_fifty_full() -> None:
     assert egg.phase is Phase.ALIVE
     assert egg.stage is Stage.BABY
     assert egg.peak_stage is Stage.BABY
-    assert egg.full == HATCHED_FULL
+    assert egg.health == HEALTH_START
     assert egg.hatched_at == egg.stage_started_at == egg.last_tick_at
     assert egg.phase_seconds == 0
 
@@ -191,7 +191,7 @@ def test_hatching_does_not_drain_the_newborn_in_the_same_tick() -> None:
     feed(egg, EGG_FOOD_NEEDED, FEEDER, T0)
     egg.phase_seconds = HATCHING_TIME.total_seconds() - 1
     tick(egg, T0 + MAX_CREDITED_GAP, frozen=False, happiness=0, caretakers=0, people=0)
-    assert egg.full == HATCHED_FULL
+    assert egg.health == HEALTH_START
 
 
 def test_feeding_while_hatching_is_ignored() -> None:
@@ -205,10 +205,10 @@ def test_feeding_while_hatching_is_ignored() -> None:
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD])
 def test_feeding_over_life_is_ignored(phase: Phase) -> None:
-    life = alive(full=40.0)
+    life = alive(health=40.0)
     life.phase = phase
     assert feed(life, 10, FEEDER, T0) == []
-    assert life.full == 40.0
+    assert life.health == 40.0
     assert life.egg_food == 0
 
 
@@ -218,31 +218,31 @@ def test_feeding_over_life_is_ignored(phase: Phase) -> None:
 
 
 def test_full_drains_fifteen_per_day() -> None:
-    life = alive(full=80.0)
+    life = alive(health=80.0)
     run(life, timedelta(days=1), step=MAX_CREDITED_GAP)
-    assert life.full == pytest.approx(80.0 - FULL_DRAIN_PER_DAY)
+    assert life.health == pytest.approx(80.0 - FULL_DRAIN_PER_DAY)
 
 
 def test_long_gap_only_drains_fifteen_minutes() -> None:
-    life = alive(full=50.0, at=T0)
+    life = alive(health=50.0, at=T0)
     tick(
         life, T0 + timedelta(hours=6), frozen=False, happiness=0, caretakers=0, people=0
     )
-    assert life.full == pytest.approx(50.0 - 15.0 * (15 / (24 * 60)))
+    assert life.health == pytest.approx(50.0 - 15.0 * (15 / (24 * 60)))
     assert life.last_tick_at == T0 + timedelta(hours=6)
 
 
 def test_frozen_tick_drains_nothing() -> None:
-    life = alive(full=50.0)
+    life = alive(health=50.0)
     now = T0 + timedelta(minutes=10)
     assert tick(life, now, frozen=True, happiness=0, caretakers=0, people=0) == []
-    assert life.full == 50.0
+    assert life.health == 50.0
     assert life.phase_seconds == 0
     assert life.last_tick_at == now
 
 
 def test_clock_going_backwards_credits_nothing() -> None:
-    life = alive(full=50.0)
+    life = alive(health=50.0)
     tick(
         life,
         T0 - timedelta(minutes=5),
@@ -251,11 +251,11 @@ def test_clock_going_backwards_credits_nothing() -> None:
         caretakers=0,
         people=0,
     )
-    assert life.full == 50.0
+    assert life.health == 50.0
 
 
 def test_hungry_and_fading_warn_once_each() -> None:
-    life = alive(full=30.02)
+    life = alive(health=30.02)
     events = run(life, timedelta(days=1, hours=12))
     assert kinds(events) == [EventKind.HUNGRY, EventKind.FADING]
     assert life.warned is EventKind.FADING
@@ -263,64 +263,64 @@ def test_hungry_and_fading_warn_once_each() -> None:
 
 
 def test_one_tick_can_cross_both_thresholds() -> None:
-    life = alive(full=10.02)
+    life = alive(health=10.02)
     events = run(life, TICK_EVERY)
     assert kinds(events) == [EventKind.HUNGRY, EventKind.FADING]
 
 
 def test_feeding_above_threshold_rearms_warning() -> None:
-    life = alive(full=5.0, warned=EventKind.FADING)
+    life = alive(health=5.0, warned=EventKind.FADING)
     feed(life, 3, FEEDER, T0)
     assert life.warned is EventKind.FADING
     feed(life, 26, FEEDER, T0)
-    assert life.full == 34.0
+    assert life.health == 34.0
     assert life.warned is None
     events = run(life, timedelta(hours=8))
     assert kinds(events) == [EventKind.HUNGRY]
 
 
 def test_fading_rearms_after_feeding_into_the_hungry_band() -> None:
-    life = alive(full=5.0, warned=EventKind.FADING)
+    life = alive(health=5.0, warned=EventKind.FADING)
     feed(life, 10, FEEDER, T0)
-    assert life.full == 15.0
+    assert life.health == 15.0
     assert life.warned is EventKind.HUNGRY
     events = run(life, timedelta(hours=10))
     assert kinds(events) == [EventKind.FADING]
 
 
 def test_full_never_exceeds_max() -> None:
-    life = alive(full=95.0)
+    life = alive(health=95.0)
     assert feed(life, 50, FEEDER, T0) == []
-    assert life.full == FULL_MAX
+    assert life.health == HEALTH_MAX
 
 
 def test_death_at_zero_full() -> None:
-    life = alive(full=0.03)
+    life = alive(health=0.03)
     now = T0 + TICK_EVERY
     events = tick(life, now, frozen=False, happiness=0, caretakers=0, people=0)
     assert events == [Event(EventKind.DIED)]
     assert life.phase is Phase.DEAD
-    assert life.full == 0
+    assert life.health == 0
     assert life.ended_at == now
     assert is_over(life)
 
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD])
 def test_tick_on_over_life_is_a_no_op(phase: Phase) -> None:
-    life = alive(full=0.0)
+    life = alive(health=0.0)
     life.phase = phase
-    before = (life.full, life.last_tick_at, life.phase_seconds, life.ended_at)
+    before = (life.health, life.last_tick_at, life.phase_seconds, life.ended_at)
     later = T0 + timedelta(hours=1)
     assert tick(life, later, frozen=False, happiness=100, caretakers=9, people=0) == []
-    assert (life.full, life.last_tick_at, life.phase_seconds, life.ended_at) == before
+    assert (life.health, life.last_tick_at, life.phase_seconds, life.ended_at) == before
 
 
 @pytest.mark.parametrize(
-    "full,expected",
+    "health,expected",
     [(29.9, Mood.HANGRY), (30.0, Mood.HAPPY), (80.0, Mood.HAPPY)],
 )
-def test_mood_is_hangry_below_thirty(full: float, expected: Mood) -> None:
-    assert mood(alive(full=full)) is expected
+def test_mood_is_hangry_below_thirty(health: float, expected: Mood) -> None:
+    assert mood(alive(health=health)) is expected
 
 
 # ---
@@ -330,88 +330,88 @@ def test_mood_is_hangry_below_thirty(full: float, expected: Mood) -> None:
 
 def test_care_starts_at_half_when_he_hatches() -> None:
     egg = new_egg(1, T0)
-    egg.care = 0.0
+    egg.wellbeing = 0.0
     feed(egg, EGG_FOOD_NEEDED, FEEDER, T0)
     run(egg, HATCHING_TIME)
     assert egg.phase is Phase.ALIVE
-    assert egg.care == CARE_START
+    assert egg.wellbeing == WELLBEING_START
     assert not egg.lonely_warned
 
 
 def test_care_drains_ten_a_day() -> None:
-    life = alive(full=FULL_MAX, care=80.0)
+    life = alive(health=HEALTH_MAX, wellbeing=80.0)
     run(life, timedelta(days=1), step=MAX_CREDITED_GAP, fed=True)
-    assert life.care == pytest.approx(80.0 - CARE_DRAIN_PER_DAY)
+    assert life.wellbeing == pytest.approx(80.0 - CARE_DRAIN_PER_DAY)
 
 
 def test_care_never_drains_below_zero() -> None:
-    life = alive(full=FULL_MAX, care=0.01)
+    life = alive(health=HEALTH_MAX, wellbeing=0.01)
     run(life, timedelta(hours=1), fed=True)
-    assert life.care == 0.0
+    assert life.wellbeing == 0.0
     assert life.phase is Phase.ALIVE
 
 
 def test_care_does_not_drain_while_frozen_or_unhatched() -> None:
-    life = alive(full=FULL_MAX, care=60.0)
+    life = alive(health=HEALTH_MAX, wellbeing=60.0)
     run(life, timedelta(days=1), step=MAX_CREDITED_GAP, frozen=True)
-    assert life.care == 60.0
+    assert life.wellbeing == 60.0
     egg = new_egg(1, T0)
     run(egg, timedelta(hours=1))
-    assert egg.care == CARE_START
+    assert egg.wellbeing == WELLBEING_START
 
 
 def test_add_care_caps_at_max_and_only_while_alive() -> None:
-    life = alive(care=CARE_MAX - 3)
+    life = alive(wellbeing=WELLBEING_MAX - 3)
     add_care(life, 10)
-    assert life.care == CARE_MAX
+    assert life.wellbeing == WELLBEING_MAX
     for phase in (Phase.EGG, Phase.HATCHING, Phase.DEAD, Phase.COLD, Phase.PASSED):
-        other = alive(care=40.0)
+        other = alive(wellbeing=40.0)
         other.phase = phase
         add_care(other, 10)
-        assert other.care == 40.0
+        assert other.wellbeing == 40.0
 
 
 def test_mood_hangry_beats_lonely() -> None:
-    assert mood(alive(full=10.0, care=10.0)) is Mood.HANGRY
+    assert mood(alive(health=10.0, wellbeing=10.0)) is Mood.HANGRY
 
 
 @pytest.mark.parametrize(
-    "care,expected",
+    "wellbeing,expected",
     [(LONELY_BELOW - 0.1, Mood.LONELY), (LONELY_BELOW, Mood.HAPPY), (90.0, Mood.HAPPY)],
 )
-def test_mood_lonely_below_the_line(care: float, expected: Mood) -> None:
-    assert mood(alive(full=80.0, care=care)) is expected
+def test_mood_lonely_below_the_line(wellbeing: float, expected: Mood) -> None:
+    assert mood(alive(health=80.0, wellbeing=wellbeing)) is expected
 
 
 @pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
 def test_only_a_living_wisp_is_lonely(phase: Phase) -> None:
-    life = alive(full=80.0, care=5.0)
+    life = alive(health=80.0, wellbeing=5.0)
     life.phase = phase
     assert mood(life) is Mood.HAPPY
 
 
 def test_lonely_warns_once_per_drop() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.CHILD, care=LONELY_BELOW + 0.02)
+    life = alive(health=HEALTH_MAX, stage=Stage.CHILD, wellbeing=LONELY_BELOW + 0.02)
     events = run(life, timedelta(hours=1), fed=True)
     assert events == [Event(EventKind.LONELY, Stage.CHILD)]
     assert life.lonely_warned
     assert run(life, timedelta(days=1), fed=True) == []
 
-    add_care(life, LONELY_BELOW - life.care - 1)
+    add_care(life, LONELY_BELOW - life.wellbeing - 1)
     assert life.lonely_warned
     add_care(life, 1)
-    assert life.care == pytest.approx(LONELY_BELOW)
+    assert life.wellbeing == pytest.approx(LONELY_BELOW)
     assert not life.lonely_warned
     events = run(life, timedelta(hours=1), fed=True)
     assert events == [Event(EventKind.LONELY, Stage.CHILD)]
 
 
 def test_loneliness_never_hurts_him() -> None:
-    life = alive(full=FULL_MAX, care=0.0, at=T0 - STAGE_MIN_TIME, growth=25)
+    life = alive(health=HEALTH_MAX, wellbeing=0.0, at=T0 - STAGE_MIN_TIME, growth=25)
     events = tick(life, T0, frozen=False, happiness=0, caretakers=3, people=0)
     assert kinds(events) == [EventKind.LONELY, EventKind.STAGE_UP]
     assert life.phase is Phase.ALIVE
-    assert life.full == pytest.approx(FULL_MAX, abs=0.2)
+    assert life.health == pytest.approx(HEALTH_MAX, abs=0.2)
 
 
 # ---
@@ -457,7 +457,7 @@ _THREE_DAYS = STAGE_MIN_TIME
 def test_stage_up_needs_three_days_growth_and_a_share_of_his_people(
     in_stage: timedelta, growth: int, caretakers: int, people: int, advances: bool
 ) -> None:
-    life = alive(full=FULL_MAX, at=T0 - in_stage, growth=growth)
+    life = alive(health=HEALTH_MAX, at=T0 - in_stage, growth=growth)
     events = tick(
         life, T0, frozen=False, happiness=0, caretakers=caretakers, people=people
     )
@@ -498,9 +498,9 @@ def test_he_grows_up_on_the_deadline_day_no_matter_what(
     stage: Stage, grows_into: Stage
 ) -> None:
     by_day = timedelta(days=STAGE_RULES[grows_into].by_day)
-    life = alive(full=FULL_MAX, at=T0 - by_day, stage=stage, stage_started_at=T0)
+    life = alive(health=HEALTH_MAX, at=T0 - by_day, stage=stage, stage_started_at=T0)
     almost = alive(
-        full=FULL_MAX,
+        health=HEALTH_MAX,
         at=T0 - by_day + timedelta(hours=1),
         stage=stage,
         stage_started_at=T0,
@@ -512,7 +512,7 @@ def test_he_grows_up_on_the_deadline_day_no_matter_what(
 
 
 def test_stage_up_moves_one_stage_per_tick() -> None:
-    life = alive(full=FULL_MAX, at=T0 - timedelta(days=40), growth=500)
+    life = alive(health=HEALTH_MAX, at=T0 - timedelta(days=40), growth=500)
     first = tick(life, T0, frozen=False, happiness=0, caretakers=20, people=0)
     second = tick(
         life, T0 + TICK_EVERY, frozen=False, happiness=0, caretakers=20, people=0
@@ -523,7 +523,7 @@ def test_stage_up_moves_one_stage_per_tick() -> None:
 
 def test_late_bloomer_grows_when_caretakers_arrive() -> None:
     life = alive(
-        full=FULL_MAX,
+        health=HEALTH_MAX,
         at=T0 - STAGE_MIN_TIME - timedelta(days=1),
         growth=_CHILD.growth + 30,
         last_tick_at=T0,
@@ -536,7 +536,7 @@ def test_late_bloomer_grows_when_caretakers_arrive() -> None:
 
 
 def test_rockstar_after_seven_happy_days() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.ADULT)
+    life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     almost = ROCKSTAR_HAPPY_FOR - timedelta(hours=1)
     events = tended(life, almost)
     assert events == []
@@ -548,11 +548,11 @@ def test_rockstar_after_seven_happy_days() -> None:
 
 def test_happiness_dip_resets_rockstar_clock() -> None:
     almost = ROCKSTAR_HAPPY_FOR - timedelta(days=1)
-    life = alive(full=FULL_MAX, stage=Stage.ADULT)
+    life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tended(life, almost)
-    assert life.high_happiness_since is not None
+    assert life.high_mood_since is not None
     run(life, TICK_EVERY, happiness=ROCKSTAR_HAPPINESS - 1, fed=True, cared=True)
-    assert life.high_happiness_since is None
+    assert life.high_mood_since is None
     events = tended(life, almost)
     assert events == []
     assert life.stage is Stage.ADULT
@@ -561,13 +561,13 @@ def test_happiness_dip_resets_rockstar_clock() -> None:
 
 
 def test_only_adults_build_a_rockstar_streak() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.TEEN)
+    life = alive(health=HEALTH_MAX, stage=Stage.TEEN)
     run(life, timedelta(hours=1), happiness=100, fed=True)
-    assert life.high_happiness_since is None
+    assert life.high_mood_since is None
 
 
 def test_frozen_span_does_not_count_toward_rockstar() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.ADULT)
+    life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tended(life, timedelta(days=1))
     run(life, ROCKSTAR_HAPPY_FOR, step=MAX_CREDITED_GAP, frozen=True)
     events = tended(life, TICK_EVERY)
@@ -579,16 +579,16 @@ def test_frozen_span_does_not_count_toward_rockstar() -> None:
 
 
 def test_offline_gap_counts_only_fifteen_minutes_toward_rockstar() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.ADULT)
+    life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tick(life, T0 + TICK_EVERY, frozen=False, happiness=100, caretakers=0, people=0)
-    since = life.high_happiness_since
+    since = life.high_mood_since
     assert since is not None
     back = T0 + TICK_EVERY + timedelta(days=ROCKSTAR_HAPPY_FOR.days + 1)
-    life.full = FULL_MAX
+    life.health = HEALTH_MAX
     events = tick(life, back, frozen=False, happiness=100, caretakers=0, people=0)
     assert events == []
     assert life.stage is Stage.ADULT
-    assert life.high_happiness_since == back - MAX_CREDITED_GAP
+    assert life.high_mood_since == back - MAX_CREDITED_GAP
 
 
 # ---
@@ -598,7 +598,7 @@ def test_offline_gap_counts_only_fifteen_minutes_toward_rockstar() -> None:
 
 def old(stage: Stage, days: int, **fields: object) -> Life:
     """Build a Wisp of `stage` that hatched `days` days before T0."""
-    return alive(full=FULL_MAX, at=T0 - timedelta(days=days), stage=stage, **fields)
+    return alive(health=HEALTH_MAX, at=T0 - timedelta(days=days), stage=stage, **fields)
 
 
 @pytest.mark.parametrize("stage", [Stage.ADULT, Stage.ROCKSTAR])
@@ -622,7 +622,7 @@ def test_old_age_wins_over_rockstar_in_the_same_tick() -> None:
     life = old(
         Stage.ADULT,
         OLD_FOGEY_AT_DAY,
-        high_happiness_since=T0 - ROCKSTAR_HAPPY_FOR,
+        high_mood_since=T0 - ROCKSTAR_HAPPY_FOR,
     )
     events = tick(
         life, T0, frozen=False, happiness=ROCKSTAR_HAPPINESS, caretakers=0, people=0
@@ -630,7 +630,7 @@ def test_old_age_wins_over_rockstar_in_the_same_tick() -> None:
     assert events == [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)]
     assert life.stage is Stage.OLD_FOGEY
     assert life.peak_stage is Stage.ADULT
-    assert life.high_happiness_since is None
+    assert life.high_mood_since is None
 
 
 def test_no_wisp_lives_past_the_farewell_day() -> None:
@@ -648,7 +648,7 @@ def test_old_fogey_drains_slower() -> None:
     life = old(Stage.OLD_FOGEY, OLD_FOGEY_AT_DAY, last_tick_at=T0)
     tick(life, T0 + MAX_CREDITED_GAP, frozen=False, happiness=0, caretakers=0, people=0)
     drained = OLD_FOGEY_FULL_DRAIN_PER_DAY * MAX_CREDITED_GAP / timedelta(days=1)
-    assert life.full == pytest.approx(FULL_MAX - drained)
+    assert life.health == pytest.approx(HEALTH_MAX - drained)
 
 
 def test_old_fogey_does_not_grow_old_twice() -> None:
@@ -674,7 +674,7 @@ def test_old_fogey_lives_until_day_60() -> None:
 
 def test_neglect_still_kills_an_old_fogey() -> None:
     life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY)
-    life.full = 0.01
+    life.health = 0.01
     events = tick(life, T0, frozen=False, happiness=0, caretakers=0, people=0)
     assert events == [Event(EventKind.DIED)]
     assert life.phase is Phase.DEAD
@@ -748,9 +748,9 @@ def due(life: Life, at: datetime) -> Life:
     return life
 
 
-def sick(full: float) -> Life:
+def sick(health: float) -> Life:
     """Build a Wisp in the middle of his cold."""
-    return alive(full, cold_left=SICK_FOR.total_seconds(), had_cold=True)
+    return alive(health, cold_left=SICK_FOR.total_seconds(), had_cold=True)
 
 
 @pytest.mark.parametrize(
@@ -781,7 +781,7 @@ def test_a_legacy_child_gets_a_cold_scheduled() -> None:
 
 @pytest.mark.parametrize("stage", [Stage.ADULT, Stage.ROCKSTAR, Stage.OLD_FOGEY])
 def test_an_adult_never_catches_a_cold(stage: Stage) -> None:
-    life = alive(full=FULL_MAX, stage=stage, at=T0 - timedelta(days=20))
+    life = alive(health=HEALTH_MAX, stage=stage, at=T0 - timedelta(days=20))
     schedule_cold(life, random.Random(1))
     assert life.cold_due_at is None
     events = run(life, timedelta(days=3), fed=True, cared=True)
@@ -813,7 +813,7 @@ def test_schedule_cold_never_twice() -> None:
 
 
 def test_the_cold_starts_when_due_and_lasts_48_credited_hours() -> None:
-    life = due(alive(full=FULL_MAX, stage=Stage.CHILD), T0 + timedelta(days=2))
+    life = due(alive(health=HEALTH_MAX, stage=Stage.CHILD), T0 + timedelta(days=2))
     assert not is_sick(life)
 
     events = run(life, SICK_FOR - TICK_EVERY, fed=True, cared=True)
@@ -831,7 +831,7 @@ def test_the_cold_starts_when_due_and_lasts_48_credited_hours() -> None:
 
 def test_a_due_cold_starts_before_growth_in_the_same_tick() -> None:
     life = alive(
-        full=FULL_MAX,
+        health=HEALTH_MAX,
         stage=Stage.TEEN,
         at=T0 - timedelta(days=10),
         growth=STAGE_RULES[Stage.ADULT].growth,
@@ -848,11 +848,11 @@ def test_a_due_cold_starts_before_growth_in_the_same_tick() -> None:
 
 
 def test_frozen_time_does_not_count_down_the_cold() -> None:
-    life = sick(full=FULL_MAX)
+    life = sick(health=HEALTH_MAX)
     assert run(life, timedelta(days=3), step=MAX_CREDITED_GAP, frozen=True) == []
     assert life.cold_left == SICK_FOR.total_seconds()
 
-    waiting = due(alive(full=FULL_MAX), T0 + timedelta(hours=1))
+    waiting = due(alive(health=HEALTH_MAX), T0 + timedelta(hours=1))
     run(waiting, timedelta(days=1), frozen=True)
     assert not is_sick(waiting)
     assert not waiting.had_cold
@@ -862,18 +862,18 @@ def test_frozen_time_does_not_count_down_the_cold() -> None:
 
 def test_sick_drains_full_one_and_a_half_times_as_fast() -> None:
     assert SICK_DRAIN_MULTIPLIER == 1.5
-    life = sick(full=80.0)
+    life = sick(health=80.0)
     run(life, timedelta(days=1), step=MAX_CREDITED_GAP)
-    assert life.full == pytest.approx(80.0 - FULL_DRAIN_PER_DAY * 1.5)
+    assert life.health == pytest.approx(80.0 - FULL_DRAIN_PER_DAY * 1.5)
     assert life.cold_left == timedelta(days=1).total_seconds()
 
 
 def test_he_cannot_die_while_sick() -> None:
-    life = due(alive(full=12.0, care=CARE_MAX), T0 + TICK_EVERY)
+    life = due(alive(health=12.0, wellbeing=WELLBEING_MAX), T0 + TICK_EVERY)
     events: list[Event] = []
     for _ in range(int(SICK_FOR / TICK_EVERY)):
         events += run(life, TICK_EVERY)
-        assert life.full >= SICK_FULL_FLOOR == 1.0
+        assert life.health >= SICK_FULL_FLOOR == 1.0
         assert life.phase is Phase.ALIVE
     assert kinds(events) == [
         EventKind.SICK,
@@ -881,7 +881,7 @@ def test_he_cannot_die_while_sick() -> None:
         EventKind.FADING,
         EventKind.RECOVERED,
     ]
-    assert life.full == SICK_FULL_FLOOR
+    assert life.health == SICK_FULL_FLOOR
 
     now = life.last_tick_at
     after: list[Event] = []
@@ -893,9 +893,9 @@ def test_he_cannot_die_while_sick() -> None:
 
 
 def test_the_sick_floor_never_feeds_him() -> None:
-    life = sick(full=0.5)
+    life = sick(health=0.5)
     run(life, timedelta(hours=1))
-    assert life.full == 0.5
+    assert life.health == 0.5
     assert life.phase is Phase.ALIVE
 
 
@@ -915,7 +915,7 @@ def test_the_sick_floor_never_feeds_him() -> None:
     ],
 )
 def test_a_jumped_wisp_stays_in_his_stage(stage: Stage, kind: EventKind) -> None:
-    life = alive(full=FULL_MAX, last_tick_at=T0)
+    life = alive(health=HEALTH_MAX, last_tick_at=T0)
     assert jump_to(life, stage, T0) == Event(kind, stage)
     assert (life.stage, life.stage_started_at) == (stage, T0)
     assert run(life, timedelta(days=2), fed=True, cared=True, people=1) == []
@@ -923,7 +923,7 @@ def test_a_jumped_wisp_stays_in_his_stage(stage: Stage, kind: EventKind) -> None
 
 
 def test_a_jump_back_to_baby_is_not_announced() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.TEEN, last_tick_at=T0)
+    life = alive(health=HEALTH_MAX, stage=Stage.TEEN, last_tick_at=T0)
     assert jump_to(life, Stage.BABY, T0) is None
     assert (life.stage, life.peak_stage, life.hatched_at) == (
         Stage.BABY,
@@ -933,16 +933,16 @@ def test_a_jump_back_to_baby_is_not_announced() -> None:
 
 
 def test_an_old_fogey_jumped_to_counts_as_a_grown_up() -> None:
-    young = alive(full=FULL_MAX, stage=Stage.CHILD)
+    young = alive(health=HEALTH_MAX, stage=Stage.CHILD)
     jump_to(young, Stage.OLD_FOGEY, T0)
     assert young.peak_stage is Stage.ADULT
-    star = alive(full=FULL_MAX, stage=Stage.ROCKSTAR)
+    star = alive(health=HEALTH_MAX, stage=Stage.ROCKSTAR)
     jump_to(star, Stage.OLD_FOGEY, T0)
     assert star.peak_stage is Stage.ROCKSTAR
 
 
 def test_ready_to_pass_on_says_farewell_on_the_next_tick() -> None:
-    life = alive(full=FULL_MAX, stage=Stage.CHILD, last_tick_at=T0)
+    life = alive(health=HEALTH_MAX, stage=Stage.CHILD, last_tick_at=T0)
     ready_to_pass_on(life, T0)
     assert tick(life, T0, frozen=False, happiness=0, caretakers=0, people=0) == [
         Event(EventKind.FAREWELL)
@@ -951,7 +951,7 @@ def test_ready_to_pass_on_says_farewell_on_the_next_tick() -> None:
 
 
 def test_starve_ends_even_a_sick_wisp_on_the_next_tick() -> None:
-    life = sick(full=FULL_MAX)
+    life = sick(health=HEALTH_MAX)
     life.last_tick_at = T0
     starve(life)
     events = tick(life, T0, frozen=False, happiness=0, caretakers=0, people=0)

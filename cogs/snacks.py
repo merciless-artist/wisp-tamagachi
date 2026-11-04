@@ -175,7 +175,7 @@ _Action = Callable[[discord.Interaction], Awaitable[None]]
 
 
 def _hunger_gain(snack: Snack) -> str:
-    return f"hunger +{snack.full}"
+    return f"hunger +{snack.meal}"
 
 
 def _coins(bot: "WispBot", text: str) -> str:
@@ -1016,11 +1016,11 @@ def vault_view() -> discord.ui.View:
 
 @dataclass(frozen=True)
 class _Meal:
-    """A snack Wisp has eaten: his life afterwards, the feeder and the full it gave."""
+    """A snack Wisp has eaten: his life, the feeder and the meal points it gave."""
 
     life: Life
     player: Player
-    full: int
+    points: int
 
 
 async def _eat(
@@ -1046,8 +1046,8 @@ async def _eat(
     if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
         raise Refusal(_SINE_USED)
     eaten = await log.meal_points_today(guild_id, user_id, now)
-    full = meal_grant(eaten, snack.full, daily_meal_cap(life))
-    if full == 0:
+    points = meal_grant(eaten, snack.meal, daily_meal_cap(life))
+    if points == 0:
         raise Refusal(_FULL)
     if snack == _FREE:
         kind = InteractionKind.FREE_SNACK
@@ -1058,13 +1058,13 @@ async def _eat(
     bond = casual_bond_grant(
         await log.casual_bond_today(guild_id, user_id, now), BOND_PER_SNACK
     )
-    feed(life, full, user_id, now)
+    feed(life, points, user_id, now)
     add_growth(life, snack.growth)
     if bond:
         await bot.players.add_bond(guild_id, user_id, bond)
-    await log.record_interaction(guild_id, life.id, user_id, kind, bond, full, now)
+    await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
     await bot.lives.save(guild_id, life)
-    return _Meal(life, player, full)
+    return _Meal(life, player, points)
 
 
 def _moment(snack: Snack) -> Moment:
@@ -1108,8 +1108,8 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
         return
-    text = f"♪ Wisp ate your {snack.name} ・ hunger +{meal.full}"
-    if meal.full < snack.full:
+    text = f"♪ Wisp ate your {snack.name} ・ hunger +{meal.points}"
+    if meal.points < snack.meal:
         text += " (daily meal limit)"
     await interaction.edit_original_response(
         content=text, view=None, allowed_mentions=_NO_PING

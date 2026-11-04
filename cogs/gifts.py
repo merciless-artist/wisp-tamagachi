@@ -25,12 +25,12 @@ from wisp.life import Life, Phase, add_care, add_growth, mood
 from wisp.lines import Moment
 from wisp.rules import (
     BOND_PER_KEPT_GIFT,
-    CARE_PER_GIFT,
     COLLECTION_BOND_BONUS,
     GIFT_BY_KEY,
     GIFT_COLLECTIONS,
     GIFT_COST,
     GROWTH_PER_BOND_MOMENT,
+    WELLBEING_PER_GIFT,
     Gift,
     GiftCollection,
 )
@@ -298,7 +298,7 @@ async def give_gift(
         0,
         now,
     )
-    add_care(life, CARE_PER_GIFT)
+    add_care(life, WELLBEING_PER_GIFT)
     if kept:
         await bot.players.add_bond(guild_id, member.id, bond)
         add_growth(life, GROWTH_PER_BOND_MOMENT)

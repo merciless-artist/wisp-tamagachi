@@ -240,11 +240,11 @@ async def lay(
     bot: app.WispBot,
     stage: Stage = Stage.ADULT,
     phase: Phase = Phase.ALIVE,
-    full: float = 80.0,
+    health: float = 80.0,
 ) -> Life:
     life = new_egg(1, START - timedelta(days=20))
     life.phase = phase
-    life.full = full
+    life.health = health
     if phase not in (Phase.EGG, Phase.HATCHING):
         life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = START - timedelta(days=19)
@@ -1634,7 +1634,7 @@ async def test_a_poke_earns_nothing(
     )
     after = await bot.lives.current(GUILD_ID)
     assert after is not None
-    assert (after.full, after.growth) == (life.full, life.growth)
+    assert (after.health, after.growth) == (life.health, life.growth)
 
 
 async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(
@@ -1748,7 +1748,7 @@ async def test_chatting_earns_no_bond_growth_or_caretaking(
 
     after = await bot.lives.current(GUILD_ID)
     assert after is not None and life.id is not None
-    assert (after.full, after.growth) == (life.full, life.growth)
+    assert (after.health, after.growth) == (life.health, life.growth)
     assert (await bot.players.get(GUILD_ID, FIRST)).bond == 0
     assert await bot.activity_log.caretakers(GUILD_ID, life.id, START) == 0
     assert await bot.activity_log.latest_interactor(GUILD_ID, life.id) is None

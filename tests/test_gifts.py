@@ -188,11 +188,11 @@ def emoji_text(name: str, index: int) -> str:
 
 
 async def lay(
-    bot: app.WispBot, phase: Phase = Phase.ALIVE, full: float = 50.0, version: int = 1
+    bot: app.WispBot, phase: Phase = Phase.ALIVE, health: float = 50.0, version: int = 1
 ) -> Life:
     life = new_egg(version, discord.utils.utcnow() - timedelta(days=2))
     life.phase = phase
-    life.full = full
+    life.health = health
     if phase is Phase.ALIVE:
         life.stage = life.peak_stage = Stage.BABY
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()
@@ -651,7 +651,9 @@ async def test_every_gift_attempt_adds_care(
     say(bot)
 
     await give(bot, "alien_blue")
-    assert (await current_life(bot)).care == rules.CARE_START + rules.CARE_PER_GIFT
+    assert (
+        await current_life(bot)
+    ).wellbeing == rules.WELLBEING_START + rules.WELLBEING_PER_GIFT
 
     cog.rng = FixedRandom(KEEP)
     await give(bot, "book_red", OTHER_USER_ID)
@@ -659,8 +661,8 @@ async def test_every_gift_attempt_adds_care(
 
     kept_today = roll == KEEP
     assert await kept_keys(bot) == (["alien_blue"] if kept_today else ["book_red"])
-    expected = rules.CARE_START + 3 * rules.CARE_PER_GIFT
-    assert (await current_life(bot)).care == expected
+    expected = rules.WELLBEING_START + 3 * rules.WELLBEING_PER_GIFT
+    assert (await current_life(bot)).wellbeing == expected
 
 
 async def test_a_refused_gift_adds_no_care(bot: app.WispBot) -> None:
@@ -670,7 +672,7 @@ async def test_a_refused_gift_adds_no_care(bot: app.WispBot) -> None:
 
     await give(bot, "alien_blue")
 
-    assert (await current_life(bot)).care == rules.CARE_START
+    assert (await current_life(bot)).wellbeing == rules.WELLBEING_START
 
 
 async def test_a_collection_is_given_from_once_a_day(
@@ -820,7 +822,7 @@ async def test_wisp_must_be_alive_for_gifts(
 ) -> None:
     await lay(bot)
     select = await item_select(bot, "aliens")
-    await lay(bot, phase=phase, full=0.0, version=2)
+    await lay(bot, phase=phase, health=0.0, version=2)
 
     interaction = await give(bot, "alien_blue", select=select)
 
@@ -830,7 +832,7 @@ async def test_wisp_must_be_alive_for_gifts(
 
 
 async def test_a_hangry_wisp_reacts_hangry(bot: app.WispBot) -> None:
-    await lay(bot, full=5.0)
+    await lay(bot, health=5.0)
     pick = say(bot)
 
     await give(bot, "alien_blue")
@@ -999,7 +1001,7 @@ async def test_picking_a_collection_once_he_is_gone_says_gifts_wait(
 ) -> None:
     await lay(bot)
     _, before = await open_vault(bot)
-    await lay(bot, phase=Phase.DEAD, full=0.0, version=2)
+    await lay(bot, phase=Phase.DEAD, health=0.0, version=2)
 
     interaction = await pick(bot, "aliens", select=collection_select(before))
 
@@ -1083,7 +1085,7 @@ async def test_before_he_hatches_the_vault_says_gifts_wait(
     bot: app.WispBot, phase: Phase | None
 ) -> None:
     if phase is not None:
-        await lay(bot, phase=phase, full=0.0)
+        await lay(bot, phase=phase, health=0.0)
 
     text, selects = await open_vault(bot)
 

@@ -1,4 +1,4 @@
-"""Wisp's life: eggs, hatching, fullness, care, his cold, stages and death.
+"""Wisp's life: eggs, hatching, health, wellbeing, his cold, stages and death.
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
 callers pass the current time (timezone-aware UTC) into every call, and the
@@ -13,8 +13,6 @@ from enum import StrEnum, auto
 
 from wisp.rules import (
     CARE_DRAIN_PER_DAY,
-    CARE_MAX,
-    CARE_START,
     COAL_EGG_FOOD,
     COLD_EARLIEST,
     COLD_LATEST,
@@ -23,10 +21,10 @@ from wisp.rules import (
     FADING_BELOW,
     FAREWELL_AT_DAY,
     FULL_DRAIN_PER_DAY,
-    FULL_MAX,
     HANGRY_BELOW,
-    HATCHED_FULL,
     HATCHING_TIME,
+    HEALTH_MAX,
+    HEALTH_START,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
@@ -38,6 +36,8 @@ from wisp.rules import (
     SICK_FULL_FLOOR,
     STAGE_MIN_TIME,
     STAGE_RULES,
+    WELLBEING_MAX,
+    WELLBEING_START,
     Stage,
 )
 
@@ -66,7 +66,7 @@ class Phase(StrEnum):
 
 
 class Mood(StrEnum):
-    """How Wisp feels about how full and how cared for he is."""
+    """How Wisp feels about his health and his wellbeing."""
 
     HAPPY = auto()
     HANGRY = auto()
@@ -103,7 +103,7 @@ class Life:
     """One Wisp, from egg to its end. Mirrors a row of the lives table.
 
     `favorite_snack` is the key of the snack he loves most, chosen when he
-    hatches; None while he is an egg. `care` is the care meter, filled by
+    hatches; None while he is an egg. `wellbeing` is the wellbeing meter, filled by
     duels and gifts, and `lonely_warned` whether he has said he is lonely
     since it last dropped below the lonely line.
 
@@ -116,7 +116,7 @@ class Life:
     version: int
     phase: Phase
     stage: Stage
-    full: float
+    health: float
     egg_food: int
     growth: int
     laid_at: datetime
@@ -127,12 +127,12 @@ class Life:
     hatched_at: datetime | None = None
     stage_started_at: datetime | None = None
     ended_at: datetime | None = None
-    high_happiness_since: datetime | None = None
+    high_mood_since: datetime | None = None
     warned: EventKind | None = None
     hatched_by: int | None = None
     from_coal: bool = False
     favorite_snack: str | None = None
-    care: float = CARE_START
+    wellbeing: float = WELLBEING_START
     lonely_warned: bool = False
     cold_due_at: datetime | None = None
     cold_left: float = 0.0
@@ -151,7 +151,7 @@ def new_egg(version: int, now: datetime) -> Life:
         version=version,
         phase=Phase.EGG,
         stage=Stage.EGG,
-        full=0.0,
+        health=0.0,
         egg_food=0,
         growth=0,
         laid_at=now,
@@ -177,14 +177,14 @@ def is_over(life: Life) -> bool:
 def mood(life: Life) -> Mood:
     """How a living Wisp feels; anything else is happy.
 
-    Hangry while his full meter is below the hangry line, else lonely while
-    his care meter is below the lonely line.
+    Hangry while his health is below the hangry line, else lonely while
+    his wellbeing is below the lonely line.
     """
     if life.phase is not Phase.ALIVE:
         return Mood.HAPPY
-    if life.full < HANGRY_BELOW:
+    if life.health < HANGRY_BELOW:
         return Mood.HANGRY
-    if life.care < LONELY_BELOW:
+    if life.wellbeing < LONELY_BELOW:
         return Mood.LONELY
     return Mood.HAPPY
 
@@ -211,10 +211,10 @@ def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Ev
     if life.phase is Phase.EGG:
         return _feed_egg(life, meal_points, feeder_id, now)
     if life.phase is Phase.ALIVE:
-        life.full = min(life.full + meal_points, FULL_MAX)
-        if life.full >= HANGRY_BELOW:
+        life.health = min(life.health + meal_points, HEALTH_MAX)
+        if life.health >= HANGRY_BELOW:
             life.warned = None
-        elif life.full >= FADING_BELOW and life.warned is EventKind.FADING:
+        elif life.health >= FADING_BELOW and life.warned is EventKind.FADING:
             life.warned = EventKind.HUNGRY
     return []
 
@@ -226,14 +226,14 @@ def add_growth(life: Life, points: int) -> None:
 
 
 def add_care(life: Life, points: float) -> None:
-    """Add care, up to CARE_MAX; it only counts while Wisp is alive.
+    """Add wellbeing, up to WELLBEING_MAX; it only counts while Wisp is alive.
 
     Back at or above the lonely line, his next drop below it is announced.
     """
     if life.phase is not Phase.ALIVE:
         return
-    life.care = min(life.care + points, CARE_MAX)
-    if life.care >= LONELY_BELOW:
+    life.wellbeing = min(life.wellbeing + points, WELLBEING_MAX)
+    if life.wellbeing >= LONELY_BELOW:
         life.lonely_warned = False
 
 
@@ -313,8 +313,8 @@ def tick(
         return []
     gap = now - life.last_tick_at
     elapsed = timedelta(0) if frozen else max(min(gap, MAX_CREDITED_GAP), timedelta(0))
-    if life.high_happiness_since is not None:
-        life.high_happiness_since += max(gap - elapsed, timedelta(0))
+    if life.high_mood_since is not None:
+        life.high_mood_since += max(gap - elapsed, timedelta(0))
     life.last_tick_at = now
     if frozen:
         return []
@@ -344,8 +344,8 @@ def _tick_hatching(life: Life, now: datetime) -> list[Event]:
         return []
     _enter(life, Phase.ALIVE)
     life.stage = life.peak_stage = Stage.BABY
-    life.full = HATCHED_FULL
-    life.care = CARE_START
+    life.health = HEALTH_START
+    life.wellbeing = WELLBEING_START
     life.hatched_at = life.stage_started_at = now
     return [Event(EventKind.HATCHED)]
 
@@ -366,8 +366,8 @@ def _tick_alive(
     events = _catch_due_cold(life, now)
     days = elapsed.total_seconds() / _DAY_SECONDS
     _drain_full(life, days)
-    life.care = max(life.care - CARE_DRAIN_PER_DAY * days, 0.0)
-    if life.full == 0:
+    life.wellbeing = max(life.wellbeing - CARE_DRAIN_PER_DAY * days, 0.0)
+    if life.health == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
         return [Event(EventKind.DIED)]
@@ -390,19 +390,19 @@ def _drain_full(life: Life, days: float) -> None:
     floor = 0.0
     if is_sick(life):
         drain *= SICK_DRAIN_MULTIPLIER
-        floor = min(life.full, SICK_FULL_FLOOR)
-    life.full = max(life.full - drain * days, floor)
+        floor = min(life.health, SICK_FULL_FLOOR)
+    life.health = max(life.health - drain * days, floor)
 
 
 def _warnings(life: Life) -> list[Event]:
     events: list[Event] = []
-    if life.full < HANGRY_BELOW and life.warned is None:
+    if life.health < HANGRY_BELOW and life.warned is None:
         life.warned = EventKind.HUNGRY
         events.append(Event(EventKind.HUNGRY))
-    if life.full < FADING_BELOW and life.warned is not EventKind.FADING:
+    if life.health < FADING_BELOW and life.warned is not EventKind.FADING:
         life.warned = EventKind.FADING
         events.append(Event(EventKind.FADING))
-    if life.care < LONELY_BELOW and not life.lonely_warned:
+    if life.wellbeing < LONELY_BELOW and not life.lonely_warned:
         life.lonely_warned = True
         events.append(Event(EventKind.LONELY, stage=life.stage))
     return events
@@ -422,7 +422,7 @@ def _grow(
         stage in (Stage.ADULT, Stage.ROCKSTAR)
         and age_days(life, now) >= OLD_FOGEY_AT_DAY
     ):
-        life.high_happiness_since = None
+        life.high_mood_since = None
         return [_advance(life, Stage.OLD_FOGEY, now, keep_peak=True)]
     if stage is Stage.ADULT:
         if _kept_happy_long_enough(life, now, happiness):
@@ -468,11 +468,11 @@ def _ready_for(
 def _kept_happy_long_enough(life: Life, now: datetime, happiness: int) -> bool:
     """Track the happiness streak and report whether it has lasted long enough."""
     if happiness < ROCKSTAR_HAPPINESS:
-        life.high_happiness_since = None
+        life.high_mood_since = None
         return False
-    if life.high_happiness_since is None:
-        life.high_happiness_since = now
-    return now - life.high_happiness_since >= ROCKSTAR_HAPPY_FOR
+    if life.high_mood_since is None:
+        life.high_mood_since = now
+    return now - life.high_mood_since >= ROCKSTAR_HAPPY_FOR
 
 
 # ---
@@ -502,7 +502,7 @@ def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
     having been an Adult. Returns the event to announce; a Baby has none.
     """
     life.hatched_at = now - timedelta(days=_jump_age(stage))
-    life.high_happiness_since = None
+    life.high_mood_since = None
     keep_peak = stage is Stage.OLD_FOGEY
     if keep_peak and life.peak_stage not in (Stage.ADULT, Stage.ROCKSTAR):
         life.peak_stage = Stage.ADULT
@@ -517,5 +517,5 @@ def ready_to_pass_on(life: Life, now: datetime) -> None:
 
 
 def starve(life: Life) -> None:
-    """Empty a living Wisp's Full; his next tick, even a sick one, ends his life."""
-    life.full = 0.0
+    """Empty a living Wisp's health; his next tick, even a sick one, ends his life."""
+    life.health = 0.0

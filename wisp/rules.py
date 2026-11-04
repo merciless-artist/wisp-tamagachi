@@ -41,27 +41,27 @@ PLAY_POINTS = 1
 VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 
 # ---
-# Full
+# Health
 # ---
 
-FULL_MAX = 100.0
+HEALTH_MAX = 100.0
 FULL_DRAIN_PER_DAY = 15.0
 OLD_FOGEY_FULL_DRAIN_PER_DAY = 10.0
-HATCHED_FULL = 50.0
+HEALTH_START = 50.0
 HANGRY_BELOW = 30.0
 FADING_BELOW = 10.0
 
 # ---
-# Care
+# Wellbeing
 # ---
 
 # Filled by counted Rhyme Duels and every gift bought; below LONELY_BELOW he
 # is lonely, which only changes how he talks.
-CARE_MAX = 100.0
-CARE_START = 50.0
+WELLBEING_MAX = 100.0
+WELLBEING_START = 50.0
 CARE_DRAIN_PER_DAY = 10.0
 CARE_PER_PLAY = 10
-CARE_PER_GIFT = 8
+WELLBEING_PER_GIFT = 8
 LONELY_BELOW = 30.0
 # The pictures in ASSETS/moments his lonely post picks from, by stage.
 LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
@@ -242,7 +242,7 @@ class Snack:
     key: str
     name: str
     cost: int
-    full: int
+    meal: int
     growth: int
 
     @property
