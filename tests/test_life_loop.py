@@ -1231,6 +1231,7 @@ async def test_he_does_not_go_quiet_while_napping(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
+    gone_quiet(bot)
     life = await lay(bot, gap=timedelta(minutes=5))
     life.nap_left = rules.NAP_FOR.total_seconds()
     await bot.lives.save(GUILD_ID, life)
@@ -1245,17 +1246,23 @@ async def test_he_does_not_go_quiet_while_napping(
 # ---
 
 
+def gone_quiet(bot: app.WispBot, at: datetime = NOW - rules.QUIET_AFTER) -> None:
+    """A member last talked in the House or poked Wisp at `at`."""
+    bot.talk.stir(GUILD_ID, at)
+
+
 async def test_quiet_line_once_per_stretch(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    life = await lay(bot, gap=timedelta(minutes=5))
+    gone_quiet(bot)
+    await lay(bot, gap=timedelta(minutes=5))
 
     await cog.run_tick(NOW)
     await cog.run_tick(NOW + timedelta(minutes=5))
     assert server.house.send.await_count == 1
 
-    await interact(bot, life, NOW + timedelta(minutes=6))
+    gone_quiet(bot, NOW + timedelta(minutes=6))
     await cog.run_tick(NOW + timedelta(minutes=10))
     assert server.house.send.await_count == 1
 
@@ -1283,6 +1290,7 @@ async def test_the_quiet_post_shows_the_nap_picture_only_while_young(
     picture: str | None,
 ) -> None:
     await configure(bot)
+    gone_quiet(bot)
     await lay(bot, gap=timedelta(minutes=5), stage=stage)
 
     await cog.run_tick(NOW)
@@ -1296,18 +1304,60 @@ async def test_no_quiet_line_before_the_quiet_time(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
-    life = await lay(bot)
-    await interact(bot, life, NOW - rules.QUIET_AFTER + timedelta(seconds=1))
+    await lay(bot)
+    gone_quiet(bot, NOW - rules.QUIET_AFTER + timedelta(seconds=1))
 
     await cog.run_tick(NOW)
 
     server.house.send.assert_not_awaited()
 
 
+async def test_credited_interactions_do_not_keep_the_house_from_going_quiet(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    gone_quiet(bot)
+    life = await lay(bot, gap=timedelta(minutes=5))
+    await interact(bot, life, NOW - timedelta(minutes=1))
+
+    await cog.run_tick(NOW)
+
+    assert server.house.send.await_count == 1
+
+
+async def test_after_a_restart_the_quiet_is_counted_from_the_first_tick(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await configure(bot)
+    await lay(bot, gap=timedelta(minutes=5))
+    quiet: list[datetime] = []
+    pick = bot.lines.pick
+
+    def note_quiet(moment: Moment, mood: Mood, **fields: str) -> str:
+        if moment is Moment.QUIET:
+            quiet.append(now)
+        return pick(moment, mood, **fields)
+
+    monkeypatch.setattr(bot.lines, "pick", note_quiet)
+
+    for now in (
+        NOW,
+        NOW + rules.QUIET_AFTER - timedelta(minutes=5),
+        NOW + rules.QUIET_AFTER,
+    ):
+        await cog.run_tick(now)
+
+    assert quiet == [NOW + rules.QUIET_AFTER]
+
+
 async def test_no_quiet_line_while_frozen(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot, frozen=True)
+    gone_quiet(bot)
     await lay(bot)
 
     await cog.run_tick(NOW)
@@ -1319,6 +1369,7 @@ async def test_no_quiet_line_for_an_egg(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
+    gone_quiet(bot)
     await lay(bot, phase=Phase.EGG, health=0.0)
 
     await cog.run_tick(NOW)
@@ -1338,6 +1389,7 @@ async def test_quiet_line_matches_his_mood(
     expected: Mood,
 ) -> None:
     await configure(bot)
+    gone_quiet(bot)
     await lay(bot, health=health, version=3)
     picked: list[tuple[Moment, Mood, dict[str, str]]] = []
 

@@ -865,13 +865,15 @@ async def test_chat_rows_do_not_count_as_caretakers_or_last_interactor(
     assert await repo.latest_interactor(GUILD, 2) is None
 
 
-async def test_chats_still_count_as_activity_and_toward_meeting(
+async def test_chats_count_toward_meeting_but_not_as_people_he_saw(
     db: Database,
 ) -> None:
     repo = ActivityRepo(db)
     since = NOW - timedelta(hours=24)
     for at in (MIDNIGHT, MIDNIGHT + timedelta(days=1)):
         await repo.record_interaction(GUILD, 1, USER, InteractionKind.CHAT, 0, 0, at)
+    await repo.record_interaction(GUILD, 1, OTHER_USER, InteractionKind.POKE, 0, 0, NOW)
+    await repo.record_interaction(GUILD, 1, 3, InteractionKind.PLAY, 0, 0, NOW)
 
     assert await repo.people_since(GUILD, since) == 1
     assert await repo.distinct_days(GUILD, USER) == 2

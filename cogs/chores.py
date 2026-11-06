@@ -30,6 +30,7 @@ from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
     do_chore,
+    drop_chore,
     is_napping,
     is_open,
     message_id,
@@ -174,9 +175,10 @@ async def post_chores(
 
     A new mess, tantrum or nap is posted with its picture and button, and the
     post is remembered on the life; a mess post first names the mess of his
-    stage. A mess left too long, a missed tantrum and missed lights edit
-    their own post with his line and take its button away. Catching a cold
-    is posted with his sick picture.
+    stage. A chore whose post failed is dropped, so it never waits where
+    nobody can press it. A mess left too long, a missed tantrum and missed
+    lights edit their own post with his line and take its button away.
+    Catching a cold is posted with his sick picture.
     """
     if life.id is None:
         return
@@ -193,7 +195,9 @@ async def post_chores(
                 image=_picture(chore, life.stage),
                 view=chore_view(chore, life.id, life.stage),
             )
-            if posted is not None:
+            if posted is None:
+                await _drop(bot, guild_id, life.id, chore)
+            else:
                 await _remember(bot, guild_id, life.id, chore, posted)
         elif event.kind in _ENDED and event.message_id is not None:
             line = bot.lines.pick(moment, mood(life))
@@ -213,21 +217,28 @@ async def _remember(
 ) -> None:
     """Store the post that shows `chore`, while that life still has it open.
 
-    A post nobody can win any more (the life changed, the chore closed or a
-    newer post is already stored) keeps its words and loses its button.
+    A first presser may have stored it already. A post nobody can win any
+    more (the life changed, the chore closed or a newer post is already
+    stored) keeps its words and loses its button.
     """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if (
-            life is not None
-            and life.id == life_id
-            and is_open(life, chore)
-            and message_id(life, chore) is None
-        ):
-            set_message_id(life, chore, posted.id)
-            await bot.lives.save(guild_id, life)
-            return
+        if life is not None and life.id == life_id:
+            if message_id(life, chore) == posted.id:
+                return
+            if is_open(life, chore) and message_id(life, chore) is None:
+                set_message_id(life, chore, posted.id)
+                await bot.lives.save(guild_id, life)
+                return
     await edit_in_house(bot, guild_id, posted.id, posted.content)
+
+
+async def _drop(bot: "WispBot", guild_id: int, life_id: int, chore: Chore) -> None:
+    """Drop `chore` from the life whose post of it failed, if still unposted."""
+    async with bot.guild_lock(guild_id):
+        life = await bot.lives.current(guild_id)
+        if life is not None and life.id == life_id and drop_chore(life, chore):
+            await bot.lives.save(guild_id, life)
 
 
 # ---
@@ -320,6 +331,9 @@ async def _take(
 
     Returns the life it was done for and his Health before the chore.
 
+    A press that comes before the post's id is stored stores it: the button
+    is on the post, so the post is this chore's.
+
     Raises:
         Refusal: Wisp is frozen, someone already did it, the post is an older
             one, the life has moved on or he is no longer alive.
@@ -331,6 +345,8 @@ async def _take(
             raise Refusal(_OLD_POST)
         if life.phase is not Phase.ALIVE:
             raise Refusal(_NOT_ALIVE)
+        if is_open(life, chore) and message_id(life, chore) is None:
+            set_message_id(life, chore, post.id)
         if not is_open(life, chore) or message_id(life, chore) != post.id:
             raise Refusal(_ALREADY_DONE)
         health_before = life.health

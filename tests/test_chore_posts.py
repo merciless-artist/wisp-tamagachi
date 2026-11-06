@@ -25,6 +25,7 @@ from wisp.chores import (
     ChoreEventKind,
     is_open,
     latest_nap_start,
+    message_id,
     open_mess,
     open_tantrum,
     start_nap,
@@ -433,22 +434,68 @@ async def test_a_late_post_never_replaces_the_stored_post_id(
     assert late.edit.await_args.kwargs["view"] is None
 
 
-async def test_a_failed_chore_post_is_reported_and_not_remembered(
-    bot: app.WispBot, server: FakeServer
+@pytest.mark.parametrize(
+    ("chore", "kind"),
+    [
+        (Chore.MESS, ChoreEventKind.MESS),
+        (Chore.TANTRUM, ChoreEventKind.TANTRUM),
+        (Chore.NAP, ChoreEventKind.NAP),
+    ],
+)
+async def test_a_failed_chore_post_is_reported_and_the_chore_dropped(
+    bot: app.WispBot, server: FakeServer, chore: Chore, kind: ChoreEventKind
 ) -> None:
     life = await lay(bot)
-    open_mess(life)
+    {Chore.MESS: open_mess, Chore.TANTRUM: open_tantrum, Chore.NAP: start_nap}[chore](
+        life
+    )
     await bot.lives.save(GUILD_ID, life)
     server.house.send.side_effect = [
         discord.HTTPException(MagicMock(status=500), "boom"),
         None,
     ]
 
-    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.MESS)])
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(kind)])
 
     (report,) = house_reports(server)
     assert report.startswith("Error in posting to Wisp's House: HTTPException")
-    assert (await current_life(bot)).mess_message_id is None
+    after = await current_life(bot)
+    assert message_id(after, chore) is None
+    assert not is_open(after, chore)
+    assert (after.health, after.wellbeing) == (life.health, life.wellbeing)
+    assert after.mess_gap == 0.0
+
+
+async def test_the_first_press_before_the_post_is_stored_does_the_chore(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    open_mess(life)
+    await bot.lives.save(GUILD_ID, life)
+    assert life.id is not None
+    life_id = life.id
+    send = server.house.send.side_effect
+    pressed: list[MagicMock] = []
+
+    async def send_then_press(text: str, **kwargs: Any) -> Any:
+        post = await send(text, **kwargs)
+        pressed.append(await press(bot, Chore.MESS, life_id, post))
+        return post
+
+    server.house.send.side_effect = send_then_press
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.MESS)])
+
+    (interaction,) = pressed
+    (receipt,) = private_replies(interaction)
+    assert receipt.startswith("♪ You cleaned up.")
+    after = await current_life(bot)
+    assert not is_open(after, Chore.MESS)
+    assert after.mess_message_id == FIRST_POST_ID
+    assert await points(bot, USER_ID) == CHORE_POINTS[Chore.MESS]
+    post = server.posts[FIRST_POST_ID]
+    (done,) = post.edit.await_args_list
+    assert f"<@{USER_ID}> cleaned up the mess" in done.kwargs["content"]
 
 
 async def test_a_chore_view_never_times_out() -> None:

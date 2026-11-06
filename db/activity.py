@@ -122,11 +122,16 @@ class ActivityRepo:
         return int(row["days"])
 
     async def people_since(self, guild_id: int, since: datetime) -> int:
-        """Number of different members who did anything with Wisp since `since`."""
+        """Number of different members who cared for Wisp since `since`.
+
+        These are the people he saw, from whom growing up takes a share of
+        caretakers; chatting and poking are not caring, as for `caretakers`.
+        """
         row = await self._db.fetchone(
             f"SELECT COUNT(DISTINCT user_id) AS people FROM "
-            f"{self._db.t('interactions')} WHERE guild_id = %s AND at >= %s",
-            (guild_id, to_db_time(since)),
+            f"{self._db.t('interactions')} WHERE guild_id = %s AND at >= %s "
+            "AND kind NOT IN (%s, %s)",
+            (guild_id, to_db_time(since), *(kind.value for kind in _TALK)),
         )
         assert row is not None
         return int(row["people"])

@@ -377,6 +377,12 @@ def schedule_cold(life: Life, rng: random.Random) -> None:
 
 
 def _catch_due_cold(life: Life, now: datetime) -> list[Event]:
+    """Start Monster Pox once it is due, only for a Baby or Child.
+
+    A due time found at a later stage is cleared, never caught.
+    """
+    if life.cold_due_at is not None and life.stage not in _COLD_STAGES:
+        life.cold_due_at = None
     if life.had_cold or life.cold_due_at is None or now < life.cold_due_at:
         return []
     life.had_cold = True
@@ -658,10 +664,12 @@ def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
     """Put a living Wisp straight into `stage`, for staff testing it.
 
     His age is set to match, so he stays in the stage until he grows out of
-    it on his own. An Old Fogey jumped to from a young stage is counted as
+    it on his own, and a Monster Pox not caught yet is rolled again from his
+    new hatch time. An Old Fogey jumped to from a young stage is counted as
     having been an Adult. Returns the event to announce; a Baby has none.
     """
     life.hatched_at = now - timedelta(days=_jump_age(stage))
+    life.cold_due_at = None
     life.high_mood_since = None
     keep_peak = stage is Stage.OLD_FOGEY
     if keep_peak and life.peak_stage not in (Stage.ADULT, Stage.ROCKSTAR):

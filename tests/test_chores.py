@@ -11,6 +11,7 @@ from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
     do_chore,
+    drop_chore,
     is_napping,
     is_open,
     message_id,
@@ -243,6 +244,49 @@ def test_a_mess_left_while_sick_gives_no_second_illness(
     assert run(life, T0 + timedelta(hours=6)) == [event(ChoreEventKind.MESS_LEFT, POST)]
     assert life.sniffles_left == illness.get("sniffles_left", 0.0)
     assert not is_open(life, Chore.MESS)
+
+
+@pytest.mark.parametrize(
+    ("chore", "start"),
+    [(Chore.MESS, open_mess), (Chore.TANTRUM, open_tantrum), (Chore.NAP, start_nap)],
+)
+def test_a_chore_with_no_post_is_dropped_at_no_cost(
+    chore: Chore, start: Callable[[Life], ChoreEvent]
+) -> None:
+    life = alive()
+    start(life)
+    before = (life.health, life.wellbeing, life.spoiled_until, life.cranky_until)
+    assert drop_chore(life, chore) is True
+    assert not is_open(life, chore)
+    assert life.mess_gap == 0.0
+    assert (life.health, life.wellbeing, life.spoiled_until, life.cranky_until) == (
+        before
+    )
+    assert drop_chore(life, chore) is False
+
+
+def test_a_dropped_nap_lets_him_sleep_on() -> None:
+    life = alive()
+    start_nap(life)
+    drop_chore(life, Chore.NAP)
+    assert is_napping(life)
+
+
+def test_a_posted_chore_is_never_dropped() -> None:
+    life = alive()
+    open_mess(life)
+    set_message_id(life, Chore.MESS, POST)
+    assert drop_chore(life, Chore.MESS) is False
+    assert is_open(life, Chore.MESS)
+    assert life.mess_gap > 0
+
+
+def test_a_dropped_mess_does_not_hold_back_the_next() -> None:
+    life = alive()
+    open_mess(life)
+    drop_chore(life, Chore.MESS)
+    schedule_mess(life, random.Random(1))
+    assert life.mess_in > 0
 
 
 def test_an_unposted_mess_gives_no_cold() -> None:

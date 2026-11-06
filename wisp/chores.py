@@ -164,6 +164,26 @@ def do_chore(life: Life, chore: Chore) -> bool:
     return True
 
 
+def drop_chore(life: Life, chore: Chore) -> bool:
+    """Close `chore` when it is open with no post, as if it never came.
+
+    Nobody could press a chore that has no post, so it costs him nothing, and
+    a dropped mess does not hold the next one back. Returns whether it was
+    dropped.
+    """
+    if not is_open(life, chore) or message_id(life, chore) is not None:
+        return False
+    match chore:
+        case Chore.MESS:
+            life.mess_left = 0.0
+            life.mess_gap = 0.0
+        case Chore.TANTRUM:
+            life.tantrum_left = 0.0
+        case Chore.NAP:
+            life.lights_left = 0.0
+    return True
+
+
 def wake(life: Life, now: datetime) -> bool:
     """End his nap at once and leave him cranky, with no Wellbeing penalty.
 

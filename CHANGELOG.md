@@ -14,6 +14,18 @@
   buttons, whose removal could unregister `wisp:vault` for everyone.
 - `/wisp lunchbox` used in a Studio thread answers privately instead of
   posting between the cards.
+- Monster Pox is only ever caught as a Baby or Child: a due time found at a
+  later stage is cleared, and `!wisp test_lifestage` clears the due time so
+  it is rolled again from the new hatch time.
+- Chores: the first press on a chore whose post id is not stored yet does
+  the chore (and stores the id) instead of hearing "already taken"; a chore
+  whose post failed is dropped at no cost, and a dropped mess does not hold
+  the next one back.
+- The people he saw (which sets how many caretakers growing up takes) no
+  longer count chats and pokes, like the caretakers themselves.
+- The quiet line follows real talk in the House (`bot.talk.quiet_for`), not
+  credited interactions. After a restart the quiet is counted from the first
+  tick, so a redeploy never makes him say it at once.
 
 ## 2026-11-06 (The Status post is the control panel)
 

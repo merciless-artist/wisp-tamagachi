@@ -184,6 +184,7 @@ class LifeLoop(commands.Cog):
         self.rng = random.Random()
         self.drawings = DailyDrawings(bot, self.rng)
         self._quiet_announced: set[int] = set()
+        self._watching_since: dict[int, datetime] = {}
 
     async def cog_load(self) -> None:
         """Start ticking."""
@@ -305,12 +306,17 @@ class LifeLoop(commands.Cog):
     async def _speak_if_quiet(
         self, guild_id: int, life: Life, frozen: bool, now: datetime
     ) -> None:
-        """Say one quiet line per stretch of no interaction; speak again after one.
+        """Say one quiet line per stretch of quiet in his House; speak again after one.
 
-        He says nothing while frozen, napping or not alive.
+        The House is quiet once QUIET_AFTER has passed with no member talking
+        there or poking him. Until a member does after a restart, the quiet is
+        counted from this run's first tick, so a restart never makes him say
+        it at once. He says nothing while frozen, napping or not alive.
         """
-        people = await self.bot.activity_log.people_since(guild_id, now - QUIET_AFTER)
-        if people:
+        quiet_for = self.bot.talk.quiet_for(guild_id, now)
+        if quiet_for is None:
+            quiet_for = now - self._watching_since.setdefault(guild_id, now)
+        if quiet_for < QUIET_AFTER:
             self._quiet_announced.discard(guild_id)
             return
         if (

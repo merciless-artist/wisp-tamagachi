@@ -971,6 +971,37 @@ def test_an_adult_never_catches_a_cold(stage: Stage) -> None:
     assert not is_sick(life)
 
 
+@pytest.mark.parametrize("stage", [Stage.TEEN, Stage.ADULT, Stage.OLD_FOGEY])
+def test_a_due_time_found_after_childhood_is_cleared_never_caught(
+    stage: Stage,
+) -> None:
+    life = due(alive(health=HEALTH_MAX, stage=stage), T0 - timedelta(days=1))
+    events = tick(life, T0, frozen=False, caretakers=0, people=0)
+    assert EventKind.SICK not in kinds(events)
+    assert (life.cold_due_at, life.cold_left, life.had_cold) == (None, 0.0, False)
+    schedule_cold(life, random.Random(1))
+    assert life.cold_due_at is None
+
+
+@pytest.mark.parametrize("stage", [Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR])
+def test_a_jump_past_childhood_clears_the_pox_due_time(stage: Stage) -> None:
+    life = alive(health=HEALTH_MAX, cold_due_at=T0 + timedelta(days=3))
+    jump_to(life, stage, T0)
+    assert life.cold_due_at is None
+    run(life, timedelta(days=5), fed=True, cared=True, people=1)
+    assert not life.had_cold
+    assert not is_sick(life)
+
+
+def test_a_jump_rolls_the_pox_again_from_the_new_hatch_time() -> None:
+    life = alive(health=HEALTH_MAX, cold_due_at=T0 + timedelta(days=4))
+    jump_to(life, Stage.CHILD, T0)
+    assert life.cold_due_at is None
+    schedule_cold(life, EdgeRng(high=False))
+    assert life.hatched_at is not None
+    assert life.cold_due_at == life.hatched_at + COLD_EARLIEST
+
+
 def test_an_egg_gets_no_cold_until_he_hatches() -> None:
     egg = new_egg(1, T0)
     schedule_cold(egg, random.Random(1))
@@ -1014,16 +1045,16 @@ def test_the_cold_starts_when_due_and_lasts_48_credited_hours() -> None:
 def test_a_due_cold_starts_before_growth_in_the_same_tick() -> None:
     life = alive(
         health=HEALTH_MAX,
-        stage=Stage.TEEN,
+        stage=Stage.CHILD,
         at=T0 - timedelta(days=10),
-        growth=STAGE_RULES[Stage.ADULT].growth,
+        growth=STAGE_RULES[Stage.TEEN].growth,
         cold_due_at=T0 - timedelta(days=4),
     )
     back = T0 + timedelta(days=2)
     events = tick(life, back, frozen=False, caretakers=1, people=0)
     assert events == [
-        Event(EventKind.SICK, Stage.TEEN),
-        Event(EventKind.STAGE_UP, Stage.ADULT),
+        Event(EventKind.SICK, Stage.CHILD),
+        Event(EventKind.STAGE_UP, Stage.TEEN),
     ]
     assert is_sick(life)
     assert life.cold_left == (SICK_FOR - MAX_CREDITED_GAP).total_seconds()
