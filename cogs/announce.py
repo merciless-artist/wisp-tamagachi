@@ -1,7 +1,7 @@
 """Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from random import choice
@@ -34,6 +34,7 @@ from wisp.rules import (
     WELLBEING_STRETCH,
     Stage,
 )
+from wisp.text import count
 from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
@@ -57,10 +58,10 @@ _NEW_STAGE: Final = frozenset(
 )
 _DROPS_TITLE: Final = "♪ Wisp's meters dropped"
 _DROP_REASONS: Final = {
-    Meter.HEALTH: "nobody fed him a track for {hours} hours. Drop a track in {drop}.",
+    Meter.HEALTH: "nobody fed him a track for {span}. Drop a track in {drop}.",
     Meter.WELLBEING: (
         "nobody chatted, played or poked him, or gave him a snack or gift, "
-        "for {hours} hours. Talk to him here or use {status}."
+        "for {span}. Talk to him here or use {status}."
     ),
 }
 _GENERAL_NEWS: Final = "# Wisp just {news} today! Go give him a birthday poke!"
@@ -391,6 +392,15 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
 # ---
 
 
+def _span(length: timedelta) -> str:
+    """A stretch in words: "6 hours", "1 hour", "45 minutes", "1 hour 30 minutes"."""
+    hours, minutes = divmod(int(length.total_seconds()) // 60, 60)
+    parts = [count(hours, "hour")] if hours else []
+    if minutes or not hours:
+        parts.append(count(minutes, "minute"))
+    return " ".join(parts)
+
+
 def meter_drops_text(
     drops: list[Event], tracks_channel_id: int | None, status_thread_id: int | None
 ) -> str:
@@ -412,8 +422,8 @@ def meter_drops_text(
     for drop in drops:
         if drop.meter is None:
             continue
-        hours = int(lengths[drop.meter].total_seconds() // 3600)
-        reason = _DROP_REASONS[drop.meter].format(hours=hours, **where)
+        span = _span(lengths[drop.meter])
+        reason = _DROP_REASONS[drop.meter].format(span=span, **where)
         lines.append(
             f"・{drop.meter.value.capitalize()} -{drop.lost:g} "
             f"(now {drop.value:g}): {reason}"

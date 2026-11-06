@@ -1773,15 +1773,44 @@ async def test_one_tick_with_two_drops_makes_one_house_post_with_two_lines(
     assert sends_without_pinging(post.kwargs)
 
 
-async def test_the_stretch_hours_come_from_the_rules(
+async def test_the_stretch_lengths_come_from_the_rules(
     bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(announce, "HEALTH_STRETCH", timedelta(hours=9))
+    monkeypatch.setattr(announce, "WELLBEING_STRETCH", timedelta(hours=4))
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop(), wellbeing_drop()])
+
+    health, wellbeing = server.house.send.await_args.args[0].split("\n")[1:]
+    assert "track for 9 hours." in health
+    assert "snack or gift, for 4 hours." in wellbeing
+
+
+@pytest.mark.parametrize(
+    ("length", "words"),
+    [
+        (timedelta(hours=6), "6 hours"),
+        (timedelta(hours=1), "1 hour"),
+        (timedelta(minutes=90), "1 hour 30 minutes"),
+        (timedelta(hours=2, minutes=1), "2 hours 1 minute"),
+        (timedelta(minutes=45), "45 minutes"),
+        (timedelta(minutes=1), "1 minute"),
+    ],
+)
+async def test_a_stretch_is_worded_with_the_right_plural_and_minutes(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    length: timedelta,
+    words: str,
+) -> None:
+    monkeypatch.setattr(announce, "HEALTH_STRETCH", length)
     await growing_life(bot)
 
     await post_events(bot, GUILD_ID, [health_drop()])
 
-    assert "for 9 hours" in server.house.send.await_args.args[0]
+    assert f"track for {words}. Drop" in server.house.send.await_args.args[0]
 
 
 async def test_a_drop_without_channels_set_uses_plain_words(
