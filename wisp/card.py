@@ -117,12 +117,12 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         if has_sniffles(life):
             hours = hours_left(life.sniffles_left)
             heading.append(f"{SUB_CLEF} he has a cold・{hours} h left")
-        heading.extend(["", *_right_now(life, now, facts)])
+        health = life.health / HEALTH_MAX * 100
+        wellbeing = life.wellbeing / WELLBEING_MAX * 100
+        heading.extend(["", *_right_now(life, health, wellbeing, now, facts)])
         bars = [
-            *_meter("Health", life.health / HEALTH_MAX * 100, HEALTH_BAR, emoji),
-            *_meter(
-                "Wellbeing", life.wellbeing / WELLBEING_MAX * 100, WELLBEING_BAR, emoji
-            ),
+            *_meter("Health", health, HEALTH_BAR, emoji),
+            *_meter("Wellbeing", wellbeing, WELLBEING_BAR, emoji),
         ]
         return _card(heading, bars, "him", life.stage.label.upper(), facts)
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")
@@ -163,19 +163,24 @@ def _card(
     )
 
 
-def _right_now(life: Life, now: datetime, facts: CardFacts) -> list[str]:
+def _right_now(
+    life: Life, health: float, wellbeing: float, now: datetime, facts: CardFacts
+) -> list[str]:
     """The Right now block: what he needs, worst first, then his next nap.
 
-    He is hungry under the hangry line, lonely under the lonely line, then
-    each chore waiting in his House is named; with nothing to do he is happy.
+    He is hungry while the Health bar shows a percent under the hangry line,
+    lonely while the Wellbeing bar shows one under the lonely line, so the
+    block always agrees with the bars; `health` and `wellbeing` are the bars'
+    values from 0 to 100. Then each chore waiting in his House is named; with
+    nothing to do he is happy.
     """
     track_drop = (
         "the track drop" if facts.tracks_id is None else f"<#{facts.tracks_id}>"
     )
     hungry = [f"hungry: drop a track in {track_drop}"]
     needs = [
-        *(hungry if life.health < HANGRY_BELOW else []),
-        *([_LONELY] if life.wellbeing < LONELY_BELOW else []),
+        *(hungry if _shown_percent(health) < HANGRY_BELOW else []),
+        *([_LONELY] if _shown_percent(wellbeing) < LONELY_BELOW else []),
         *(need for chore, need in _CHORE_NEEDS.items() if is_open(life, chore)),
     ]
     return [
@@ -198,10 +203,15 @@ def bar(value: float, full: str, left: str) -> str:
     `left` piece, including one whose `left` is not uploaded, has a space
     before the `│`.
     """
-    percent = round_half_up(min(max(value, 0.0), 100.0))
+    percent = _shown_percent(value)
     tens, ones = divmod(percent, _PERCENT_PER_PIECE)
     end = left if ones >= _LEFT_FROM and left else " "
     return f"{full * tens}{end}│{percent}%"
+
+
+def _shown_percent(value: float) -> int:
+    """The whole percent a bar shows for a value from 0 to 100, rounded half up."""
+    return round_half_up(min(max(value, 0.0), 100.0))
 
 
 def _bold(text: str) -> str:

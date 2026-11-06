@@ -14,10 +14,11 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 from discord import app_commands
+from discord.ui.view import ViewStore
 
 import app
 from cogs import groups, rhyme_duel
-from cogs.rhyme_duel import PlayButton, RhymeDuelButton
+from cogs.rhyme_duel import NoHouseError, PlayButton, RhymeDuelButton
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -551,7 +552,7 @@ async def test_missing_house_fails_and_frees_the_player(
     await lay(bot)
     await bot.settings.update(GUILD_ID, house_channel_id=None)
 
-    with pytest.raises(LookupError):
+    with pytest.raises(NoHouseError):
         await duel(bot, server)
 
     assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
@@ -1045,20 +1046,42 @@ async def test_play_opens_a_private_menu_of_the_games(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     interaction = make_interaction(bot, server)
-    interaction.response.send_message = AsyncMock()
 
     await PlayButton().callback(interaction)
 
-    call = interaction.response.send_message.await_args
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    call = interaction.followup.send.await_args
     assert call.args == ("♪ Pick a game to play with Wisp.",)
     assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["wait"] is True
     assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    view = call.kwargs["view"]
-    (game,) = view.children
+    (game,) = call.kwargs["view"].children
     assert isinstance(game, RhymeDuelButton)
     assert (game.item.label, game.item.custom_id) == ("Rhyme Duel", "wisp:play:rhyme")
-    assert view.timeout is None
     server.house.create_thread.assert_not_awaited()
+
+
+async def test_a_games_menu_timing_out_keeps_the_rhyme_duel_button_working(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    """discord.py files a waited follow-up's view under its message id.
+
+    A view filed under the shared key beside an ordinary item would, on
+    timing out, unregister the Rhyme Duel button for every open menu.
+    """
+    interaction = make_interaction(bot, server)
+    await PlayButton().callback(interaction)
+    menu = interaction.followup.send.await_args.kwargs["view"]
+    store = ViewStore(MagicMock())
+    other = discord.ui.View(timeout=None)
+    other.add_item(discord.ui.Button(label="Other", custom_id="other"))
+    store.add_view(other)
+    store.add_view(menu, 1234)
+
+    store.remove_view(menu)
+
+    template = RhymeDuelButton.__discord_ui_compiled_template__
+    assert store._dynamic_items[template] is RhymeDuelButton
 
 
 async def test_the_rhyme_duel_button_plays_a_duel_like_the_command(
@@ -1142,9 +1165,24 @@ async def test_a_rhyme_duel_button_with_no_house_is_reported_where_pressed(
 
     guild, context, error = reported.await_args.args
     assert (guild, context) == (server.guild, "the Rhyme Duel button")
-    assert isinstance(error, LookupError)
+    assert isinstance(error, NoHouseError)
     assert reported.await_args.kwargs == {"where": interaction.channel}
     interaction.followup.send.assert_awaited_with(USER_ERROR, ephemeral=True)
+    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+
+
+async def test_the_rhyme_duel_button_catches_only_a_missing_house(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    monkeypatch.setattr(rhyme_duel, "_duel", AsyncMock(side_effect=KeyError("bug")))
+
+    with pytest.raises(KeyError):
+        await press_rhyme_duel(make_interaction(bot, server))
+
+    reported.assert_not_awaited()
     assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
 
 
@@ -1154,7 +1192,7 @@ async def test_a_play_button_that_cannot_answer_is_reported(
     interaction = make_interaction(bot, server)
     interaction.channel = MagicMock(spec=discord.Thread)
     expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
-    interaction.response.send_message = AsyncMock(side_effect=expired)
+    interaction.response.defer.side_effect = expired
     reported = AsyncMock()
     monkeypatch.setattr(bot, "report_error", reported)
 

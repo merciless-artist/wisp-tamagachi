@@ -60,8 +60,6 @@ _CUT: Final = "..."
 _PLAY_ID: Final = "wisp:play"
 _RHYME_DUEL_ID: Final = "wisp:play:rhyme"
 _PICK_A_GAME: Final = "♪ Pick a game to play with Wisp."
-# A duel with no House to open its thread in fails with a LookupError.
-_DUEL_FAILURES: Final = (*EXPECTED_FAILURES, LookupError)
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
 _ALREADY_DUELING: Final = (
@@ -167,13 +165,17 @@ def summary_text(line: str, reason: str | None, chain: list[str], points: int) -
 # ---
 
 
+class NoHouseError(LookupError):
+    """Wisp's House is not set, cannot be seen or is not a text channel."""
+
+
 async def _open_thread(
     bot: "WispBot", guild_id: int, guild: discord.Guild | None, name: str
 ) -> discord.Thread:
     """Open the duel's public thread off Wisp's House.
 
     Raises:
-        LookupError: The House is not set, cannot be seen or is not a text
+        NoHouseError: The House is not set, cannot be seen or is not a text
             channel.
     """
     channel_id = (await bot.settings.get(guild_id)).house_channel_id
@@ -183,7 +185,7 @@ async def _open_thread(
         else None
     )
     if not isinstance(house, discord.TextChannel):
-        raise LookupError("Wisp's House is not set or is not a text channel")
+        raise NoHouseError("Wisp's House is not set or is not a text channel")
     return await house.create_thread(
         name=f"Rhyme Duel ・ {name}",
         type=discord.ChannelType.public_thread,
@@ -388,7 +390,12 @@ class RhymeDuelButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Start a Rhyme Duel for whoever pressed it."""
-        await press(interaction, "the Rhyme Duel button", start_duel, _DUEL_FAILURES)
+        await press(
+            interaction,
+            "the Rhyme Duel button",
+            start_duel,
+            (*EXPECTED_FAILURES, NoHouseError),
+        )
 
 
 # ---
@@ -397,11 +404,18 @@ class RhymeDuelButton(
 
 
 async def _offer_games(interaction: discord.Interaction) -> None:
-    """Show the presser the games they can play with Wisp, privately."""
+    """Show the presser the games they can play with Wisp, privately.
+
+    The menu is a follow-up sent with `wait`, so discord.py files its view
+    under the menu's own message id. Its buttons are persistent and work
+    after the view times out; filed under the shared key a direct answer
+    gets, the timeout could unregister the Rhyme Duel button for everyone.
+    """
+    await interaction.response.defer(ephemeral=True, thinking=True)
     view = discord.ui.View(timeout=None)
     view.add_item(RhymeDuelButton())
-    await interaction.response.send_message(
-        _PICK_A_GAME, view=view, ephemeral=True, allowed_mentions=_NO_PING
+    await interaction.followup.send(
+        _PICK_A_GAME, view=view, ephemeral=True, allowed_mentions=_NO_PING, wait=True
     )
 
 

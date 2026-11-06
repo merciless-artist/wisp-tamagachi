@@ -22,7 +22,7 @@ from wisp.rules import (
     WELLBEING_MAX,
     Stage,
 )
-from wisp.text import MESSAGE_LIMIT, text_length
+from wisp.text import MESSAGE_LIMIT, round_half_up, text_length
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 WISP_ID = 1560213420068966441
@@ -438,9 +438,9 @@ def test_a_wisp_with_the_pox_and_a_cold_shows_both_lines() -> None:
     ("fields", "needs"),
     [
         ({}, [HAPPY]),
-        ({"health": HANGRY_BELOW - 0.1}, [HUNGRY]),
+        ({"health": HANGRY_BELOW - 1}, [HUNGRY]),
         ({"health": HANGRY_BELOW}, [HAPPY]),
-        ({"wellbeing": LONELY_BELOW - 0.1}, [LONELY]),
+        ({"wellbeing": LONELY_BELOW - 1}, [LONELY]),
         ({"wellbeing": LONELY_BELOW}, [HAPPY]),
         ({"mess_left": MESS_LEFT_FOR.total_seconds()}, [MESS]),
         ({"mess_in": 60.0, "mess_gap": 60.0}, [HAPPY]),
@@ -461,6 +461,30 @@ def test_right_now_says_what_he_needs(
     card = render_status(alive_life(**fields), NOW, FACTS, emoji)
 
     assert right_now(card) == needs
+
+
+@pytest.mark.parametrize(
+    ("meter", "line", "need"),
+    [
+        ("Health", HANGRY_BELOW, HUNGRY),
+        ("Wellbeing", LONELY_BELOW, LONELY),
+    ],
+)
+@pytest.mark.parametrize(
+    ("below", "needed"),
+    [(0.1, False), (0.5, False), (0.6, True)],
+)
+def test_right_now_agrees_with_the_percent_the_bar_shows(
+    meter: str, line: float, need: str, below: float, needed: bool
+) -> None:
+    life = alive_life(**{meter.lower(): line - below})
+
+    card = render_status(life, NOW, FACTS, emoji)
+
+    shown = round_half_up(line) - (1 if needed else 0)
+    label = meters(card).index(f"> 𝄡 {meter}")
+    assert meters(card)[label + 1].endswith(f"│{shown}%")
+    assert right_now(card) == ([need] if needed else [HAPPY])
 
 
 def test_right_now_lists_everything_he_needs_worst_first() -> None:
@@ -572,8 +596,8 @@ def test_the_fullest_card_fits_one_message() -> None:
 def test_a_sick_card_needing_everything_fits_one_message() -> None:
     life = alive_life(
         stage=Stage.OLD_FOGEY,
-        health=HANGRY_BELOW - 0.1,
-        wellbeing=LONELY_BELOW - 0.1,
+        health=HANGRY_BELOW - 1,
+        wellbeing=LONELY_BELOW - 1,
         cold_left=48 * 3600,
         sniffles_left=SNIFFLES_FOR.total_seconds(),
         hatched_at=NOW - timedelta(days=9999),
