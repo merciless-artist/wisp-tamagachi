@@ -335,7 +335,7 @@ RHYME_SKILL: dict[Stage, float] = {
 RHYME_TIRING = 0.1
 
 # ---
-# The Vault card
+# The Leaderboard card
 # ---
 
 LEADERBOARD_SIZE = 10

@@ -5,6 +5,9 @@ is two: the header picture on its own, then the text with the footer
 attached. The Vault, a Components V2 message, holds both in one message as
 media galleries. A pinned card in a Studio thread keeps its header message
 beside it in the settings, so both are posted again together.
+
+The Leaderboard is not edited: when its text changes, a new header and card
+are posted at the bottom of the thread and the old pair is deleted.
 """
 
 import contextlib
@@ -29,6 +32,12 @@ def art(name: str) -> Path | None:
     """The picture `name` in the artwork folder, or None when it is missing."""
     path = ASSETS_DIR / name
     return path if path.is_file() else None
+
+
+def _open(name: str) -> discord.File | None:
+    """The picture `name` opened for sending, or None when it is missing."""
+    path = art(name)
+    return None if path is None else discord.File(path)
 
 
 def art_file(name: str) -> dict[str, Any]:
@@ -89,26 +98,26 @@ class HeadedCard:
     post: str
 
 
-async def show_headed_in_thread(
+async def repost_headed_in_thread(
     bot: "WispBot",
     guild_id: int,
     thread_attr: str,
     content: str,
-    view: discord.ui.View,
     card: HeadedCard,
 ) -> None:
-    """Keep `card` showing `content` in the Studio thread at `thread_attr`.
+    """Keep `card` showing `content` as the last posts of the Studio thread.
 
-    A failure is posted in the thread, or in Wisp's House when the thread
-    cannot be reached, once per streak of failures. It is never raised, so
-    one broken display cannot stop the rest of a tick.
+    When the card now in the thread already says `content`, nothing is
+    posted. Otherwise a fresh header and card go at the bottom and the old
+    pair is deleted. A failure is posted in the thread, or in Wisp's House
+    when the thread cannot be reached, once per streak of failures. It is
+    never raised, so one broken display cannot stop the rest of a tick.
     """
     key = (guild_id, card.card_attr)
     thread: discord.Thread | None = None
     try:
         thread = await studio_thread(bot, guild_id, thread_attr)
-        card_id: int | None = getattr(await bot.settings.get(guild_id), card.card_attr)
-        await show_headed_card(bot, guild_id, thread, content, view, card, card_id)
+        await repost_headed_card(bot, guild_id, thread, content, card)
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
@@ -120,6 +129,52 @@ async def show_headed_in_thread(
             )
     else:
         bot.failing_displays.discard(key)
+
+
+async def repost_headed_card(
+    bot: "WispBot",
+    guild_id: int,
+    thread: discord.Thread,
+    content: str,
+    card: HeadedCard,
+) -> None:
+    """Post `card` again under a fresh header unless it already says `content`.
+
+    The old card is read from the thread, so a restart does not repost a
+    board that has not changed, and a card someone deleted is posted again.
+    The old header and card are deleted once the new pair is stored; one
+    that is already gone is fine, and any other failed delete is reported
+    in the thread. A card that is still the thread's first message, as every
+    card began, is brought over: that message keeps only its picture.
+    """
+    settings = await bot.settings.get(guild_id)
+    old_title_id: int | None = getattr(settings, card.title_attr)
+    old_card_id: int | None = getattr(settings, card.card_attr)
+    in_first_post = old_card_id == thread.id
+    if old_card_id is not None and not in_first_post:
+        try:
+            if (await thread.fetch_message(old_card_id)).content == content:
+                return
+        except discord.NotFound:
+            pass
+    if in_first_post:
+        await _keep_only_picture(thread, card.post)
+    await _post_headed(bot, guild_id, thread, content, card)
+    stale = [old_title_id, None if in_first_post else old_card_id]
+    for message_id in stale:
+        if message_id is None:
+            continue
+        try:
+            await thread.get_partial_message(message_id).delete()
+        except discord.NotFound:
+            pass
+        except discord.HTTPException as error:
+            await bot.report_error(
+                bot.get_guild(guild_id),
+                f"deleting the old {card.label}",
+                error,
+                where=thread,
+            )
 
 
 async def show_headed_card(
@@ -155,11 +210,32 @@ async def show_headed_card(
     if title_id is not None:
         with contextlib.suppress(discord.NotFound):
             await thread.get_partial_message(title_id).delete()
-    header = art_file(card.header)
-    title = await thread.send(**header) if header else None
-    posted = await thread.send(
-        content, view=view, allowed_mentions=_NO_PING, **art_file(card.footer)
-    )
+    await _post_headed(bot, guild_id, thread, content, card, view)
+
+
+async def _post_headed(
+    bot: "WispBot",
+    guild_id: int,
+    thread: discord.Thread,
+    content: str,
+    card: HeadedCard,
+    view: discord.ui.View | None = None,
+) -> None:
+    """Post the header, then the card with its footer and `view`; store and pin it."""
+    extras: dict[str, Any] = {"allowed_mentions": _NO_PING}
+    if view is not None:
+        extras["view"] = view
+    pictures = [_open(card.header), _open(card.footer)]
+    header, footer = pictures
+    try:
+        title = None if header is None else await thread.send(file=header)
+        if footer is not None:
+            extras["file"] = footer
+        posted = await thread.send(content, **extras)
+    finally:
+        for picture in pictures:
+            if picture is not None:
+                picture.close()
     await bot.settings.update(
         guild_id,
         **{

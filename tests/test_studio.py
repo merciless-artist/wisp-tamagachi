@@ -47,7 +47,8 @@ COMMAND_CHANNEL_ID = 40
 
 STATUS = "☀️ | Status"
 MEALTIME = "🧡 | Mealtime"
-VAULT = "🔒| The ViiBR Vault"
+VAULT = "🏆 | Leaderboard"
+OLD_VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
 BURRITO = "🧚│Burrito, Fairy God-bot"
@@ -55,7 +56,7 @@ THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, BURRITO)
 THREAD_TITLES = (
     "Status",
     "Mealtime",
-    "The ViiBR Vault",
+    "Leaderboard",
     "Jam Space",
     "Wisp FAQ",
     "Burrito, Fairy God-bot",
@@ -63,7 +64,7 @@ THREAD_TITLES = (
 OLD_NAMES = (
     "Status",
     "Mealtime",
-    "The ViiBR Vault",
+    OLD_VAULT,
     "The Jam Space",
     "How Wisp Works",
     "Burrito",
@@ -908,7 +909,7 @@ async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    for name, title in ((STATUS, "Status"), (VAULT, "The ViiBR Vault")):
+    for name, title in ((STATUS, "Status"), (VAULT, "Leaderboard")):
         (line,) = server.thread_named(name).send.await_args.args
         assert line.startswith(f"Error in pinning the card in {title}: Forbidden")
     server.thread_named(MEALTIME).send.assert_not_awaited()
@@ -983,6 +984,23 @@ async def test_rerun_renames_threads_that_have_their_old_names(
     for thread in server.threads.values():
         thread.edit.assert_any_await(name=thread.name)
     assert house_posts(server) == []
+
+
+async def test_rerun_renames_the_old_vault_thread_to_the_leaderboard(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    vault_id = (await bot.settings.get(GUILD_ID)).vault_thread_id
+    assert vault_id is not None
+    vault = server.threads[vault_id]
+    vault.name = OLD_VAULT
+
+    settings = await ensure_studio(bot, GUILD_ID)
+
+    assert vault.name == VAULT
+    vault.edit.assert_any_await(name=VAULT)
+    assert settings.vault_thread_id == vault_id
+    assert server.created_names == list(THREAD_NAMES)
 
 
 async def test_rename_failure_is_posted_in_its_thread_and_the_rest_carry_on(

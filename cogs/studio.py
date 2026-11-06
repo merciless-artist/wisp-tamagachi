@@ -222,9 +222,9 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
     ),
     StudioThread(
         "vault_thread_id",
-        "🔒| The ViiBR Vault",
-        "The ViiBR Vault",
-        "The ViiBR Vault is opening.",
+        "🏆 | Leaderboard",
+        "Leaderboard",
+        "The Leaderboard is opening.",
         message_attr="vault_message_id",
         image="vault.png",
     ),

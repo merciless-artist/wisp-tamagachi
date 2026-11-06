@@ -1,4 +1,4 @@
-"""The ViiBR Vault card: the leaderboard, Wisp's versions and /wisp board."""
+"""The Leaderboard post: the top lists, Wisp's versions and /wisp board."""
 
 import functools
 from datetime import datetime
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.groups import require_guild, wisp
-from cogs.headers import FOOTER, HeadedCard, send_headed, show_headed_in_thread
+from cogs.headers import FOOTER, HeadedCard, repost_headed_in_thread, send_headed
 from cogs.players import say_privately
 from cogs.snacks import vault_view
 from wisp.bond import tier_for
@@ -36,20 +36,25 @@ _CARD: Final = HeadedCard(
     footer=FOOTER,
     title_attr="vault_title_message_id",
     card_attr="vault_message_id",
-    label="ViiBR Vault card",
-    post="The ViiBR Vault",
+    label="Leaderboard card",
+    post="Leaderboard",
 )
 _NO_PING: Final = discord.AllowedMentions.none()
-_INTRO: Final = (
-    sub("Snacks and the leaderboard."),
-    BLANK,
-    item("Shop or open your Snack Pack with the buttons below."),
-    BLANK,
-)
 
 # ---
 # Leaderboard
 # ---
+
+
+def _intro(status_thread_id: int | None) -> tuple[str, ...]:
+    """The card's opening lines, saying where to shop the Vault."""
+    where = "the Status post" if status_thread_id is None else f"<#{status_thread_id}>"
+    return (
+        sub("The leaderboard."),
+        BLANK,
+        item(f"Shop the Vault with the button on {where}."),
+        BLANK,
+    )
 
 
 def version_line(life: Life, now: datetime) -> str:
@@ -83,12 +88,13 @@ def version_line(life: Life, now: datetime) -> str:
 
 
 async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
-    """Build the Vault card: two top tens, the top rhymers, then every version.
+    """Build the Leaderboard card: two top tens, top rhymers, then every version.
 
     The history is trimmed from the oldest end so the text fits one message;
     the box always closes. Each list ends with a blank line, as in Myra's
     draft, and every line is wrapped to fit the box.
     """
+    settings = await bot.settings.get(guild_id)
     history = await bot.lives.history(guild_id)
     current_id = history[0].id if history else None
     this_life = (
@@ -119,7 +125,7 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
         box_top(),
         *wrapped(
             sections(
-                _INTRO,
+                _intro(settings.status_thread_id),
                 [heading("This life"), *this_life_lines, BLANK],
                 [heading("All time"), *all_time_lines, BLANK],
                 [heading("Rhyme Duel"), *rhyme_lines, BLANK],
@@ -134,11 +140,9 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
-    """Bring the pinned Vault card in the Studio up to date, buttons included."""
+    """Repost the Leaderboard card at the bottom of its thread if its text changed."""
     text = await render_leaderboard(bot, guild_id, discord.utils.utcnow())
-    await show_headed_in_thread(
-        bot, guild_id, "vault_thread_id", text, vault_view(), _CARD
-    )
+    await repost_headed_in_thread(bot, guild_id, "vault_thread_id", text, _CARD)
 
 
 # ---

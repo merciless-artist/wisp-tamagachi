@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-06 (The Vault post becomes the Leaderboard)
+
+- The Studio thread kept in `vault_thread_id` is now `🏆 | Leaderboard`.
+  Setup renames the old `🔒| The ViiBR Vault` thread in place.
+- The leaderboard card has no buttons. Its intro says to shop the Vault with
+  the button on the Status post, linking the Status thread when it is set.
+  `/wisp board` still answers privately, with its buttons.
+- The card is reposted instead of edited. Each tick the new text is compared
+  with the text of the card now in the thread (read from Discord, so a restart
+  or a deleted card is handled and no new storage is needed). Unchanged text
+  posts nothing; changed text posts a fresh header and card at the bottom,
+  stores their ids in the same settings columns, then deletes the old pair. A
+  missing old message is fine; any other failed delete is reported in the
+  thread.
+- The Leaderboard post's notice says it is just for the leaderboard; the Status
+  post keeps "just for buttons".
+
+### For Myra
+
+- The Leaderboard thread still uses `vault.png` as its thumbnail until you make
+  a new one.
+
 ## 2026-11-04 (Meters and chores)
 
 Built from `DOCS/specs/2026-11-02-meters-and-chores-design.md` and

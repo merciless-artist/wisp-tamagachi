@@ -38,9 +38,11 @@ GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 VAULT_ID = 61
+STATUS_ID = 60
 VAULT_MESSAGE_ID = 778
 VAULT_TITLE_ID = 777
 POSTED_ID = 779
+NEW_TITLE_ID = 780
 FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
@@ -48,10 +50,10 @@ NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 BOX_BOTTOM = "╚══════════════════════╝"
 BOX_TOP = "╔══════════════════════╗"
 INTRO = [
-    "║𝄡𝄚𝄂 Snacks and the leaderboard.",
+    "║𝄡𝄚𝄂 The leaderboard.",
     BLANK,
-    "║𝄡 Shop or open your Snack Pack",
-    "║ with the buttons below.",
+    "║𝄡 Shop the Vault with the button on",
+    "║ the Status post.",
     BLANK,
 ]
 SPEC_LINES = frozenset(
@@ -72,29 +74,49 @@ class FakeServer:
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
-        self.vault_edit: Any = AsyncMock()
+        self.old_card_exists = True
         self.vault = MagicMock(spec=discord.Thread)
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
         self.vault.archived = False
-        self.vault.send = AsyncMock(
-            side_effect=lambda *args, **kwargs: MagicMock(
-                id=VAULT_TITLE_ID if "file" in kwargs and not args else POSTED_ID,
-                pin=AsyncMock(),
-            )
-        )
+        self.posted: list[MagicMock] = []
+        self.vault.send = AsyncMock(side_effect=self.send)
         self.starter = MagicMock(spec=discord.Message)
         self.starter.attachments = ["vault.png"]
         self.starter.edit = AsyncMock()
-        self.vault.fetch_message = AsyncMock(return_value=self.starter)
-        self.vault_delete: Any = AsyncMock()
-        self.vault.get_partial_message.return_value = MagicMock(
-            spec=discord.PartialMessage, edit=self.vault_edit, delete=self.vault_delete
-        )
+        self.old_card = MagicMock(spec=discord.Message)
+        self.old_card.content = ""
+        self.vault.fetch_message = AsyncMock(side_effect=self.fetch_message)
+        self.deleted: list[int] = []
+        self.delete_errors: dict[int, discord.HTTPException] = {}
+        self.vault.get_partial_message.side_effect = self.partial
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
+
+    def send(self, *args: Any, **kwargs: Any) -> MagicMock:
+        sent = MagicMock(
+            id=NEW_TITLE_ID if "file" in kwargs and not args else POSTED_ID,
+            pin=AsyncMock(),
+        )
+        self.posted.append(sent)
+        return sent
+
+    async def fetch_message(self, message_id: int) -> MagicMock:
+        if message_id == VAULT_ID:
+            return self.starter
+        if message_id == VAULT_MESSAGE_ID and self.old_card_exists:
+            return self.old_card
+        raise discord.NotFound(MagicMock(status=404), "Unknown Message")
+
+    def partial(self, message_id: int) -> MagicMock:
+        async def delete() -> None:
+            if message_id in self.delete_errors:
+                raise self.delete_errors[message_id]
+            self.deleted.append(message_id)
+
+        return MagicMock(spec=discord.PartialMessage, delete=delete)
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:
         if channel_id != VAULT_ID:
@@ -404,7 +426,7 @@ async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
     lines = text.splitlines()
     assert lines[:6] == [BOX_TOP, *INTRO]
     assert lines[-2:] == [BLANK, BOX_BOTTOM]
-    for line in (*lines[:2], lines[-1]):
+    for line in (lines[0], lines[-1]):
         assert line in SPEC_LINES, line
     assert_fits_its_box(text)
 
@@ -532,26 +554,89 @@ async def test_leaderboard_fits_one_message(
 # ---
 
 
-async def test_refresh_vault_edits_the_pinned_message(
+async def current_text(bot: app.WispBot) -> str:
+    return await render_leaderboard(bot, GUILD_ID, discord.utils.utcnow())
+
+
+async def test_unchanged_text_posts_nothing(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
+    server.old_card.content = await current_text(bot)
 
     await refresh_vault(bot, GUILD_ID)
 
-    server.vault.get_partial_message.assert_called_once_with(VAULT_MESSAGE_ID)
-    kwargs = server.vault_edit.await_args.kwargs
-    assert kwargs["content"].startswith(BOX_TOP)
-    assert "║𝄡 v1 ・ going strong" in kwargs["content"]
-    assert kwargs["allowed_mentions"].to_dict() == (
+    server.vault.fetch_message.assert_awaited_once_with(VAULT_MESSAGE_ID)
+    server.vault.send.assert_not_awaited()
+    assert server.deleted == []
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.vault_message_id == VAULT_MESSAGE_ID
+    assert settings.vault_title_message_id == VAULT_TITLE_ID
+
+
+async def test_changed_text_posts_new_and_deletes_the_old_pair(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card.content = "an older board"
+
+    await refresh_vault(bot, GUILD_ID)
+
+    header, card = server.vault.send.await_args_list
+    assert header.args == ()
+    assert header.kwargs["file"].filename == "leaderboard_title.png"
+    assert card.args[0].startswith(BOX_TOP)
+    assert "║𝄡 v1 ・ going strong" in card.args[0]
+    assert card.kwargs["file"].filename == "box_footer.png"
+    assert "view" not in card.kwargs
+    assert card.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
-    server.vault.send.assert_not_awaited()
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.vault_message_id == POSTED_ID
+    assert settings.vault_title_message_id == NEW_TITLE_ID
+    assert sorted(server.deleted) == [VAULT_TITLE_ID, VAULT_MESSAGE_ID]
     server.house.send.assert_not_awaited()
 
 
-async def test_refresh_vault_puts_shop_and_snack_pack_buttons_on_the_card(
+async def test_a_deleted_old_card_is_fine(bot: app.WispBot, server: FakeServer) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card_exists = False
+    server.delete_errors[VAULT_TITLE_ID] = discord.NotFound(
+        MagicMock(status=404), "Unknown Message"
+    )
+    server.delete_errors[VAULT_MESSAGE_ID] = discord.NotFound(
+        MagicMock(status=404), "Unknown Message"
+    )
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert server.vault.send.await_count == 2
+    assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
+
+
+async def test_a_failed_delete_of_the_old_card_is_reported_in_the_thread(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card.content = "an older board"
+    server.delete_errors[VAULT_MESSAGE_ID] = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
+    assert server.deleted == [VAULT_TITLE_ID]
+    (report,) = server.vault.send.await_args.args
+    assert report.startswith("Error in deleting the old Leaderboard card: Forbidden")
+
+
+async def test_the_new_card_is_pinned_and_the_first_post_left_alone(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -559,11 +644,10 @@ async def test_refresh_vault_puts_shop_and_snack_pack_buttons_on_the_card(
 
     await refresh_vault(bot, GUILD_ID)
 
-    view = server.vault_edit.await_args.kwargs["view"]
-    assert view.timeout is None
-    shop, snack_pack = view.children
-    assert isinstance(shop, ShopButton)
-    assert isinstance(snack_pack, SnackPackButton)
+    title, card = server.posted
+    card.pin.assert_awaited_once()
+    title.pin.assert_not_awaited()
+    server.starter.edit.assert_not_awaited()
 
 
 async def test_a_card_in_the_first_post_is_brought_over(
@@ -579,8 +663,7 @@ async def test_a_card_in_the_first_post_is_brought_over(
     starter = server.starter.edit.await_args.kwargs
     assert starter["content"] is None
     assert starter["view"] is None
-    server.vault.get_partial_message.assert_called_once_with(VAULT_TITLE_ID)
-    server.vault_delete.assert_awaited_once()
+    assert server.deleted == [VAULT_TITLE_ID]
     header, card = server.vault.send.await_args_list
     assert header.kwargs["file"].filename == "leaderboard_title.png"
     assert card.kwargs["file"].filename == "box_footer.png"
@@ -599,8 +682,42 @@ async def test_a_first_post_with_no_picture_keeps_its_name(
 
     await refresh_vault(bot, GUILD_ID)
 
-    assert server.starter.edit.await_args.kwargs["content"] == "♪ The ViiBR Vault"
-    server.vault_delete.assert_not_awaited()
+    assert server.starter.edit.await_args.kwargs["content"] == "♪ Leaderboard"
+    assert server.deleted == []
+
+
+async def test_no_stored_card_posts_one(bot: app.WispBot, server: FakeServer) -> None:
+    await configure(bot)
+    await bot.settings.update(
+        GUILD_ID, vault_message_id=None, vault_title_message_id=None
+    )
+    await lay(bot)
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert server.vault.send.await_count == 2
+    assert server.deleted == []
+    assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
+
+
+async def test_the_intro_says_where_to_shop(bot: app.WispBot) -> None:
+    await lay(bot)
+
+    text = await current_text(bot)
+
+    assert "║𝄡 Shop the Vault with the button" in text
+    assert "Snack Pack" not in text
+
+
+async def test_the_intro_links_the_status_post_when_it_is_set(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    await bot.settings.update(GUILD_ID, status_thread_id=STATUS_ID)
+
+    text = await current_text(bot)
+
+    assert f"<#{STATUS_ID}>" in text
 
 
 def test_board_command_hangs_off_the_wisp_group() -> None:

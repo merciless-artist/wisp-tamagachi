@@ -1,9 +1,10 @@
-"""Boards: the Status and ViiBR Vault posts are for their buttons, not for chat.
+"""Boards: the Status and Leaderboard posts are for their own use, not for chat.
 
 The posts stay unlocked, since a locked post's buttons and menus don't work
 for members, so Wisp deletes what members type there instead.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
@@ -19,23 +20,35 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _CHAT: Final = (discord.MessageType.default, discord.MessageType.reply)
-_JUST_BUTTONS: Final = "♪ This post is just for buttons."
 
 
-def board_title(settings: Settings, channel_id: int) -> str | None:
-    """The title of the board whose post `channel_id` is, or None."""
+@dataclass(frozen=True)
+class Board:
+    """A post kept free of chat: its title and what it is just for."""
+
+    title: str
+    purpose: str
+
+
+_STATUS: Final = Board("Status", "buttons")
+_LEADERBOARD: Final = Board("Leaderboard", "the leaderboard")
+
+
+def board_for(settings: Settings, channel_id: int) -> Board | None:
+    """The board whose post `channel_id` is, or None."""
     boards = {
-        settings.status_thread_id: "Status",
-        settings.vault_thread_id: "ViiBR Vault",
+        settings.status_thread_id: _STATUS,
+        settings.vault_thread_id: _LEADERBOARD,
     }
     return boards.get(channel_id)
 
 
-def board_notice(settings: Settings) -> str:
+def board_notice(settings: Settings, board: Board) -> str:
     """What Wisp says when he deletes chat from a board."""
+    notice = f"♪ This post is just for {board.purpose}."
     if settings.house_channel_id is None:
-        return _JUST_BUTTONS
-    return f"{_JUST_BUTTONS} Come chat in <#{settings.house_channel_id}>."
+        return notice
+    return f"{notice} Come chat in <#{settings.house_channel_id}>."
 
 
 # ---
@@ -44,7 +57,7 @@ def board_notice(settings: Settings) -> str:
 
 
 class Boards(commands.Cog):
-    """Deletes what members type in the Status and ViiBR Vault posts."""
+    """Deletes what members type in the Status and Leaderboard posts."""
 
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
@@ -64,12 +77,12 @@ class Boards(commands.Cog):
         if guild is None or author.bot or message.type not in _CHAT:
             return
         settings = await self.bot.settings.get(guild.id)
-        title = board_title(settings, message.channel.id)
-        if title is None:
+        board = board_for(settings, message.channel.id)
+        if board is None:
             return
         if isinstance(author, discord.Member) and await is_staff(self.bot, author):
             return
-        context = f"keeping the {title} post for buttons"
+        context = f"keeping the {board.title} post for {board.purpose}"
         try:
             await message.delete()
         except discord.NotFound:
@@ -83,7 +96,7 @@ class Boards(commands.Cog):
         self._notice_until[message.channel.id] = now + BOARD_NOTICE_LIFETIME
         try:
             await message.channel.send(
-                board_notice(settings),
+                board_notice(settings, board),
                 allowed_mentions=_NO_PING,
                 delete_after=BOARD_NOTICE_LIFETIME.total_seconds(),
             )

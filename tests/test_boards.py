@@ -27,7 +27,10 @@ MEMBER_ID = 1
 OWNER_ID = 99
 START = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
 NO_PING = discord.AllowedMentions.none().to_dict()
-NOTICE = f"♪ This post is just for buttons. Come chat in <#{HOUSE_ID}>."
+NOTICES = {
+    STATUS_ID: f"♪ This post is just for buttons. Come chat in <#{HOUSE_ID}>.",
+    VAULT_ID: f"♪ This post is just for the leaderboard. Come chat in <#{HOUSE_ID}>.",
+}
 
 
 # ---
@@ -134,7 +137,7 @@ async def test_member_chat_in_a_board_is_deleted_with_a_notice_that_goes_away(
 
     message.delete.assert_awaited_once()
     ((text, kwargs),) = sent(board)
-    assert text == NOTICE
+    assert text == NOTICES[board_id]
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     assert kwargs["delete_after"] == BOARD_NOTICE_LIFETIME.total_seconds()
 
@@ -229,7 +232,7 @@ async def test_a_failed_delete_is_posted_in_the_board(
 
     ((text, _),) = sent(board)
     assert text.startswith(
-        "Error in keeping the ViiBR Vault post for buttons: Forbidden"
+        "Error in keeping the Leaderboard post for the leaderboard: Forbidden"
     )
 
 
@@ -245,7 +248,7 @@ async def test_chat_someone_already_deleted_still_gets_the_notice(
     await cog.on_message(message)
 
     ((text, _),) = sent(board)
-    assert text == NOTICE
+    assert text == NOTICES[STATUS_ID]
 
 
 def test_the_boards_cog_is_loaded() -> None:

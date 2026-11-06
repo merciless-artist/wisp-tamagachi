@@ -55,6 +55,7 @@ VAULT_ID = 61
 FREE_SNACK_SEED = 2
 MEALTIME_ID = 62
 CARD_ID = 777
+VAULT_POSTED_ID = 9000
 VAULT_MESSAGE_ID = 778
 REPOSTED_CARD_ID = 888
 TITLE_ID = 889
@@ -105,14 +106,18 @@ class FakeServer:
         self.status.get_partial_message.side_effect = lambda message_id: (
             self.starter if message_id == STATUS_ID else self.partial
         )
-        self.vault_edit: Any = AsyncMock()
         self.vault = MagicMock(spec=discord.Thread)
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
         self.vault.archived = False
-        self.vault.send = AsyncMock()
+        self.vault.send = AsyncMock(
+            side_effect=lambda *_, **__: MagicMock(id=VAULT_POSTED_ID, pin=AsyncMock())
+        )
+        self.vault_card = MagicMock(spec=discord.Message)
+        self.vault_card.content = ""
+        self.vault.fetch_message = AsyncMock(return_value=self.vault_card)
         self.vault.get_partial_message.return_value = MagicMock(
-            spec=discord.PartialMessage, edit=self.vault_edit
+            spec=discord.PartialMessage, delete=AsyncMock()
         )
         self.mealtime = MagicMock(spec=discord.Thread)
         self.mealtime.id = MEALTIME_ID
@@ -903,12 +908,19 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
     await interact(bot, life, NOW - timedelta(hours=2))
     order: list[str] = []
     server.card_edit.side_effect = lambda **_: order.append("card")
-    server.vault_edit.side_effect = lambda **_: order.append("vault")
+    vault_send = server.vault.send.side_effect
+
+    def record(*args: Any, **kwargs: Any) -> MagicMock:
+        if args:
+            order.append("vault")
+        return vault_send(*args, **kwargs)
+
+    server.vault.send.side_effect = record
 
     await cog.run_tick(NOW)
 
     assert order == ["card", "vault"]
-    content = server.vault_edit.await_args.kwargs["content"]
+    content = server.vault.send.await_args.args[0]
     assert content.startswith("╔")
     assert f"<@{USER_ID}>" in content
 
@@ -918,7 +930,7 @@ async def test_vault_failure_is_reported_without_losing_the_card(
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.vault_edit.side_effect = discord.Forbidden(
+    server.vault.fetch_message.side_effect = discord.Forbidden(
         MagicMock(status=403), "Missing Access"
     )
 
@@ -927,7 +939,7 @@ async def test_vault_failure_is_reported_without_losing_the_card(
     server.card_edit.assert_awaited_once()
     server.vault.send.assert_awaited_once()
     (report,) = server.vault.send.await_args.args
-    assert report.startswith("Error in updating the ViiBR Vault card: Forbidden")
+    assert report.startswith("Error in updating the Leaderboard card: Forbidden")
 
 
 # ---
@@ -1064,7 +1076,7 @@ async def test_an_ended_life_waits_through_every_tick(
     assert all(button_ids(edit.kwargs["view"]) == ["wisp:begin"] for edit in edits)
     assert post_pictures(server) == [["died.png"], ["died.png"]]
     assert not any("attachments" in edit.kwargs for edit in edits)
-    server.vault_edit.assert_awaited()
+    server.vault.send.assert_awaited()
 
 
 async def test_an_ended_life_at_tick_start_lays_nothing_and_gives_nothing(
