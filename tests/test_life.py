@@ -21,6 +21,7 @@ from wisp.life import (
     credited_gap,
     cure_sniffles,
     egg_after,
+    end_stretch,
     feed,
     has_sniffles,
     is_over,
@@ -361,6 +362,24 @@ def test_change_meter_without_ending_keeps_the_stretch() -> None:
     life = alive(wellbeing_stretch=600.0)
     change_meter(life, Meter.WELLBEING, 5)
     assert (life.wellbeing, life.wellbeing_stretch) == (55.0, 600.0)
+
+
+def test_end_stretch_restarts_one_stretch_without_moving_the_meter() -> None:
+    life = alive(health_stretch=600.0, wellbeing_stretch=900.0, wellbeing=40.0)
+    end_stretch(life, Meter.WELLBEING)
+    assert (life.wellbeing, life.wellbeing_stretch) == (40.0, 0.0)
+    assert life.health_stretch == 600.0
+    end_stretch(life, Meter.HEALTH)
+    assert (life.health, life.health_stretch) == (HEALTH_START, 0.0)
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
+def test_end_stretch_only_counts_while_alive(phase: Phase) -> None:
+    life = alive(health_stretch=600.0, wellbeing_stretch=600.0)
+    life.phase = phase
+    for meter in Meter:
+        end_stretch(life, meter)
+    assert [getattr(life, name) for name in STRETCHES] == [600.0] * 2
 
 
 @pytest.mark.parametrize("meter", list(Meter))

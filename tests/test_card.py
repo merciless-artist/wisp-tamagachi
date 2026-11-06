@@ -30,7 +30,8 @@ FACTS = CardFacts(
 )
 HEALTH_EMOJI = "<:full_full:1564444125976068186>"
 WELLBEING_EMOJI = "<:care_full:1564443602506088480>"
-# Myra's card of 2026-10-31, byte for byte, with the real mention and House
+# Myra's card of 2026-10-31, byte for byte except that her Mood bar is gone
+# (Mood folded into Wellbeing on 2026-11-06), with the real mention and House
 # link where her copy shows them as Discord displays them.
 MYRAS_CARD = "\n".join(
     [

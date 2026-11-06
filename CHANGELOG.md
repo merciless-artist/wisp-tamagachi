@@ -14,7 +14,10 @@
   ends it; a full one costs 10. The Mood stretch and penalty are gone.
 - Rockstar: an Adult whose Wellbeing stays at 80 or more for 4 days
   (`ROCKSTAR_WELLBEING`, `ROCKSTAR_WELLBEING_FOR`), in the same
-  `high_happiness_since` column.
+  `high_happiness_since` column. A living Wisp's streak, begun on Mood, starts
+  over once at the first startup after this upgrade: the data fix
+  `rockstar_streak_on_wellbeing`, recorded in the new `data_fixes` table so it
+  never runs twice.
 - A cleanup adds 5 Health (`HEALTH_PER_CLEANUP`) instead of Wellbeing. A cold,
   like Monster Pox, makes the Health penalty 1.5 times as big and cannot take
   Health below 1; it no longer doubles the Wellbeing penalty

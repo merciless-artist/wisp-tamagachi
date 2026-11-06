@@ -50,10 +50,10 @@ only time he is alive and not frozen. All the numbers are starting values in
   `lives.care` column). Each fed track adds its meal points, inside each
   member's daily meal limit, and a mess cleaned up adds 5; snacks do not fill
   it, so coins can never keep him alive instead of music. Every 6 hours with no
-  track fed costs 8 (6 as an Old Fogey). Monster Pox and a cold each make that
-  1.5 times as big (12), but neither takes Health below 1 on its own. Below 30
-  he is hangry, below 10 he is fading, and at 0 he dies. Only Health can kill
-  him.
+  track fed costs 8 (6 as an Old Fogey). While he has Monster Pox, a cold or
+  both, that penalty is 1.5 times as big (once, not once each), but it never
+  takes Health below 1. Below 30 he is hangry, below 10 he is fading, and at 0
+  he dies. Only Health can kill him.
 - **Wellbeing** is his heart (`Life.wellbeing`, stored in the old
   `lives.fondness` column). A chat adds 5 (a member's first 3 chats of the UTC
   day), a poke 5 (a member's first 3 pokes of the UTC day; a poke that wakes
@@ -67,11 +67,14 @@ only time he is alive and not frozen. All the numbers are starting values in
   what makes an Adult a Rockstar.
 
 He used to have a third meter, Mood; it folded into Wellbeing on 2026-11-06.
-Its `mood_meter` and `mood_stretch` columns stay in the table, unread.
+Its `mood_meter` and `mood_stretch` columns stay in the table, unread, and a
+living Wisp's Rockstar streak started over once then (a one-time data fix,
+recorded in the `data_fixes` table).
 
 Only credited actions end a stretch: a fed track ends Health's, and a chat,
-poke, duel, snack, gift or cleanup that earned its plus ends Wellbeing's. A member's first poke or mention of the UTC day also
-earns 1 Vault point. Only members who can feed Wisp and are not banned earn
+poke, duel, snack or gift that earned its plus, or a cleanup (whose plus goes
+to Health), ends Wellbeing's. A member's first poke or mention of the UTC day
+also earns 1 Vault point. Only members who can feed Wisp and are not banned earn
 pluses and points, though anyone can still poke and chat. A chat counts toward
 Wisp learning a member's name, but not toward bond, growth, caretakers, the
 "fed by" line or the stage-up keepsake.
@@ -95,9 +98,9 @@ while he is an egg, and the buttons keep working after a restart.
 - **A cold** (`sniffles` in the code, so it is never mistaken for Monster Pox)
   lasts 48 hours, makes the Health penalty 1.5 times as big (never below 1
   Health), makes his voice stuffy and shows on the status card. It never kills
-  him and cannot start while he has Monster Pox. **Medicine** in the Vault (10 WC, shown only while he has a
-  cold) cures it at once: the first buyer gets 3 points and he posts a
-  thank-you with the bottle.
+  him and cannot start while he has Monster Pox. **Medicine** in the Vault
+  (10 WC, shown only while he has a cold) cures it at once: the first buyer
+  gets 3 points and he posts a thank-you with the bottle.
 - **Tantrums** come about once a day while he is awake, never during a nap or
   just before one. Scold him within 15 minutes for 2 points; if nobody does he
   loses 15 Wellbeing and is spoiled (extra bratty) for the rest of the UTC
@@ -439,9 +442,10 @@ App emojis (uploaded to the application in the Developer Portal):
 `snack_<key>` for each snack key, `gift_<key>` for each gift key,
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
 `wisp_coin`, `wisp_coin_mini` (prices and balances), `medicine` (the Vault's
-medicine option), `viibr_logo` (the Vault's title), the status card's meters `full_full` / `full_left` (Health), `care_full` /
-`care_left` (Wellbeing) and `happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars), `wisp_happy`, `wisp_hangry`,
-`wisp_sad`. The layouts are Myra's house style,
+medicine option), `viibr_logo` (the Vault's title), the status card's meters
+`full_full` / `full_left` (Health) and `care_full` / `care_left` (Wellbeing),
+`happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars),
+`wisp_happy`, `wisp_hangry`, `wisp_sad`. The layouts are Myra's house style,
 `DOCS/specs/2026-10-27-house-style.md`.
 
 ## Testing

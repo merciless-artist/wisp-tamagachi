@@ -221,6 +221,11 @@ _DEFINITIONS: dict[str, str] = {
         INDEX idx_guild_at (guild_id, at),
         INDEX idx_guild_user (guild_id, user_id)
     """,
+    "data_fixes": """
+        name VARCHAR(40) NOT NULL,
+        applied_at DATETIME NOT NULL,
+        PRIMARY KEY (name)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.
@@ -279,6 +284,16 @@ _ADDED_INDEXES: dict[str, dict[str, str]] = {
 _RENAMED_BADGES: dict[str, str] = {"team_wisp": "team_viibr"}
 _BADGE_KEY_TABLES: tuple[str, ...] = ("badge_roles", "badges")
 
+# One-time changes to live data, by name, each run once per database and then
+# recorded in `data_fixes`. `{lives}` is the lives table.
+# rockstar_streak_on_wellbeing: Mood folded into Wellbeing on 2026-11-06, so a
+# living Wisp's Rockstar streak, begun on the old Mood meter, starts over.
+_DATA_FIXES: dict[str, str] = {
+    "rockstar_streak_on_wellbeing": (
+        "UPDATE {lives} SET high_happiness_since = NULL WHERE ended_at IS NULL"
+    ),
+}
+
 TABLES: tuple[str, ...] = tuple(_DEFINITIONS)
 
 
@@ -322,7 +337,8 @@ async def create_tables(db: Database) -> None:
     Columns and indexes that are already there are skipped, so a normal startup
     does not draw a duplicate note from the server. Afterwards every table is
     checked against its definition: extra columns are logged as a warning.
-    Last, rows stored under a renamed badge key move to the new key.
+    Then rows stored under a renamed badge key move to the new key, and last
+    each one-time data fix the database has not had yet runs.
 
     Raises:
         SchemaError: A table lacks a defined column, so it was built from an
@@ -356,6 +372,26 @@ async def create_tables(db: Database) -> None:
                 )
     await _check_columns(db)
     await _rename_badges(db)
+    await _apply_data_fixes(db)
+
+
+async def _apply_data_fixes(db: Database) -> None:
+    """Run each data fix not recorded in `data_fixes`, then record it.
+
+    A fix is recorded only after it ran, so one cut short runs again on the
+    next start; each fix is safe to run twice.
+    """
+    done = await db.fetchall(f"SELECT name FROM {db.t('data_fixes')}")
+    applied = {row["name"] for row in done}
+    for name, statement in _DATA_FIXES.items():
+        if name in applied:
+            continue
+        await db.execute(statement.format(lives=db.t("lives")))
+        await db.execute(
+            f"INSERT IGNORE INTO {db.t('data_fixes')} (name, applied_at) "
+            "VALUES (%s, UTC_TIMESTAMP())",
+            (name,),
+        )
 
 
 async def _rename_badges(db: Database) -> None:

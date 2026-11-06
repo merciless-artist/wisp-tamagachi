@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
-from wisp.life import Life, Meter, Phase, catch_sniffles, change_meter
+from wisp.life import Life, Meter, Phase, catch_sniffles, change_meter, end_stretch
 from wisp.rules import (
     CRANKY_FOR,
     HEALTH_PER_CLEANUP,
@@ -156,7 +156,7 @@ def do_chore(life: Life, chore: Chore) -> bool:
         case Chore.MESS:
             life.mess_left = 0.0
             change_meter(life, Meter.HEALTH, HEALTH_PER_CLEANUP)
-            change_meter(life, Meter.WELLBEING, 0, ends_stretch=True)
+            end_stretch(life, Meter.WELLBEING)
         case Chore.TANTRUM:
             life.tantrum_left = 0.0
         case Chore.NAP:

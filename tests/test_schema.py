@@ -253,6 +253,37 @@ async def test_the_team_wisp_badge_becomes_team_viibr_and_renaming_repeats_safel
     assert await db.fetchall(f"SELECT badge FROM {bought}") == [{"badge": "team_viibr"}]
 
 
+async def test_a_living_wisps_mood_streak_is_cleared_once_for_wellbeing(
+    db: Database,
+) -> None:
+    repo = LifeRepo(db)
+    started = datetime(2026, 11, 1, tzinfo=UTC)
+    living = new_egg(1, started)
+    living.high_mood_since = started
+    await repo.insert(1, living)
+    ended = new_egg(1, started)
+    ended.high_mood_since = started
+    ended.ended_at = started
+    await repo.insert(2, ended)
+
+    await create_tables(db)
+
+    first = await repo.current(1)
+    assert first is not None and first.high_mood_since is None
+    gone = await repo.current(2)
+    assert gone is not None and gone.high_mood_since == started
+
+    first.high_mood_since = started
+    await repo.save(1, first)
+    await create_tables(db)
+
+    again = await repo.current(1)
+    assert again is not None and again.high_mood_since == started
+    assert await db.fetchall(f"SELECT name FROM {db.t('data_fixes')}") == [
+        {"name": "rockstar_streak_on_wellbeing"}
+    ]
+
+
 async def test_create_tables_adds_staff_roles_beside_live_tables(
     db: Database,
 ) -> None:

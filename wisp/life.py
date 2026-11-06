@@ -292,27 +292,39 @@ def change_meter(
 ) -> None:
     """Move one meter by `amount`, kept between 0 and its max; only while alive.
 
-    `ends_stretch` starts that meter's empty stretch over, as a credited action
-    does. Health back above a warning line arms that warning again, and
-    Wellbeing back at or above the lonely line arms the lonely warning.
+    `ends_stretch` starts that meter's empty stretch over (see `end_stretch`).
+    Health back above a warning line arms that warning again, and Wellbeing
+    back at or above the lonely line arms the lonely warning.
     """
     if life.phase is not Phase.ALIVE:
         return
     match meter:
         case Meter.HEALTH:
             life.health = _clamped(life.health + amount, HEALTH_MAX)
-            if ends_stretch:
-                life.health_stretch = 0.0
             if life.health >= HANGRY_BELOW:
                 life.warned = None
             elif life.health >= FADING_BELOW and life.warned is EventKind.FADING:
                 life.warned = EventKind.HUNGRY
         case Meter.WELLBEING:
             life.wellbeing = _clamped(life.wellbeing + amount, WELLBEING_MAX)
-            if ends_stretch:
-                life.wellbeing_stretch = 0.0
             if life.wellbeing >= LONELY_BELOW:
                 life.lonely_warned = False
+    if ends_stretch:
+        end_stretch(life, meter)
+
+
+def end_stretch(life: Life, meter: Meter) -> None:
+    """Start one meter's empty stretch over, as a credited action does.
+
+    The meter itself does not move. Only while alive.
+    """
+    if life.phase is not Phase.ALIVE:
+        return
+    match meter:
+        case Meter.HEALTH:
+            life.health_stretch = 0.0
+        case Meter.WELLBEING:
+            life.wellbeing_stretch = 0.0
 
 
 def _clamped(value: float, most: float) -> float:
