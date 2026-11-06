@@ -10,6 +10,7 @@ The Leaderboard is not edited: when its text changes, a new header and card
 are posted at the bottom of the thread and the old pair is deleted.
 """
 
+import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -42,8 +43,8 @@ def _open(name: str) -> discord.File | None:
 
 def art_file(name: str) -> dict[str, Any]:
     """The keyword that attaches the picture `name` to a send, if there is one."""
-    path = art(name)
-    return {} if path is None else {"file": discord.File(path)}
+    picture = _open(name)
+    return {} if picture is None else {"file": picture}
 
 
 async def send_headed(
@@ -87,7 +88,8 @@ class HeadedCard:
     `header` and `footer` are picture names in the artwork folder;
     `title_attr` and `card_attr` are the Settings fields of the header
     message and the card; `label` names the card in error reports; `post`
-    is what the thread's first message says when it has no picture.
+    is what the thread's first message says when it has no picture. A card
+    with `pinned` False is left unpinned, as a card kept at the bottom is.
     """
 
     header: str
@@ -96,6 +98,7 @@ class HeadedCard:
     card_attr: str
     label: str
     post: str
+    pinned: bool = True
 
 
 async def repost_headed_in_thread(
@@ -117,7 +120,9 @@ async def repost_headed_in_thread(
     thread: discord.Thread | None = None
     try:
         thread = await studio_thread(bot, guild_id, thread_attr)
-        await repost_headed_card(bot, guild_id, thread, content, card)
+        lock = bot.display_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            await repost_headed_card(bot, guild_id, thread, content, card)
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:
             bot.failing_displays.add(key)
@@ -144,7 +149,8 @@ async def repost_headed_card(
     board that has not changed, and a card someone deleted is posted again.
     The old header and card are deleted once the new pair is stored; one
     that is already gone is fine, and any other failed delete is reported
-    in the thread. A card that is still the thread's first message, as every
+    in the thread. A header whose card could not be posted is deleted again.
+    A card that is still the thread's first message, as every
     card began, is brought over: that message keeps only its picture.
     """
     settings = await bot.settings.get(guild_id)
@@ -231,7 +237,13 @@ async def _post_headed(
         title = None if header is None else await thread.send(file=header)
         if footer is not None:
             extras["file"] = footer
-        posted = await thread.send(content, **extras)
+        try:
+            posted = await thread.send(content, **extras)
+        except discord.HTTPException:
+            if title is not None:
+                with contextlib.suppress(discord.HTTPException):
+                    await title.delete()
+            raise
     finally:
         for picture in pictures:
             if picture is not None:
@@ -243,6 +255,8 @@ async def _post_headed(
             card.card_attr: posted.id,
         },
     )
+    if not card.pinned:
+        return
     try:
         await posted.pin()
     except discord.HTTPException as error:

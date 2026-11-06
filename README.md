@@ -338,7 +338,7 @@ The Studio forum holds six threads, named exactly:
 - `☀️ | Status`: the live status card, which shows Wisp's current picture
   (the egg, the coal egg, then his stage).
 - `🧡 | Mealtime`: every track that feeds him.
-- `🏆 | Leaderboard`: the pinned leaderboard. Its card has no buttons; the
+- `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last post). Its card has no buttons; the
   Vault (shop) button is on the Status post. When the board's text changes,
   Wisp posts a fresh header and card at the bottom of the thread and deletes
   the old pair, so the thread always ends with the current board. The post

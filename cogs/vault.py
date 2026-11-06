@@ -38,6 +38,7 @@ _CARD: Final = HeadedCard(
     card_attr="vault_message_id",
     label="Leaderboard card",
     post="Leaderboard",
+    pinned=False,
 )
 _NO_PING: Final = discord.AllowedMentions.none()
 
@@ -46,15 +47,19 @@ _NO_PING: Final = discord.AllowedMentions.none()
 # ---
 
 
-def _intro(status_thread_id: int | None) -> tuple[str, ...]:
-    """The card's opening lines, saying where to shop the Vault."""
+def _intro(status_thread_id: int | None, private: bool) -> tuple[str, ...]:
+    """The card's opening lines.
+
+    The posted card says where to shop the Vault; the private one answering
+    `/wisp board` has the buttons under it.
+    """
     where = "the Status post" if status_thread_id is None else f"<#{status_thread_id}>"
-    return (
-        sub("The leaderboard."),
-        BLANK,
-        item(f"Shop the Vault with the button on {where}."),
-        BLANK,
+    shop = (
+        "Shop or open your Snack Pack with the buttons below."
+        if private
+        else f"Shop the Vault with the button on {where}."
     )
+    return (sub("The leaderboard."), BLANK, item(shop), BLANK)
 
 
 def version_line(life: Life, now: datetime) -> str:
@@ -87,12 +92,15 @@ def version_line(life: Life, now: datetime) -> str:
             return prefix + " ・ ".join(facts)
 
 
-async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> str:
+async def render_leaderboard(
+    bot: "WispBot", guild_id: int, now: datetime, *, private: bool = False
+) -> str:
     """Build the Leaderboard card: two top tens, top rhymers, then every version.
 
     The history is trimmed from the oldest end so the text fits one message;
     the box always closes. Each list ends with a blank line, as in Myra's
-    draft, and every line is wrapped to fit the box.
+    draft, and every line is wrapped to fit the box. `private` is the copy
+    `/wisp board` sends, whose intro points at its own buttons.
     """
     settings = await bot.settings.get(guild_id)
     history = await bot.lives.history(guild_id)
@@ -125,7 +133,7 @@ async def render_leaderboard(bot: "WispBot", guild_id: int, now: datetime) -> st
         box_top(),
         *wrapped(
             sections(
-                _intro(settings.status_thread_id),
+                _intro(settings.status_thread_id, private),
                 [heading("This life"), *this_life_lines, BLANK],
                 [heading("All time"), *all_time_lines, BLANK],
                 [heading("Rhyme Duel"), *rhyme_lines, BLANK],
@@ -163,7 +171,7 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     await send_headed(
         functools.partial(interaction.followup.send, ephemeral=True),
         _HEADER,
-        await render_leaderboard(bot, guild_id, now),
+        await render_leaderboard(bot, guild_id, now, private=True),
         view=vault_view(),
         allowed_mentions=_NO_PING,
     )

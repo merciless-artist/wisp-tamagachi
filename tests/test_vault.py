@@ -3,6 +3,7 @@
 Discord objects are fakes; the repositories are the real ones.
 """
 
+import asyncio
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -75,6 +76,7 @@ class FakeServer:
         self.house = MagicMock(spec=discord.TextChannel)
         self.house.send = AsyncMock()
         self.old_card_exists = True
+        self.fail_card = False
         self.vault = MagicMock(spec=discord.Thread)
         self.vault.id = VAULT_ID
         self.vault.parent_id = FORUM_ID
@@ -96,10 +98,14 @@ class FakeServer:
         self.guild.get_channel_or_thread.side_effect = channels.get
 
     def send(self, *args: Any, **kwargs: Any) -> MagicMock:
+        if self.fail_card and args:
+            raise discord.Forbidden(MagicMock(status=403), "Missing Permissions")
         sent = MagicMock(
             id=NEW_TITLE_ID if "file" in kwargs and not args else POSTED_ID,
             pin=AsyncMock(),
+            content=args[0] if args else None,
         )
+        sent.delete = AsyncMock(side_effect=lambda: self.deleted.append(sent.id))
         self.posted.append(sent)
         return sent
 
@@ -108,6 +114,9 @@ class FakeServer:
             return self.starter
         if message_id == VAULT_MESSAGE_ID and self.old_card_exists:
             return self.old_card
+        for sent in self.posted:
+            if sent.id == message_id:
+                return sent
         raise discord.NotFound(MagicMock(status=404), "Unknown Message")
 
     def partial(self, message_id: int) -> MagicMock:
@@ -636,18 +645,54 @@ async def test_a_failed_delete_of_the_old_card_is_reported_in_the_thread(
     assert report.startswith("Error in deleting the old Leaderboard card: Forbidden")
 
 
-async def test_the_new_card_is_pinned_and_the_first_post_left_alone(
+async def test_the_new_card_is_not_pinned_and_the_first_post_left_alone(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
+    server.old_card.content = "an older board"
 
     await refresh_vault(bot, GUILD_ID)
 
     title, card = server.posted
-    card.pin.assert_awaited_once()
+    card.pin.assert_not_awaited()
     title.pin.assert_not_awaited()
     server.starter.edit.assert_not_awaited()
+
+
+async def test_two_refreshes_at_once_leave_one_new_pair(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card.content = "an older board"
+
+    await asyncio.gather(refresh_vault(bot, GUILD_ID), refresh_vault(bot, GUILD_ID))
+
+    assert len(server.posted) == 2
+    assert server.vault.send.await_count == 2
+    assert sorted(server.deleted) == [VAULT_TITLE_ID, VAULT_MESSAGE_ID]
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.vault_message_id == POSTED_ID
+    assert settings.vault_title_message_id == NEW_TITLE_ID
+
+
+async def test_a_header_whose_card_failed_to_post_is_deleted(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card.content = "an older board"
+    server.fail_card = True
+
+    await refresh_vault(bot, GUILD_ID)
+
+    header, report = server.posted[0], server.vault.send.await_args.args[0]
+    header.delete.assert_awaited_once()
+    assert server.deleted == [NEW_TITLE_ID]
+    assert report.startswith("Error in updating the Leaderboard card: Forbidden")
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.vault_message_id == VAULT_MESSAGE_ID
 
 
 async def test_a_card_in_the_first_post_is_brought_over(
@@ -698,6 +743,17 @@ async def test_no_stored_card_posts_one(bot: app.WispBot, server: FakeServer) ->
     assert server.vault.send.await_count == 2
     assert server.deleted == []
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
+
+
+async def test_the_private_board_points_at_its_own_buttons(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+
+    text = await render_leaderboard(bot, GUILD_ID, NOW, private=True)
+
+    assert "║ with the buttons below." in text
+    assert "Status post" not in text
 
 
 async def test_the_intro_says_where_to_shop(bot: app.WispBot) -> None:
