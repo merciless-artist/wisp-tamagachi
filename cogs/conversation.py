@@ -13,6 +13,7 @@ import discord
 import pymysql
 from discord.ext import commands
 
+from ai.chain import ProviderError
 from ai.prompt import Prompt
 from cogs.announce import post_in_house
 from cogs.assets import nap_image
@@ -36,7 +37,12 @@ from wisp.bond import tier_for
 from wisp.chores import is_napping
 from wisp.life import Life, Sickness, mood, sickness
 from wisp.lines import Moment
-from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
+from wisp.rules import (
+    CHIME_IN_CHANCE,
+    CHIME_IN_GAP,
+    CONTEXT_LINE_CHARS,
+    VISION_TYPES,
+)
 from wisp.text import strip_emoji
 from wisp.voice import (
     EGG_EXPRESSION,
@@ -47,6 +53,7 @@ from wisp.voice import (
     OwnEmoji,
     PokeFlavor,
     Poker,
+    Sight,
     Speaker,
     Talk,
     build_prompt,
@@ -79,6 +86,15 @@ _CHANNEL_MENTION: Final = re.compile(r"<#(\d+)>")
 # Channel names open with an emoji and a divider, as in "⏪｜general-chat".
 _NAME_DIVIDERS: Final = "｜|・-_ "
 _CUSTOM_EMOJI: Final = re.compile(rf"<a?:({EMOJI_NAME_PATTERN}):\d+>")
+
+# Stickers with a picture to show; a Lottie sticker is an animation file.
+_STICKER_PICTURES: Final = frozenset(
+    {
+        discord.StickerFormatType.png,
+        discord.StickerFormatType.apng,
+        discord.StickerFormatType.gif,
+    }
+)
 
 _POKE_CONTEXT: Final = "the Poke Wisp button"
 _POKE_BANNED: Final = "♪ Wisp isn't answering you right now."
@@ -142,6 +158,41 @@ def _aimed_at(message: discord.Message, wisp: discord.ClientUser) -> bool:
     reference = message.reference
     replied_to = reference.resolved if reference is not None else None
     return isinstance(replied_to, discord.Message) and replied_to.author.id == wisp.id
+
+
+def _picture_url(message: discord.Message) -> str | None:
+    """The link to the first picture the message carries, or None.
+
+    An image attachment comes first, then a sticker's image, then an embed's
+    image or thumbnail: Tenor and Giphy links show up as embeds.
+    """
+    for attachment in message.attachments:
+        kind = (attachment.content_type or "").split(";")[0].strip().lower()
+        if kind in VISION_TYPES:
+            return attachment.url
+    for sticker in message.stickers:
+        if sticker.format in _STICKER_PICTURES:
+            return sticker.url
+    for embed in message.embeds:
+        if (link := embed.image.url or embed.thumbnail.url) is not None:
+            return link
+    return None
+
+
+async def _sight(bot: "WispBot", message: discord.Message) -> Sight | None:
+    """What the picture in the message shows, or None if it carries no picture.
+
+    A picture that can't be read is logged, not posted, and comes back as one
+    Wisp couldn't see.
+    """
+    link = _picture_url(message)
+    if link is None:
+        return None
+    try:
+        return Sight(await bot.vision.describe(link))
+    except ProviderError as error:
+        log.warning("Could not read a picture in guild %s: %s", message.guild, error)
+        return Sight(None)
 
 
 async def _reply(
@@ -247,13 +298,15 @@ async def _prompt(
     poked: PokeFlavor | None = None,
     emojis: Sequence[OwnEmoji] = (),
     track_drop: bool = False,
+    sight: Sight | None = None,
 ) -> Prompt:
     """The prompt for Wisp's answer, in the voice for `level`.
 
     `text` is what the member said to him, or None for a poke, which `poked`
     flavors. `emojis` are the emojis of his that `text` used. `track_drop`
-    says whether he can send people to the track drop. A hatched Wisp knows
-    how many tracks the member fed him on the UTC day of `now`.
+    says whether he can send people to the track drop. `sight` is the picture
+    that came with `text`. A hatched Wisp knows how many tracks the member fed
+    him on the UTC day of `now`.
     """
     if level is Talk.EGG:
         poker = Poker(name, await _fed(bot, guild_id, life, player.user_id))
@@ -265,6 +318,7 @@ async def _prompt(
             emoji=EGG_EXPRESSION in bot.emojis_by_name,
             poked=poked,
             own_emojis=emojis,
+            sight=sight,
         )
     remembers = keeps_notes(life.stage)
     notes = await bot.notes.recent(guild_id, player.user_id) if remembers else []
@@ -288,6 +342,7 @@ async def _prompt(
         feelings=feelings_of(life, now),
         hours_left=sick_hours(life),
         track_drop=track_drop,
+        sight=sight,
     )
 
 
@@ -419,20 +474,21 @@ class Conversation(commands.Cog):
         bot = self.bot
         emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
         track_drop = await _track_drop(bot, guild)
-        prompt = await _prompt(
-            bot,
-            guild.id,
-            life,
-            level,
-            player,
-            player.name or message.author.display_name,
-            earlier,
-            text,
-            now,
-            emojis=emojis,
-            track_drop=track_drop is not None,
-        )
         async with message.channel.typing():
+            prompt = await _prompt(
+                bot,
+                guild.id,
+                life,
+                level,
+                player,
+                player.name or message.author.display_name,
+                earlier,
+                text,
+                now,
+                emojis=emojis,
+                track_drop=track_drop is not None,
+                sight=await _sight(bot, message),
+            )
             reply = await ai_reply(bot, guild, prompt)
         picture = sick_talk_image(life, bot.talk.rng)
         if reply is None:

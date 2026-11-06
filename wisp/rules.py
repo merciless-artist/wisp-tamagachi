@@ -656,6 +656,14 @@ AI_MAX_OUTPUT_TOKENS = 1024
 AI_MAX_CHARS = 600
 
 # ---
+# Pictures
+# ---
+
+VISION_MAX_BYTES = 8 * 1024 * 1024
+VISION_MAX_CHARS = 300
+VISION_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
+
+# ---
 # Talking
 # ---
 

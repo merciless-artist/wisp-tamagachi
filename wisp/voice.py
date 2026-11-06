@@ -116,6 +116,13 @@ class Speaker:
 
 
 @dataclass(frozen=True)
+class Sight:
+    """A picture a member sent: what it shows, or None if Wisp couldn't see it."""
+
+    description: str | None
+
+
+@dataclass(frozen=True)
 class ChatLine:
     """One recent line in Wisp's House."""
 
@@ -683,6 +690,16 @@ def _speaker(stage: Stage, speaker: Speaker) -> str:
     return "\n\n".join(parts)
 
 
+def _sight_note(sight: Sight) -> str:
+    """The line telling Wisp what picture came with the message."""
+    if sight.description is None:
+        return (
+            "They sent a picture you couldn't see right now. Say you can't see "
+            "it instead of pretending you did."
+        )
+    return f"They sent a picture: {sight.description}"
+
+
 def _chat(context: Sequence[ChatLine], whose: str) -> str:
     """The recent chat; `whose` says who Wisp's own lines belong to."""
     lines = "\n".join(f"{line.author}: {line.text}" for line in context)
@@ -871,6 +888,7 @@ def build_prompt(
     feelings: Collection[Feeling] = (),
     hours_left: Mapping[Feeling, int] | None = None,
     track_drop: bool = False,
+    sight: Sight | None = None,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -884,7 +902,7 @@ def build_prompt(
     for the rest of the day, cranky just woken and grumpy about it. `hours_left`
     is how many whole hours each sickness still lasts (see `sick_hours`). With
     `track_drop`, from Child on he sends people to the track drop for food
-    (see `link_track_drop`).
+    (see `link_track_drop`). `sight` is the picture that came with `message`.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -924,7 +942,10 @@ def build_prompt(
     user = [_chat(context, "yours")] if context else []
     name = "Someone" if speaker is None else speaker.name
     if message is not None:
-        user.append(f"{name} says to you: {message}{_emoji_note(own_emojis, 'your')}")
+        said = message if message or sight is None else "(no words)"
+        user.append(f"{name} says to you: {said}{_emoji_note(own_emojis, 'your')}")
+        if sight is not None:
+            user.append(_sight_note(sight))
     elif poked is not None:
         feeling = _POKE_FEELINGS[poked]
         if poked in (PokeFlavor.MAD, PokeFlavor.FED_UP) and stage in _LITTLE:
@@ -1063,13 +1084,14 @@ def egg_prompt(
     emoji: bool,
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
+    sight: Sight | None = None,
 ) -> Prompt:
     """The prompt for what the egg does when `poker` pokes it, saying `message`.
 
     The egg has no words, no tags and no face but its own `EGG_EXPRESSION`,
     offered only when `emoji` says it is uploaded. `poked` says how the egg
-    takes a press of the Poke Wisp button, and `own_emojis` are the emojis of
-    Wisp's that `message` used.
+    takes a press of the Poke Wisp button, `own_emojis` are the emojis of
+    Wisp's that `message` used and `sight` is the picture that came with it.
 
     Raises:
         ValueError: `life` is not an egg, hatching or not.
@@ -1093,6 +1115,8 @@ def egg_prompt(
         user.append(f"{poker.name} pokes the egg.")
     if poked is not None:
         user[-1] += f" {_EGG_POKE_FEELINGS[poked]}"
+    if sight is not None:
+        user.append(_sight_note(sight))
 
     return Prompt("\n\n".join(system), "\n\n".join(user))
 

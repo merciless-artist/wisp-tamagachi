@@ -13,6 +13,7 @@ from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
+from ai.vision import vision_from_config
 from cogs.channels import in_channel, may_post_in, where_of
 from cogs.groups import wisp, wispadmin
 from cogs.share_links import ShareLinkResolver
@@ -187,6 +188,7 @@ class WispBot(commands.Bot):
         self.badges = BadgeRepo(self.db)
         self.magazines = MagazineRepo(self.db)
         self.ai = chain_from_config()
+        self.vision = vision_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
         self.talk = HouseTalk()
@@ -296,9 +298,12 @@ class WispBot(commands.Bot):
                 await self.ai.close()
             finally:
                 try:
-                    await self.share_links.close()
+                    await self.vision.close()
                 finally:
-                    await self.db.close()
+                    try:
+                        await self.share_links.close()
+                    finally:
+                        await self.db.close()
 
     def emoji(self, name: str) -> str:
         """Return an application emoji's text, or "" if it has not been uploaded."""

@@ -17,7 +17,7 @@ import pymysql
 import pytest
 
 import app
-from ai.chain import AllProvidersFailed
+from ai.chain import AllProvidersFailed, ProviderError
 from ai.prompt import Prompt
 from cogs import assets
 from cogs.conversation import Conversation, PokeButton
@@ -163,6 +163,9 @@ class MessageFactory:
             message.reference = MagicMock(spec=discord.MessageReference)
             message.reference.resolved = replying_to
         message.reply = AsyncMock()
+        message.attachments = []
+        message.stickers = []
+        message.embeds = []
         return message
 
     def to_wisp(self, text: str, author: MagicMock = MEMBERS[FIRST]) -> MagicMock:
@@ -2303,3 +2306,229 @@ def test_both_pictures_of_a_two_file_pool_can_be_picked() -> None:
     }
 
     assert picked == set(COLD_PICTURES)
+
+
+# ---
+# Pictures
+# ---
+
+SEEN = "A cat waving hello."
+
+
+def attachment(content_type: str | None, url: str = "https://cdn/pic") -> MagicMock:
+    found = MagicMock(spec=discord.Attachment)
+    found.content_type = content_type
+    found.url = url
+    return found
+
+
+def sticker(kind: discord.StickerFormatType, url: str) -> MagicMock:
+    found = MagicMock(spec=discord.StickerItem)
+    found.format = kind
+    found.url = url
+    return found
+
+
+def embed(image: str | None = None, thumbnail: str | None = None) -> MagicMock:
+    found = MagicMock(spec=discord.Embed)
+    found.image = MagicMock(url=image)
+    found.thumbnail = MagicMock(url=thumbnail)
+    return found
+
+
+@pytest.fixture
+def vision(bot: app.WispBot, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Wisp's eyes; each test sets what they describe or raises."""
+    describe = AsyncMock(return_value=SEEN)
+    monkeypatch.setattr(bot.vision, "describe", describe)
+    return describe
+
+
+async def say_with_picture(
+    cog: Conversation,
+    message: MessageFactory,
+    *,
+    attachments: Sequence[MagicMock] = (),
+    stickers: Sequence[MagicMock] = (),
+    embeds: Sequence[MagicMock] = (),
+    text: str = "look at this",
+) -> MagicMock:
+    sent = message.to_wisp(text)
+    sent.attachments = list(attachments)
+    sent.stickers = list(stickers)
+    sent.embeds = list(embeds)
+    await cog.on_message(sent)
+    return sent
+
+
+@pytest.mark.parametrize("kind", ["image/png", "image/jpeg", "image/webp", "image/gif"])
+async def test_an_image_attachment_is_described_for_his_prompt(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+    kind: str,
+) -> None:
+    await lay(bot)
+    await say_with_picture(cog, message, attachments=[attachment(kind, "https://a")])
+    vision.assert_awaited_once_with("https://a")
+    (prompt,) = prompts(ai)
+    assert f"They sent a picture: {SEEN}" in prompt.user
+    assert "look at this" in prompt.user
+
+
+async def test_the_first_picture_wins_attachment_then_sticker_then_embed(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    await say_with_picture(
+        cog,
+        message,
+        attachments=[
+            attachment("video/mp4", "https://video"),
+            attachment("image/png", "https://first"),
+        ],
+        stickers=[sticker(discord.StickerFormatType.png, "https://sticker")],
+        embeds=[embed(image="https://embed")],
+    )
+    vision.assert_awaited_once_with("https://first")
+
+
+async def test_a_sticker_image_is_described(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    await say_with_picture(
+        cog,
+        message,
+        stickers=[
+            sticker(discord.StickerFormatType.lottie, "https://lottie"),
+            sticker(discord.StickerFormatType.apng, "https://sticker"),
+        ],
+        embeds=[embed(image="https://embed")],
+    )
+    vision.assert_awaited_once_with("https://sticker")
+
+
+@pytest.mark.parametrize(
+    ("found", "link"),
+    [
+        (
+            embed(image="https://tenor/image", thumbnail="https://tenor/thumb"),
+            "https://tenor/image",
+        ),
+        (embed(thumbnail="https://giphy/thumb"), "https://giphy/thumb"),
+    ],
+)
+async def test_an_embeds_image_or_thumbnail_is_described(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+    found: MagicMock,
+    link: str,
+) -> None:
+    await lay(bot)
+    await say_with_picture(cog, message, embeds=[embed(), found])
+    vision.assert_awaited_once_with(link)
+
+
+async def test_a_picture_only_message_still_reaches_him(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    sent = message(f"<@{WISP_ID}>", mentions=[WISP])
+    sent.attachments = [attachment("image/gif")]
+    await cog.on_message(sent)
+    (prompt,) = prompts(ai)
+    assert "(no words)" in prompt.user
+    assert f"They sent a picture: {SEEN}" in prompt.user
+
+
+async def test_egg_and_baby_get_the_description_too(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    await say_with_picture(cog, message, attachments=[attachment("image/png")])
+    assert f"They sent a picture: {SEEN}" in prompts(ai)[0].user
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ProviderError("picture is too big"),
+        ProviderError("HTTP 503"),
+        ProviderError("timed out"),
+    ],
+)
+async def test_a_picture_he_cannot_read_is_said_so_and_logged_not_posted(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+    caplog: pytest.LogCaptureFixture,
+    failure: ProviderError,
+) -> None:
+    await lay(bot)
+    vision.side_effect = failure
+    with caplog.at_level(logging.WARNING, logger="wisp"):
+        sent = await say_with_picture(
+            cog, message, attachments=[attachment("image/gif")]
+        )
+    (prompt,) = prompts(ai)
+    assert "couldn't see right now" in prompt.user
+    assert SEEN not in prompt.user
+    assert reply_text(sent) == "hey you"
+    assert reports(server) == []
+    assert str(failure) in caplog.text
+
+
+async def test_no_picture_means_no_vision_call(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    await say_with_picture(
+        cog,
+        message,
+        attachments=[attachment("video/mp4"), attachment(None)],
+        stickers=[sticker(discord.StickerFormatType.lottie, "https://lottie")],
+        embeds=[embed()],
+    )
+    vision.assert_not_awaited()
+    assert "picture" not in prompts(ai)[0].user
+
+
+async def test_a_picture_in_a_chime_in_or_a_chat_line_is_never_described(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    sent = message("lovely")
+    sent.attachments = [attachment("image/png")]
+    await cog.on_message(sent)
+    vision.assert_not_awaited()

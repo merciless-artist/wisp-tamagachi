@@ -27,6 +27,7 @@ def _optional(name: str) -> str | None:
 GOOGLE_API_KEY: str | None = _optional("GOOGLE_API_KEY")
 GOOGLE_CHAT_MODEL: str | None = _optional("GOOGLE_CHAT_MODEL")
 GOOGLE_FALLBACK_MODEL: str | None = _optional("GOOGLE_FALLBACK_MODEL")
+GOOGLE_VISION_MODEL: str = _optional("GOOGLE_VISION_MODEL") or "gemini-3.6-flash"
 GROQ_API_KEY: str | None = _optional("GROQ_API_KEY")
 GROQ_MODEL: str | None = _optional("GROQ_MODEL")
 OPENROUTER_API_KEY: str | None = _optional("OPENROUTER_API_KEY")
