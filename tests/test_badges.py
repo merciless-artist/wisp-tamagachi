@@ -53,10 +53,7 @@ OTHER_USER_ID = 2
 LEFT_USER_ID = 3
 QUALIFYING_ROLE = 7
 NO_PING = discord.AllowedMentions.none().to_dict()
-CANNOT_FEED = (
-    "♪ Only members at Active Lounger or higher who have opened /wisp board "
-    "can feed Wisp."
-)
+NO_ROLE = "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
 BANDMATE_BOND = BOND_TIERS[-1][1]
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
 
@@ -832,7 +829,7 @@ async def test_a_member_who_cannot_feed_is_refused(
 
     interaction = await buy(bot, server, "pickle_diplomat")
 
-    assert shown_note(interaction) == CANNOT_FEED
+    assert shown_note(interaction) == NO_ROLE
     assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 1000
     server.members[USER_ID].add_roles.assert_not_awaited()
 

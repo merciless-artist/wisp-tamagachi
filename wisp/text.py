@@ -377,6 +377,16 @@ def count(amount: int, noun: str) -> str:
     return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"
 
 
+def meter_receipt(meter: str, before: float, after: float) -> str:
+    """What a meter did, as whole numbers: `Wellbeing +8 (now 66)`.
+
+    The change is the difference of the shown numbers, so it always adds up.
+    """
+    shown = round(after)
+    change = shown - round(before)
+    return f"{meter} {change:+d} (now {shown})"
+
+
 def strip_emoji(text: str) -> str:
     """Remove Unicode emoji, keeping the ♪ and ♫ flair and every other character."""
     return _EMOJI.sub("", text)

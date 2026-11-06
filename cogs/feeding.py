@@ -15,7 +15,7 @@ from discord.ext import commands
 
 from cogs.announce import post_events, post_in_house, say_in_mealtime, show_in_thread
 from cogs.channels import in_channel
-from cogs.players import Blocker, feeder_blocker, maybe_meet
+from cogs.players import BLOCKER_REASONS, Blocker, feeder_blocker, maybe_meet
 from cogs.staff import StaffContext, guild_of, is_command, reply
 from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
@@ -36,12 +36,6 @@ _MOOD_EMOJIS: Final = {
     Mood.HAPPY: "wisp_happy",
     Mood.HANGRY: "wisp_hangry",
     Mood.LONELY: "wisp_sad",
-}
-_BANNED: Final = "you are banned from feeding him right now."
-_BLOCKERS: Final = {
-    Blocker.BANNED: _BANNED,
-    Blocker.NO_ROLE: "you don't have a role that can feed him.",
-    Blocker.NOT_OPENED: "you haven't opened /wisp board yet.",
 }
 _NO_WISP: Final = "there's no living Wisp to feed right now."
 _REPEAT: Final = "that track was already fed."
@@ -96,7 +90,7 @@ class Feeding(commands.Cog):
         player = await self.bot.players.get(guild.id, author.id)
         blocker = await feeder_blocker(self.bot, guild.id, author, now)
         if blocker is not None:
-            await self._refuse(guild, author, _BLOCKERS[blocker])
+            await self._refuse(guild, author, BLOCKER_REASONS[blocker])
             return
         track = (
             await self._resolve(guild, author, found)
@@ -186,7 +180,7 @@ class Feeding(commands.Cog):
         bot = self.bot
         async with bot.guild_lock(guild_id):
             if (await bot.players.get(guild_id, user_id)).is_banned(now):
-                raise NotFed(_BANNED)
+                raise NotFed(BLOCKER_REASONS[Blocker.BANNED])
             life = await bot.lives.current(guild_id)
             if life is None or life.id is None or is_over(life):
                 raise NotFed(_NO_WISP)

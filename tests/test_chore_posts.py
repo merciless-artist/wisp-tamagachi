@@ -33,7 +33,15 @@ from wisp.chores import (
 )
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
-from wisp.rules import MESS_LEFT_FOR, SICK_FOR, TANTRUM_PICTURES, Chore, Stage
+from wisp.rules import (
+    CHORE_POINTS,
+    HEALTH_PER_CLEANUP,
+    MESS_LEFT_FOR,
+    SICK_FOR,
+    TANTRUM_PICTURES,
+    Chore,
+    Stage,
+)
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -45,7 +53,11 @@ FIRST_POST_ID = 9000
 POST_TEXT = "a chore post"
 NO_PING = discord.AllowedMentions.none().to_dict()
 ALREADY_DONE = "♪ Someone already took care of that."
-CANNOT_EARN = "♪ Only members who can feed Wisp earn points."
+NO_ROLE = "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+NOT_OPENED = "♪ Wisp can't take that from you: you haven't opened /wisp board yet."
+BANNED = "♪ Wisp is not taking snacks or gifts from you right now."
+OLD_POST = "♪ That post is from a Wisp who is gone now."
+NOT_ALIVE = "♪ Wisp isn't alive right now, so there is nothing to do."
 LATER = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
 COLD_WORDS = (
     "cold",
@@ -562,7 +574,25 @@ async def test_the_first_eligible_press_cleans_up_and_pays(
     assert line in lines(Moment.MESS_CLEANED, name=f"Member{USER_ID}")
     assert edit["view"] is None
     assert edit["allowed_mentions"].to_dict() == NO_PING
-    assert private_replies(pressed) == []
+    assert private_replies(pressed) == [
+        f"♪ You cleaned up. +{CHORE_POINTS[Chore.MESS]} points. "
+        f"Health +{HEALTH_PER_CLEANUP} (now 55)."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("chore", "did"),
+    [(Chore.TANTRUM, "scolded Wisp"), (Chore.NAP, "turned off the lights")],
+)
+async def test_the_other_chores_say_what_they_did(
+    bot: app.WispBot, chore: Chore, did: str
+) -> None:
+    life = await open_chore(bot, chore)
+    assert life.id is not None
+
+    pressed = await press(bot, chore, life.id, make_post(FIRST_POST_ID))
+
+    assert private_replies(pressed) == [f"♪ You {did}. +{CHORE_POINTS[chore]} points."]
 
 
 async def test_the_done_line_calls_the_member_by_the_name_wisp_knows(
@@ -593,11 +623,12 @@ async def test_a_later_press_is_told_it_is_already_done(bot: app.WispBot) -> Non
 
 
 @pytest.mark.parametrize(
-    ("user_id", "roles"),
-    [(OUTSIDER_ID, (QUALIFYING_ROLE,)), (USER_ID, ())],
+    ("user_id", "roles", "reason"),
+    [(OUTSIDER_ID, (QUALIFYING_ROLE,), NOT_OPENED), (USER_ID, (), NO_ROLE)],
+    ids=["board-not-opened", "no-role"],
 )
-async def test_a_member_who_cannot_feed_is_told_and_the_mess_stays(
-    bot: app.WispBot, user_id: int, roles: tuple[int, ...]
+async def test_a_member_who_cannot_feed_is_told_why_and_the_mess_stays(
+    bot: app.WispBot, user_id: int, roles: tuple[int, ...], reason: str
 ) -> None:
     life = await open_chore(bot, Chore.MESS)
     assert life.id is not None
@@ -605,7 +636,7 @@ async def test_a_member_who_cannot_feed_is_told_and_the_mess_stays(
 
     pressed = await press(bot, Chore.MESS, life.id, post, user_id, roles)
 
-    assert private_replies(pressed) == [CANNOT_EARN]
+    assert private_replies(pressed) == [reason]
     assert is_open(await current_life(bot), Chore.MESS)
     assert await points(bot, user_id) == 0
     post.edit.assert_not_awaited()
@@ -621,7 +652,7 @@ async def test_a_banned_member_is_told_and_the_mess_stays(bot: app.WispBot) -> N
 
     pressed = await press(bot, Chore.MESS, life.id, post)
 
-    assert private_replies(pressed) == [CANNOT_EARN]
+    assert private_replies(pressed) == [BANNED]
     assert is_open(await current_life(bot), Chore.MESS)
     post.edit.assert_not_awaited()
 
@@ -640,7 +671,10 @@ async def test_two_presses_at_once_have_one_winner(bot: app.WispBot) -> None:
         0,
         2,
     ]
-    assert sorted(private_replies(first) + private_replies(second)) == [ALREADY_DONE]
+    replies = private_replies(first) + private_replies(second)
+    assert len(replies) == 2
+    assert ALREADY_DONE in replies
+    assert any(reply.startswith("♪ You cleaned up.") for reply in replies)
     post.edit.assert_awaited_once()
     assert (await current_life(bot)).health == 55.0
 
@@ -684,7 +718,7 @@ async def test_a_button_from_another_life_is_already_done(bot: app.WispBot) -> N
 
     pressed = await press(bot, Chore.MESS, life.id + 1, post)
 
-    assert private_replies(pressed) == [ALREADY_DONE]
+    assert private_replies(pressed) == [OLD_POST]
     assert is_open(await current_life(bot), Chore.MESS)
     assert await points(bot, USER_ID) == 0
 
@@ -701,7 +735,7 @@ async def test_a_mess_left_open_when_his_life_ended_pays_nothing(
 
     pressed = await press(bot, Chore.MESS, life.id, post)
 
-    assert private_replies(pressed) == [ALREADY_DONE]
+    assert private_replies(pressed) == [NOT_ALIVE]
     assert await points(bot, USER_ID) == 0
     after = await current_life(bot)
     assert (after.phase, is_open(after, Chore.MESS)) == (phase, True)

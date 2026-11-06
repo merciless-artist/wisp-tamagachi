@@ -65,10 +65,8 @@ USER_ID = 1
 OTHER_USER_ID = 2
 NEWCOMER_ID = 3
 QUALIFYING_ROLE = 7
-CANNOT_FEED = (
-    "♪ Only members at Active Lounger or higher who have opened /wisp board "
-    "can feed Wisp."
-)
+NO_ROLE = "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+NOT_OPENED = "♪ Wisp can't take that from you: you haven't opened /wisp board yet."
 SPEC_LINES = frozenset(
     (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
     .read_bytes()
@@ -874,7 +872,9 @@ async def test_buy_refused_when_short(bot: app.WispBot) -> None:
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     pick.assert_called_once_with(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY, name="Member1")
     interaction.followup.send.assert_awaited_once()
-    assert reply_text(interaction) == "not enough points for that one"
+    assert reply_text(interaction) == (
+        "not enough points for that one" "\n♪ That costs 3 WC and you have 2."
+    )
     assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
     interaction.edit_original_response.assert_not_awaited()
 
@@ -991,15 +991,19 @@ async def test_a_banned_member_gets_no_menu_from_the_button(
 
 
 @pytest.mark.parametrize(
-    ("user_id", "roles"),
+    ("user_id", "roles", "reason"),
     [
-        (USER_ID, ()),
-        (USER_ID, (QUALIFYING_ROLE + 1,)),
-        (NEWCOMER_ID, (QUALIFYING_ROLE,)),
+        (USER_ID, (), NO_ROLE),
+        (USER_ID, (QUALIFYING_ROLE + 1,), NO_ROLE),
+        (NEWCOMER_ID, (QUALIFYING_ROLE,), NOT_OPENED),
     ],
 )
 async def test_only_qualifying_members_get_a_menu_from_the_button(
-    bot: app.WispBot, server: FakeServer, user_id: int, roles: tuple[int, ...]
+    bot: app.WispBot,
+    server: FakeServer,
+    user_id: int,
+    roles: tuple[int, ...],
+    reason: str,
 ) -> None:
     await lay(bot)
     await bot.activity_log.add_snack(GUILD_ID, user_id, "cloudwave")
@@ -1007,7 +1011,7 @@ async def test_only_qualifying_members_get_a_menu_from_the_button(
 
     await FeedButton().callback(interaction)
 
-    assert reply_text(interaction) == CANNOT_FEED
+    assert reply_text(interaction) == reason
     assert "view" not in interaction.followup.send.await_args.kwargs
     server.house.send.assert_not_awaited()
 
@@ -1034,7 +1038,7 @@ async def test_losing_the_role_after_the_menu_opened_blocks_eating(
 
     await select.callback(interaction)
 
-    assert reply_text(interaction) == CANNOT_FEED
+    assert reply_text(interaction) == NO_ROLE
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     assert (await current_life(bot)).growth == 0
     server.house.send.assert_not_awaited()
@@ -1064,7 +1068,9 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 1
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     interaction.response.defer.assert_awaited_once_with()
-    assert reply_text(interaction) == "♪ Wisp ate your Spicy Wave ・ wellbeing +8"
+    assert (
+        reply_text(interaction) == "♪ Wisp ate your Spicy Wave. Wellbeing +8 (now 58)."
+    )
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     server.house.send.assert_awaited_once()
 
@@ -1125,7 +1131,7 @@ async def test_the_snack_confirmation_says_wellbeing(bot: app.WispBot) -> None:
 
     reply = await eat(bot, "spicywave")
 
-    assert reply_text(reply) == "♪ Wisp ate your Spicy Wave ・ wellbeing +8"
+    assert reply_text(reply) == "♪ Wisp ate your Spicy Wave. Wellbeing +8 (now 58)."
 
 
 async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
@@ -1138,7 +1144,7 @@ async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     life = await current_life(bot)
     assert (life.health, life.growth) == (50.0, 1)
-    assert reply_text(first) == "♪ Wisp ate your Sine Wave ・ wellbeing +8"
+    assert reply_text(first) == "♪ Wisp ate your Sine Wave. Wellbeing +8 (now 58)."
 
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
     _, select = await open_feeding(bot)
@@ -1223,7 +1229,7 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
 
     life = await current_life(bot)
     assert (life.health, life.growth) == (40.0, 1)
-    assert reply_text(capped) == "♪ Wisp ate your Cloud Wave ・ wellbeing +8"
+    assert reply_text(capped) == "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 58)."
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
 
@@ -1242,9 +1248,9 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
     replies = [reply_text(await eat(bot, "cloudwave")) for _ in range(4)]
 
     assert replies == [
-        "♪ Wisp ate your Cloud Wave ・ wellbeing +8",
-        "♪ Wisp ate your Cloud Wave ・ wellbeing +8",
-        "♪ Wisp ate your Cloud Wave ・ wellbeing +8",
+        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 58).",
+        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 66).",
+        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 74).",
         "♪ Wisp is full from you today. Save it for tomorrow.",
     ]
     assert (await current_life(bot)).health == 40.0
@@ -1283,9 +1289,16 @@ async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
     server.house.send.assert_not_awaited()
 
 
-@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
+@pytest.mark.parametrize(
+    ("phase", "reason"),
+    [
+        (Phase.EGG, "isn't hatched yet"),
+        (Phase.HATCHING, "isn't hatched yet"),
+        (Phase.DEAD, "isn't alive right now"),
+    ],
+)
 async def test_cannot_feed_egg_with_snacks(
-    bot: app.WispBot, server: FakeServer, phase: Phase
+    bot: app.WispBot, server: FakeServer, phase: Phase, reason: str
 ) -> None:
     await lay(bot, phase=phase, health=0.0)
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
@@ -1293,7 +1306,7 @@ async def test_cannot_feed_egg_with_snacks(
 
     interaction = await choose(bot, select, "cloudwave")
 
-    assert "isn't hatched" in reply_text(interaction)
+    assert reason in reply_text(interaction)
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     life = await current_life(bot)
@@ -1315,7 +1328,7 @@ async def test_cannot_feed_before_any_life_exists(
 
     interaction = await choose(bot, select, "cloudwave")
 
-    assert "isn't hatched" in reply_text(interaction)
+    assert "Wisp isn't alive right now" in reply_text(interaction)
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     server.house.send.assert_not_awaited()
 

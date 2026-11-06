@@ -16,7 +16,7 @@ from discord.ext import commands
 
 from cogs.announce import post_in_house
 from cogs.assets import ASSETS_DIR, asset_image
-from cogs.players import Refusal, check_member
+from cogs.players import Refusal, check_member, no_wisp_text, too_poor_text
 from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
@@ -38,6 +38,7 @@ from wisp.text import (
     BOX_WIDTH,
     heading,
     item,
+    meter_receipt,
     note,
     richest,
     sub,
@@ -51,7 +52,6 @@ from wisp.voice import MINI_COIN_EMOJI
 if TYPE_CHECKING:
     from app import WispBot
 
-_NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Gifts have to wait until he is."
 _BACK_IN_VAULT: Final = "♪ It's back in the ViiBR Vault."
 _GAMBLE: Final = note("ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ")
 _KEPT_TODAY: Final = note(
@@ -221,10 +221,12 @@ def _given_from_today(collection: GiftCollection) -> str:
     )
 
 
-def closed_reason(state: GiftState | None, collection: GiftCollection) -> str | None:
+def closed_reason(
+    life: Life | None, state: GiftState | None, collection: GiftCollection
+) -> str | None:
     """Why nothing can be given from `collection` now, or None when it is open."""
     if state is None:
-        return _NOT_HATCHED
+        return no_wisp_text(life, "Gifts")
     if not state.is_open(collection):
         return _given_from_today(collection)
     if not state.offered_from(collection):
@@ -247,6 +249,7 @@ class GiftGiven:
     life: Life
     player: Player
     bond: int
+    wellbeing_before: float
 
 
 async def give_gift(
@@ -274,7 +277,7 @@ async def give_gift(
     life = await bot.lives.current(guild_id)
     life_id = _living_id(life)
     if life is None or life_id is None:
-        raise Refusal(_NOT_HATCHED)
+        raise Refusal(no_wisp_text(life, "Gifts"))
     state = await _state(bot, guild_id, life_id, now)
     collection = collection_of(gift)
     if not state.in_stock(gift):
@@ -283,7 +286,8 @@ async def give_gift(
         raise Refusal(_given_from_today(collection))
     if not await bot.players.spend(guild_id, member.id, GIFT_COST):
         name = player.name or member.display_name
-        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+        line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
+        raise Refusal(too_poor_text(line, GIFT_COST, player.balance))
     outcome = decide(state, rng)
     kept = outcome is Outcome.KEPT
     completed = kept and state.completes(gift)
@@ -298,25 +302,35 @@ async def give_gift(
         0,
         now,
     )
+    before = life.wellbeing
     change_meter(life, Meter.WELLBEING, WELLBEING_PER_GIFT, ends_stretch=True)
     if kept:
         await bot.players.add_bond(guild_id, member.id, bond)
         add_growth(life, GROWTH_PER_BOND_MOMENT)
     await bot.lives.save(guild_id, life)
-    return GiftGiven(gift, outcome, completed, life, player, bond if kept else 0)
+    return GiftGiven(
+        gift, outcome, completed, life, player, bond if kept else 0, before
+    )
 
 
 def gift_note(given: GiftGiven) -> str:
-    """What happened to the gift, for the member who gave it."""
+    """What the gift did and what Wisp did with it, for the member who gave it."""
     title = given.gift.title
+    gave = (
+        f"♪ You gave Wisp {with_article(title)}. "
+        f"{meter_receipt('Wellbeing', given.wellbeing_before, given.life.wellbeing)}."
+    )
     if given.outcome is Outcome.FULL:
-        return f"♪ Wisp already kept a gift today. Your {title} is back in the Vault."
+        return (
+            f"{gave}\n♪ Wisp already kept a gift today. "
+            f"Your {title} is back in the Vault."
+        )
     if given.outcome is Outcome.PASSED:
-        return f"♪ Wisp passed on your {title}. It's back in the Vault."
-    note = f"♪ Wisp kept your {title} ・ bond +{given.bond}"
+        return f"{gave}\n♪ Wisp passed on your {title}. It's back in the Vault."
+    kept = f"{gave}\n♪ Wisp kept your {title} ・ bond +{given.bond}"
     if given.completed:
-        return f"{note} ・ {collection_of(given.gift).name} complete"
-    return note
+        return f"{kept} ・ {collection_of(given.gift).name} complete"
+    return kept
 
 
 def _gift_art(gift: Gift) -> Path | None:

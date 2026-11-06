@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-06 (Every action says what it did, or exactly why not)
+
+- Receipts, private to the member: a snack (`Wellbeing +8 (now 66)`), a gift
+  (the same line, then what Wisp did with it), a counted poke (with how many
+  pokes are left today that raise it), a counted Rhyme Duel (Wellbeing, Vault
+  point, counted games left today) and a chore (its points, and Health for a
+  cleanup). The "now" number is what is on the life after the change; the
+  change is the difference of the shown whole numbers.
+- Reasons: a duel that did not count says why (no rhyme, daily limit, no
+  feeding role, board not opened, banned, Wisp not alive); a poke that raised
+  nothing says why (daily limit, napping, no role, board not opened, still an
+  egg); a refusal to feed or give names the missing role or the unopened board
+  instead of one combined sentence; "not enough points" lines add what the
+  thing costs and the member's balance; a dead or missing Wisp is "isn't alive
+  right now", not "isn't hatched yet"; a chore press names why it failed
+  (banned, no role, older post, Wisp gone, already done); the poke cooldown
+  message says how long it is.
+- Feeding reasons live in one place (`BLOCKER_REASONS`), shared by the track
+  drop, snacks, gifts, chores, duels and pokes.
+- A member banned during a duel no longer gets that duel counted.
+
 ## 2026-11-06 (Mood folds into Wellbeing; sickness moves to Health)
 
 - Two meters remain: Health (his body, the only one that can kill him) and

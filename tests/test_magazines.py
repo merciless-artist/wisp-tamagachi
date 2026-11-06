@@ -471,7 +471,11 @@ async def test_a_member_who_cannot_feed_is_refused(
 
     interaction = await pick(select, bot, guild, "viibrations", member(roles=()))
 
-    assert shown(interaction).splitlines()[0].startswith("♪ Only members at ")
+    assert (
+        shown(interaction)
+        .splitlines()[0]
+        .startswith("♪ Wisp can't take that from you: you don't have a role")
+    )
     assert await balance(bot) == 1000
 
 

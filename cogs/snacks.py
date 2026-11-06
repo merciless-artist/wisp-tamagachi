@@ -46,16 +46,19 @@ from cogs.magazines import (
     on_the_shelf,
 )
 from cogs.players import (
-    CANNOT_FEED,
     EXPECTED_FAILURES,
     NOT_TAKING,
+    Blocker,
     Refusal,
     bot_of,
-    can_feed,
     check_member,
     maybe_meet,
+    member_blocker,
+    no_wisp_text,
+    refusal_text,
     report_failure,
     say_privately,
+    too_poor_text,
 )
 from db.activity import InteractionKind
 from db.keepsakes import Keepsake
@@ -113,6 +116,7 @@ from wisp.text import (
     box_top,
     heading,
     item,
+    meter_receipt,
     sub,
     text_length,
     with_emoji,
@@ -128,7 +132,6 @@ _FEED_ID: Final = "wisp:feed"
 _VAULT_ID: Final = "wisp:vault"
 _SNACK_PACK_ID: Final = "wisp:snackpack"
 
-_NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Snacks have to wait until he is."
 _NO_SNACKS: Final = (
     "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
 )
@@ -226,13 +229,14 @@ async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> 
     await interaction.response.defer(ephemeral=True, thinking=True)
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
-    refusal = None
-    if await _is_banned(bot, guild_id, interaction.user.id):
-        refusal = NOT_TAKING
-    elif feeding and not await can_feed(bot, guild_id, interaction.user):
-        refusal = CANNOT_FEED
-    if refusal is not None:
-        await say_privately(interaction, refusal)
+    now = discord.utils.utcnow()
+    if feeding:
+        blocker = await member_blocker(bot, guild_id, interaction.user, now)
+    else:
+        banned = await _is_banned(bot, guild_id, interaction.user.id)
+        blocker = Blocker.BANNED if banned else None
+    if blocker is not None:
+        await say_privately(interaction, refusal_text(blocker))
         return False
     return True
 
@@ -704,7 +708,9 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
             Mood.HAPPY,
             name=player.name or user.display_name,
         )
-        await say_privately(interaction, line)
+        await say_privately(
+            interaction, too_poor_text(line, snack.cost, player.balance)
+        )
     else:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
         await _confirm(
@@ -728,7 +734,9 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
     guild = interaction.guild
     await interaction.response.defer()
     if not isinstance(user, discord.Member) or guild is None:
-        await _confirm(interaction, CANNOT_FEED, "showing a refused badge")
+        await _confirm(
+            interaction, refusal_text(Blocker.NO_ROLE), "showing a refused badge"
+        )
         return
     role = await badge_role(bot, guild, badge)
     if role is None:
@@ -797,7 +805,8 @@ async def _take_badge(
         raise Refusal(_already_have(badge, life))
     if not await bot.players.spend(guild_id, member.id, badge.cost):
         name = player.name or member.display_name
-        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+        line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
+        raise Refusal(too_poor_text(line, badge.cost, player.balance))
     if not await bot.badges.record(
         guild_id, member.id, badge.key, life.id, life.version, now
     ):
@@ -880,7 +889,8 @@ async def _take_magazine(
         raise Refusal(_already_own(magazine, life))
     if not await bot.players.spend(guild_id, member.id, MAGAZINE_COST):
         name = player.name or member.display_name
-        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+        line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
+        raise Refusal(too_poor_text(line, MAGAZINE_COST, player.balance))
     if not await bot.magazines.record(
         guild_id, member.id, magazine.key, life.id, life.version, now
     ):
@@ -943,11 +953,14 @@ async def _take_medicine(
     """
     player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
-    if life is None or life.phase is not Phase.ALIVE or not has_sniffles(life):
+    if life is None or life.phase is not Phase.ALIVE:
+        raise Refusal(no_wisp_text(life, "Medicine"))
+    if not has_sniffles(life):
         raise Refusal(_NO_COLD)
     if not await bot.players.spend(guild_id, member.id, MEDICINE_COST):
         name = player.name or member.display_name
-        raise Refusal(bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name))
+        line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
+        raise Refusal(too_poor_text(line, MEDICINE_COST, player.balance))
     cure_sniffles(life)
     await bot.lives.save(guild_id, life)
     await bot.players.add_points(guild_id, member.id, MEDICINE_POINTS)
@@ -964,8 +977,9 @@ async def _pick_collection(
     """
     bot = bot_of(interaction)
     await interaction.response.defer()
-    state = await todays_gifts(bot, require_guild(interaction), discord.utils.utcnow())
-    reason = closed_reason(state, collection)
+    guild_id = require_guild(interaction)
+    state = await todays_gifts(bot, guild_id, discord.utils.utcnow())
+    reason = closed_reason(await bot.lives.current(guild_id), state, collection)
     if reason is not None:
         await _confirm(
             interaction,
@@ -1149,6 +1163,7 @@ class _Meal:
 
     life: Life
     player: Player
+    wellbeing_before: float
 
 
 async def _eat(
@@ -1170,7 +1185,7 @@ async def _eat(
     player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
     if life is None or life.id is None or life.phase is not Phase.ALIVE:
-        raise Refusal(_NOT_HATCHED)
+        raise Refusal(no_wisp_text(life, "Snacks"))
     if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
         raise Refusal(_SINE_USED)
     eaten = await log.meal_points_today(guild_id, user_id, now)
@@ -1186,13 +1201,14 @@ async def _eat(
     bond = casual_bond_grant(
         await log.casual_bond_today(guild_id, user_id, now), BOND_PER_SNACK
     )
+    before = life.wellbeing
     change_meter(life, Meter.WELLBEING, WELLBEING_PER_SNACK, ends_stretch=True)
     add_growth(life, snack.growth)
     if bond:
         await bot.players.add_bond(guild_id, user_id, bond)
     await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
     await bot.lives.save(guild_id, life)
-    return _Meal(life, player)
+    return _Meal(life, player, before)
 
 
 def _moment(snack: Snack) -> Moment:
@@ -1237,7 +1253,10 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
         )
         return
     await interaction.edit_original_response(
-        content=f"♪ Wisp ate your {snack.name} ・ {_wellbeing_gain()}",
+        content=(
+            f"♪ Wisp ate your {snack.name}. "
+            f"{meter_receipt('Wellbeing', meal.wellbeing_before, meal.life.wellbeing)}."
+        ),
         view=None,
         allowed_mentions=_NO_PING,
     )

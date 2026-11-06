@@ -24,6 +24,7 @@ from cogs.groups import require_guild
 from cogs.pictures import art_kwargs, sick_talk_image
 from cogs.players import (
     EXPECTED_FAILURES,
+    Credit,
     bot_of,
     credit_chat,
     credit_poke,
@@ -42,10 +43,11 @@ from wisp.rules import (
     CHIME_IN_CHANCE,
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
+    TALK_COOLDOWN,
     VISION_EMBED_WAIT,
     VISION_TYPES,
 )
-from wisp.text import strip_emoji
+from wisp.text import count, meter_receipt, strip_emoji
 from wisp.voice import (
     EGG_EXPRESSION,
     EMOJI_NAME_PATTERN,
@@ -105,8 +107,10 @@ _PICTURE_EMBEDS: Final = frozenset({"image", "gifv"})
 _POKE_CONTEXT: Final = "the Poke Wisp button"
 _POKE_BANNED: Final = "♪ Wisp isn't answering you right now."
 _POKE_NOBODY: Final = "♪ There's nobody to poke right now."
-_POKE_COOLING: Final = "♪ Give him a second."
-_POKE_DONE: Final = "♪ You poked Wisp."
+_POKE_NOT_RAISED: Final = "♪ Poke sent, but it didn't raise his Wellbeing: "
+_POKE_NAPPING: Final = "he was napping, so you woke him up cranky."
+_POKE_ERROR: Final = "something went wrong, and the error is posted in this channel."
+_POKE_EGG: Final = "he hasn't hatched yet."
 
 # ---
 # Reading the chat
@@ -450,7 +454,9 @@ class Conversation(commands.Cog):
             return
         credited = False
         try:
-            credited = await credit_chat(self.bot, guild.id, message.author, now)
+            credited = (
+                await credit_chat(self.bot, guild.id, message.author, now)
+            ).credited
         except pymysql.err.Error as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
         try:
@@ -620,13 +626,18 @@ async def _poke(interaction: discord.Interaction) -> None:
         await say_privately(interaction, _POKE_NOBODY)
         return
     if not talk.take_turn(guild_id, user.id, now):
-        await say_privately(interaction, _POKE_COOLING)
+        seconds = int(TALK_COOLDOWN.total_seconds())
+        await say_privately(
+            interaction,
+            f"♪ Give him a second: he answers you once every "
+            f"{count(seconds, 'second')}, pokes and mentions together.",
+        )
         return
     woken = await wake_by_poke(bot, guild_id, user.id, now)
-    credited = False
+    credit = Credit(False, _POKE_NAPPING if woken is not None else _POKE_ERROR)
     if woken is None:
         try:
-            credited = await credit_poke(bot, guild_id, user, now)
+            credit = await credit_poke(bot, guild_id, user, now)
         except pymysql.err.Error as error:
             await bot.report_error(
                 interaction.guild, _POKE_CONTEXT, error, where=where_of(interaction)
@@ -652,11 +663,22 @@ async def _poke(interaction: discord.Interaction) -> None:
     log.info(
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
     )
-    await say_privately(interaction, _POKE_DONE)
-    if credited:
+    await say_privately(interaction, _poke_receipt(credit, level))
+    if credit.credited:
         await _meet_after_chat(
             bot, guild_id, interaction.guild, user, _POKE_CONTEXT, where_of(interaction)
         )
+
+
+def _poke_receipt(credit: Credit, level: Talk) -> str:
+    """What the poke did for the poker, or exactly why it raised nothing."""
+    if not credit.credited:
+        return f"{_POKE_NOT_RAISED}{credit.reason}"
+    if level is Talk.EGG:
+        return f"{_POKE_NOT_RAISED}{_POKE_EGG}"
+    wellbeing = meter_receipt("Wellbeing", credit.before, credit.after)
+    left = count(credit.left, "poke")
+    return f"♪ Poke counted. {wellbeing}. {left} left today that raise it."
 
 
 async def _meet_after_chat(

@@ -18,8 +18,10 @@ from cogs.assets import moment_image, nap_image
 from cogs.groups import require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
+    Refusal,
     bot_of,
-    can_feed,
+    member_blocker,
+    refusal_text,
     report_failure,
     say_privately,
 )
@@ -43,6 +45,7 @@ from wisp.rules import (
     Chore,
     Stage,
 )
+from wisp.text import meter_receipt
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -50,8 +53,9 @@ if TYPE_CHECKING:
 CHORE_ID: Final = r"wisp:chore:(?P<chore>mess|tantrum|nap):(?P<life_id>[0-9]+)"
 _NO_PING: Final = discord.AllowedMentions.none()
 _CONTEXT: Final = "the chore button"
-_CANNOT_EARN: Final = "♪ Only members who can feed Wisp earn points."
 _ALREADY_DONE: Final = "♪ Someone already took care of that."
+_OLD_POST: Final = "♪ That post is from a Wisp who is gone now."
+_NOT_ALIVE: Final = "♪ Wisp isn't alive right now, so there is nothing to do."
 _LABELS: Final = {Chore.TANTRUM: "Scold", Chore.NAP: "Lights off"}
 _POSTED: Final = {
     ChoreEventKind.MESS: Chore.MESS,
@@ -65,6 +69,11 @@ _ENDED: Final = frozenset(
         ChoreEventKind.LIGHTS_MISSED,
     }
 )
+_YOU_DID: Final = {
+    Chore.MESS: "cleaned up",
+    Chore.TANTRUM: "scolded Wisp",
+    Chore.NAP: "turned off the lights",
+}
 _DONE: Final = {
     Chore.MESS: ("cleaned up the mess", Moment.MESS_CLEANED),
     Chore.TANTRUM: ("scolded Wisp", Moment.SCOLDED),
@@ -256,28 +265,26 @@ async def wake_by_poke(
 async def _press(interaction: discord.Interaction, chore: Chore, life_id: int) -> None:
     """Do the chore for the first eligible presser and pay them its points.
 
-    A member who cannot earn, or who comes too late, is answered privately
-    and nothing changes. The winner's post says who did it and loses its
-    button; it is edited after the guild lock is released.
+    A member who cannot earn, or who comes too late, is told why privately and
+    nothing changes. The winner is told what it did privately; their post says
+    who did it and loses its button, edited after the guild lock is released.
     """
     await interaction.response.defer()
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
     player = await bot.players.get(guild_id, user.id)
-    if player.is_banned(discord.utils.utcnow()) or not await can_feed(
-        bot, guild_id, user
-    ):
-        await say_privately(interaction, _CANNOT_EARN)
+    blocker = await member_blocker(bot, guild_id, user, discord.utils.utcnow())
+    if blocker is not None:
+        await say_privately(interaction, refusal_text(blocker))
         return
     post = interaction.message
-    life = (
-        None
-        if post is None
-        else await _take(bot, guild_id, chore, life_id, post, user.id)
-    )
-    if post is None or life is None:
-        await say_privately(interaction, _ALREADY_DONE)
+    try:
+        if post is None:
+            raise Refusal(_ALREADY_DONE)
+        life, health_before = await _take(bot, guild_id, chore, life_id, post, user.id)
+    except Refusal as refusal:
+        await say_privately(interaction, str(refusal))
         return
     done, moment = _DONE[chore]
     line = bot.lines.pick(moment, mood(life), name=player.name or user.display_name)
@@ -289,6 +296,11 @@ async def _press(interaction: discord.Interaction, chore: Chore, life_id: int) -
         view=None,
         allowed_mentions=_NO_PING,
     )
+    receipt = f"♪ You {_YOU_DID[chore]}. +{CHORE_POINTS[chore]} points."
+    if chore is Chore.MESS:
+        health = meter_receipt("Health", health_before, life.health)
+        receipt = f"{receipt} {health}."
+    await say_privately(interaction, receipt)
 
 
 async def _take(
@@ -298,26 +310,28 @@ async def _take(
     life_id: int,
     post: discord.Message,
     user_id: int,
-) -> Life | None:
+) -> tuple[Life, float]:
     """Do the chore for `user_id` if `post` still shows it open on the current life.
 
-    Returns the life it was done for, or None when someone already did it,
-    the post is an older one, the life has moved on or he is no longer alive.
+    Returns the life it was done for and his Health before the chore.
+
+    Raises:
+        Refusal: Someone already did it, the post is an older one, the life
+            has moved on or he is no longer alive.
     """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if (
-            life is None
-            or life.id != life_id
-            or life.phase is not Phase.ALIVE
-            or not is_open(life, chore)
-            or message_id(life, chore) != post.id
-        ):
-            return None
+        if life is None or life.id != life_id:
+            raise Refusal(_OLD_POST)
+        if life.phase is not Phase.ALIVE:
+            raise Refusal(_NOT_ALIVE)
+        if not is_open(life, chore) or message_id(life, chore) != post.id:
+            raise Refusal(_ALREADY_DONE)
+        health_before = life.health
         do_chore(life, chore)
         await bot.lives.save(guild_id, life)
         await bot.players.add_points(guild_id, user_id, CHORE_POINTS[chore])
-    return life
+    return life, health_before
 
 
 async def setup(bot: "WispBot") -> None:

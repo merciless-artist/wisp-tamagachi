@@ -2,6 +2,7 @@
 
 import contextlib
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Final, cast
@@ -35,10 +36,6 @@ if TYPE_CHECKING:
 _NO_PING: Final = discord.AllowedMentions.none()
 EXPECTED_FAILURES: Final = (pymysql.err.Error, discord.DiscordException)
 NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
-CANNOT_FEED: Final = (
-    "♪ Only members at Active Lounger or higher who have opened /wisp board "
-    "can feed Wisp."
-)
 
 # ---
 # Status card text
@@ -75,15 +72,31 @@ async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) 
 # ---
 
 
+@dataclass(frozen=True)
+class Credit:
+    """What a chat or poke credit did.
+
+    `reason` says why nothing was credited, as the end of a sentence. When
+    credited, `before` and `after` are the meter's value around the credit and
+    `left` is how many more of that kind the member can still have today.
+    """
+
+    credited: bool
+    reason: str | None = None
+    before: float = 0.0
+    after: float = 0.0
+    left: int = 0
+
+
 async def credit_chat(
     bot: "WispBot",
     guild_id: int,
     member: discord.User | discord.Member,
     now: datetime,
-) -> bool:
+) -> Credit:
     """Credit a member's mention of Wisp: Wellbeing for the first few of the day.
 
-    Returns whether it was credited; see `_credit`.
+    See `_credit`.
     """
     return await _credit(
         bot,
@@ -93,6 +106,7 @@ async def credit_chat(
         Meter.WELLBEING,
         WELLBEING_PER_CHAT,
         CHAT_CREDITS_PER_DAY,
+        "mention",
         now,
     )
 
@@ -102,10 +116,10 @@ async def credit_poke(
     guild_id: int,
     member: discord.User | discord.Member,
     now: datetime,
-) -> bool:
+) -> Credit:
     """Credit a member's poke of Wisp: Wellbeing for the first few of the day.
 
-    Returns whether it was credited; see `_credit`.
+    See `_credit`.
     """
     return await _credit(
         bot,
@@ -115,6 +129,7 @@ async def credit_poke(
         Meter.WELLBEING,
         WELLBEING_PER_POKE,
         POKE_CREDITS_PER_DAY,
+        "poke",
         now,
     )
 
@@ -127,8 +142,9 @@ async def _credit(
     meter: Meter,
     amount: float,
     per_day: int,
+    noun: str,
     now: datetime,
-) -> bool:
+) -> Credit:
     """Record one credited chat or poke, fill its meter and pay the day's point.
 
     A credit records an interaction of `kind`, which earns no bond or growth,
@@ -136,25 +152,28 @@ async def _credit(
     only while Wisp has a life, to a member who is not banned and can feed him,
     and only until the member has had `per_day` of that kind on the UTC day of
     `now`. The first credit of the day, of either kind, also pays CHAT_POINTS.
+    A refusal names its reason.
     """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
         if life is None or life.id is None:
-            return False
-        player = await bot.players.get(guild_id, member.id)
-        if player.is_banned(now) or not await can_feed(bot, guild_id, member):
-            return False
+            return Credit(False, _NO_WISP_REASON)
+        blocker = await member_blocker(bot, guild_id, member, now)
+        if blocker is not None:
+            return Credit(False, BLOCKER_REASONS[blocker])
         log = bot.activity_log
         chats = await log.chats_today(guild_id, member.id, now)
         pokes = await log.pokes_today(guild_id, member.id, now)
-        if (chats if kind is InteractionKind.CHAT else pokes) >= per_day:
-            return False
+        had = chats if kind is InteractionKind.CHAT else pokes
+        if had >= per_day:
+            return Credit(False, f"you've used your {count(per_day, noun)} for today.")
         await log.record_interaction(guild_id, life.id, member.id, kind, 0, 0, now)
+        before = life.wellbeing
         change_meter(life, meter, amount, ends_stretch=True)
         await bot.lives.save(guild_id, life)
         if chats + pokes == 0:
             await bot.players.add_points(guild_id, member.id, CHAT_POINTS)
-    return True
+    return Credit(True, None, before, life.wellbeing, per_day - had - 1)
 
 
 # ---
@@ -168,6 +187,14 @@ class Blocker(Enum):
     BANNED = "banned"
     NO_ROLE = "no role"
     NOT_OPENED = "not opened"
+
+
+BLOCKER_REASONS: Final = {
+    Blocker.BANNED: "you are banned from feeding Wisp right now.",
+    Blocker.NO_ROLE: "you don't have a role that can feed Wisp.",
+    Blocker.NOT_OPENED: "you haven't opened /wisp board yet.",
+}
+_NO_WISP_REASON: Final = "Wisp isn't alive right now."
 
 
 async def _missing_requirement(
@@ -207,6 +234,40 @@ async def feeder_blocker(
     return await _missing_requirement(bot, guild_id, member)
 
 
+async def member_blocker(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    now: datetime,
+) -> Blocker | None:
+    """`feeder_blocker` for anyone: a user who is not a server member has no role."""
+    if not isinstance(member, discord.Member):
+        return Blocker.NO_ROLE
+    return await feeder_blocker(bot, guild_id, member, now)
+
+
+def refusal_text(blocker: Blocker) -> str:
+    """What a member who may not feed Wisp is told when they try to give him things."""
+    if blocker is Blocker.BANNED:
+        return NOT_TAKING
+    return f"♪ Wisp can't take that from you: {BLOCKER_REASONS[blocker]}"
+
+
+def no_wisp_text(life: Life | None, things: str) -> str:
+    """Why `things` cannot happen: Wisp has not hatched, or is not alive.
+
+    `things` is capitalised and plural, such as "Snacks".
+    """
+    if life is not None and life.phase in (Phase.EGG, Phase.HATCHING):
+        return f"♪ Wisp isn't hatched yet. {things} have to wait until he is."
+    return f"♪ Wisp isn't alive right now, so {things.lower()} have to wait."
+
+
+def too_poor_text(line: str, cost: int, balance: int) -> str:
+    """Wisp's not-enough-points `line` with what the thing costs and the balance."""
+    return f"{line}\n♪ That costs {cost} WC and you have {balance}."
+
+
 class Refusal(Exception):
     """A reason the member cannot do something with Wisp right now, worded for them."""
 
@@ -220,14 +281,12 @@ async def check_member(
     """Return the member's player when they may feed Wisp and give him gifts.
 
     Raises:
-        Refusal: The member is banned or cannot feed Wisp.
+        Refusal: The member is banned or cannot feed Wisp, with the reason.
     """
-    player = await bot.players.get(guild_id, member.id)
-    if player.is_banned(now):
-        raise Refusal(NOT_TAKING)
-    if not await can_feed(bot, guild_id, member):
-        raise Refusal(CANNOT_FEED)
-    return player
+    blocker = await member_blocker(bot, guild_id, member, now)
+    if blocker is not None:
+        raise Refusal(refusal_text(blocker))
+    return await bot.players.get(guild_id, member.id)
 
 
 # ---

@@ -209,6 +209,15 @@ async def lay(
     return await bot.lives.insert(GUILD_ID, life)
 
 
+def gave(gift: str, earlier_gifts: int = 0) -> str:
+    """The receipt line for a gift given after `earlier_gifts` others today."""
+    now = rules.WELLBEING_START + (earlier_gifts + 1) * rules.WELLBEING_PER_GIFT
+    return (
+        f"♪ You gave Wisp {gift}. "
+        f"Wellbeing +{rules.WELLBEING_PER_GIFT} (now {now:.0f})."
+    )
+
+
 async def current_life(bot: app.WispBot) -> Life:
     life = await bot.lives.current(GUILD_ID)
     assert life is not None
@@ -600,7 +609,9 @@ async def test_a_kept_gift_leaves_the_vault_and_gives_bond_and_growth(
         Moment.GIFT_KEPT, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
     )
     reply = edited(interaction)
-    assert reply.startswith("♪ Wisp kept your Blue Alien Doll")
+    assert reply.startswith(
+        f"{gave('a Blue Alien Doll')}\n♪ Wisp kept your Blue Alien Doll"
+    )
     assert f"║𝄡𝄚𝄂 wisp coins: {100 - rules.GIFT_COST}" in reply.splitlines()
     assert "alien_blue" not in await offered(bot)
 
@@ -646,7 +657,8 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
     )
     assert "file" not in kwargs
     assert edited(interaction).startswith(
-        "♪ Wisp passed on your Keep Calm Affirmation Card"
+        f"{gave('a Keep Calm Affirmation Card')}\n"
+        "♪ Wisp passed on your Keep Calm Affirmation Card. It's back in the Vault."
     )
     now = discord.utils.utcnow()
     assert await bot.activity_log.people_since(GUILD_ID, now - timedelta(hours=1))
@@ -727,7 +739,10 @@ async def test_after_one_kept_gift_he_is_full_for_the_day(
         "parse": [],
         "users": [OTHER_USER_ID],
     }
-    assert "already kept a gift today" in edited(interaction)
+    assert edited(interaction).startswith(
+        f"{gave('a Red Book', 1)}\n♪ Wisp already kept a gift today. "
+        "Your Red Book is back in the Vault."
+    )
     assert cast(FixedRandom, cog.rng).rolls == 1
 
 
@@ -796,7 +811,10 @@ async def test_short_points_are_refused_and_nothing_is_recorded(
     interaction = await give(bot, "alien_blue")
 
     assert await balance(bot) == rules.GIFT_COST - 1
-    assert "[not_enough_points]" in edited(interaction)
+    assert (
+        f"[not_enough_points]\n♪ That costs {rules.GIFT_COST} WC "
+        f"and you have {rules.GIFT_COST - 1}."
+    ) in edited(interaction)
     assert await db.fetchall(f"SELECT id FROM {db.t('gift_attempts')}") == []
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     server.house.send.assert_not_awaited()
@@ -823,14 +841,21 @@ async def test_members_who_cannot_feed_cannot_give(
 
     interaction = await give(bot, "alien_blue", roles=())
 
-    assert "Active Lounger" in edited(interaction)
+    assert "you don't have a role that can feed Wisp." in edited(interaction)
     assert await balance(bot) == 100
     server.house.send.assert_not_awaited()
 
 
-@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
+@pytest.mark.parametrize(
+    ("phase", "reason"),
+    [
+        (Phase.EGG, "isn't hatched yet"),
+        (Phase.HATCHING, "isn't hatched yet"),
+        (Phase.DEAD, "isn't alive right now"),
+    ],
+)
 async def test_wisp_must_be_alive_for_gifts(
-    bot: app.WispBot, server: FakeServer, phase: Phase
+    bot: app.WispBot, server: FakeServer, phase: Phase, reason: str
 ) -> None:
     await lay(bot)
     select = await item_select(bot, "aliens")
@@ -838,7 +863,7 @@ async def test_wisp_must_be_alive_for_gifts(
 
     interaction = await give(bot, "alien_blue", select=select)
 
-    assert "isn't hatched" in edited(interaction)
+    assert reason in edited(interaction)
     assert await balance(bot) == 100
     server.house.send.assert_not_awaited()
 
@@ -1051,7 +1076,7 @@ async def test_picking_a_collection_once_he_is_gone_says_gifts_wait(
     interaction = await pick(bot, "aliens", select=collection_select(before))
 
     text, selects = shown(interaction)
-    assert text.startswith("♪ Wisp isn't hatched yet.")
+    assert text.startswith("♪ Wisp isn't alive right now, so gifts have to wait.")
     assert [select.placeholder for select in selects] == ["Buy a snack"]
 
 
@@ -1281,6 +1306,7 @@ async def test_the_sixth_tetris_piece_completes_its_collection(
     bonus = rules.BOND_PER_KEPT_GIFT + rules.COLLECTION_BOND_BONUS
     assert await bond(bot) == bonus
     assert edited(interaction).startswith(
+        f"{gave('a Z Block')}\n"
         f"♪ Wisp kept your Z Block ・ bond +{bonus} ・ Tetris complete"
     )
     text, kwargs = house_post(server)
@@ -1346,7 +1372,10 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
     interaction = await give(bot, "card_futureisbright")
 
     text = edited(interaction)
-    assert text.startswith("♪ Wisp kept your Future Is Bright Affirmation Card")
+    assert text.startswith(
+        f"{gave('a Future Is Bright Affirmation Card')}\n"
+        "♪ Wisp kept your Future Is Bright Affirmation Card"
+    )
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
     assert_fits_its_box(text)
     for group in GIFT_COLLECTIONS:

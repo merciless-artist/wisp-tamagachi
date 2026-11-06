@@ -18,6 +18,7 @@ from wisp.text import (
     fit,
     heading,
     item,
+    meter_receipt,
     note,
     richest,
     sections,
@@ -39,6 +40,22 @@ SPEC_LINES = frozenset(SPEC.read_bytes().decode("utf-8").splitlines())
 )
 def test_count_pluralises_unless_one(amount: int, expected: str) -> None:
     assert count(amount, "point") == expected
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        (58.0, 66.0, "Wellbeing +8 (now 66)"),
+        (58.4, 66.4, "Wellbeing +8 (now 66)"),
+        (96.0, 100.0, "Wellbeing +4 (now 100)"),
+        (100.0, 100.0, "Wellbeing +0 (now 100)"),
+        (40.0, 25.0, "Wellbeing -15 (now 25)"),
+    ],
+)
+def test_meter_receipt_adds_up_in_whole_numbers(
+    before: float, after: float, expected: str
+) -> None:
+    assert meter_receipt("Wellbeing", before, after) == expected
 
 
 def test_richest_swaps_in_rich_lines_while_they_fit() -> None:

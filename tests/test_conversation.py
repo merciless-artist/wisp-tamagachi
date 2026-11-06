@@ -43,14 +43,17 @@ from wisp.rules import (
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
     CRANKY_FOR,
+    POKE_CREDITS_PER_DAY,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
     POKE_SLEEP_AFTER,
     POKE_STREAK_GAP,
     POX_PICTURES,
     TALK_COOLDOWN,
+    WELLBEING_PER_POKE,
     Stage,
 )
+from wisp.text import count
 from wisp.voice import STAGE_FACES, PokeFlavor
 
 GUILD_ID = 100
@@ -1303,6 +1306,21 @@ def private_reply(interaction: MagicMock) -> str:
     return str(text)
 
 
+COOLING = (
+    "♪ Give him a second: he answers you once every "
+    f"{count(int(TALK_COOLDOWN.total_seconds()), 'second')}, "
+    "pokes and mentions together."
+)
+NOT_RAISED = "♪ Poke sent, but it didn't raise his Wellbeing: "
+
+
+COUNTED = (
+    f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
+    f"(now {50 + WELLBEING_PER_POKE}). "
+    f"{count(POKE_CREDITS_PER_DAY - 1, 'poke')} left today that raise it."
+)
+
+
 def house_posts(server: FakeServer) -> list[str]:
     """What Wisp posted in his House.
 
@@ -1355,13 +1373,14 @@ async def test_poke_posts_who_poked_and_his_reaction_in_the_house(
     bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
 ) -> None:
     await lay(bot, Stage.TEEN)
+    await enroll(bot, FIRST)
     await bot.players.set_name(GUILD_ID, FIRST, "Aria")
     ai.return_value = "hehe stop that tickles"
 
     pressed = await poke()
 
     assert house_posts(server) == [f"♪ <@{FIRST}> poked Wisp\nhehe stop that tickles"]
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == COUNTED
     (prompt,) = prompts(ai)
     assert "You're a Teen" in prompt.system
     assert "Aria just poked you." in prompt.user
@@ -1398,6 +1417,7 @@ async def test_poking_the_egg_uses_the_egg_voice(
     bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
 ) -> None:
     await lay(bot, Stage.EGG, Phase.EGG)
+    await enroll(bot, FIRST)
     ai.return_value = "*the shell giggles and rolls*"
 
     pressed = await poke()
@@ -1405,7 +1425,7 @@ async def test_poking_the_egg_uses_the_egg_voice(
     assert house_posts(server) == [
         f"♪ <@{FIRST}> poked the egg\n*the shell giggles and rolls*"
     ]
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == NOT_RAISED + "he hasn't hatched yet."
     (prompt,) = prompts(ai)
     assert "Member1 pokes the egg. The poke tickled: a ticklish egg." in prompt.user
 
@@ -1554,6 +1574,7 @@ async def test_poke_falls_back_to_a_canned_line_when_the_ai_fails(
     moment: Moment,
 ) -> None:
     await lay(bot, stage, phase)
+    await enroll(bot, FIRST)
     ai.side_effect = OUTAGE
 
     pressed = await poke()
@@ -1566,7 +1587,9 @@ async def test_poke_falls_back_to_a_canned_line_when_the_ai_fails(
         line in {text.format(name="Member1") for text in LINES[(moment, feeling)]}
         for feeling in Mood
     )
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == (
+        NOT_RAISED + "he hasn't hatched yet." if phase is Phase.EGG else COUNTED
+    )
 
 
 async def test_banned_members_cannot_poke(
@@ -1609,7 +1632,7 @@ async def test_a_poke_waits_out_the_cooldown(
 
     again = await poke()
 
-    assert private_reply(again) == "♪ Give him a second."
+    assert private_reply(again) == COOLING
     assert len(house_posts(server)) == 1
     assert ai.await_count == 1
 
@@ -1637,7 +1660,7 @@ async def test_pokes_and_mentions_share_one_cooldown(
     await cog.on_message(message.to_wisp("hello"))
     pressed = await poke()
 
-    assert private_reply(pressed) == "♪ Give him a second."
+    assert private_reply(pressed) == COOLING
     assert ai.await_count == 2
 
 
@@ -1664,6 +1687,7 @@ async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(
     bot: app.WispBot, server: FakeServer, poke: Press
 ) -> None:
     await lay(bot)
+    await enroll(bot, FIRST)
     server.house.send.side_effect = [
         discord.Forbidden(MagicMock(status=403), "Missing Permissions"),
         None,
@@ -1673,7 +1697,7 @@ async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(
 
     report = server.house.send.await_args_list[1].args[0]
     assert report.startswith("Error in posting to Wisp's House: Forbidden")
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == COUNTED
 
 
 async def test_a_database_failure_is_reported_where_the_button_was_pressed(
@@ -1779,6 +1803,81 @@ async def test_the_first_three_pokes_a_day_add_five_wellbeing_each(
     assert rows == [{"kind": "poke"}] * 3
 
 
+async def test_a_counted_poke_says_what_it_did_and_what_is_left(
+    bot: app.WispBot, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+
+    first = await poke()
+    clock.advance(TALK_COOLDOWN)
+    second = await poke()
+
+    left = POKE_CREDITS_PER_DAY - 1
+    assert private_reply(first) == (
+        f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
+        f"(now {50 + WELLBEING_PER_POKE}). "
+        f"{count(left, 'poke')} left today that raise it."
+    )
+    assert private_reply(second).endswith(
+        f"(now {50 + 2 * WELLBEING_PER_POKE}). "
+        f"{count(left - 1, 'poke')} left today that raise it."
+    )
+
+
+async def test_a_poke_past_the_daily_limit_says_so(
+    bot: app.WispBot, clock: Clock, poke: Press
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    await poke_times(clock, poke, POKE_CREDITS_PER_DAY)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == (
+        f"{NOT_RAISED}you've used your {count(POKE_CREDITS_PER_DAY, 'poke')} for today."
+    )
+
+
+async def test_a_poke_that_wakes_him_says_so(
+    bot: app.WispBot, ai: AsyncMock, poke: Press
+) -> None:
+    await lay_napping(bot)
+    await enroll(bot, FIRST)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == (
+        f"{NOT_RAISED}he was napping, so you woke him up cranky."
+    )
+
+
+async def test_a_poke_from_a_member_without_a_feeding_role_says_so(
+    bot: app.WispBot, poke: Press
+) -> None:
+    await lay(bot)
+    await bot.players.activate(GUILD_ID, FIRST, START)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == (
+        f"{NOT_RAISED}you don't have a role that can feed Wisp."
+    )
+
+
+async def test_a_poke_before_opening_the_board_says_so(
+    bot: app.WispBot, poke: Press
+) -> None:
+    await lay(bot)
+    await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == (
+        f"{NOT_RAISED}you haven't opened /wisp board yet."
+    )
+
+
 async def test_the_chat_point_is_paid_once_a_day_across_chats_and_pokes(
     cog: Conversation,
     bot: app.WispBot,
@@ -1818,7 +1917,7 @@ async def test_a_member_who_cannot_feed_earns_no_credit_and_restarts_nothing(
     pressed = await poke()
 
     assert reply_text(said) == "hey you"
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == NOT_RAISED + "you haven't opened /wisp board yet."
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     after = await current(bot)
     assert (after.wellbeing, after.wellbeing_stretch) == (50.0, 1800.0)
@@ -1871,7 +1970,7 @@ async def test_a_member_who_cannot_feed_is_answered_without_credit(
     pressed = await poke()
 
     assert reply_text(said) == "hey you"
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert private_reply(pressed) == NOT_RAISED + "you haven't opened /wisp board yet."
     assert await points(bot, FIRST) == 0
 
 
@@ -1911,7 +2010,10 @@ async def test_a_failed_credit_is_reported_and_the_poke_still_answered(
 
     (report,) = reports(server)
     assert report.startswith("Error in the Poke Wisp button: OperationalError")
-    assert private_reply(pressed) == "♪ You poked Wisp."
+    assert (
+        private_reply(pressed)
+        == NOT_RAISED + "something went wrong, and the error is posted in this channel."
+    )
     posted = [str(call.args[0]) for call in server.house.send.await_args_list]
     assert any(text.startswith(f"♪ <@{FIRST}> poked Wisp") for text in posted)
     assert await points(bot, FIRST) == 0

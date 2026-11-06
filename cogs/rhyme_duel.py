@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.groups import play, require_guild
-from cogs.players import can_feed, maybe_meet, say_privately
+from cogs.players import (
+    BLOCKER_REASONS,
+    maybe_meet,
+    member_blocker,
+    no_wisp_text,
+    say_privately,
+)
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
@@ -23,7 +29,14 @@ from wisp.rules import (
     RHYME_TURN,
     WELLBEING_PER_PLAY,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, clip, count, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SEPARATOR,
+    clip,
+    count,
+    meter_receipt,
+    text_length,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -32,10 +45,12 @@ _NO_PING: Final = discord.AllowedMentions.none()
 _CUT: Final = "..."
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
-_NOT_HATCHED: Final = "♪ Wisp isn't hatched yet. Rhymes have to wait until he is."
 _ALREADY_DUELING: Final = (
     "♪ You already have a Rhyme Duel going. Finish that one first."
 )
+_NOT_COUNTED: Final = "♪ This duel didn't count toward his Wellbeing: "
+_NO_RHYME: Final = "you didn't score a rhyme."
+_NOT_ALIVE: Final = "Wisp isn't alive right now."
 _TIMED_OUT: Final = "Time ran out"
 _NOT_ONE_WORD: Final = "That wasn't one word"
 
@@ -158,33 +173,48 @@ async def _open_thread(
     )
 
 
+@dataclass(frozen=True)
+class _Played:
+    """What a finished duel did: the best score and why or how it counted."""
+
+    new_best: bool
+    receipt: str
+
+
 async def _record_play(
     bot: "WispBot",
     guild_id: int,
     member: discord.User | discord.Member,
     points: int,
-) -> bool:
+) -> _Played:
     """Count the duel as play and keep the score if it is the player's best.
 
     The play, with its bond, growth, care and Vault point, only counts when the
-    player scored a rhyme, can feed Wisp, Wisp is still alive and the member
+    player scored a rhyme, Wisp is still alive, the player can feed Wisp and
     has had fewer than PLAYS_PER_DAY counted games today. The best score is
-    always kept.
-    Returns True on a new best score.
+    always kept. The receipt says what the duel did or exactly why it did not
+    count.
     """
     now = discord.utils.utcnow()
     log = bot.activity_log
     user_id = member.id
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if (
-            points > 0
-            and life is not None
-            and life.id is not None
-            and life.phase is Phase.ALIVE
-            and await can_feed(bot, guild_id, member)
-            and await log.plays_today(guild_id, user_id, now) < PLAYS_PER_DAY
-        ):
+        blocker = await member_blocker(bot, guild_id, member, now)
+        plays = await log.plays_today(guild_id, user_id, now)
+        if points <= 0:
+            reason: str | None = _NO_RHYME
+        elif life is None or life.id is None or life.phase is not Phase.ALIVE:
+            reason = _NOT_ALIVE
+        elif blocker is not None:
+            reason = BLOCKER_REASONS[blocker]
+        elif plays >= PLAYS_PER_DAY:
+            played = count(PLAYS_PER_DAY, "counted game")
+            reason = f"you've already played {played} today (resets at 00:00 UTC)."
+        else:
+            reason = None
+        receipt = _NOT_COUNTED + reason if reason else ""
+        if reason is None and life is not None and life.id is not None:
             bond = casual_bond_grant(
                 await log.casual_bond_today(guild_id, user_id, now), BOND_PER_PLAY
             )
@@ -195,9 +225,18 @@ async def _record_play(
             )
             await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
             add_growth(life, GROWTH_PER_PLAY)
+            before = life.wellbeing
             change_meter(life, Meter.WELLBEING, WELLBEING_PER_PLAY, ends_stretch=True)
             await bot.lives.save(guild_id, life)
-        return await bot.players.record_rhyme_score(guild_id, user_id, points)
+            wellbeing = meter_receipt("Wellbeing", before, life.wellbeing)
+            left = count(PLAYS_PER_DAY - plays - 1, "counted game")
+            receipt = (
+                f"♪ Your duel counted. {wellbeing}. "
+                f"{count(PLAY_POINTS, 'Vault point')}. {left} left today."
+            )
+        return _Played(
+            await bot.players.record_rhyme_score(guild_id, user_id, points), receipt
+        )
 
 
 async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> None:
@@ -210,7 +249,7 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
         await say_privately(interaction, _BANNED)
         return
     if life is None or life.phase is not Phase.ALIVE:
-        await say_privately(interaction, _NOT_HATCHED)
+        await say_privately(interaction, no_wisp_text(life, "Rhymes"))
         return
     thread = await _open_thread(
         bot, guild_id, interaction.guild, player.name or user.display_name
@@ -222,14 +261,20 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
         summary_text(line, outcome.reason, outcome.chain, outcome.points),
         allowed_mentions=_NO_PING,
     )
-    new_best = await _record_play(bot, guild_id, user, outcome.points)
+    played = await _record_play(bot, guild_id, user, outcome.points)
+    try:
+        await say_privately(interaction, played.receipt)
+    except discord.HTTPException as error:
+        await bot.report_error(
+            interaction.guild, "sending a Rhyme Duel receipt", error, where=thread
+        )
     try:
         await thread.edit(archived=True, locked=True)
     except discord.HTTPException as error:
         await bot.report_error(
             interaction.guild, "closing a Rhyme Duel thread", error, where=thread
         )
-    if new_best:
+    if played.new_best:
         await refresh_vault(bot, guild_id)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 

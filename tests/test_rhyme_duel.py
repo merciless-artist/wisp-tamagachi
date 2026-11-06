@@ -34,7 +34,7 @@ from wisp.rules import (
     WELLBEING_PER_PLAY,
     Stage,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, text_length
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -272,7 +272,7 @@ async def test_duel_scores_perfect_and_slant(
     interaction = await duel(bot, server, said("Choir!"), said("mine"))
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
+    assert replies(interaction)[0] == f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
     server.house.create_thread.assert_awaited_once_with(
         name="Rhyme Duel ・ Member1",
         type=discord.ChannelType.public_thread,
@@ -507,17 +507,22 @@ async def test_banned_player_cannot_duel(bot: app.WispBot, server: FakeServer) -
     assert await bot.players.top_rhyme(GUILD_ID, 5) == []
 
 
-@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
+@pytest.mark.parametrize(
+    ("phase", "reason"),
+    [
+        (Phase.EGG, "♪ Wisp isn't hatched yet. Rhymes have to wait until he is."),
+        (Phase.HATCHING, "♪ Wisp isn't hatched yet. Rhymes have to wait until he is."),
+        (Phase.DEAD, "♪ Wisp isn't alive right now, so rhymes have to wait."),
+    ],
+)
 async def test_no_duel_unless_wisp_is_alive(
-    bot: app.WispBot, server: FakeServer, phase: Phase
+    bot: app.WispBot, server: FakeServer, phase: Phase, reason: str
 ) -> None:
     await lay(bot, phase)
 
     interaction = await duel(bot, server)
 
-    assert replies(interaction) == [
-        "♪ Wisp isn't hatched yet. Rhymes have to wait until he is."
-    ]
+    assert replies(interaction) == [reason]
     server.house.create_thread.assert_not_awaited()
 
 
@@ -819,6 +824,121 @@ async def test_a_thread_that_cannot_close_still_finishes_the_duel(
     report = server.posts()[-1]
     assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
     server.house.send.assert_not_awaited()
+
+
+# ---
+# Receipts and reasons
+# ---
+
+
+async def test_a_counted_duel_says_what_it_did_and_what_is_left(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    wisp_says(None)
+
+    interaction = await duel(bot, server, said("choir"))
+
+    now = life.wellbeing + WELLBEING_PER_PLAY
+    assert replies(interaction)[1] == (
+        f"♪ Your duel counted. Wellbeing +{WELLBEING_PER_PLAY} (now {now:.0f}). "
+        f"{count(PLAY_POINTS, 'Vault point')}. "
+        f"{count(PLAYS_PER_DAY - 1, 'counted game')} left today."
+    )
+
+
+async def test_a_duel_without_a_rhyme_says_so(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+
+    interaction = await duel(bot, server, said("water"))
+
+    assert replies(interaction)[1] == (
+        "♪ This duel didn't count toward his Wellbeing: you didn't score a rhyme."
+    )
+
+
+async def test_a_duel_past_the_daily_limit_says_so(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    for _ in range(PLAYS_PER_DAY):
+        await bot.activity_log.record_interaction(
+            GUILD_ID,
+            life.id,
+            USER_ID,
+            InteractionKind.PLAY,
+            0,
+            0,
+            discord.utils.utcnow(),
+        )
+    wisp_says(None)
+
+    interaction = await duel(bot, server, said("choir"))
+
+    assert replies(interaction)[1] == (
+        "♪ This duel didn't count toward his Wellbeing: you've already played "
+        f"{count(PLAYS_PER_DAY, 'counted game')} today (resets at 00:00 UTC)."
+    )
+
+
+@pytest.mark.parametrize(
+    ("roles", "activated", "reason"),
+    [
+        ((), True, "you don't have a role that can feed Wisp."),
+        ((QUALIFYING_ROLE,), False, "you haven't opened /wisp board yet."),
+    ],
+)
+async def test_a_duel_by_someone_who_cannot_feed_says_why(
+    bot: app.WispBot,
+    server: FakeServer,
+    wisp_says: Callable[..., list[Any]],
+    roles: tuple[int, ...],
+    activated: bool,
+    reason: str,
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+    newcomer = OTHER_USER_ID + 1
+    if activated:
+        await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
+    interaction = make_interaction(bot, server, newcomer, roles=roles)
+
+    await start(interaction)
+
+    assert replies(interaction)[1] == (
+        f"♪ This duel didn't count toward his Wellbeing: {reason}"
+    )
+
+
+async def test_a_duel_when_wisp_died_says_he_isnt_alive(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    wisp_says: Callable[..., list[Any]],
+) -> None:
+    life = await lay(bot)
+    wisp_says(None)
+    turns = cast(Turns, bot.wait_for)
+    turns.load(said("choir"))
+
+    async def die_then_answer(
+        event: str, *, check: Callable[[Any], bool], timeout: float
+    ) -> MagicMock:
+        life.phase = Phase.DEAD
+        await bot.lives.save(GUILD_ID, life)
+        return await turns(event, check=check, timeout=timeout)
+
+    monkeypatch.setattr(bot, "wait_for", die_then_answer)
+    interaction = make_interaction(bot, server)
+    await start(interaction)
+
+    assert replies(interaction)[1] == (
+        "♪ This duel didn't count toward his Wellbeing: Wisp isn't alive right now."
+    )
 
 
 # ---
