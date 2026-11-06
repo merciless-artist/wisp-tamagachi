@@ -210,6 +210,19 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
     assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
 
 
+async def test_status_text_points_a_hungry_wisp_at_the_track_drop(
+    bot: app.WispBot,
+) -> None:
+    tracks_id = 41
+    await bot.settings.update(GUILD_ID, tracks_channel_id=tracks_id)
+    life = await lay(bot)
+    life.health = 5.0
+
+    text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
+
+    assert f"> 𝄡 hungry: drop a track in <#{tracks_id}>" in text.splitlines()
+
+
 # ---
 # Chat credit
 # ---

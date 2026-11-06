@@ -2,6 +2,7 @@
 
 import contextlib
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -64,6 +65,7 @@ async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) 
         suno_tracks=suno,
         wisp_id=wisp_user.id,
         house_id=settings.house_channel_id,
+        tracks_id=settings.tracks_channel_id,
     )
     return render_status(life, now, facts, bot.emoji)
 
@@ -340,6 +342,23 @@ async def report_failure(
             await interaction.followup.send(USER_ERROR, ephemeral=True)
         else:
             await interaction.response.send_message(USER_ERROR, ephemeral=True)
+
+
+async def press(
+    interaction: discord.Interaction,
+    context: str,
+    action: Callable[[discord.Interaction], Awaitable[None]],
+    failures: tuple[type[BaseException], ...] = EXPECTED_FAILURES,
+) -> None:
+    """Run what a persistent button does, reporting a failure as `context`.
+
+    Persistent buttons have no error hook of their own, so the `failures` they
+    can expect are caught here.
+    """
+    try:
+        await action(interaction)
+    except failures as error:
+        await report_failure(interaction, context, error)
 
 
 # ---

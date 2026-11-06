@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-11-06 (The Status post is the control panel)
+
+- The live status card has six buttons, three to a row: Feed Wisp, Poke Wisp,
+  Vault, then Snack Pack, Play, Lunchbox. Every answer is private. Vault and
+  Snack Pack open exactly what `/wisp vault` and `/wisp snackpack` open (they
+  are the Shop the Vault and Open my Snack Pack buttons with shorter labels).
+  Play opens a private games menu with one button for now, Rhyme Duel, which
+  starts a duel exactly as `/wisp play rhyme` does, refusals and the
+  one-duel-at-a-time rule included. Lunchbox shows the lunchbox privately;
+  `/wisp lunchbox` still posts it in the channel. The waiting card keeps only
+  Begin again.
+- The new buttons (`wisp:play`, `wisp:play:rhyme`, `wisp:lunchbox`) are
+  persistent, registered at startup by their cogs, so old cards and old games
+  menus keep working after a restart. A failure is posted where the button
+  was pressed; a duel with no House to open its thread in is reported too.
+- The card shows a Right now block under the day (and any sickness): what he
+  needs, worst first (hungry with the track drop channel, lonely, a mess, a
+  tantrum, the lights left on while he naps), or `happy`, then `next nap
+  HH:MM UTC`. One line pointing at the buttons replaces the two hints about
+  `/wisp snackpack` and the ViiBR Vault.
+- `status_view` moved from `cogs/snacks.py` to `cogs/status_card.py` (snacks
+  importing the duel cog would be an import cycle), and the shared button
+  error wrapper is `press` in `cogs/players.py`.
+
 ## 2026-11-06 (Every action says what it did, or exactly why not)
 
 - Receipts, private to the member: a snack (`Wellbeing +8 (now 66)`), a gift

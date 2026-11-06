@@ -242,7 +242,18 @@ def card_facts(fed: int, viibr: int = 0, suno: int = 0) -> CardFacts:
         suno_tracks=suno,
         wisp_id=WISP_ID,
         house_id=HOUSE_ID,
+        tracks_id=None,
     )
+
+
+STATUS_BUTTON_IDS = [
+    "wisp:feed",
+    "wisp:poke",
+    "wisp:vault",
+    "wisp:snackpack",
+    "wisp:play",
+    "wisp:lunchbox",
+]
 
 
 def posted_title_and_card(server: FakeServer) -> list[Any]:
@@ -581,7 +592,7 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
     assert len(posted_title_and_card(server)) == 2
 
 
-async def test_edited_status_keeps_feed_and_poke_buttons(
+async def test_edited_status_keeps_its_buttons(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -590,13 +601,14 @@ async def test_edited_status_keeps_feed_and_poke_buttons(
     await cog.run_tick(NOW)
 
     view = server.card_edit.await_args.kwargs["view"]
-    feed, poke = view.children
+    feed, poke, *_ = view.children
     assert isinstance(feed, FeedButton)
     assert isinstance(poke, PokeButton)
+    assert button_ids(view) == STATUS_BUTTON_IDS
     assert view.timeout is None
 
 
-async def test_reposted_status_keeps_feed_and_poke_buttons(
+async def test_reposted_status_keeps_its_buttons(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -608,11 +620,10 @@ async def test_reposted_status_keeps_feed_and_poke_buttons(
     await cog.run_tick(NOW)
 
     view = server.status.send.await_args.kwargs["view"]
-    feed, poke = view.children
+    feed, poke, *_ = view.children
     assert isinstance(feed, FeedButton)
-    assert feed.item.custom_id == "wisp:feed"
     assert isinstance(poke, PokeButton)
-    assert poke.item.custom_id == "wisp:poke"
+    assert button_ids(view) == STATUS_BUTTON_IDS
     assert view.timeout is None
 
 
@@ -996,7 +1007,7 @@ async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card
     assert retired(card)
     shown = server.card_edit.await_args.kwargs
     assert "**life stage**・𝐄𝐆𝐆・" in shown["content"]
-    assert button_ids(shown["view"]) == ["wisp:feed", "wisp:poke"]
+    assert button_ids(shown["view"]) == STATUS_BUTTON_IDS
 
 
 async def test_a_waiting_card_without_its_ending_picture_shows_none(
@@ -1650,7 +1661,7 @@ async def test_a_staff_press_after_a_farewell_lays_the_coal_egg_halfway_hatched(
     assert private_reply(pressed) == "♪ A new egg is on its way."
     card = server.card_edit.await_args.kwargs
     assert "**life stage**・𝐄𝐆𝐆・" in card["content"]
-    assert button_ids(card["view"]) == ["wisp:feed", "wisp:poke"]
+    assert button_ids(card["view"]) == STATUS_BUTTON_IDS
     assert post_pictures(server) == [["egg.png"]]
     assert panel_pictures(panel) == [["egg.png"]]
     assert house_reports(server) == []
@@ -1846,7 +1857,7 @@ async def test_typing_begin_lays_the_next_egg(
     }
     assert answer == "♪ A new egg is on its way."
     card = server.card_edit.await_args.kwargs
-    assert button_ids(card["view"]) == ["wisp:feed", "wisp:poke"]
+    assert button_ids(card["view"]) == STATUS_BUTTON_IDS
 
 
 async def test_typing_begin_while_he_lives_lays_nothing(
@@ -1955,10 +1966,7 @@ async def test_test_lifestage_jumps_the_real_wisp_and_announces_it(
     *announced, answer = house_texts(server)
     assert announced
     assert answer == f"♪ Test: Wisp is in his {stage.label} stage now."
-    assert button_ids(server.card_edit.await_args.kwargs["view"]) == [
-        "wisp:feed",
-        "wisp:poke",
-    ]
+    assert button_ids(server.card_edit.await_args.kwargs["view"]) == STATUS_BUTTON_IDS
 
 
 async def test_test_lifestage_baby_is_not_announced(

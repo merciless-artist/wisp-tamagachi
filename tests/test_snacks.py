@@ -20,13 +20,15 @@ from discord import app_commands
 import app
 from cogs import groups, snacks
 from cogs.conversation import PokeButton
+from cogs.rhyme_duel import PlayButton
 from cogs.snacks import (
     FeedButton,
     ShopButton,
     SnackPackButton,
-    status_view,
     vault_view,
 )
+from cogs.status_card import status_view
+from cogs.wisp_lunchbox import LunchboxButton
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
@@ -921,17 +923,71 @@ async def test_ban_issued_after_opening_blocks_buying(bot: app.WispBot) -> None:
 # ---
 
 
-async def test_status_view_has_persistent_feed_and_poke_buttons() -> None:
+async def test_the_status_view_holds_every_persistent_button_in_order() -> None:
     view = status_view()
 
-    feed, poke = view.children
-    assert isinstance(feed, FeedButton)
-    assert feed.item.label == "Feed Wisp"
-    assert feed.item.custom_id == "wisp:feed"
-    assert isinstance(poke, PokeButton)
-    assert poke.item.label == "Poke Wisp"
-    assert poke.item.custom_id == "wisp:poke"
+    assert [
+        (type(button), button.item.label, button.item.custom_id, button.row)
+        for button in view.children
+        if isinstance(button, discord.ui.DynamicItem)
+    ] == [
+        (FeedButton, "Feed Wisp", "wisp:feed", 0),
+        (PokeButton, "Poke Wisp", "wisp:poke", 0),
+        (ShopButton, "Vault", "wisp:vault", 0),
+        (SnackPackButton, "Snack Pack", "wisp:snackpack", 1),
+        (PlayButton, "Play", "wisp:play", 1),
+        (LunchboxButton, "Lunchbox", "wisp:lunchbox", 1),
+    ]
+    assert len(view.children) == 6
     assert view.timeout is None
+
+
+async def test_the_status_vault_button_answers_like_wisp_vault(
+    bot: app.WispBot,
+) -> None:
+    await bot.players.add_points(GUILD_ID, USER_ID, 12)
+    vault = status_view().children[2]
+    pressed = make_interaction(bot)
+    asked = make_interaction(bot)
+
+    await vault.callback(pressed)
+    await vault_command(asked)
+
+    pressed.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    assert pressed.followup.send.await_args.kwargs["ephemeral"] is True
+    assert vault_text(pressed) == vault_text(asked)
+
+
+async def test_the_status_snack_pack_button_answers_like_wisp_snackpack(
+    bot: app.WispBot,
+) -> None:
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave", 2)
+    pack = status_view().children[3]
+    pressed = make_interaction(bot)
+    asked = make_interaction(bot)
+
+    await pack.callback(pressed)
+    await snackpack_command(asked)
+
+    pressed.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    sent = pressed.followup.send.await_args
+    assert sent.kwargs["ephemeral"] is True
+    assert sent.args == asked.followup.send.await_args.args
+    assert "║𝄡 cloudwave x2" in sent.args[0]
+
+
+async def test_a_banned_member_pressing_the_status_vault_is_told_why(
+    bot: app.WispBot,
+) -> None:
+    await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
+    interaction = make_interaction(bot)
+
+    await status_view().children[2].callback(interaction)
+
+    assert reply_text(interaction) == (
+        "♪ Wisp is not taking snacks or gifts from you right now."
+    )
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
 
 
 async def test_feed_button_survives_restart(bot: app.WispBot) -> None:

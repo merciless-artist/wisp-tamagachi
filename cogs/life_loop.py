@@ -38,9 +38,8 @@ from cogs.players import (
     say_privately,
     status_text,
 )
-from cogs.snacks import status_view
 from cogs.staff import StaffContext, guild_of, is_staff, reply
-from cogs.status_card import show_status
+from cogs.status_card import show_status, status_view
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
@@ -427,8 +426,8 @@ async def show_status_card(
 ) -> None:
     """Show `life` in the Status post: his picture first, then the card.
 
-    While he goes on it is his live card with the Feed Wisp and Poke Wisp
-    buttons, under his current picture. Once his life is over it says Wisp is
+    While he goes on it is his live card with its buttons (`status_view`),
+    under his current picture. Once his life is over it says Wisp is
     waiting for staff to begin again and carries only the Begin again button,
     so staff always have one to press even when the House's question was never
     posted or is gone; the post shows the picture of how his life ended, or no

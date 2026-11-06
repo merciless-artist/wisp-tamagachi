@@ -197,6 +197,15 @@ def latest_nap_start(now: datetime) -> datetime:
     return max(start for start in starts if start <= now)
 
 
+def next_nap_text(now: datetime) -> str:
+    """When his next nap starts after `now`, as the status card says it.
+
+    Such as "next nap 18:00 UTC". At a nap's start the next one is meant.
+    """
+    start = min(start for start in _nap_starts(_midnight(now)) if start > now)
+    return f"next nap {start:%H:%M} UTC"
+
+
 def _nap_starts(day: datetime) -> list[datetime]:
     """Every nap start of the UTC day from `day`, the day before and the day after."""
     return [

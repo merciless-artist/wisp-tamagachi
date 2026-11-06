@@ -13,6 +13,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
@@ -21,7 +22,12 @@ from discord import app_commands
 import app
 from cogs import groups, wisp_lunchbox
 from cogs.share_links import ShareLinkResolver
-from cogs.wisp_lunchbox import lunchbox_text, pick_favorite_song, song_link
+from cogs.wisp_lunchbox import (
+    LunchboxButton,
+    lunchbox_text,
+    pick_favorite_song,
+    song_link,
+)
 from db.activity import ActivityRepo
 from db.database import Database
 from db.gifts import GiftRepo
@@ -38,6 +44,7 @@ from wisp.rules import Stage
 from wisp.text import (
     MESSAGE_LIMIT,
     SECTION_BREAK,
+    USER_ERROR,
     box_room,
     text_length,
     visual_width,
@@ -927,6 +934,86 @@ async def test_a_banned_member_can_still_look(
 
     (text,) = interaction.channel.send.await_args.args
     assert text.startswith(BOX_TOP)
+
+
+# ---
+# The Lunchbox button
+# ---
+
+
+async def test_the_lunchbox_button_shows_the_lunchbox_privately(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+
+    await LunchboxButton().callback(interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    header, call = interaction.followup.send.await_args_list
+    assert header.kwargs["ephemeral"] is True
+    assert header.kwargs["file"].filename == "lunchbox_title.png"
+    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["file"].filename == "box_footer.png"
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert call.kwargs["suppress_embeds"] is True
+    interaction.channel.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_banned_member_can_still_look_with_the_button(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.players.set_offense(GUILD_ID, FIRST, 3, None, True)
+    interaction = make_interaction(bot, server)
+
+    await LunchboxButton().callback(interaction)
+
+    (text,) = interaction.followup.send.await_args.args
+    assert text.startswith(BOX_TOP)
+
+
+async def test_a_failing_lunchbox_button_is_reported_where_it_was_pressed(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot, server)
+    interaction.response.is_done.return_value = True
+    error = pymysql.err.OperationalError(2013, "Lost connection")
+    monkeypatch.setattr(bot.wisp_lunchbox, "favorites", AsyncMock(side_effect=error))
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await LunchboxButton().callback(interaction)
+
+    reported.assert_awaited_once_with(
+        server.guild, "the Lunchbox button", error, where=interaction.channel
+    )
+    interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
+
+
+async def test_the_lunchbox_button_survives_a_restart(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    match = LunchboxButton.__discord_ui_compiled_template__.fullmatch("wisp:lunchbox")
+    assert match is not None
+
+    restored = await LunchboxButton.from_custom_id(
+        make_interaction(bot, server), MagicMock(spec=discord.ui.Button), match
+    )
+
+    assert isinstance(restored, LunchboxButton)
+    assert (restored.item.label, restored.item.custom_id) == (
+        "Lunchbox",
+        "wisp:lunchbox",
+    )
+
+
+async def test_the_lunchbox_button_is_registered_at_startup(bot: app.WispBot) -> None:
+    bot.add_dynamic_items = MagicMock()  # type: ignore[method-assign]
+
+    await wisp_lunchbox.setup(bot)
+
+    bot.add_dynamic_items.assert_called_once_with(LunchboxButton)
 
 
 # ---

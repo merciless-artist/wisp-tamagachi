@@ -14,6 +14,7 @@ from wisp.chores import (
     is_napping,
     is_open,
     message_id,
+    next_nap_text,
     next_tantrum,
     open_mess,
     open_tantrum,
@@ -408,6 +409,21 @@ def test_naps_start_at_two_ten_and_eighteen_utc(hour: int) -> None:
     assert life.lights_left == 900
     assert life.nap_slot == utc(hour)
     assert life.nap_message_id is None
+
+
+@pytest.mark.parametrize(
+    ("now", "nap"),
+    [
+        (DAY, "next nap 02:00 UTC"),
+        (utc(1, 59), "next nap 02:00 UTC"),
+        (utc(2), "next nap 10:00 UTC"),
+        (utc(12), "next nap 18:00 UTC"),
+        (utc(18), "next nap 02:00 UTC"),
+        (utc(23, 59), "next nap 02:00 UTC"),
+    ],
+)
+def test_the_next_nap_is_the_first_start_after_now(now: datetime, nap: str) -> None:
+    assert next_nap_text(now) == nap
 
 
 def test_a_nap_start_missed_by_an_outage_is_skipped() -> None:

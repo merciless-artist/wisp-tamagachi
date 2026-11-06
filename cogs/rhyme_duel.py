@@ -1,6 +1,11 @@
-"""Rhyme Duel: one member and Wisp trade rhymes in a thread off his House."""
+"""Rhyme Duel: one member and Wisp trade rhymes in a thread off his House.
+
+A duel starts from /wisp play rhyme, or from the Rhyme Duel button in the
+private games menu the Status post's Play button opens.
+"""
 
 import random
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
@@ -9,13 +14,16 @@ import discord
 from cogs.groups import play, require_guild
 from cogs.players import (
     BLOCKER_REASONS,
+    EXPECTED_FAILURES,
     FROZEN_REASON,
     NOT_ALIVE_REASON,
     Blocker,
+    bot_of,
     is_frozen,
     maybe_meet,
     member_blocker,
     no_wisp_text,
+    press,
     say_privately,
 )
 from cogs.vault import refresh_vault
@@ -49,6 +57,11 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _CUT: Final = "..."
+_PLAY_ID: Final = "wisp:play"
+_RHYME_DUEL_ID: Final = "wisp:play:rhyme"
+_PICK_A_GAME: Final = "♪ Pick a game to play with Wisp."
+# A duel with no House to open its thread in fails with a LookupError.
+_DUEL_FAILURES: Final = (*EXPECTED_FAILURES, LookupError)
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
 _ALREADY_DUELING: Final = (
@@ -267,9 +280,9 @@ async def _record_play(
     return _Played(best, receipt)
 
 
-async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> None:
+async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     """Run one duel for the member, or say why they cannot have one."""
-    bot = interaction.client
+    bot = bot_of(interaction)
     user = interaction.user
     player = await bot.players.get(guild_id, user.id)
     life = await bot.lives.current(guild_id)
@@ -314,16 +327,19 @@ async def _host(interaction: discord.Interaction["WispBot"], guild_id: int) -> N
 
 
 # ---
-# Command
+# Starting a duel
 # ---
 
 
-@play.command(name="rhyme", description="Trade rhymes with Wisp in a Rhyme Duel.")
-async def play_rhyme(interaction: discord.Interaction["WispBot"]) -> None:
-    """Start a Rhyme Duel; each member can only have one going at a time."""
-    bot = interaction.client
+async def start_duel(interaction: discord.Interaction) -> None:
+    """Start a Rhyme Duel; each member can only have one going at a time.
+
+    The answer is private. It is a new message even when a button was
+    pressed, so the duel's receipt is added under it as for the command.
+    """
+    bot = bot_of(interaction)
     guild_id = require_guild(interaction)
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=True, thinking=True)
     key = (guild_id, interaction.user.id)
     if key in bot.rhyme_duels:
         await say_privately(interaction, _ALREADY_DUELING)
@@ -335,5 +351,97 @@ async def play_rhyme(interaction: discord.Interaction["WispBot"]) -> None:
         bot.rhyme_duels.discard(key)
 
 
+@play.command(name="rhyme", description="Trade rhymes with Wisp in a Rhyme Duel.")
+async def play_rhyme(interaction: discord.Interaction["WispBot"]) -> None:
+    """Start a Rhyme Duel for the member."""
+    await start_duel(interaction)
+
+
+class RhymeDuelButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(_RHYME_DUEL_ID),
+):
+    """The Rhyme Duel button in the games menu; it starts a duel like the command.
+
+    Its custom id is fixed, so the button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Rhyme Duel",
+                style=discord.ButtonStyle.primary,
+                custom_id=_RHYME_DUEL_ID,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "RhymeDuelButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Start a Rhyme Duel for whoever pressed it."""
+        await press(interaction, "the Rhyme Duel button", start_duel, _DUEL_FAILURES)
+
+
+# ---
+# The games menu
+# ---
+
+
+async def _offer_games(interaction: discord.Interaction) -> None:
+    """Show the presser the games they can play with Wisp, privately."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(RhymeDuelButton())
+    await interaction.response.send_message(
+        _PICK_A_GAME, view=view, ephemeral=True, allowed_mentions=_NO_PING
+    )
+
+
+class PlayButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(_PLAY_ID),
+):
+    """The Play button on the status card, which opens the games menu privately.
+
+    Its custom id is fixed, so the button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Play",
+                style=discord.ButtonStyle.primary,
+                custom_id=_PLAY_ID,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "PlayButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Open the games menu for whoever pressed it."""
+        await press(interaction, "the Play button", _offer_games)
+
+
 async def setup(bot: "WispBot") -> None:
-    """Load the Rhyme Duel extension; its command joins the shared groups on import."""
+    """Register the game buttons so they still work after a restart.
+
+    The command joins the shared groups on import.
+    """
+    bot.add_dynamic_items(PlayButton, RhymeDuelButton)

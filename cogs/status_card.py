@@ -3,7 +3,8 @@
 The post's first message shows only Wisp's picture, so the Studio's gallery
 shows him. Under it come Myra's Wisp Stats title picture on its own, then the
 card, which carries the same picture so it shows under the card and closes
-it, and the card's buttons. The card is pinned and edited in place.
+it, and the card's buttons: everything a member can do with Wisp, each
+answering privately. The card is pinned and edited in place.
 """
 
 from pathlib import Path
@@ -11,9 +12,13 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from cogs.conversation import PokeButton
 from cogs.headers import HeadedCard, show_headed_card
 from cogs.pictures import Picture
+from cogs.rhyme_duel import PlayButton
+from cogs.snacks import FeedButton, ShopButton, SnackPackButton
 from cogs.studio import StudioError, studio_thread
+from cogs.wisp_lunchbox import LunchboxButton
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -32,6 +37,33 @@ _CARD: Final = HeadedCard(
     label=_LABEL,
     post=_NO_PICTURE.removeprefix("♪ "),
 )
+_BUTTONS_PER_ROW: Final = 3
+
+
+# ---
+# The card's buttons
+# ---
+
+
+def status_view() -> discord.ui.View:
+    """The live status card's buttons, three to a row.
+
+    Feed Wisp, Poke Wisp and Vault, then Snack Pack, Play and Lunchbox. Each
+    is persistent, so an old card keeps working after a restart.
+    """
+    buttons: list[discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]]] = [
+        FeedButton(),
+        PokeButton(),
+        ShopButton("Vault"),
+        SnackPackButton("Snack Pack"),
+        PlayButton(),
+        LunchboxButton(),
+    ]
+    view = discord.ui.View(timeout=None)
+    for index, button in enumerate(buttons):
+        button.row = index // _BUTTONS_PER_ROW
+        view.add_item(button)
+    return view
 
 
 # ---

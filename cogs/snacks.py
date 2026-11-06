@@ -55,6 +55,7 @@ from cogs.players import (
     maybe_meet,
     member_blocker,
     no_wisp_text,
+    press,
     refusal_text,
     report_failure,
     require_unfrozen,
@@ -189,7 +190,6 @@ _GiftChoice = Callable[[discord.Interaction, Gift], Awaitable[None]]
 _CollectionChoice = Callable[[discord.Interaction, GiftCollection], Awaitable[None]]
 _BadgeChoice = Callable[[discord.Interaction, Badge], Awaitable[None]]
 _MagazineChoice = Callable[[discord.Interaction, Magazine], Awaitable[None]]
-_Action = Callable[[discord.Interaction], Awaitable[None]]
 
 # ---
 # Shared pieces
@@ -240,20 +240,6 @@ async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> 
         await say_privately(interaction, refusal_text(blocker))
         return False
     return True
-
-
-async def _press(
-    interaction: discord.Interaction, context: str, action: _Action
-) -> None:
-    """Run what a persistent button does, reporting a failure.
-
-    Persistent buttons have no error hook of their own, so the failures they can
-    expect are caught here.
-    """
-    try:
-        await action(interaction)
-    except EXPECTED_FAILURES as error:
-        await report_failure(interaction, context, error)
 
 
 class SnackSelect(discord.ui.Select[Any]):
@@ -1084,13 +1070,14 @@ class ShopButton(
 ):
     """The Shop the Vault button, which opens the shop for whoever presses it.
 
-    Its custom id is fixed, so the button keeps working after the bot restarts.
+    The status card shows it as Vault. Its custom id is fixed, so the button
+    keeps working after the bot restarts, whatever its label.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, label: str = "Shop the Vault") -> None:
         super().__init__(
             discord.ui.Button(
-                label="Shop the Vault",
+                label=label,
                 style=discord.ButtonStyle.primary,
                 custom_id=_VAULT_ID,
             )
@@ -1109,7 +1096,7 @@ class ShopButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Open the Vault shop privately."""
-        await _press(interaction, "the Vault shop button", _open_vault)
+        await press(interaction, "the Vault shop button", _open_vault)
 
 
 class SnackPackButton(
@@ -1118,13 +1105,14 @@ class SnackPackButton(
 ):
     """The Open my Snack Pack button, which shows the presser their own Snack Pack.
 
-    Its custom id is fixed, so the button keeps working after the bot restarts.
+    The status card shows it as Snack Pack. Its custom id is fixed, so the
+    button keeps working after the bot restarts, whatever its label.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, label: str = "Open my Snack Pack") -> None:
         super().__init__(
             discord.ui.Button(
-                label="Open my Snack Pack",
+                label=label,
                 style=discord.ButtonStyle.secondary,
                 custom_id=_SNACK_PACK_ID,
             )
@@ -1143,7 +1131,7 @@ class SnackPackButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Open the presser's own Snack Pack privately."""
-        await _press(interaction, "the Snack Pack button", _open_snack_pack)
+        await press(interaction, "the Snack Pack button", _open_snack_pack)
 
 
 def vault_view() -> discord.ui.View:
@@ -1346,15 +1334,7 @@ class FeedButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Offer the snacks the member can feed Wisp right now."""
-        await _press(interaction, "the Feed Wisp button", _offer_snacks)
-
-
-def status_view() -> discord.ui.View:
-    """The view that puts the Feed Wisp and Poke Wisp buttons on the status card."""
-    view = discord.ui.View(timeout=None)
-    view.add_item(FeedButton())
-    view.add_item(PokeButton())
-    return view
+        await press(interaction, "the Feed Wisp button", _offer_snacks)
 
 
 async def setup(bot: "WispBot") -> None:

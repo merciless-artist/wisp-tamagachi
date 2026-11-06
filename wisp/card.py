@@ -2,7 +2,8 @@
 
 The card is one Discord quote with her Wisp Stats title picture attached, so
 the picture shows under it and closes it. Each line is copied from her draft
-of 2026-10-31, blank lines and line breaks included.
+of 2026-10-31, blank lines and line breaks included, apart from the Right now
+block under the day and the one line pointing at the buttons under the card.
 """
 
 from collections.abc import Callable
@@ -10,13 +11,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
+from wisp.chores import is_open, next_nap_text
 from wisp.life import Life, Phase, age_days, has_sniffles, hours_left, is_sick
 from wisp.rules import (
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
+    HANGRY_BELOW,
     HATCHING_TIME,
     HEALTH_MAX,
+    LONELY_BELOW,
     WELLBEING_MAX,
+    Chore,
 )
 from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted, round_half_up
 
@@ -27,6 +32,15 @@ from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted, round_half_up
 WAITING: Final = quoted(
     ["", f"{SUB_CLEF} No Wisp right now. Waiting for staff to begin again."]
 )
+
+_RIGHT_NOW: Final = f"{SUB_CLEF} **right now**"
+_LONELY: Final = "lonely: chat, play, poke or give him a snack or gift"
+_CHORE_NEEDS: Final = {
+    Chore.MESS: "a mess is waiting in his House",
+    Chore.TANTRUM: "he's having a tantrum in his House",
+    Chore.NAP: "he's asleep: turn the lights off in his House",
+}
+_HAPPY: Final = "happy"
 
 _PERCENT_PER_PIECE: Final = 10
 _LEFT_FROM: Final = 5
@@ -59,6 +73,7 @@ class CardFacts:
         suno_tracks: Suno tracks fed today (UTC).
         wisp_id: Wisp's own Discord user ID, for the mention.
         house_id: The House channel's ID, or None when none is set.
+        tracks_id: The track drop channel's ID, or None when none is set.
     """
 
     fed_today: int
@@ -66,6 +81,7 @@ class CardFacts:
     suno_tracks: int
     wisp_id: int
     house_id: int | None
+    tracks_id: int | None
 
 
 # ---
@@ -101,6 +117,7 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         if has_sniffles(life):
             hours = hours_left(life.sniffles_left)
             heading.append(f"{SUB_CLEF} he has a cold・{hours} h left")
+        heading.extend(["", *_right_now(life, now, facts)])
         bars = [
             *_meter("Health", life.health / HEALTH_MAX * 100, HEALTH_BAR, emoji),
             *_meter(
@@ -137,16 +154,35 @@ def _card(
             f"{ITEM_CLEF} Poke {poke} or tag <@{facts.wisp_id}> in {house} "
             "to say hi!!",
             "",
-            f"{ITEM_CLEF} check your snackpack with /wisp",
-            " snackpack",
-            "",
-            f"{ITEM_CLEF} check the ViiBR Vault to buy treats",
-            " and toys for Wisp!",
+            f"{ITEM_CLEF} feed Wisp, shop the Vault and play",
+            " with the buttons below!",
             "",
             "",
             f"{SUB_CLEF}・・**life stage**・{_bold(stage)}・♪‿♪ ♫.",
         ]
     )
+
+
+def _right_now(life: Life, now: datetime, facts: CardFacts) -> list[str]:
+    """The Right now block: what he needs, worst first, then his next nap.
+
+    He is hungry under the hangry line, lonely under the lonely line, then
+    each chore waiting in his House is named; with nothing to do he is happy.
+    """
+    track_drop = (
+        "the track drop" if facts.tracks_id is None else f"<#{facts.tracks_id}>"
+    )
+    hungry = [f"hungry: drop a track in {track_drop}"]
+    needs = [
+        *(hungry if life.health < HANGRY_BELOW else []),
+        *([_LONELY] if life.wellbeing < LONELY_BELOW else []),
+        *(need for chore, need in _CHORE_NEEDS.items() if is_open(life, chore)),
+    ]
+    return [
+        _RIGHT_NOW,
+        *(f"{ITEM_CLEF} {need}" for need in needs or [_HAPPY]),
+        f"{SUB_CLEF} {next_nap_text(now)}",
+    ]
 
 
 # ---

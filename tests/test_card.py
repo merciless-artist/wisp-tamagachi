@@ -10,9 +10,15 @@ from wisp.life import Life, Phase, new_egg
 from wisp.rules import (
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
+    HANGRY_BELOW,
     HATCHING_TIME,
     HEALTH_MAX,
+    LIGHTS_WINDOW,
+    LONELY_BELOW,
+    MESS_LEFT_FOR,
+    NAP_FOR,
     SNIFFLES_FOR,
+    TANTRUM_WINDOW,
     WELLBEING_MAX,
     Stage,
 )
@@ -21,22 +27,30 @@ from wisp.text import MESSAGE_LIMIT, text_length
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 WISP_ID = 1560213420068966441
 HOUSE_ID = 1563693152882262026
+TRACKS_ID = 1563693152882262027
 FACTS = CardFacts(
     fed_today=3,
     viibr_tracks=6,
     suno_tracks=2,
     wisp_id=WISP_ID,
     house_id=HOUSE_ID,
+    tracks_id=TRACKS_ID,
 )
 HEALTH_EMOJI = "<:full_full:1564444125976068186>"
 WELLBEING_EMOJI = "<:care_full:1564443602506088480>"
 # Myra's card of 2026-10-31, byte for byte except that her Mood bar is gone
-# (Mood folded into Wellbeing on 2026-11-06), with the real mention and House
-# link where her copy shows them as Discord displays them.
+# (Mood folded into Wellbeing on 2026-11-06), the Right now block sits under
+# the day and one line points at the buttons in place of her two hints (the
+# control panel, 2026-11-06), with the real mention and House link where her
+# copy shows them as Discord displays them.
 MYRAS_CARD = "\n".join(
     [
         "> ",
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **5**・♫ ♪. ♫‿♪",
+        "> ",
+        "> 𝄡𝄚𝄂 **right now**",
+        "> 𝄡 happy",
+        "> 𝄡𝄚𝄂 next nap 18:00 UTC",
         "> ",
         "> 𝄡 Health",
         f"> {HEALTH_EMOJI * 10} │100%",
@@ -49,17 +63,22 @@ MYRAS_CARD = "\n".join(
         "> ",
         f"> 𝄡 Poke him or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!",
         "> ",
-        "> 𝄡 check your snackpack with /wisp",
-        ">  snackpack",
-        "> ",
-        "> 𝄡 check the ViiBR Vault to buy treats",
-        ">  and toys for Wisp!",
+        "> 𝄡 feed Wisp, shop the Vault and play",
+        ">  with the buttons below!",
         "> ",
         "> ",
         "> 𝄡𝄚𝄂・・**life stage**・𝐂𝐇𝐈𝐋𝐃・♪‿♪ ♫.",
     ]
 )
 BLANK = "> "
+RIGHT_NOW = "> 𝄡𝄚𝄂 **right now**"
+NEXT_NAP = "> 𝄡𝄚𝄂 next nap 18:00 UTC"
+HUNGRY = f"> 𝄡 hungry: drop a track in <#{TRACKS_ID}>"
+LONELY = "> 𝄡 lonely: chat, play, poke or give him a snack or gift"
+MESS = "> 𝄡 a mess is waiting in his House"
+TANTRUM = "> 𝄡 he's having a tantrum in his House"
+LIGHTS = "> 𝄡 he's asleep: turn the lights off in his House"
+HAPPY = "> 𝄡 happy"
 
 
 def stage_line(bold: str) -> str:
@@ -100,15 +119,19 @@ def tail(poke: str, stage: str) -> list[str]:
         BLANK,
         f"> 𝄡 Poke {poke} or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!",
         BLANK,
-        "> 𝄡 check your snackpack with /wisp",
-        ">  snackpack",
-        BLANK,
-        "> 𝄡 check the ViiBR Vault to buy treats",
-        ">  and toys for Wisp!",
+        "> 𝄡 feed Wisp, shop the Vault and play",
+        ">  with the buttons below!",
         BLANK,
         BLANK,
         stage_line(stage),
     ]
+
+
+def right_now(card: str) -> list[str]:
+    """The card's Right now items, from under its line to the next nap."""
+    lines = card.split("\n")
+    start = lines.index(RIGHT_NOW) + 1
+    return lines[start : lines.index(NEXT_NAP, start)]
 
 
 def meters(card: str) -> list[str]:
@@ -130,7 +153,7 @@ def test_the_card_is_myras_layout_byte_for_byte() -> None:
         health=HEALTH_MAX,
         hatched_at=NOW - timedelta(days=5, hours=1),
     )
-    facts = CardFacts(2, 1, 1, WISP_ID, HOUSE_ID)
+    facts = CardFacts(2, 1, 1, WISP_ID, HOUSE_ID, TRACKS_ID)
     ids = {"full_full": HEALTH_EMOJI, "care_full": WELLBEING_EMOJI}
 
     card = render_status(life, NOW, facts, lambda name: ids.get(name, ""))
@@ -144,6 +167,10 @@ def test_a_living_baby_has_every_line_in_its_place() -> None:
     assert card.split("\n") == [
         BLANK,
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
+        BLANK,
+        RIGHT_NOW,
+        HAPPY,
+        NEXT_NAP,
         BLANK,
         "> 𝄡 Health",
         f"> {pieces('full_full', 5)}{emoji('full_left')}│55%",
@@ -356,7 +383,7 @@ def test_a_sick_card_says_hours_left_under_the_day(
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
         f"> 𝄡𝄚𝄂 he has Monster Pox・{hours} h left",
         BLANK,
-        "> 𝄡 Health",
+        RIGHT_NOW,
     ]
 
 
@@ -383,7 +410,7 @@ def test_a_card_with_a_cold_says_hours_left_under_the_day(
         "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
         f"> 𝄡𝄚𝄂 he has a cold・{hours} h left",
         BLANK,
-        "> 𝄡 Health",
+        RIGHT_NOW,
     ]
 
 
@@ -403,8 +430,120 @@ def test_a_wisp_with_the_pox_and_a_cold_shows_both_lines() -> None:
 
 
 # ---
+# Right now
+# ---
+
+
+@pytest.mark.parametrize(
+    ("fields", "needs"),
+    [
+        ({}, [HAPPY]),
+        ({"health": HANGRY_BELOW - 0.1}, [HUNGRY]),
+        ({"health": HANGRY_BELOW}, [HAPPY]),
+        ({"wellbeing": LONELY_BELOW - 0.1}, [LONELY]),
+        ({"wellbeing": LONELY_BELOW}, [HAPPY]),
+        ({"mess_left": MESS_LEFT_FOR.total_seconds()}, [MESS]),
+        ({"mess_in": 60.0, "mess_gap": 60.0}, [HAPPY]),
+        ({"tantrum_left": TANTRUM_WINDOW.total_seconds()}, [TANTRUM]),
+        (
+            {
+                "nap_left": NAP_FOR.total_seconds(),
+                "lights_left": LIGHTS_WINDOW.total_seconds(),
+            },
+            [LIGHTS],
+        ),
+        ({"nap_left": NAP_FOR.total_seconds()}, [HAPPY]),
+    ],
+)
+def test_right_now_says_what_he_needs(
+    fields: dict[str, float], needs: list[str]
+) -> None:
+    card = render_status(alive_life(**fields), NOW, FACTS, emoji)
+
+    assert right_now(card) == needs
+
+
+def test_right_now_lists_everything_he_needs_worst_first() -> None:
+    life = alive_life(
+        health=5.0,
+        wellbeing=5.0,
+        mess_left=60.0,
+        tantrum_left=60.0,
+        nap_left=60.0,
+        lights_left=60.0,
+    )
+
+    card = render_status(life, NOW, FACTS, emoji)
+
+    assert right_now(card) == [HUNGRY, LONELY, MESS, TANTRUM, LIGHTS]
+
+
+def test_right_now_without_a_track_drop_names_it_in_words() -> None:
+    life = alive_life(health=5.0)
+
+    card = render_status(life, NOW, replace(FACTS, tracks_id=None), emoji)
+
+    assert right_now(card) == ["> 𝄡 hungry: drop a track in the track drop"]
+
+
+def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
+    life = alive_life(cold_left=3600.0, sniffles_left=7200.0, health=5.0)
+
+    lines = render_status(life, NOW, FACTS, emoji).split("\n")
+
+    assert lines[:9] == [
+        BLANK,
+        "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **1**・♫ ♪. ♫‿♪",
+        "> 𝄡𝄚𝄂 he has Monster Pox・1 h left",
+        "> 𝄡𝄚𝄂 he has a cold・2 h left",
+        BLANK,
+        RIGHT_NOW,
+        HUNGRY,
+        NEXT_NAP,
+        BLANK,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("now", "nap"),
+    [
+        (datetime(2026, 10, 20, 0, 0, tzinfo=UTC), "02:00"),
+        (datetime(2026, 10, 20, 2, 0, tzinfo=UTC), "10:00"),
+        (datetime(2026, 10, 20, 12, 0, tzinfo=UTC), "18:00"),
+        (datetime(2026, 10, 20, 23, 59, tzinfo=UTC), "02:00"),
+    ],
+)
+def test_the_card_says_when_his_next_nap_is(now: datetime, nap: str) -> None:
+    card = render_status(alive_life(hatched_at=now), now, FACTS, emoji)
+
+    assert f"> 𝄡𝄚𝄂 next nap {nap} UTC" in card.split("\n")
+
+
+def test_eggs_have_no_right_now_or_next_nap() -> None:
+    card = render_status(new_egg(4, NOW), NOW, FACTS, emoji)
+
+    assert "right now" not in card
+    assert "next nap" not in card
+
+
+# ---
 # Size
 # ---
+
+
+LONGEST_ID = 2**64 - 1
+LONGEST_FACTS = CardFacts(
+    fed_today=99999,
+    viibr_tracks=99999,
+    suno_tracks=99999,
+    wisp_id=LONGEST_ID,
+    house_id=LONGEST_ID,
+    tracks_id=LONGEST_ID,
+)
+
+
+def longest_emoji(name: str) -> str:
+    return f"<a:{name}:{LONGEST_ID}>"
 
 
 def test_the_fullest_card_fits_one_message() -> None:
@@ -415,18 +554,43 @@ def test_the_fullest_card_fits_one_message() -> None:
         cold_left=48 * 3600,
         sniffles_left=SNIFFLES_FOR.total_seconds(),
         hatched_at=NOW - timedelta(days=9999),
-    )
-    facts = CardFacts(
-        fed_today=99999,
-        viibr_tracks=99999,
-        suno_tracks=99999,
-        wisp_id=2**64 - 1,
-        house_id=2**64 - 1,
+        mess_left=60.0,
+        tantrum_left=60.0,
+        nap_left=60.0,
+        lights_left=60.0,
     )
 
-    card = render_status(life, NOW, facts, lambda name: f"<a:{name}:{2**64 - 1}>")
+    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji)
 
     assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "Monster Pox" in card
     assert "a cold" in card
     assert card.count("_full:") == 20
+    assert right_now(card) == [MESS, TANTRUM, LIGHTS]
+    assert text_length(card) <= MESSAGE_LIMIT
+
+
+def test_a_sick_card_needing_everything_fits_one_message() -> None:
+    life = alive_life(
+        stage=Stage.OLD_FOGEY,
+        health=HANGRY_BELOW - 0.1,
+        wellbeing=LONELY_BELOW - 0.1,
+        cold_left=48 * 3600,
+        sniffles_left=SNIFFLES_FOR.total_seconds(),
+        hatched_at=NOW - timedelta(days=9999),
+        mess_left=60.0,
+        tantrum_left=60.0,
+        nap_left=60.0,
+        lights_left=60.0,
+    )
+
+    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji)
+
+    assert "Monster Pox" in card and "a cold" in card
+    assert right_now(card) == [
+        f"> 𝄡 hungry: drop a track in <#{LONGEST_ID}>",
+        LONELY,
+        MESS,
+        TANTRUM,
+        LIGHTS,
+    ]
     assert text_length(card) <= MESSAGE_LIMIT

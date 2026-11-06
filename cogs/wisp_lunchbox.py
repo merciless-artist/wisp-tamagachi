@@ -5,6 +5,7 @@ import contextlib
 import functools
 import logging
 import random
+import re
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
@@ -16,6 +17,7 @@ from cogs.channels import may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
 from cogs.headers import send_headed
+from cogs.players import bot_of, press
 from cogs.share_links import one_line
 from db.lunchbox import Favorite
 from wisp.life import Life, mood
@@ -46,6 +48,7 @@ _NO_ARTIST: Final = "listen ♪"
 _CUT: Final = "…"
 _NOTHING_YET: Final = item("none yet")
 _HEADER: Final = "lunchbox_title.png"
+_LUNCHBOX_ID: Final = "wisp:lunchbox"
 
 # ---
 # Favorite songs
@@ -198,6 +201,17 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     return fit(head, songs, [*middle, *collections, *close])
 
 
+async def _send_privately(interaction: discord.Interaction, text: str) -> None:
+    """Answer a deferred interaction with the lunchbox, only to the member."""
+    await send_headed(
+        functools.partial(interaction.followup.send, ephemeral=True),
+        _HEADER,
+        text,
+        allowed_mentions=_NO_PING,
+        suppress_embeds=True,
+    )
+
+
 @wisp.command(name="lunchbox", description="See the things Wisp keeps in his lunchbox.")
 async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     """Show Wisp's lunchbox in the channel where it was asked for. Anyone may look.
@@ -229,13 +243,7 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
         return
     house = await bot.house_channel(interaction.guild)
     if house is None:
-        await send_headed(
-            functools.partial(interaction.followup.send, ephemeral=True),
-            _HEADER,
-            text,
-            allowed_mentions=_NO_PING,
-            suppress_embeds=True,
-        )
+        await _send_privately(interaction, text)
         return
     await send_headed(
         house.send,
@@ -251,5 +259,53 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     )
 
 
+async def _show_privately(interaction: discord.Interaction) -> None:
+    """Show Wisp's lunchbox only to the member who pressed the button."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await _send_privately(
+        interaction,
+        await lunchbox_text(bot_of(interaction), require_guild(interaction)),
+    )
+
+
+class LunchboxButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=re.compile(_LUNCHBOX_ID),
+):
+    """The Lunchbox button on the status card; it shows the lunchbox privately.
+
+    Anyone may look, as with /wisp lunchbox. Its custom id is fixed, so the
+    button keeps working after the bot restarts.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Lunchbox",
+                style=discord.ButtonStyle.secondary,
+                custom_id=_LUNCHBOX_ID,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "LunchboxButton":
+        """Rebuild the button after a restart."""
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Show the lunchbox to whoever pressed it."""
+        await press(interaction, "the Lunchbox button", _show_privately)
+
+
 async def setup(bot: "WispBot") -> None:
-    """Load Wisp's lunchbox; its command joins the shared group on import."""
+    """Register the Lunchbox button so it still works after a restart.
+
+    The command joins the shared group on import.
+    """
+    bot.add_dynamic_items(LunchboxButton)

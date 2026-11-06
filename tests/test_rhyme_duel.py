@@ -1,4 +1,4 @@
-"""Tests for the Rhyme Duel: /wisp play rhyme.
+"""Tests for the Rhyme Duel: /wisp play rhyme and the Status post's Play button.
 
 Discord objects and the turn-by-turn messages are fakes; the repositories are
 the real ones.
@@ -17,6 +17,7 @@ from discord import app_commands
 
 import app
 from cogs import groups, rhyme_duel
+from cogs.rhyme_duel import PlayButton, RhymeDuelButton
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -34,7 +35,7 @@ from wisp.rules import (
     WELLBEING_PER_PLAY,
     Stage,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, count, text_length
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, USER_ERROR, count, text_length
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -282,7 +283,7 @@ async def test_duel_scores_perfect_and_slant(
 
     interaction = await duel(bot, server, said("Choir!"), said("mine"))
 
-    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
     server.house.create_thread.assert_awaited_once_with(
         name="Rhyme Duel ・ Member1",
@@ -1029,6 +1030,173 @@ async def test_a_receipt_that_cannot_be_sent_is_reported_in_the_thread(
     assert server.posts()[-1].startswith(
         "Error in sending a Rhyme Duel receipt: NotFound"
     )
+
+
+# ---
+# The Play button
+# ---
+
+
+async def press_rhyme_duel(interaction: MagicMock) -> None:
+    await RhymeDuelButton().callback(interaction)
+
+
+async def test_play_opens_a_private_menu_of_the_games(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+    interaction.response.send_message = AsyncMock()
+
+    await PlayButton().callback(interaction)
+
+    call = interaction.response.send_message.await_args
+    assert call.args == ("♪ Pick a game to play with Wisp.",)
+    assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    view = call.kwargs["view"]
+    (game,) = view.children
+    assert isinstance(game, RhymeDuelButton)
+    assert (game.item.label, game.item.custom_id) == ("Rhyme Duel", "wisp:play:rhyme")
+    assert view.timeout is None
+    server.house.create_thread.assert_not_awaited()
+
+
+async def test_the_rhyme_duel_button_plays_a_duel_like_the_command(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    wisp_says("higher", None)
+    cast(Turns, bot.wait_for).load(said("Choir!"), said("mine"))
+    interaction = make_interaction(bot, server)
+
+    await press_rhyme_duel(interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
+    assert receipt(interaction).startswith("♪ Your duel counted.")
+    _, wisp_turn, summary = server.posts()
+    assert wisp_turn == "♪ higher"
+    assert summary.splitlines()[-1] == "・Score: 3 points"
+    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+
+
+@pytest.mark.parametrize(
+    ("phase", "banned", "reason"),
+    [
+        (Phase.ALIVE, True, "♪ Wisp is not dueling with you right now."),
+        (
+            Phase.EGG,
+            False,
+            "♪ Wisp isn't hatched yet. Rhymes have to wait until he is.",
+        ),
+        (Phase.DEAD, False, "♪ Wisp isn't alive right now, so rhymes have to wait."),
+    ],
+)
+async def test_the_rhyme_duel_button_gives_the_commands_reasons(
+    bot: app.WispBot, server: FakeServer, phase: Phase, banned: bool, reason: str
+) -> None:
+    await lay(bot, phase)
+    if banned:
+        await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
+    interaction = make_interaction(bot, server)
+
+    await press_rhyme_duel(interaction)
+
+    assert replies(interaction) == [reason]
+    server.house.create_thread.assert_not_awaited()
+
+
+async def test_the_button_and_the_command_share_one_duel_per_player(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    gate = Gate()
+    monkeypatch.setattr(bot, "wait_for", gate)
+    first = asyncio.create_task(start(make_interaction(bot, server)))
+    while gate.waiting < 1:
+        await asyncio.sleep(0.01)
+
+    again = make_interaction(bot, server)
+    await press_rhyme_duel(again)
+
+    assert replies(again) == [
+        "♪ You already have a Rhyme Duel going. Finish that one first."
+    ]
+    gate.opened.set()
+    await first
+    assert server.house.create_thread.await_count == 1
+
+
+async def test_a_rhyme_duel_button_with_no_house_is_reported_where_pressed(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    await bot.settings.update(GUILD_ID, house_channel_id=None)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    interaction = make_interaction(bot, server)
+    interaction.channel = MagicMock(spec=discord.Thread)
+
+    await press_rhyme_duel(interaction)
+
+    guild, context, error = reported.await_args.args
+    assert (guild, context) == (server.guild, "the Rhyme Duel button")
+    assert isinstance(error, LookupError)
+    assert reported.await_args.kwargs == {"where": interaction.channel}
+    interaction.followup.send.assert_awaited_with(USER_ERROR, ephemeral=True)
+    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+
+
+async def test_a_play_button_that_cannot_answer_is_reported(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interaction = make_interaction(bot, server)
+    interaction.channel = MagicMock(spec=discord.Thread)
+    expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
+    interaction.response.send_message = AsyncMock(side_effect=expired)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await PlayButton().callback(interaction)
+
+    reported.assert_awaited_once_with(
+        server.guild, "the Play button", expired, where=interaction.channel
+    )
+
+
+@pytest.mark.parametrize(
+    ("button", "custom_id"),
+    [(PlayButton, "wisp:play"), (RhymeDuelButton, "wisp:play:rhyme")],
+)
+async def test_the_play_buttons_survive_a_restart(
+    bot: app.WispBot, server: FakeServer, button: Any, custom_id: str
+) -> None:
+    match = button.__discord_ui_compiled_template__.fullmatch(custom_id)
+    assert match is not None
+
+    restored = await button.from_custom_id(
+        make_interaction(bot, server), MagicMock(spec=discord.ui.Button), match
+    )
+
+    assert isinstance(restored, button)
+
+
+def test_the_play_and_rhyme_duel_ids_never_match_each_other() -> None:
+    assert (
+        PlayButton.__discord_ui_compiled_template__.fullmatch("wisp:play:rhyme") is None
+    )
+    assert (
+        RhymeDuelButton.__discord_ui_compiled_template__.fullmatch("wisp:play") is None
+    )
+
+
+async def test_the_play_buttons_are_registered_at_startup(bot: app.WispBot) -> None:
+    bot.add_dynamic_items = MagicMock()  # type: ignore[method-assign]
+
+    await rhyme_duel.setup(bot)
+
+    bot.add_dynamic_items.assert_called_once_with(PlayButton, RhymeDuelButton)
 
 
 # ---
