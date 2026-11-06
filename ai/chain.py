@@ -2,7 +2,7 @@
 
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 import aiohttp
@@ -33,6 +33,17 @@ USER_AGENT = "WispBot/1.0"
 ERROR_BODY_CHARS = 200
 # Auth errors can echo part of a key, so their bodies are never kept.
 AUTH_FAILURE_STATUSES = frozenset({401, 403})
+
+# Wisp uses no thinking: a thinking model spends the output budget on its
+# thoughts and can stop partway through his reply. Each provider is asked to
+# skip thinking its own way.
+GEMINI_NO_THINKING: Mapping[str, Any] = {"thinkingBudget": 0}
+GROQ_OPTIONS: Mapping[str, Any] = {"reasoning_effort": "none"}
+OPENROUTER_OPTIONS: Mapping[str, Any] = {"reasoning": {"enabled": False}}
+# How each API says an answer stopped at the output limit.
+GEMINI_CUT_OFF = "MAX_TOKENS"
+CHAT_CUT_OFF = "length"
+CUT_OFF_REASON = "cut off at the token limit"
 
 # ---
 # Errors
@@ -122,7 +133,10 @@ class GeminiProvider:
         body = {
             "systemInstruction": {"parts": [{"text": prompt.system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt.user}]}],
-            "generationConfig": {"maxOutputTokens": AI_MAX_OUTPUT_TOKENS},
+            "generationConfig": {
+                "maxOutputTokens": AI_MAX_OUTPUT_TOKENS,
+                "thinkingConfig": dict(GEMINI_NO_THINKING),
+            },
         }
         return await _post_for_text(
             session,
@@ -134,20 +148,35 @@ class GeminiProvider:
 
     @staticmethod
     def _extract(data: Any) -> str:
-        parts = data["candidates"][0]["content"]["parts"]
+        candidate = data["candidates"][0]
+        if candidate.get("finishReason") == GEMINI_CUT_OFF:
+            raise ProviderError(CUT_OFF_REASON)
+        parts = candidate["content"]["parts"]
         return "".join(
             part["text"] for part in parts if "text" in part and not part.get("thought")
         )
 
 
 class ChatProvider:
-    """An OpenAI-style chat completions API, such as Groq or OpenRouter."""
+    """An OpenAI-style chat completions API, such as Groq or OpenRouter.
 
-    def __init__(self, name: str, url: str, model: str, api_key: str) -> None:
+    `options` are extra request fields this API needs, such as how it is told
+    to skip thinking.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        url: str,
+        model: str,
+        api_key: str,
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         self.name = name
         self._url = url
         self._model = model
         self._api_key = api_key
+        self._options = dict(options or {})
 
     async def complete(self, session: aiohttp.ClientSession, prompt: Prompt) -> str:
         """Ask the chat model for one reply."""
@@ -158,6 +187,7 @@ class ChatProvider:
                 {"role": "user", "content": prompt.user},
             ],
             "max_tokens": AI_MAX_OUTPUT_TOKENS,
+            **self._options,
         }
         return await _post_for_text(
             session,
@@ -169,7 +199,10 @@ class ChatProvider:
 
     @staticmethod
     def _extract(data: Any) -> str:
-        content = data["choices"][0]["message"]["content"]
+        choice = data["choices"][0]
+        if choice.get("finish_reason") == CHAT_CUT_OFF:
+            raise ProviderError(CUT_OFF_REASON)
+        content = choice["message"]["content"]
         if not isinstance(content, str):
             raise TypeError("content is not text")
         return content
@@ -272,7 +305,13 @@ def chain_from_config() -> AIChain:
     providers: list[Provider] = []
     if config.GROQ_API_KEY and config.GROQ_MODEL:
         providers.append(
-            ChatProvider("groq", GROQ_URL, config.GROQ_MODEL, config.GROQ_API_KEY)
+            ChatProvider(
+                "groq",
+                GROQ_URL,
+                config.GROQ_MODEL,
+                config.GROQ_API_KEY,
+                GROQ_OPTIONS,
+            )
         )
     if config.GOOGLE_API_KEY:
         providers += [
@@ -287,6 +326,7 @@ def chain_from_config() -> AIChain:
                 OPENROUTER_URL,
                 config.OPENROUTER_MODEL,
                 config.OPENROUTER_API_KEY,
+                OPENROUTER_OPTIONS,
             )
         )
     return AIChain(providers)

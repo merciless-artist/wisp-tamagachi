@@ -112,8 +112,40 @@ async def test_gemini_sends_the_key_as_a_header_not_in_the_url() -> None:
     assert bodies[0] == {
         "systemInstruction": {"parts": [{"text": "Be Wisp."}]},
         "contents": [{"role": "user", "parts": [{"text": "Say hi."}]}],
-        "generationConfig": {"maxOutputTokens": 1024},
+        "generationConfig": {
+            "maxOutputTokens": 1024,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
     }
+
+
+async def test_a_gemini_answer_cut_off_at_the_limit_falls_through() -> None:
+    async def cut_off(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": "trying not to :w"}]},
+                        "finishReason": "MAX_TOKENS",
+                    }
+                ]
+            }
+        )
+
+    async def whole(request: web.Request) -> web.Response:
+        return chat_reply("A whole reply.")
+
+    async with serve(gemini=cut_off, chat=whole) as url:
+        ai = AIChain(
+            [
+                GeminiProvider("m", KEY, url),
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+            ]
+        )
+        try:
+            assert await ai.complete(PROMPT) == "A whole reply."
+        finally:
+            await ai.close()
 
 
 def test_gemini_name_includes_the_model() -> None:
@@ -154,6 +186,61 @@ async def test_chat_provider_reads_the_first_choice() -> None:
         ],
         "max_tokens": 1024,
     }
+
+
+async def test_chat_provider_sends_its_options() -> None:
+    bodies: list[dict[str, Any]] = []
+
+    async def handler(request: web.Request) -> web.Response:
+        bodies.append(await request.json())
+        return chat_reply("ok")
+
+    async with serve(chat=handler) as url:
+        provider = ChatProvider(
+            "groq", f"{url}/chat/completions", "big", KEY, {"reasoning_effort": "none"}
+        )
+        await ask(provider)
+
+    assert bodies[0]["reasoning_effort"] == "none"
+    assert bodies[0]["max_tokens"] == 1024
+
+
+async def test_a_chat_answer_cut_off_at_the_limit_falls_through() -> None:
+    async def cut_off(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "choices": [
+                    {"message": {"content": "scratch :w"}, "finish_reason": "length"}
+                ]
+            }
+        )
+
+    async def whole(request: web.Request) -> web.Response:
+        return gemini_reply({"text": "A whole reply."})
+
+    async with serve(gemini=whole, chat=cut_off) as url:
+        ai = AIChain(
+            [
+                ChatProvider("groq", f"{url}/chat/completions", "big", KEY),
+                GeminiProvider("m", KEY, url),
+            ]
+        )
+        try:
+            assert await ai.complete(PROMPT) == "A whole reply."
+        finally:
+            await ai.close()
+
+
+async def test_a_finished_chat_answer_is_used() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        return web.json_response(
+            {"choices": [{"message": {"content": "Done."}, "finish_reason": "stop"}]}
+        )
+
+    async with serve(chat=handler) as url:
+        assert await ask(ChatProvider("g", f"{url}/chat/completions", "m", KEY)) == (
+            "Done."
+        )
 
 
 async def test_every_request_sends_a_user_agent() -> None:
@@ -566,3 +653,34 @@ def test_chain_from_config_needs_a_model_as_well_as_a_key(
 
     names = [p.name for p in chain.chain_from_config().providers]
     assert names == ["gemini primary"]
+
+
+async def test_chain_from_config_asks_groq_and_openrouter_not_to_think(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bodies: list[dict[str, Any]] = []
+
+    async def handler(request: web.Request) -> web.Response:
+        bodies.append(await request.json())
+        return web.json_response({"error": "busy"}, status=500)
+
+    async with serve(chat=handler) as url:
+        monkeypatch.setattr(chain, "GROQ_URL", f"{url}/chat/completions")
+        monkeypatch.setattr(chain, "OPENROUTER_URL", f"{url}/chat/completions")
+        for name, value in {
+            "GROQ_API_KEY": KEY,
+            "GROQ_MODEL": "big",
+            "OPENROUTER_API_KEY": KEY,
+            "OPENROUTER_MODEL": "free",
+            "GOOGLE_API_KEY": None,
+        }.items():
+            monkeypatch.setattr(config, name, value)
+        ai = chain.chain_from_config()
+        try:
+            with pytest.raises(AllProvidersFailed):
+                await ai.complete(PROMPT)
+        finally:
+            await ai.close()
+
+    assert bodies[0]["reasoning_effort"] == "none"
+    assert bodies[1]["reasoning"] == {"enabled": False}
