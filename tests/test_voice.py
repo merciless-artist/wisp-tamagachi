@@ -1306,3 +1306,24 @@ def test_link_track_drop(text: str, linked: str) -> None:
 
 def test_link_track_drop_leaves_text_without_a_channel() -> None:
     assert link_track_drop("go to #track-drop", None) == "go to #track-drop"
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+@pytest.mark.parametrize(
+    ("feeling", "named"),
+    [(Feeling.MONSTER_POX, "pox"), (Feeling.SNIFFLES, "a cold")],
+)
+def test_the_sick_prompts_tell_him_to_say_what_he_has(
+    feeling: Feeling, named: str, stage: Stage
+) -> None:
+    system = build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        feelings=(feeling,),
+    ).system
+    assert "talks to you or pokes you" in system
+    assert named in system.split("talks to you or pokes you", 1)[1].lower()

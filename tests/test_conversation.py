@@ -8,6 +8,7 @@ import random
 import re
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -18,6 +19,7 @@ import pytest
 import app
 from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
+from cogs import assets
 from cogs.conversation import Conversation, PokeButton
 from cogs.speech import dances, expressions
 from db.activity import ActivityRepo
@@ -36,6 +38,7 @@ from wisp.rules import (
     CHAT_POINTS,
     CHIME_IN_CHANCE,
     CHIME_IN_GAP,
+    COLD_PICTURES,
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
     CRANKY_FOR,
@@ -43,6 +46,7 @@ from wisp.rules import (
     POKE_MAD_AT,
     POKE_SLEEP_AFTER,
     POKE_STREAK_GAP,
+    POX_PICTURES,
     TALK_COOLDOWN,
     Stage,
 )
@@ -2076,3 +2080,168 @@ async def test_waking_him_after_lights_off_leaves_that_post_alone(
     server.house.fetch_message.assert_not_awaited()
     server.nap_post.edit.assert_not_awaited()
     assert (await current(bot)).nap_left == 0
+
+
+# ---
+# Telling people he is sick
+# ---
+
+SICK = [
+    pytest.param(Stage.BABY, 10.0, 0.0, Moment.POX_BABY_TALK, id="baby-pox"),
+    pytest.param(Stage.TEEN, 10.0, 0.0, Moment.POX_TALK, id="teen-pox"),
+    pytest.param(Stage.BABY, 0.0, 10.0, Moment.COLD_BABY_TALK, id="baby-cold"),
+    pytest.param(Stage.ADULT, 0.0, 10.0, Moment.COLD_TALK, id="adult-cold"),
+    pytest.param(Stage.CHILD, 10.0, 10.0, Moment.POX_TALK, id="child-both"),
+]
+
+
+def sick_pool(stage: Stage, pox: float) -> set[str]:
+    return set(POX_PICTURES[stage] if pox > 0 else COLD_PICTURES)
+
+
+def reply_picture(message: MagicMock) -> str | None:
+    file = message.reply.await_args.kwargs.get("file")
+    return None if file is None else str(file.filename)
+
+
+async def lay_sick(bot: app.WispBot, stage: Stage, pox: float, cold: float) -> None:
+    life = await lay(bot, stage)
+    life.cold_left = pox
+    life.sniffles_left = cold
+    await bot.lives.save(GUILD_ID, life)
+
+
+@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+async def test_a_sick_reply_carries_one_picture_from_the_sickness_pool(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    stage: Stage,
+    pox: float,
+    cold: float,
+    moment: Moment,
+) -> None:
+    await lay_sick(bot, stage, pox, cold)
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "hey you"
+    assert reply_picture(said) in sick_pool(stage, pox)
+
+
+@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+async def test_a_sick_fallback_line_says_what_he_has_with_a_picture(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    stage: Stage,
+    pox: float,
+    cold: float,
+    moment: Moment,
+) -> None:
+    await lay_sick(bot, stage, pox, cold)
+    ai.side_effect = OUTAGE
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert is_line(reply_text(said), moment)
+    assert reply_picture(said) in sick_pool(stage, pox)
+
+
+async def test_a_healthy_reply_has_no_picture(
+    cog: Conversation, bot: app.WispBot, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.TEEN)
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_picture(said) is None
+
+
+async def test_a_picture_missing_from_disk_is_skipped(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "moments").mkdir()
+    (tmp_path / "moments" / "sneeze.gif").write_bytes(b"GIF89a")
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+    await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_picture(said) == "sneeze.gif"
+
+
+async def test_with_no_picture_on_disk_the_sick_reply_is_words_only(
+    cog: Conversation,
+    bot: app.WispBot,
+    message: MessageFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+    await lay_sick(bot, Stage.TEEN, 0.0, 10.0)
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "hey you"
+    assert reply_picture(said) is None
+
+
+@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+async def test_a_sick_poke_posts_one_picture_from_the_pool(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    server: FakeServer,
+    poke: Press,
+    stage: Stage,
+    pox: float,
+    cold: float,
+    moment: Moment,
+) -> None:
+    await lay_sick(bot, stage, pox, cold)
+
+    await poke()
+
+    (picture,) = house_pictures(server)
+    assert picture in sick_pool(stage, pox)
+
+
+@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+async def test_a_sick_poke_falls_back_to_a_line_that_says_what_he_has(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    server: FakeServer,
+    poke: Press,
+    stage: Stage,
+    pox: float,
+    cold: float,
+    moment: Moment,
+) -> None:
+    await lay_sick(bot, stage, pox, cold)
+    ai.side_effect = OUTAGE
+
+    await poke()
+
+    _report, post = house_posts(server)
+    assert is_line(post.split("\n")[1], moment)
+
+
+async def test_a_healthy_poke_has_no_picture(
+    bot: app.WispBot, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot, Stage.TEEN)
+
+    await poke()
+
+    assert house_pictures(server) == [None]

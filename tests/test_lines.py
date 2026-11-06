@@ -41,6 +41,10 @@ COLD_WORDS = (
     "medicine",
 )
 ONE_MOOD_MOMENTS = {
+    Moment.POX_TALK,
+    Moment.POX_BABY_TALK,
+    Moment.COLD_TALK,
+    Moment.COLD_BABY_TALK,
     Moment.HUNGRY,
     Moment.FADING,
     Moment.DIED,
@@ -547,3 +551,32 @@ def test_picker_rejects_wrong_fields(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         LinePicker().pick(moment, Mood.HAPPY, **fields)
+
+
+@pytest.mark.parametrize(
+    ("moment", "name"),
+    [
+        (Moment.POX_TALK, "monster pox"),
+        (Moment.POX_BABY_TALK, "pox"),
+        (Moment.COLD_TALK, "cold"),
+        (Moment.COLD_BABY_TALK, "cold"),
+    ],
+)
+def test_the_sick_talk_lines_each_say_what_he_has(moment: Moment, name: str) -> None:
+    assert FIELDS[moment] == set()
+    for line in LINES[(moment, Mood.HAPPY)]:
+        assert name in line.lower(), line
+
+
+@pytest.mark.parametrize("moment", [Moment.POX_TALK, Moment.POX_BABY_TALK])
+def test_the_pox_talk_lines_never_mention_a_cold(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        for word in ("cold", "sneez", "sniff", "achoo", "nose"):
+            assert word not in line.lower(), line
+
+
+@pytest.mark.parametrize("moment", [Moment.COLD_TALK, Moment.COLD_BABY_TALK])
+def test_the_cold_talk_lines_never_mention_spots(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        for word in ("spot", "itch", "scratch", "pox"):
+            assert word not in line.lower(), line

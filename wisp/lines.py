@@ -67,6 +67,10 @@ class Moment(StrEnum):
     LIGHTS_MISSED = auto()
     LIGHTS_OFF = auto()
     NAP_TALK = auto()
+    POX_TALK = auto()
+    POX_BABY_TALK = auto()
+    COLD_TALK = auto()
+    COLD_BABY_TALK = auto()
 
 
 _NAME = frozenset({"name"})
@@ -129,6 +133,10 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.LIGHTS_MISSED: _NONE,
     Moment.LIGHTS_OFF: _NAME,
     Moment.NAP_TALK: _NONE,
+    Moment.POX_TALK: _NONE,
+    Moment.POX_BABY_TALK: _NONE,
+    Moment.COLD_TALK: _NONE,
+    Moment.COLD_BABY_TALK: _NONE,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -520,6 +528,54 @@ _RECOVERED = (
     "I beat Monster Pox. put it on a poster. Wisp versus the spots, Wisp wins",
     "my headphones aren't polka dot anymore. it's a good day",
     "I'm better! sorry for scratching on everybody's tracks",
+)
+
+# ---
+# Telling people he is sick
+# ---
+
+_POX_TALK = (
+    "hi. I can't really talk, I have Monster Pox. I'm spotty and itchy",
+    "sorry, I'm not much company today. I have Monster Pox and I'm covered in spots",
+    "*scratch scratch* oh, hey. I have Monster Pox, so I'm a bit itchy",
+    "you caught me at a bad time. Monster Pox. spots everywhere, fever too",
+    "I'd love to chat but I have Monster Pox and my spots won't stop itching",
+    "Monster Pox, that's what I have. thermometer in my mouth and everything",
+    "hey. fair warning, I have Monster Pox. it's a spotty, itchy kind of day",
+    "I'm doing a lot of scratching because I have Monster Pox. but hi",
+)
+
+_POX_BABY_TALK = (
+    "*scratch scratch* pox! I got pox!",
+    "itchy! itchy pox! ba...",
+    "*itchy whimper* spots! pox!",
+    "pox. pox pox. *scratch*",
+    "ba! spotty! I got Monster Pox!",
+    "*fussy noise* itchy... pox...",
+    "my spots! pox! hi...",
+    "*scratch* Monster Pox! wuh!",
+)
+
+_COLD_TALK = (
+    "*achoo* sorry. I have a cold, so I'm all stuffy",
+    "hi. I can't breathe through my nose, I have a cold",
+    "*sniffle* I have a cold today. my voice sounds funny",
+    "I'm a little sneezy, I have a cold. *achoo*",
+    "you caught me with a cold. *sniffle* I'm stuffy and a bit run down",
+    "I have a cold and my head is full of cotton. but hi",
+    "ahh... AHCHOO. sorry. cold. I have a cold",
+    "fair warning, I have a cold, so I'm talking through a pillow",
+)
+
+_COLD_BABY_TALK = (
+    "*achoo* cold! I got cold!",
+    "*sniffly whimper* cold... ba...",
+    "nose! stuffy! cold!",
+    "*achoo* wuh. cold. cold cold",
+    "ba! sneezy! I got a cold!",
+    "*snuffly noise* cold...",
+    "hi... *sniffle* cold...",
+    "*achoo* sick! cold!",
 )
 
 # ---
@@ -1089,6 +1145,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.LIGHTS_MISSED, _LIGHTS_MISSED),
     **_either_mood(Moment.LIGHTS_OFF, _LIGHTS_OFF),
     **_either_mood(Moment.NAP_TALK, _NAP_TALK),
+    **_either_mood(Moment.POX_TALK, _POX_TALK),
+    **_either_mood(Moment.POX_BABY_TALK, _POX_BABY_TALK),
+    **_either_mood(Moment.COLD_TALK, _COLD_TALK),
+    **_either_mood(Moment.COLD_BABY_TALK, _COLD_BABY_TALK),
 }
 """Every moment has happy and hangry lines. One without lonely lines of its own
 says its happy lines when he is lonely; see `lines_for`."""

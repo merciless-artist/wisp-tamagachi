@@ -4,6 +4,7 @@ The status card and the House's Poke Wisp panel both show Wisp as he is now
 and share the fallback for a picture Discord refuses.
 """
 
+import random
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -12,7 +13,13 @@ import discord
 
 from cogs.assets import ASSETS_DIR, moment_image
 from wisp.life import Life, Phase, has_sniffles, is_sick
-from wisp.rules import SICK_PICTURES, SNIFFLES_PICTURE, Stage
+from wisp.rules import (
+    COLD_PICTURES,
+    POX_PICTURES,
+    SICK_PICTURES,
+    SNIFFLES_PICTURE,
+    Stage,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -46,6 +53,23 @@ def sick_image(stage: Stage) -> Path | None:
     """The stage's sick picture when it exists, or None."""
     name = SICK_PICTURES.get(stage)
     return None if name is None else moment_image(name)
+
+
+def sick_talk_image(life: Life, rng: random.Random) -> Path | None:
+    """One existing picture for his reply while he is sick, or None.
+
+    Monster Pox wins over a cold. It is picked at random from the sickness's
+    pool, skipping any file that is missing; None when he is not sick or the
+    pool has nothing on disk.
+    """
+    if is_sick(life):
+        names = POX_PICTURES[life.stage]
+    elif has_sniffles(life):
+        names = COLD_PICTURES
+    else:
+        return None
+    found = [path for name in names if (path := moment_image(name)) is not None]
+    return rng.choice(found) if found else None
 
 
 def art_kwargs(field: str, art: discord.File | None) -> dict[str, Any]:

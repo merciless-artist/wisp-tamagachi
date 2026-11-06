@@ -192,6 +192,17 @@ MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
 # The pictures in ASSETS/moments for a cold, its medicine and a tantrum.
 SNIFFLES_PICTURE: Final = "wispsick.gif"
 MEDICINE_PICTURE: Final = "medicine.png"
+SNEEZE_PICTURE: Final = "sneeze.gif"
+# The pictures in ASSETS/moments one of which goes with his reply to a member
+# talking to him or poking him while he is sick. Monster Pox wins over a cold.
+POX_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
+    stage: (
+        *((SICK_PICTURES[stage],) if stage in SICK_PICTURES else ()),
+        SNEEZE_PICTURE,
+    )
+    for stage in Stage
+}
+COLD_PICTURES: Final = (SNIFFLES_PICTURE, SNEEZE_PICTURE)
 # Medicine in the Vault cures his cold for MEDICINE_COST and pays the buyer
 # MEDICINE_POINTS.
 MEDICINE_COST = 10

@@ -6,6 +6,7 @@ import re
 import time
 from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
@@ -18,6 +19,7 @@ from cogs.assets import nap_image
 from cogs.channels import where_of
 from cogs.chores import wake_by_poke
 from cogs.groups import require_guild
+from cogs.pictures import art_kwargs, sick_talk_image
 from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
@@ -32,7 +34,7 @@ from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
 from wisp.chores import is_napping
-from wisp.life import Life, mood
+from wisp.life import Life, has_sniffles, is_sick, mood
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.text import strip_emoji
@@ -141,8 +143,29 @@ def _aimed_at(message: discord.Message, wisp: discord.ClientUser) -> bool:
     return isinstance(replied_to, discord.Message) and replied_to.author.id == wisp.id
 
 
-async def _reply(message: discord.Message, text: str) -> None:
-    await message.reply(text, mention_author=False, allowed_mentions=_NO_PING)
+async def _reply(
+    message: discord.Message, text: str, image: Path | None = None
+) -> None:
+    art = None if image is None else discord.File(image)
+    await message.reply(
+        text,
+        mention_author=False,
+        allowed_mentions=_NO_PING,
+        **art_kwargs("file", art),
+    )
+
+
+def _sick_moment(life: Life, level: Talk) -> Moment | None:
+    """The canned line set that says he is sick and with what, or None if he is well.
+
+    Monster Pox wins over a cold; a Baby says it in baby words.
+    """
+    baby = level is Talk.BABY
+    if is_sick(life):
+        return Moment.POX_BABY_TALK if baby else Moment.POX_TALK
+    if has_sniffles(life):
+        return Moment.COLD_BABY_TALK if baby else Moment.COLD_TALK
+    return None
 
 
 # ---
@@ -372,10 +395,12 @@ class Conversation(commands.Cog):
         )
         async with message.channel.typing():
             reply = await ai_reply(bot, guild, prompt)
+        picture = sick_talk_image(life, bot.talk.rng)
         if reply is None:
-            await _reply(message, bot.lines.pick(_FALLBACK[level], mood(life)))
+            moment = _sick_moment(life, level) or _FALLBACK[level]
+            await _reply(message, bot.lines.pick(moment, mood(life)), picture)
             return
-        await _reply(message, link_track_drop(reply.text, track_drop))
+        await _reply(message, link_track_drop(reply.text, track_drop), picture)
         if level is Talk.EGG:
             return
         await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
@@ -495,9 +520,13 @@ async def _poke(interaction: discord.Interaction) -> None:
     name = player.name or user.display_name
     reaction = await _reaction(interaction, life, level, player, name, flavor, now)
     poked = "the egg" if level is Talk.EGG else "Wisp"
-    nap = nap_image(life.stage) if flavor is PokeFlavor.WOKE_UP else None
+    image = (
+        nap_image(life.stage)
+        if flavor is PokeFlavor.WOKE_UP
+        else sick_talk_image(life, talk.rng)
+    )
     await post_in_house(
-        bot, guild_id, f"♪ <@{user.id}> poked {poked}\n{reaction}", nap, ping=user.id
+        bot, guild_id, f"♪ <@{user.id}> poked {poked}\n{reaction}", image, ping=user.id
     )
     log.info(
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
@@ -564,6 +593,8 @@ async def _reaction(
         return link_track_drop(reply.text, track_drop)
     if level is Talk.EGG:
         return bot.lines.pick(Moment.EGG_POKE, mood(life))
+    if (sick := _sick_moment(life, level)) is not None:
+        return bot.lines.pick(sick, mood(life))
     return bot.lines.pick(Moment.POKED, mood(life), name=name)
 
 

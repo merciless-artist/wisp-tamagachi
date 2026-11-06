@@ -11,13 +11,16 @@ from wisp.rules import (
     BADGES,
     BOND_TIERS,
     CHORE_POINTS,
+    COLD_PICTURES,
     FAREWELL_AT_DAY,
     LIGHTS_WINDOW,
     MEAL_POINTS,
     NAP_FOR,
     OLD_FOGEY_AT_DAY,
+    POX_PICTURES,
     RHYME_SKILL,
     RHYME_SURE_TURNS,
+    SICK_PICTURES,
     SNACKS,
     STAGE_MIN_TIME,
     STAGE_RULES,
@@ -125,3 +128,15 @@ def test_the_badge_catalog() -> None:
 )
 def test_a_badge_no_longer_sold_still_has_a_readable_name(key: str, name: str) -> None:
     assert badge_name(key) == name
+
+
+@pytest.mark.parametrize("stage", list(Stage))
+def test_the_pox_pool_is_his_sick_picture_and_the_sneeze(stage: Stage) -> None:
+    expected = ("sneeze.gif",)
+    if stage in SICK_PICTURES:
+        expected = (SICK_PICTURES[stage], "sneeze.gif")
+    assert POX_PICTURES[stage] == expected
+
+
+def test_the_cold_pool_is_the_cold_picture_and_the_sneeze() -> None:
+    assert COLD_PICTURES == ("wispsick.gif", "sneeze.gif")
