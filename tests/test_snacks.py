@@ -20,6 +20,7 @@ from discord import app_commands
 import app
 from cogs import groups, snacks
 from cogs.conversation import PokeButton
+from cogs.menus import ClosedMenu, menu_id
 from cogs.rhyme_duel import PlayButton
 from cogs.snacks import (
     FeedButton,
@@ -1002,8 +1003,47 @@ async def test_feed_button_survives_restart(bot: app.WispBot) -> None:
     await snacks.setup(bot)
 
     bot.add_dynamic_items.assert_called_once_with(
-        FeedButton, PokeButton, ShopButton, SnackPackButton
+        FeedButton, PokeButton, ShopButton, SnackPackButton, ClosedMenu
     )
+
+
+async def open_feed_menu(interaction: MagicMock) -> None:
+    await FeedButton().callback(interaction)
+
+
+@pytest.mark.parametrize(
+    "opener", [vault_command, shop_button, snackpack_command, open_feed_menu]
+)
+async def test_every_private_menu_is_filed_under_its_message_and_never_times_out(
+    bot: app.WispBot, opener: Any
+) -> None:
+    await lay(bot)
+    interaction = make_interaction(bot)
+
+    await opener(interaction)
+
+    (sent,) = [
+        call
+        for call in interaction.followup.send.await_args_list
+        if "view" in call.kwargs
+    ]
+    assert sent.kwargs["wait"] is True
+    assert sent.kwargs["ephemeral"] is True
+    assert sent.kwargs["view"].timeout is None
+
+
+async def test_the_vaults_selects_carry_this_runs_token(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    life.sniffles_left = 60.0
+    await bot.lives.save(GUILD_ID, life)
+    interaction = make_interaction(bot)
+
+    await vault_command(interaction)
+
+    selects = layout_selects(interaction.followup.send.await_args.kwargs["view"])
+    assert [select.custom_id for select in selects] == [
+        menu_id(slot) for slot in ("snacks", "medicine", "collections")
+    ]
 
 
 async def test_pressing_feed_lists_inventory_and_the_free_sine(
@@ -2000,7 +2040,9 @@ async def test_a_failing_menu_is_reported_where_it_was_used(
     interaction = make_interaction(bot)
     bot.report_error = AsyncMock()  # type: ignore[method-assign]
     error = ValueError("boom")
-    menu = snacks.Menu("the snack menu", snacks.SnackSelect([], "Pick", AsyncMock()))
+    menu = snacks.Menu(
+        "the snack menu", snacks.SnackSelect([], "Pick", AsyncMock(), "feed")
+    )
 
     await menu.on_error(interaction, error, menu.children[0])
 

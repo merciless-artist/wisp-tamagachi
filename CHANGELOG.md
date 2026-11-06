@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-06 (Audit fixes)
+
+- Private menus never go quiet. The Vault, the snack menu and the Snack Pack
+  never time out, and every menu select carries this run's token in its
+  custom id (`wisp:menu:<run>:<slot>`). A press on a menu sent before a
+  restart gets `♪ This menu closed when Wisp restarted. Open it again from
+  the Status post.` from the new `ClosedMenu` dynamic item, which leaves this
+  run's menus to the menus themselves, so no press is answered twice.
+- Every private menu is a follow-up sent with `wait=True` (Vault, Shop the
+  Vault, Snack Pack, Feed Wisp, `/wisp board`), so discord.py files its view
+  under its own message, never under the key shared with the persistent
+  buttons, whose removal could unregister `wisp:vault` for everyone.
+- `/wisp lunchbox` used in a Studio thread answers privately instead of
+  posting between the cards.
+
 ## 2026-11-06 (The Status post is the control panel)
 
 - The live status card has six buttons, three to a row: Feed Wisp, Poke Wisp,

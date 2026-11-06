@@ -174,6 +174,7 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
         await render_leaderboard(bot, guild_id, now, private=True),
         view=vault_view(),
         allowed_mentions=_NO_PING,
+        wait=True,
     )
 
 

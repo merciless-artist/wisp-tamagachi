@@ -13,7 +13,7 @@ import aiohttp
 import discord
 
 from cogs.announce import display_name, say_in_mealtime
-from cogs.channels import may_post_in, where_of
+from cogs.channels import in_channel, may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
 from cogs.headers import send_headed
@@ -220,9 +220,10 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     acknowledged privately and the lunchbox posted as a message of its own, so
     a failure tells only the member; the private acknowledgement is then
     removed; failing to remove it is ignored, since the lunchbox is already
-    out. Asked for where Wisp never posts, such as the track drop, it goes to
-    his House instead and the member is told so privately; with no House it is
-    shown only to them.
+    out. Asked for in a Studio thread, which keeps to its own cards, it is
+    shown only to the member. Asked for where Wisp never posts, such as the
+    track drop, it goes to his House instead and the member is told so
+    privately; with no House it is shown only to them.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
@@ -230,6 +231,9 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     settings = await bot.settings.get(guild_id)
     text = await lunchbox_text(bot, guild_id)
     channel = where_of(interaction)
+    if in_channel(channel, settings.studio_forum_id):
+        await _send_privately(interaction, text)
+        return
     if channel is not None and may_post_in(channel, settings.tracks_channel_id):
         await send_headed(
             channel.send,

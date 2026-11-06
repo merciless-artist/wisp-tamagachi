@@ -653,6 +653,28 @@ async def test_a_channel_that_cannot_be_placed_counts_as_the_track_drop(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
 
 
+async def test_asked_for_in_a_studio_thread_it_is_shown_privately(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    interaction = make_interaction(bot, server)
+    interaction.channel = MagicMock(spec=discord.Thread)
+    interaction.channel.id = 98
+    interaction.channel.parent_id = FORUM_ID
+    interaction.channel.send = AsyncMock()
+
+    await open_lunchbox(bot, server, interaction)
+
+    interaction.channel.send.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+    header, call = interaction.followup.send.await_args_list
+    assert header.kwargs["ephemeral"] is True
+    assert header.kwargs["file"].filename == "lunchbox_title.png"
+    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    interaction.delete_original_response.assert_not_awaited()
+
+
 async def test_an_empty_lunchbox_says_none_yet(bot: app.WispBot) -> None:
     text = await lunchbox_text(bot, GUILD_ID)
 

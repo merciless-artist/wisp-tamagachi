@@ -45,6 +45,7 @@ from cogs.magazines import (
     magazines_owned,
     on_the_shelf,
 )
+from cogs.menus import ClosedMenu, menu_id
 from cogs.players import (
     EXPECTED_FAILURES,
     NOT_TAKING,
@@ -250,8 +251,11 @@ class SnackSelect(discord.ui.Select[Any]):
         options: list[discord.SelectOption],
         placeholder: str,
         on_choice: _SnackChoice,
+        slot: str,
     ) -> None:
-        super().__init__(placeholder=placeholder, options=options)
+        super().__init__(
+            placeholder=placeholder, options=options, custom_id=menu_id(slot)
+        )
         self._on_choice = on_choice
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -265,7 +269,11 @@ class CollectionSelect(discord.ui.Select[Any]):
     def __init__(
         self, options: list[discord.SelectOption], on_choice: _CollectionChoice
     ) -> None:
-        super().__init__(placeholder="Pick a collection", options=options)
+        super().__init__(
+            placeholder="Pick a collection",
+            options=options,
+            custom_id=menu_id("collections"),
+        )
         self._on_choice = on_choice
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -279,7 +287,9 @@ class GiftSelect(discord.ui.Select[Any]):
     def __init__(
         self, options: list[discord.SelectOption], on_choice: _GiftChoice
     ) -> None:
-        super().__init__(placeholder="Give Wisp a gift", options=options)
+        super().__init__(
+            placeholder="Give Wisp a gift", options=options, custom_id=menu_id("gifts")
+        )
         self._on_choice = on_choice
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -293,7 +303,9 @@ class BadgeSelect(discord.ui.Select[Any]):
     def __init__(
         self, options: list[discord.SelectOption], on_choice: _BadgeChoice
     ) -> None:
-        super().__init__(placeholder="Get a badge", options=options)
+        super().__init__(
+            placeholder="Get a badge", options=options, custom_id=menu_id("badges")
+        )
         self._on_choice = on_choice
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -307,7 +319,11 @@ class MagazineSelect(discord.ui.Select[Any]):
     def __init__(
         self, options: list[discord.SelectOption], on_choice: _MagazineChoice
     ) -> None:
-        super().__init__(placeholder="Get a magazine", options=options)
+        super().__init__(
+            placeholder="Get a magazine",
+            options=options,
+            custom_id=menu_id("magazines"),
+        )
         self._on_choice = on_choice
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -321,6 +337,7 @@ class MedicineSelect(discord.ui.Select[Any]):
     def __init__(self, bot: "WispBot") -> None:
         super().__init__(
             placeholder="Give Wisp medicine",
+            custom_id=menu_id("medicine"),
             options=[
                 discord.SelectOption(
                     label="Medicine",
@@ -337,10 +354,13 @@ class MedicineSelect(discord.ui.Select[Any]):
 
 
 class Menu(discord.ui.View):
-    """An ephemeral menu of selects; a failure is reported as `context`."""
+    """An ephemeral menu of selects; a failure is reported as `context`.
+
+    It never times out; see `cogs.menus` for a press after a restart.
+    """
 
     def __init__(self, context: str, *selects: discord.ui.Select[Any]) -> None:
-        super().__init__()
+        super().__init__(timeout=None)
         self._context = context
         for select in selects:
             self.add_item(select)
@@ -375,11 +395,12 @@ class VaultLayout(discord.ui.LayoutView):
     Each piece's lines are one text display, followed by an action row for each
     of its menus; a picture piece is a media gallery of its attached picture,
     left out when the picture is missing. A failure is reported as the ViiBR
-    Vault menu.
+    Vault menu. It never times out; see `cogs.menus` for a press after a
+    restart.
     """
 
     def __init__(self, pieces: Sequence[_VaultPiece]) -> None:
-        super().__init__()
+        super().__init__(timeout=None)
         for piece in pieces:
             if piece.picture is not None:
                 if (shown := gallery(piece.picture)) is not None:
@@ -529,7 +550,7 @@ async def _vault(
     collection_choices = collection_options(bot, gifts)
     gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
     menus = _VaultMenus(
-        snacks=SnackSelect(snack_options, "Buy a snack", _buy),
+        snacks=SnackSelect(snack_options, "Buy a snack", _buy, "snacks"),
         medicine=(
             MedicineSelect(bot) if life is not None and has_sniffles(life) else None
         ),
@@ -1019,7 +1040,12 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
 
 
 async def _open_vault(interaction: discord.Interaction) -> None:
-    """Show the Vault with its menus to buy from, only to the member."""
+    """Show the Vault with its menus to buy from, only to the member.
+
+    Every private menu is a follow-up sent with `wait`, so discord.py files
+    its view under the menu's own message id, never under the key it shares
+    with the persistent buttons.
+    """
     if not await _admit(interaction):
         return
     vault = await _vault(
@@ -1030,6 +1056,7 @@ async def _open_vault(interaction: discord.Interaction) -> None:
         files=gallery_files(_VAULT_HEADER, FOOTER),
         ephemeral=True,
         allowed_mentions=_NO_PING,
+        wait=True,
     )
 
 
@@ -1037,7 +1064,7 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
     """Show the member's own snacks and keepsakes, with a button to the shop."""
     if not await _admit(interaction):
         return
-    view = discord.ui.View()
+    view = discord.ui.View(timeout=None)
     view.add_item(ShopButton())
     await send_headed(
         functools.partial(interaction.followup.send, ephemeral=True),
@@ -1047,6 +1074,7 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
         ),
         view=view,
         allowed_mentions=_NO_PING,
+        wait=True,
     )
 
 
@@ -1282,7 +1310,7 @@ async def _feed_menu(bot: "WispBot", guild_id: int, user_id: int) -> Menu | None
         options.insert(0, free)
     if not options:
         return None
-    return Menu("the snack menu", SnackSelect(options, "Pick a snack", _feed))
+    return Menu("the snack menu", SnackSelect(options, "Pick a snack", _feed, "feed"))
 
 
 async def _offer_snacks(interaction: discord.Interaction) -> None:
@@ -1300,6 +1328,7 @@ async def _offer_snacks(interaction: discord.Interaction) -> None:
         view=menu,
         ephemeral=True,
         allowed_mentions=_NO_PING,
+        wait=True,
     )
 
 
@@ -1338,5 +1367,10 @@ class FeedButton(
 
 
 async def setup(bot: "WispBot") -> None:
-    """Register the persistent buttons so they still work after a restart."""
-    bot.add_dynamic_items(FeedButton, PokeButton, ShopButton, SnackPackButton)
+    """Register the persistent buttons so they still work after a restart.
+
+    `ClosedMenu` answers a press on a menu sent before the restart.
+    """
+    bot.add_dynamic_items(
+        FeedButton, PokeButton, ShopButton, SnackPackButton, ClosedMenu
+    )
