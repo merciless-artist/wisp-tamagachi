@@ -153,6 +153,7 @@ panel show his sick picture meanwhile.
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
   Manage Messages, to delete chat typed in the Status and ViiBR Vault posts.
+  Add Reactions, to react on a track post that fed him.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
   role must sit above the badge roles.
 - Upload the app emojis listed under Assets.

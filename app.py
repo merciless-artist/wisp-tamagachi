@@ -305,15 +305,18 @@ class WispBot(commands.Bot):
                     finally:
                         await self.db.close()
 
-    def emoji(self, name: str) -> str:
-        """Return an application emoji's text, or "" if it has not been uploaded."""
+    def app_emoji(self, name: str) -> discord.Emoji | None:
+        """Return an application emoji, or None if it has not been uploaded."""
         found = self.emojis_by_name.get(name)
-        if found is not None:
-            return str(found)
-        if name not in self._missing_emojis:
+        if found is None and name not in self._missing_emojis:
             self._missing_emojis.add(name)
             log.warning("Application emoji %r has not been uploaded", name)
-        return ""
+        return found
+
+    def emoji(self, name: str) -> str:
+        """Return an application emoji's text, or "" if it has not been uploaded."""
+        found = self.app_emoji(name)
+        return "" if found is None else str(found)
 
     def guild_lock(self, guild_id: int) -> asyncio.Lock:
         """Return the lock that serialises life updates for one guild."""

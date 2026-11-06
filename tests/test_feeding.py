@@ -230,8 +230,8 @@ async def current_life(bot: app.WispBot) -> Life:
     return life
 
 
-async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
-    """Nothing was fed, recorded or posted."""
+async def assert_nothing_fed(bot: app.WispBot) -> None:
+    """Nothing was fed or recorded."""
     life = await current_life(bot)
     assert life.health == 50.0
     assert life.egg_food == 0
@@ -239,8 +239,34 @@ async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
     assert (player.lifetime_points, player.bond) == (0, 0)
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
+
+
+async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
+    """Nothing was fed, recorded or posted."""
+    await assert_nothing_fed(bot)
     server.mealtime.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
+
+
+def assert_refused(server: FakeServer, *reason: str, user_id: int = FIRST_USER) -> None:
+    """One House post named the member without pinging and gave the reason."""
+    server.house.send.assert_awaited_once()
+    (text,) = server.house.send.await_args.args
+    assert text.startswith(f"♪ <@{user_id}> ")
+    for part in reason:
+        assert part in text
+    assert sends_without_pinging(server.house.send.await_args.kwargs)
+    server.mealtime.send.assert_not_awaited()
+
+
+def assert_refused_after_feed(server: FakeServer, *reason: str) -> None:
+    """An earlier track was forwarded; the later one got one House reason."""
+    server.house.send.assert_awaited_once()
+    (text,) = server.house.send.await_args.args
+    assert text.startswith(f"♪ <@{FIRST_USER}> ")
+    for part in reason:
+        assert part in text
+    assert sends_without_pinging(server.house.send.await_args.kwargs)
 
 
 # ---
@@ -462,7 +488,7 @@ async def test_the_food_command_joins_the_bot_with_the_feeding_cog(
     assert isinstance(bot.get_cog("Feeding"), Feeding)
 
 
-async def test_unqualified_role_is_silent(
+async def test_no_feeder_role_gets_a_reason(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -471,10 +497,11 @@ async def test_unqualified_role_is_silent(
 ) -> None:
     await cog.on_message(message(VIIBR_URL, author=make_member(role_id=OTHER_ROLE)))
 
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "role that can feed")
 
 
-async def test_no_roles_configured_is_silent(
+async def test_no_roles_configured_gets_the_feeder_role_reason(
     cog: Feeding, bot: app.WispBot, server: FakeServer, message: MessageFactory
 ) -> None:
     await configure(bot, roles=())
@@ -483,10 +510,11 @@ async def test_no_roles_configured_is_silent(
 
     await cog.on_message(message(VIIBR_URL))
 
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "role that can feed")
 
 
-async def test_not_activated_is_silent(
+async def test_not_activated_gets_a_reason(
     cog: Feeding, bot: app.WispBot, server: FakeServer, message: MessageFactory
 ) -> None:
     await configure(bot)
@@ -494,11 +522,12 @@ async def test_not_activated_is_silent(
 
     await cog.on_message(message(VIIBR_URL))
 
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "/wisp board")
 
 
 @pytest.mark.parametrize("offense", ["forever", "future"])
-async def test_banned_is_silent(
+async def test_banned_gets_a_reason(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -517,7 +546,8 @@ async def test_banned_is_silent(
 
     await cog.on_message(message(VIIBR_URL))
 
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "banned")
 
 
 async def test_ban_landing_after_the_first_check_stops_the_feed(
@@ -544,7 +574,8 @@ async def test_ban_landing_after_the_first_check_stops_the_feed(
     await cog.on_message(message(VIIBR_URL))
 
     monkeypatch.setattr(bot.players, "get", read_player)
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "banned")
 
 
 async def test_expired_ban_feeds_again(
@@ -562,7 +593,7 @@ async def test_expired_ban_feeds_again(
     assert (await current_life(bot)).health == 55.0
 
 
-async def test_duplicate_track_is_silent(
+async def test_duplicate_track_gets_a_reason(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -576,6 +607,7 @@ async def test_duplicate_track_is_silent(
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (5, 10)
     server.mealtime.send.assert_awaited_once()
+    assert_refused_after_feed(server, "already fed")
 
 
 # ---
@@ -633,10 +665,10 @@ async def test_a_share_link_feeds_wisp_once_as_its_song(
     (forwarded,) = server.mealtime.send.await_args.args
     assert SHARE_URL in forwarded
     assert VIIBR_URL not in forwarded
-    server.house.send.assert_not_awaited()
+    assert_refused_after_feed(server, "already fed")
 
 
-async def test_a_share_link_for_no_song_is_silent(
+async def test_a_share_link_for_no_song_gets_a_reason(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -647,7 +679,8 @@ async def test_a_share_link_for_no_song_is_silent(
     await cog.on_message(message("https://viibrmusic.com/s/zzzzzzzz"))
 
     assert viibr_site == ["/s/zzzzzzzz"]
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert_refused(server, "share link", "no song")
 
 
 async def test_a_share_link_is_not_checked_for_a_member_who_cannot_feed(
@@ -662,7 +695,8 @@ async def test_a_share_link_is_not_checked_for_a_member_who_cannot_feed(
     await cog.on_message(message(SHARE_URL, channel=make_channel(TRACKS_ID + 1)))
 
     assert viibr_site == []
-    await assert_untouched(bot, server)
+    await assert_nothing_fed(bot)
+    assert server.house.send.await_count == 1
 
 
 async def test_a_share_link_is_resolved_outside_the_guild_lock(
@@ -718,7 +752,7 @@ async def test_an_unreachable_viibr_site_is_reported_in_the_house_and_not_fed(
     assert (player.lifetime_points, player.bond) == (0, 0)
 
 
-async def test_daily_cap_clamps_then_silences(
+async def test_daily_cap_clamps_then_gives_the_limit_reason(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -740,6 +774,7 @@ async def test_daily_cap_clamps_then_silences(
     assert player.lifetime_points == 3
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 15
     server.mealtime.send.assert_awaited_once()
+    assert_refused_after_feed(server, "daily", "15 of 15")
 
 
 async def test_the_meal_cap_doubles_while_sick(
@@ -775,6 +810,7 @@ async def test_the_meal_cap_doubles_while_sick(
     cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == cap
     assert server.mealtime.send.await_count == 3
+    assert_refused_after_feed(server, "daily", "30 of 30")
 
 
 async def test_one_feed_per_message(
@@ -872,7 +908,7 @@ async def test_egg_feed_that_completes_starts_hatching_event(
     server.mealtime.send.assert_awaited_once()
 
 
-async def test_no_life_is_ignored_and_key_not_recorded(
+async def test_no_life_gets_a_reason_and_the_key_is_not_recorded(
     cog: Feeding,
     bot: app.WispBot,
     server: FakeServer,
@@ -883,7 +919,7 @@ async def test_no_life_is_ignored_and_key_not_recorded(
 
     await cog.on_message(message(VIIBR_URL))
 
-    server.mealtime.send.assert_not_awaited()
+    assert_refused(server, "no living Wisp")
     life = await start_life(bot)
     assert life.id is not None
     track = Track(TrackKind.VIIBR, VIIBR_URL.rsplit("/", 1)[1], VIIBR_URL)
@@ -937,7 +973,7 @@ async def test_chat_without_a_track_reads_no_settings(
     get.assert_not_awaited()
 
 
-async def test_finished_life_is_not_fed(
+async def test_finished_life_gets_the_no_wisp_reason(
     cog: Feeding, bot: app.WispBot, server: FakeServer, message: MessageFactory
 ) -> None:
     await configure(bot)
@@ -946,7 +982,7 @@ async def test_finished_life_is_not_fed(
 
     await cog.on_message(message(VIIBR_URL))
 
-    server.mealtime.send.assert_not_awaited()
+    assert_refused(server, "no living Wisp")
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
 
@@ -1284,3 +1320,147 @@ async def test_no_events_posts_nothing(
     await post_events(bot, GUILD_ID, [])
 
     server.house.send.assert_not_awaited()
+
+
+# ---
+# Receipts in the track drop
+# ---
+
+
+def upload_happy_emoji(bot: app.WispBot) -> MagicMock:
+    emoji = MagicMock(spec=discord.Emoji)
+    emoji.name = rules.FED_REACTION
+    bot.emojis_by_name = {rules.FED_REACTION: emoji}
+    return emoji
+
+
+async def test_a_fed_track_gets_wisps_reaction(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    emoji = upload_happy_emoji(bot)
+    post = message(VIIBR_URL)
+
+    await cog.on_message(post)
+
+    post.add_reaction.assert_awaited_once_with(emoji)
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_fed_track_gets_no_reaction_when_the_emoji_is_not_uploaded(
+    cog: Feeding,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    post = message(VIIBR_URL)
+
+    await cog.on_message(post)
+
+    post.add_reaction.assert_not_awaited()
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_refused_track_gets_no_reaction(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    upload_happy_emoji(bot)
+    await cog.on_message(message(VIIBR_URL))
+    repeat = message(VIIBR_URL)
+
+    await cog.on_message(repeat)
+
+    repeat.add_reaction.assert_not_awaited()
+    assert_refused_after_feed(server, "already fed")
+
+
+async def test_a_failed_reaction_is_reported_in_the_house_and_keeps_the_feed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    upload_happy_emoji(bot)
+    post = message(VIIBR_URL)
+    post.add_reaction.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await cog.on_message(post)
+
+    assert (await current_life(bot)).health == 55.0
+    server.mealtime.send.assert_awaited_once()
+    server.house.send.assert_awaited_once()
+    (text,) = server.house.send.await_args.args
+    assert text.startswith("Error in reacting to a fed track: Forbidden")
+
+
+async def test_each_reason_names_the_member_without_pinging(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    other = make_member(SECOND_USER, role_id=OTHER_ROLE)
+
+    await cog.on_message(message(VIIBR_URL, author=other))
+
+    assert_refused(server, "role that can feed", user_id=SECOND_USER)
+
+
+async def test_a_staff_command_in_the_track_drop_is_left_alone(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await cog.on_message(message(f"!wisp food 5 1 {VIIBR_URL}"))
+    await cog.on_message(message(f"!WISP {SUNO_URL}"))
+
+    await assert_untouched(bot, server)
+    track = Track(TrackKind.VIIBR, VIIBR_URL.rsplit("/", 1)[1], VIIBR_URL)
+    assert ready.id is not None
+    assert await bot.activity_log.record_feed(
+        GUILD_ID, ready.id, FIRST_USER, track, 5, 1, discord.utils.utcnow()
+    )
+
+
+async def test_a_plain_message_in_the_track_drop_gets_nothing(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    upload_happy_emoji(bot)
+    post = message("this one is on repeat all day")
+
+    await cog.on_message(post)
+
+    await assert_untouched(bot, server)
+    post.add_reaction.assert_not_awaited()
+
+
+async def test_a_track_staff_made_worth_nothing_gets_a_reason(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await bot.settings.update(GUILD_ID, viibr_meal_points=0)
+
+    await cog.on_message(message(VIIBR_URL))
+
+    await assert_nothing_fed(bot)
+    assert_refused(server, "0 meal points")
