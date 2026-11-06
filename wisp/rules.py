@@ -102,10 +102,11 @@ MOOD_PENALTY = 10.0
 # ---
 
 # Once per life he catches Monster Pox, due a random time between COLD_EARLIEST
-# and COLD_LATEST after hatching. Adult takes at least 9 days (three stages of
-# STAGE_MIN_TIME), so it comes and goes first.
+# and COLD_LATEST after hatching. Baby and Child each take at least
+# STAGE_MIN_TIME (3 days), so a Teen cannot arrive before day 6: day 5 at the
+# latest is always while he is still a Baby or Child.
 COLD_EARLIEST = timedelta(days=1)
-COLD_LATEST = timedelta(days=7)
+COLD_LATEST = timedelta(days=5)
 # Credited time he stays sick.
 SICK_FOR = timedelta(hours=48)
 # While sick the Health penalty is SICK_DRAIN_MULTIPLIER times as big but never

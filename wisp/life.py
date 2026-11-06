@@ -54,7 +54,7 @@ _NEXT_STAGE = {
     Stage.CHILD: Stage.TEEN,
     Stage.TEEN: Stage.ADULT,
 }
-_COLD_STAGES = frozenset({Stage.BABY, Stage.CHILD, Stage.TEEN})
+_COLD_STAGES = frozenset({Stage.BABY, Stage.CHILD})
 
 # ---
 # Types
@@ -329,7 +329,7 @@ def _feed_egg(
 def schedule_cold(life: Life, rng: random.Random) -> None:
     """Roll when a young Wisp's one cold is due, if it is not rolled yet.
 
-    Only a living Baby, Child or Teen who has not had his cold gets one, due
+    Only a living Baby or Child who has not had his cold gets one, due
     between COLD_EARLIEST and COLD_LATEST after he hatched. A due time already
     past starts the cold on his next tick.
     """

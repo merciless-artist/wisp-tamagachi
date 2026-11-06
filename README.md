@@ -102,8 +102,8 @@ while he is an egg, and the buttons keep working after a restart.
   he is frozen or the bot is down is skipped without a penalty.
 
 **Monster Pox**, his childhood sickness (`is_sick` and the `SICK_*` rules in
-the code), comes once per life, at a random time between day 1 and day 7
-while he is a Baby, Child or Teen, so every Wisp who grows up has had it. He
+the code), comes once per life, at a random time between day 1 and day 5
+while he is a Baby or Child, so every Wisp who grows up has had it. He
 is spotty, itchy and feverish. It lasts 48 hours (it carries on if he grows a
 stage). While sick the Health penalty is 1.5 times as big, but Health never
 drops below 1, so he cannot die of it; he can still be hangry and fading. Each

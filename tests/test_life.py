@@ -882,14 +882,46 @@ def sick(health: float) -> Life:
 @pytest.mark.parametrize(
     ("high", "after"), [(False, COLD_EARLIEST), (True, COLD_LATEST)]
 )
-def test_schedule_cold_lands_between_day_one_and_seven(
+def test_schedule_cold_lands_between_day_one_and_five(
     high: bool, after: timedelta
 ) -> None:
     life = alive(at=T0 - timedelta(days=2))
     schedule_cold(life, EdgeRng(high=high))
     assert life.cold_due_at == T0 - timedelta(days=2) + after
-    assert (COLD_EARLIEST, COLD_LATEST) == (timedelta(days=1), timedelta(days=7))
+    assert (COLD_EARLIEST, COLD_LATEST) == (timedelta(days=1), timedelta(days=5))
     assert COLD_LATEST + SICK_FOR <= 3 * STAGE_MIN_TIME
+    assert COLD_LATEST < 2 * STAGE_MIN_TIME
+
+
+def test_a_teen_who_has_not_had_the_pox_never_gets_a_due_time() -> None:
+    life = alive(stage=Stage.TEEN, at=T0 - timedelta(days=6))
+    schedule_cold(life, random.Random(3))
+    assert life.cold_due_at is None
+    assert not life.had_cold
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_a_babys_due_time_is_one_to_five_days_after_hatching(seed: int) -> None:
+    life = alive(stage=Stage.BABY)
+    schedule_cold(life, random.Random(seed))
+    assert life.cold_due_at is not None
+    assert T0 + timedelta(days=1) <= life.cold_due_at <= T0 + timedelta(days=5)
+
+
+def test_a_childs_running_pox_carries_into_teen() -> None:
+    by_day = timedelta(days=STAGE_RULES[Stage.TEEN].by_day)
+    life = alive(
+        health=HEALTH_MAX,
+        at=T0 - by_day,
+        stage=Stage.CHILD,
+        stage_started_at=T0,
+        had_cold=True,
+        cold_left=SICK_FOR.total_seconds(),
+    )
+    events = tick(life, T0, frozen=False, caretakers=0, people=9)
+    assert events == [Event(EventKind.STAGE_UP, Stage.TEEN)]
+    assert life.stage is Stage.TEEN
+    assert is_sick(life)
 
 
 def test_a_legacy_child_gets_a_cold_scheduled() -> None:
