@@ -32,6 +32,7 @@ from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
@@ -164,6 +165,7 @@ def bot(
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.notes = NoteRepo(db)
+    wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     wisp_bot.owner_id = OWNER_ID
     monkeypatch.setattr(app.WispBot, "user", WISP)

@@ -4,7 +4,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 
 from db.database import Database, Params, Row, from_db_time, to_db_time
-from wisp.bond import PickleStance
+from wisp.bond import PickleStance, reached_new_tier
 
 
 @dataclass
@@ -53,6 +53,7 @@ class PlayerRepo:
 
     def __init__(self, db: Database) -> None:
         self._db = db
+        self._tier_ups: dict[int, list[int]] = {}
 
     async def get(self, guild_id: int, user_id: int) -> Player:
         """Return a player, creating the defaults on first read."""
@@ -98,8 +99,18 @@ class PlayerRepo:
         await self._update(guild_id, user_id, "balance = balance + %s", (amount,))
 
     async def add_bond(self, guild_id: int, user_id: int, amount: int) -> None:
-        """Add to the player's bond with Wisp."""
+        """Add to the player's bond with Wisp, noting a rise to a new tier."""
+        before = (await self.get(guild_id, user_id)).bond
         await self._update(guild_id, user_id, "bond = bond + %s", (amount,))
+        if reached_new_tier(before, before + amount):
+            self._tier_ups.setdefault(guild_id, []).append(user_id)
+
+    def take_tier_ups(self, guild_id: int) -> list[int]:
+        """The members whose bond reached a new tier since the last call.
+
+        They are in the order it happened, and are forgotten once taken.
+        """
+        return self._tier_ups.pop(guild_id, [])
 
     async def set_name(self, guild_id: int, user_id: int, name: str | None) -> None:
         """Set the name Wisp calls the player; None clears it."""

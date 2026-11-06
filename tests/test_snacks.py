@@ -30,6 +30,7 @@ from cogs.snacks import (
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -129,6 +130,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
@@ -513,6 +515,7 @@ async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
     assert head == [
         f"║𝄡𝄚𝄂 <@{USER_ID}> snack pack",
         f"║𝄡𝄚𝄂・{emoji_text('wisp_coin_mini', 1)} 12 WC (wisp coins)",
+        "║𝄡𝄚𝄂 Drawings from Wisp: 0",
     ]
     assert snack_lines == [
         "║𝄡𝄚𝄂𝄆 **Snacks**",
@@ -633,11 +636,29 @@ async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
 
     text = interaction.followup.send.await_args.args[0]
     head, snack_lines, keepsakes, badges = pack_sections(text)
-    assert head == [f"║𝄡𝄚𝄂 <@{USER_ID}> snack pack", "║𝄡𝄚𝄂・0 WC (wisp coins)"]
+    assert head == [
+        f"║𝄡𝄚𝄂 <@{USER_ID}> snack pack",
+        "║𝄡𝄚𝄂・0 WC (wisp coins)",
+        "║𝄡𝄚𝄂 Drawings from Wisp: 0",
+    ]
     assert snack_lines == ["║𝄡𝄚𝄂𝄆 **Snacks**", "║𝄡 nothing saved yet"]
     assert keepsakes == ["║𝄡𝄚𝄂𝄆 **Keepsakes**", "║𝄡 none yet"]
     assert badges == ["║𝄡𝄚𝄂𝄆 **Badges**", "║𝄡 none yet"]
     assert "free today" not in text
+
+
+async def test_snack_pack_counts_the_drawings_wisp_made_for_the_member(
+    bot: app.WispBot,
+) -> None:
+    now = discord.utils.utcnow()
+    await bot.drawings.record(GUILD_ID, USER_ID, 1, "gift", 11, now)
+    await bot.drawings.record(GUILD_ID, USER_ID, 1, "like", 12, now - timedelta(days=3))
+    await bot.drawings.record(GUILD_ID, OTHER_USER_ID, 1, "like", 13, now)
+
+    interaction = await open_my_snack_pack(bot)
+
+    head = pack_sections(interaction.followup.send.await_args.args[0])[0]
+    assert head[2] == "║𝄡𝄚𝄂 Drawings from Wisp: 2"
 
 
 async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:

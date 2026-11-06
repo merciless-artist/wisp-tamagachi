@@ -845,6 +845,48 @@ async def test_close_closes_the_ai_and_share_link_sessions_before_the_database(
     assert calls == ["client", "ai", "share links", "db"]
 
 
+async def test_close_closes_the_picture_worker_session(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    async def close_images() -> None:
+        calls.append("images")
+
+    async def close_share_links() -> None:
+        calls.append("share links")
+
+    monkeypatch.setattr(bot.images, "close", close_images)
+    monkeypatch.setattr(bot.share_links, "close", close_share_links)
+    monkeypatch.setattr(bot.db, "close", AsyncMock())
+    monkeypatch.setattr(commands.Bot, "close", AsyncMock())
+
+    await bot.close()
+
+    assert calls == ["images", "share links"]
+
+
+async def test_close_closes_the_rest_even_if_the_picture_worker_session_fails(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    close_share_links = AsyncMock()
+    close_db = AsyncMock()
+
+    async def failing_close() -> None:
+        raise RuntimeError("images close failed")
+
+    monkeypatch.setattr(bot.images, "close", failing_close)
+    monkeypatch.setattr(bot.share_links, "close", close_share_links)
+    monkeypatch.setattr(bot.db, "close", close_db)
+    monkeypatch.setattr(commands.Bot, "close", AsyncMock())
+
+    with pytest.raises(RuntimeError, match="images close failed"):
+        await bot.close()
+
+    close_share_links.assert_awaited_once()
+    close_db.assert_awaited_once()
+
+
 async def test_close_closes_the_rest_even_if_the_share_link_session_fails(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:

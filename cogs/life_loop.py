@@ -28,6 +28,7 @@ from cogs.assets import nap_image
 from cogs.badges import sweep_badges
 from cogs.channels import where_of
 from cogs.chores import post_chores
+from cogs.drawings import DailyDrawings
 from cogs.groups import require_guild
 from cogs.pictures import life_image
 from cogs.players import (
@@ -182,6 +183,7 @@ class LifeLoop(commands.Cog):
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot
         self.rng = random.Random()
+        self.drawings = DailyDrawings(bot, self.rng)
         self._quiet_announced: set[int] = set()
 
     async def cog_load(self) -> None:
@@ -257,6 +259,7 @@ class LifeLoop(commands.Cog):
         await refresh_vault(bot, guild_id)
         if not is_over(current):
             await pick_favorite_song(bot, guild, current, self.rng, now)
+        await self.drawings.run(guild_id, now)
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool

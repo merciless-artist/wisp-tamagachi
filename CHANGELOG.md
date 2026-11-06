@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-06 (Wisp makes pictures for people)
+
+- Wisp draws members pictures as presents. Nobody asks for one and there is no
+  command. He makes one when a member gives him a gift he loves, when a
+  member's bond reaches a new tier, for the member who fed the most tracks the
+  day before (at the first tick of the UTC day), and, once a UTC day at a
+  random time, for a member who fed him, chatted with him or played with him in
+  the last 24 hours ("I like you").
+- At most 1 per member and 6 per server each UTC day
+  (`DRAWINGS_PER_MEMBER_PER_DAY`, `DRAWINGS_PER_DAY`). Only while he is alive
+  and not frozen, for members who can feed him and are not banned.
+- His AI writes the picture prompt from why he is making it, the member's name,
+  what he remembers about them, his stage and his mood. The prompt always ends
+  with a fixed style: a hand-drawn crayon doodle with no words or letters.
+  `CF_IMAGE_WORKER_URL` is the Cloudflare worker that draws it
+  (`tools/cloudflare_wispimages_worker.js`, now tracked).
+- He posts it in the House with a line to the member (pinging them) and the
+  picture as `wisp_drawing.jpg`. A failed try is posted as
+  `Error in making a drawing for <name>: ...` and not recorded, so the next
+  trigger can try again.
+- New `drawings` table (additive). The caps read it, so a restart keeps them.
+  The Snack Pack gets a "Drawings from Wisp" line with the member's count.
+- The AI chain, the vision model and the picture client now share one session
+  helper (`ai/session.py`).
+
 ## 2026-11-06 (The Vault post becomes the Leaderboard)
 
 - The Studio thread kept in `vault_thread_id` is now `🏆 | Leaderboard`.

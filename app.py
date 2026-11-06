@@ -13,6 +13,7 @@ from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
+from ai.images import images_from_config
 from ai.vision import vision_from_config
 from cogs.channels import in_channel, may_post_in, where_of
 from cogs.groups import wisp, wispadmin
@@ -30,6 +31,7 @@ from cogs.staff import (
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
@@ -187,8 +189,10 @@ class WispBot(commands.Bot):
         self.gifts = GiftRepo(self.db)
         self.badges = BadgeRepo(self.db)
         self.magazines = MagazineRepo(self.db)
+        self.drawings = DrawingRepo(self.db)
         self.ai = chain_from_config()
         self.vision = vision_from_config()
+        self.images = images_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
         self.talk = HouseTalk()
@@ -199,6 +203,7 @@ class WispBot(commands.Bot):
         self.shown_images: dict[tuple[int, str], tuple[int, str]] = {}
         self.rhyme_duels: set[tuple[int, int]] = set()
         self._guild_locks: dict[int, asyncio.Lock] = {}
+        self._drawing_locks: dict[int, asyncio.Lock] = {}
         self._startup_reports: list[tuple[str, str]] = []
 
     async def setup_hook(self) -> None:
@@ -302,9 +307,12 @@ class WispBot(commands.Bot):
                     await self.vision.close()
                 finally:
                     try:
-                        await self.share_links.close()
+                        await self.images.close()
                     finally:
-                        await self.db.close()
+                        try:
+                            await self.share_links.close()
+                        finally:
+                            await self.db.close()
 
     def app_emoji(self, name: str) -> discord.Emoji | None:
         """Return an application emoji, or None if it has not been uploaded."""
@@ -322,6 +330,14 @@ class WispBot(commands.Bot):
     def guild_lock(self, guild_id: int) -> asyncio.Lock:
         """Return the lock that serialises life updates for one guild."""
         return self._guild_locks.setdefault(guild_id, asyncio.Lock())
+
+    def drawing_lock(self, guild_id: int) -> asyncio.Lock:
+        """Return the lock that lets one drawing at a time be made for a guild.
+
+        It is not the guild lock: a drawing waits for the image worker, and
+        feeding must not wait for it.
+        """
+        return self._drawing_locks.setdefault(guild_id, asyncio.Lock())
 
     async def house_channel(
         self, guild: discord.Guild | None

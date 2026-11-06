@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from random import choice
 from typing import TYPE_CHECKING, Any, Final
@@ -117,6 +118,21 @@ def keepsake_image(kind: KeepsakeKind) -> Path | None:
 # ---
 
 
+@dataclass(frozen=True)
+class Upload:
+    """A picture made in memory, sent under `filename`."""
+
+    data: bytes
+    filename: str
+
+
+def _open_art(image: Path | Upload) -> discord.File:
+    """The file to send for a picture on disk or one made in memory."""
+    if isinstance(image, Upload):
+        return discord.File(BytesIO(image.data), filename=image.filename)
+    return discord.File(image)
+
+
 class _House:
     """Wisp's House channel, resolved once so a missing one is reported once."""
 
@@ -145,7 +161,7 @@ class _House:
     async def say(
         self,
         text: str,
-        image: Path | None = None,
+        image: Path | Upload | None = None,
         view: discord.ui.View | None = None,
         ping: int | None = None,
     ) -> discord.Message | None:
@@ -157,7 +173,7 @@ class _House:
         if self._channel is None:
             return None
         extras: dict[str, Any] = {}
-        art = None if image is None else discord.File(image)
+        art = None if image is None else _open_art(image)
         if art is not None:
             extras["file"] = art
         if view is not None:
@@ -277,7 +293,7 @@ async def post_in_house(
     bot: "WispBot",
     guild_id: int,
     text: str,
-    image: Path | None = None,
+    image: Path | Upload | None = None,
     view: discord.ui.View | None = None,
     ping: int | None = None,
 ) -> discord.Message | None:

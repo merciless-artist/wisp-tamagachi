@@ -22,6 +22,7 @@ from wisp.rules import (
     EGG_WARMTH,
     GIFT_BY_KEY,
     HATCHING_TIME,
+    IMAGE_PROMPT_MAX_CHARS,
     POKE_CURIOUS_WEIGHT,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
@@ -980,6 +981,90 @@ def goodbye_prompt(version: int, name: str, notes: Sequence[str]) -> Prompt:
     if notes:
         user.append(_memories(name, notes))
     return Prompt(system, "\n\n".join(user))
+
+
+# ---
+# Drawings
+# ---
+
+
+class DrawReason(StrEnum):
+    """Why Wisp makes a member a drawing."""
+
+    GIFT = "gift"
+    BOND = "bond"
+    TOP_FEEDER = "top_feeder"
+    LIKE = "like"
+
+
+_DRAWING_WHY: Final = {
+    DrawReason.GIFT: "{name} gave you a gift you love and you want to say thank you.",
+    DrawReason.BOND: "your bond with {name} grew and you're closer friends now.",
+    DrawReason.TOP_FEEDER: "{name} fed you more tracks than anybody else yesterday.",
+    DrawReason.LIKE: "you like {name} and want to make them something, for no reason.",
+}
+_DRAWING_FEELINGS: Final = {
+    Mood.HAPPY: "happy",
+    Mood.HANGRY: "hangry and a little grumpy",
+    Mood.LONELY: "lonely and wishing for company",
+}
+_DRAWING_SYSTEM: Final = (
+    "You write the prompt for an image model. The picture is a drawing that "
+    "Wisp, the little fire sprite mascot of the ViiBR Discord server, made by "
+    "hand for one of its members.\n"
+    "How to write it:\n"
+    "- Reply with the prompt only: one plain paragraph under "
+    f"{IMAGE_PROMPT_MAX_CHARS} characters, with no quotes, no label and no "
+    "explanation.\n"
+    "- Describe one simple scene a child could draw in crayon: what is in it, "
+    "its colors and its mood. Wisp can be in it: a small dark purple fire "
+    "sprite with flaming orange hair and headphones.\n"
+    "- It is always a hand-drawn crayon doodle. Never ask for anything else.\n"
+    "- No words, no letters, no text, no numbers and no names anywhere in the "
+    "picture. Never ask for any, not even on signs, shirts or speech bubbles.\n"
+    "- Make it personal to the member from what you know about them. Nothing "
+    "mean, scary or grown-up."
+)
+_PICTURE_STYLE: Final = (
+    "A hand-drawn crayon doodle in a childlike scribbly style, bright waxy "
+    "colors on paper. No words, no letters, no text anywhere in the picture."
+)
+
+
+def drawing_prompt(
+    reason: DrawReason,
+    name: str,
+    notes: Sequence[str],
+    stage: Stage,
+    feeling: Mood,
+) -> Prompt:
+    """The prompt that has Wisp's AI write the picture prompt for a drawing.
+
+    It gets why he is making it, the member's name, what he remembers about
+    them, his stage and how he feels.
+    """
+    user = [
+        "Why you're making it: " + _DRAWING_WHY[reason].format(name=name),
+        f"The member is called {name}. Don't write their name in the picture.",
+        f"You're a {stage.label} right now and feeling {_DRAWING_FEELINGS[feeling]}.",
+    ]
+    if notes:
+        user.append(_memories(name, notes))
+    user.append("Write the image prompt now.")
+    return Prompt(_DRAWING_SYSTEM, "\n\n".join(user))
+
+
+def picture_prompt(scene: str) -> str:
+    """The image prompt for a scene the AI wrote.
+
+    The scene's whitespace is tidied and it is cut at a word to leave room for
+    the style, which is always added last: a crayon doodle with no words in it.
+    """
+    words = " ".join(scene.split())
+    room = IMAGE_PROMPT_MAX_CHARS - len(_PICTURE_STYLE) - 1
+    if len(words) > room:
+        words = words[:room].rsplit(" ", 1)[0]
+    return f"{words} {_PICTURE_STYLE}"
 
 
 # ---

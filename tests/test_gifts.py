@@ -22,6 +22,7 @@ from cogs.wisp_lunchbox import lunchbox_text
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.gifts import GiftAttempt, GiftRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
@@ -46,6 +47,7 @@ from wisp.text import (
     wrap,
     wrapped,
 )
+from wisp.voice import DrawReason
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -122,11 +124,19 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
+
+
+@pytest.fixture(autouse=True)
+def drawing(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    made = AsyncMock()
+    monkeypatch.setattr(snacks, "draw_for", made)
+    return made
 
 
 @pytest.fixture(autouse=True)
@@ -864,6 +874,39 @@ async def test_giving_lets_wisp_meet_the_member(
     await give(bot, "alien_blue")
 
     meeting.assert_awaited_once_with(bot, GUILD_ID, USER_ID, display_name="Member1")
+
+
+async def test_a_kept_gift_has_wisp_draw_the_giver_a_picture(
+    bot: app.WispBot, drawing: AsyncMock
+) -> None:
+    await lay(bot)
+
+    interaction = await give(bot, "alien_blue")
+
+    drawing.assert_awaited_once()
+    args = drawing.await_args.args
+    assert args[:4] == (bot, GUILD_ID, interaction.user, DrawReason.GIFT)
+
+
+async def test_a_gift_he_passes_on_draws_nothing(
+    bot: app.WispBot, cog: Gifts, drawing: AsyncMock
+) -> None:
+    await lay(bot)
+    cog.rng = FixedRandom(PASS)
+
+    await give(bot, "alien_blue")
+
+    drawing.assert_not_awaited()
+
+
+async def test_a_gift_from_a_member_who_cannot_feed_him_draws_nothing(
+    bot: app.WispBot, drawing: AsyncMock
+) -> None:
+    await lay(bot)
+
+    await give(bot, "alien_blue", roles=())
+
+    drawing.assert_not_awaited()
 
 
 # ---

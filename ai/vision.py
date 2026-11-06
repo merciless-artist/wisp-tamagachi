@@ -14,6 +14,7 @@ from ai.chain import (
     ProviderError,
     post_for_text,
 )
+from ai.session import SessionOwner
 from wisp.rules import (
     AI_MAX_OUTPUT_TOKENS,
     AI_TIMEOUT,
@@ -28,7 +29,7 @@ DOWNLOAD_CHUNK_BYTES = 64 * 1024
 QUESTION = "Describe this picture in one or two plain sentences."
 
 
-class Vision:
+class Vision(SessionOwner):
     """Describes a picture found at a URL, in a sentence or two.
 
     Every way it can fail is a ProviderError. Without a key it asks nothing.
@@ -38,10 +39,9 @@ class Vision:
     def __init__(
         self, model: str, api_key: str | None, base_url: str = GEMINI_URL
     ) -> None:
+        super().__init__(AI_TIMEOUT)
         self._url = f"{base_url}/models/{model}:generateContent"
         self._api_key = api_key
-        self._session: aiohttp.ClientSession | None = None
-        self._closed = False
 
     async def describe(self, picture_url: str) -> str:
         """Download the picture and return the model's description of it.
@@ -97,13 +97,6 @@ class Vision:
         )
         return " ".join(answer.split())[:VISION_MAX_CHARS]
 
-    async def close(self) -> None:
-        """Close the HTTP session, if one was opened, and open no other."""
-        self._closed = True
-        session, self._session = self._session, None
-        if session is not None:
-            await session.close()
-
     @staticmethod
     async def _download(
         session: aiohttp.ClientSession, picture_url: str
@@ -135,13 +128,6 @@ class Vision:
         except TimeoutError as error:
             raise ProviderError("picture download timed out") from error
         return bytes(data), mime_type
-
-    def _open_session(self) -> aiohttp.ClientSession:
-        """Return the shared session, opening it on first use."""
-        if self._session is None:
-            timeout = aiohttp.ClientTimeout(total=AI_TIMEOUT.total_seconds())
-            self._session = aiohttp.ClientSession(timeout=timeout)
-        return self._session
 
 
 def vision_from_config() -> Vision:

@@ -667,6 +667,24 @@ VISION_EMBED_WAIT = timedelta(seconds=2)
 VISION_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
 
 # ---
+# Drawings
+# ---
+
+# The Cloudflare worker answers in 5 to 15 seconds; a picture over
+# IMAGE_MAX_BYTES is more than Discord takes in an upload.
+IMAGE_TIMEOUT = timedelta(seconds=60)
+IMAGE_MAX_BYTES = 8 * 1024 * 1024
+IMAGE_PROMPT_MAX_CHARS = 500
+# What he gives a member for a gift he loves, a new bond tier, the day's most
+# tracks and "I like you": at most this many per member and per server each
+# UTC day. "I like you" picks from the members who fed, chatted or played in
+# the last DRAWING_LIKE_WINDOW.
+DRAWINGS_PER_MEMBER_PER_DAY = 1
+DRAWINGS_PER_DAY = 6
+DRAWING_LIKE_WINDOW = timedelta(hours=24)
+DRAWING_FILE_NAME = "wisp_drawing.jpg"
+
+# ---
 # Talking
 # ---
 

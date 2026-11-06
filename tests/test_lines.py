@@ -75,6 +75,10 @@ ONE_MOOD_MOMENTS = {
     Moment.SCOLDED,
     Moment.LIGHTS_OFF,
     Moment.MEDICINE,
+    Moment.DRAWING_GIFT,
+    Moment.DRAWING_BOND,
+    Moment.DRAWING_TOP_FEEDER,
+    Moment.DRAWING_LIKE,
 }
 CHORE_AND_COLD_MOMENTS = [
     Moment.MESS,

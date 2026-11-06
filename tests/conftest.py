@@ -5,6 +5,7 @@ import pytest_asyncio
 
 import app
 from ai.chain import AIChain
+from ai.images import ImageMaker
 from ai.vision import Vision
 from db.database import Database
 from db.schema import TABLES, create_tables
@@ -18,11 +19,13 @@ def no_ai_providers(monkeypatch: pytest.MonkeyPatch) -> None:
 
     That chain raises AllProvidersFailed at once, so no test can reach a real
     provider with the real keys. Tests that need answers fake `bot.ai.complete`;
-    the vision model gets no key, so it asks nothing either.
+    the vision model gets no key and the image maker no address, so they ask
+    nothing either.
     `ai.chain.chain_from_config` itself is untouched.
     """
     monkeypatch.setattr(app, "chain_from_config", lambda: AIChain([]))
     monkeypatch.setattr(app, "vision_from_config", lambda: Vision("none", None))
+    monkeypatch.setattr(app, "images_from_config", lambda: ImageMaker(None))
 
 
 @pytest_asyncio.fixture(scope="session")

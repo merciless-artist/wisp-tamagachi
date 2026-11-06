@@ -28,6 +28,11 @@ def tier_for(bond: int) -> str:
     return name
 
 
+def reached_new_tier(before: int, after: int) -> bool:
+    """Whether a bond that grew from `before` to `after` is in a higher tier."""
+    return after > before and tier_for(after) != tier_for(before)
+
+
 def casual_bond_grant(earned_today: int, amount: int) -> int:
     """Bond from play and snacks that still fits under today's casual cap."""
     return max(min(amount, DAILY_CASUAL_BOND_CAP - earned_today), 0)

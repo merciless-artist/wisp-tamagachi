@@ -9,6 +9,7 @@ import aiohttp
 
 import config
 from ai.prompt import Prompt
+from ai.session import SessionOwner
 from wisp.rules import AI_MAX_OUTPUT_TOKENS, AI_PROVIDER_COOLDOWN, AI_TIMEOUT
 
 __all__ = [
@@ -213,7 +214,7 @@ class ChatProvider:
 # ---
 
 
-class AIChain:
+class AIChain(SessionOwner):
     """Tries each provider in turn and returns the first answer.
 
     A provider that fails is skipped for AI_PROVIDER_COOLDOWN, so one that is
@@ -227,11 +228,10 @@ class AIChain:
         providers: Sequence[Provider],
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        super().__init__(AI_TIMEOUT)
         self.providers = tuple(providers)
         self._clock = clock
         self._cooling_until: dict[str, float] = {}
-        self._session: aiohttp.ClientSession | None = None
-        self._closed = False
 
     async def complete(self, prompt: Prompt) -> str:
         """Return the first provider's answer; raise AllProvidersFailed if none.
@@ -277,23 +277,6 @@ class AIChain:
                 self._cooling_until.pop(provider.name, None)
                 return answer
         raise AllProvidersFailed(failures)
-
-    async def close(self) -> None:
-        """Close the HTTP session, if one was opened, and open no other."""
-        self._closed = True
-        session, self._session = self._session, None
-        if session is not None:
-            await session.close()
-
-    def _open_session(self) -> aiohttp.ClientSession:
-        """Return the shared session, opening it on first use.
-
-        Its timeout applies to each request, so it is the limit for one provider.
-        """
-        if self._session is None:
-            timeout = aiohttp.ClientTimeout(total=AI_TIMEOUT.total_seconds())
-            self._session = aiohttp.ClientSession(timeout=timeout)
-        return self._session
 
 
 def chain_from_config() -> AIChain:

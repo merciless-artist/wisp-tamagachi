@@ -23,6 +23,7 @@ from cogs.badges import (
 )
 from cogs.channels import where_of
 from cogs.conversation import PokeButton
+from cogs.drawings import draw_for
 from cogs.gifts import (
     announce_gift,
     closed_reason,
@@ -66,7 +67,7 @@ from wisp.bond import (
     meal_grant,
     tier_for,
 )
-from wisp.gifts import GiftState
+from wisp.gifts import GiftState, Outcome
 from wisp.life import (
     Life,
     Meter,
@@ -117,7 +118,7 @@ from wisp.text import (
     with_emoji,
     wrapped,
 )
-from wisp.voice import COIN_EMOJI, MINI_COIN_EMOJI
+from wisp.voice import COIN_EMOJI, MINI_COIN_EMOJI, DrawReason
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -626,12 +627,14 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
     if free_left:
         snacks.append(_pack_snack(bot, _FREE, "free today"))
     balance = _coins(bot, f"{player.balance} WC (wisp coins)")
+    drawings = await bot.drawings.count_for(guild_id, user_id)
     head = [
         box_top(),
         *wrapped(
             [
                 sub(f"<@{user_id}> snack pack"),
                 f"{SUB_MARK}・{balance}",
+                sub(f"Drawings from Wisp: {drawings}"),
                 SECTION_BREAK,
                 heading("Snacks"),
                 *(snacks or [_NOTHING_SAVED]),
@@ -1004,6 +1007,8 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
     )
     await announce_gift(bot, guild_id, given, given.player.name or user.display_name)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
+    if given.outcome is Outcome.KEPT:
+        await draw_for(bot, guild_id, user, DrawReason.GIFT, discord.utils.utcnow())
 
 
 # ---

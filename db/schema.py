@@ -209,6 +209,18 @@ _DEFINITIONS: dict[str, str] = {
         bought_at DATETIME NOT NULL,
         PRIMARY KEY (guild_id, user_id, magazine, life_id)
     """,
+    "drawings": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        life_id BIGINT NOT NULL,
+        reason VARCHAR(20) NOT NULL,
+        message_id BIGINT NOT NULL,
+        at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_at (guild_id, at),
+        INDEX idx_guild_user (guild_id, user_id)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

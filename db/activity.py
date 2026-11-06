@@ -148,6 +148,33 @@ class ActivityRepo:
         assert row is not None
         return int(row["people"])
 
+    async def members_since(
+        self, guild_id: int, since: datetime, kinds: tuple[InteractionKind, ...]
+    ) -> list[int]:
+        """The members who did any of `kinds` with Wisp since `since`, by id."""
+        marks = ", ".join(["%s"] * len(kinds))
+        rows = await self._db.fetchall(
+            f"SELECT DISTINCT user_id FROM {self._db.t('interactions')} "
+            f"WHERE guild_id = %s AND at >= %s AND kind IN ({marks}) "
+            "ORDER BY user_id",
+            (guild_id, to_db_time(since), *(kind.value for kind in kinds)),
+        )
+        return [int(row["user_id"]) for row in rows]
+
+    async def top_track_feeders(self, guild_id: int, now: datetime) -> list[int]:
+        """The members who fed tracks on the UTC day before `now`, most first.
+
+        A tie goes to whoever fed first.
+        """
+        start, end = utc_day(now - timedelta(days=1))
+        rows = await self._db.fetchall(
+            f"SELECT user_id FROM {self._db.t('feeds')} "
+            "WHERE guild_id = %s AND fed_at >= %s AND fed_at < %s "
+            "GROUP BY user_id ORDER BY COUNT(*) DESC, MIN(id)",
+            (guild_id, start, end),
+        )
+        return [int(row["user_id"]) for row in rows]
+
     async def caretakers(self, guild_id: int, life_id: int, since: datetime) -> int:
         """Number of different members who cared for one life since `since`.
 
