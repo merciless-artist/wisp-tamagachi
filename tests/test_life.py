@@ -140,7 +140,8 @@ def stretch_left(length: timedelta) -> float:
 
 
 def kinds(events: list[Event]) -> list[EventKind]:
-    return [event.kind for event in events]
+    """The kinds of the events, leaving out meter drops (see `drops`)."""
+    return [event.kind for event in events if event.kind is not EventKind.METER_DROP]
 
 
 # ---
@@ -542,9 +543,12 @@ def test_lonely_warns_once_per_drop() -> None:
         wellbeing_stretch=stretch_left(WELLBEING_STRETCH),
     )
     events = run(life, TICK_EVERY, fed=True)
-    assert events == [Event(EventKind.LONELY, Stage.CHILD)]
+    assert events == [
+        Event(EventKind.LONELY, Stage.CHILD),
+        Event(EventKind.METER_DROP, meter=Meter.WELLBEING, lost=10.0, value=25.0),
+    ]
     assert life.lonely_warned
-    assert run(life, timedelta(days=1), fed=True) == []
+    assert kinds(run(life, timedelta(days=1), fed=True)) == []
 
     change_meter(life, Meter.WELLBEING, LONELY_BELOW - life.wellbeing - 1)
     assert life.lonely_warned
@@ -552,8 +556,7 @@ def test_lonely_warns_once_per_drop() -> None:
     assert life.wellbeing == LONELY_BELOW
     assert not life.lonely_warned
     life.wellbeing_stretch = stretch_left(WELLBEING_STRETCH)
-    events = run(life, TICK_EVERY, fed=True)
-    assert events == [Event(EventKind.LONELY, Stage.CHILD)]
+    assert kinds(run(life, TICK_EVERY, fed=True)) == [EventKind.LONELY]
 
 
 def test_loneliness_never_hurts_him() -> None:
@@ -1199,3 +1202,55 @@ def test_starve_ends_even_a_sick_wisp_on_the_next_tick() -> None:
     events = tick(life, T0, frozen=False, caretakers=0, people=0)
     assert events == [Event(EventKind.DIED)]
     assert life.phase is Phase.DEAD
+
+
+# ---
+# Meter drops
+# ---
+
+
+def drops(events: list[Event]) -> list[Event]:
+    return [event for event in events if event.kind is EventKind.METER_DROP]
+
+
+def test_a_filled_stretch_reports_each_meter_drop_with_its_new_value() -> None:
+    events = run(alive(), SIX_HOURS)
+    assert drops(events) == [
+        Event(EventKind.METER_DROP, meter=Meter.HEALTH, lost=8.0, value=42.0),
+        Event(EventKind.METER_DROP, meter=Meter.WELLBEING, lost=10.0, value=40.0),
+    ]
+
+
+def test_a_meter_still_inside_its_stretch_reports_nothing() -> None:
+    assert drops(run(alive(), timedelta(hours=5, minutes=55))) == []
+
+
+def test_only_the_meter_that_ran_dry_is_reported() -> None:
+    events = run(alive(), SIX_HOURS, fed=True)
+    assert drops(events) == [
+        Event(EventKind.METER_DROP, meter=Meter.WELLBEING, lost=10.0, value=40.0)
+    ]
+
+
+def test_the_sick_multiplier_shows_in_the_reported_health_loss() -> None:
+    events = run(sick(health=50.0), SIX_HOURS, cared=True)
+    assert drops(events) == [
+        Event(EventKind.METER_DROP, meter=Meter.HEALTH, lost=12.0, value=38.0)
+    ]
+
+
+def test_the_sick_floor_limits_the_reported_loss() -> None:
+    events = run(sick(health=5.0), SIX_HOURS, cared=True)
+    assert drops(events) == [
+        Event(EventKind.METER_DROP, meter=Meter.HEALTH, lost=4.0, value=1.0)
+    ]
+
+
+def test_a_meter_with_nothing_left_to_lose_reports_no_drop() -> None:
+    life = alive(health=1.0, sniffles_left=SNIFFLES_FOR.total_seconds())
+    events = run(life, SIX_HOURS, cared=True)
+    assert drops(events) == []
+
+
+def test_frozen_time_reports_no_drop() -> None:
+    assert run(alive(), SIX_HOURS, frozen=True) == []

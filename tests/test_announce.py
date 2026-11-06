@@ -43,7 +43,7 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from wisp import rules
-from wisp.life import Event, EventKind, Life, Mood, Phase, new_egg
+from wisp.life import Event, EventKind, Life, Meter, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
@@ -53,6 +53,7 @@ FORUM_ID = 10
 HOUSE_ID = 20
 GENERAL_ID = 21
 STATUS_ID = 60
+TRACKS_ID = 22
 BOARD_ID = 61
 STATUS_MESSAGE_ID = 777
 BOARD_MESSAGE_ID = 778
@@ -1737,3 +1738,94 @@ async def test_a_failed_general_post_is_reported_and_the_rest_still_happens(
         for text in texts
     )
     assert await embers(bot, MEMBER) == ["Wisp v1's Teen Spark"]
+
+
+# ---
+# Meter drops
+# ---
+
+
+def health_drop(lost: float = 8.0, value: float = 42.0) -> Event:
+    return Event(EventKind.METER_DROP, meter=Meter.HEALTH, lost=lost, value=value)
+
+
+def wellbeing_drop(lost: float = 10.0, value: float = 40.0) -> Event:
+    return Event(EventKind.METER_DROP, meter=Meter.WELLBEING, lost=lost, value=value)
+
+
+async def test_one_tick_with_two_drops_makes_one_house_post_with_two_lines(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, tracks_channel_id=TRACKS_ID)
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop(), wellbeing_drop()])
+
+    server.house.send.assert_awaited_once()
+    post = server.house.send.await_args
+    assert post.args[0] == (
+        "♪ Wisp's meters dropped\n"
+        "・Health -8 (now 42): nobody fed him a track for 6 hours. "
+        f"Drop a track in <#{TRACKS_ID}>.\n"
+        "・Wellbeing -10 (now 40): nobody chatted, played or poked him, or gave him "
+        f"a snack or gift, for 6 hours. Talk to him here or use <#{STATUS_ID}>."
+    )
+    assert sends_without_pinging(post.kwargs)
+
+
+async def test_the_stretch_hours_come_from_the_rules(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(announce, "HEALTH_STRETCH", timedelta(hours=9))
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop()])
+
+    assert "for 9 hours" in server.house.send.await_args.args[0]
+
+
+async def test_a_drop_without_channels_set_uses_plain_words(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, status_thread_id=None)
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop(), wellbeing_drop()])
+
+    text = server.house.send.await_args.args[0]
+    assert "Drop a track in the track drop." in text
+    assert "or use the Status post." in text
+
+
+async def test_the_sick_multiplier_shows_in_the_post(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop(lost=12.0, value=38.0)])
+
+    assert "・Health -12 (now 38):" in server.house.send.await_args.args[0]
+
+
+async def test_no_drop_means_no_drop_post(bot: app.WispBot, server: FakeServer) -> None:
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.HUNGRY)])
+
+    assert not any(
+        "meters dropped" in call.args[0] for call in server.house.send.await_args_list
+    )
+
+
+async def test_drops_come_after_the_other_events_of_the_tick(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await growing_life(bot)
+
+    await post_events(
+        bot, GUILD_ID, [health_drop(), Event(EventKind.HUNGRY), wellbeing_drop()]
+    )
+
+    first, second = server.house.send.await_args_list
+    assert said(first.args[0], Moment.HUNGRY)
+    assert second.args[0].startswith("♪ Wisp's meters dropped\n")

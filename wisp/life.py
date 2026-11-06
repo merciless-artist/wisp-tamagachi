@@ -104,14 +104,23 @@ class EventKind(StrEnum):
     LONELY = auto()
     SICK = auto()
     RECOVERED = auto()
+    METER_DROP = auto()
 
 
 @dataclass(frozen=True)
 class Event:
-    """Something that happened during a tick or a feed."""
+    """Something that happened during a tick or a feed.
+
+    A METER_DROP names the `meter` that paid for a filled stretch, how much it
+    `lost` (what really came off, after Monster Pox, a cold and the sick
+    floor) and its new `value`.
+    """
 
     kind: EventKind
     stage: Stage | None = None
+    meter: Meter | None = None
+    lost: float = 0.0
+    value: float = 0.0
 
 
 @dataclass
@@ -484,7 +493,7 @@ def _tick_alive(
     SICK_FULL_FLOOR, so neither can kill him.
     """
     events = _catch_due_cold(life, now)
-    _penalties(life, elapsed.total_seconds())
+    drops = _penalties(life, elapsed.total_seconds())
     if life.health == 0:
         _enter(life, Phase.DEAD)
         life.ended_at = now
@@ -497,11 +506,15 @@ def _tick_alive(
     life.sniffles_left = max(life.sniffles_left - elapsed.total_seconds(), 0.0)
     events += _warnings(life)
     events += _grow(life, now, caretakers, people)
-    return events
+    return events + drops
 
 
-def _penalties(life: Life, seconds: float) -> None:
-    """Add counted time to each meter's empty stretch; a full stretch costs it."""
+def _penalties(life: Life, seconds: float) -> list[Event]:
+    """Add counted time to each meter's empty stretch; a full stretch costs it.
+
+    Returns a METER_DROP for each meter that really lost something.
+    """
+    drops: list[Event] = []
     life.health_stretch, health_due = _filled(
         life.health_stretch, seconds, HEALTH_STRETCH
     )
@@ -513,12 +526,23 @@ def _penalties(life: Life, seconds: float) -> None:
         if sickness(life) is not None:
             penalty *= SICK_DRAIN_MULTIPLIER
             floor = min(life.health, SICK_FULL_FLOOR)
+        before = life.health
         life.health = max(life.health - penalty, floor)
+        drops += _drop(Meter.HEALTH, before, life.health)
     life.wellbeing_stretch, wellbeing_due = _filled(
         life.wellbeing_stretch, seconds, WELLBEING_STRETCH
     )
     if wellbeing_due:
+        before = life.wellbeing
         life.wellbeing = max(life.wellbeing - WELLBEING_PENALTY, 0.0)
+        drops += _drop(Meter.WELLBEING, before, life.wellbeing)
+    return drops
+
+
+def _drop(meter: Meter, before: float, after: float) -> list[Event]:
+    if after >= before:
+        return []
+    return [Event(EventKind.METER_DROP, meter=meter, lost=before - after, value=after)]
 
 
 def _filled(stretch: float, seconds: float, length: timedelta) -> tuple[float, bool]:

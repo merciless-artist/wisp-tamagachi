@@ -16,9 +16,24 @@ from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
-from wisp.life import Event, EventKind, Life, Phase, egg_after, is_over, mood
+from wisp.life import (
+    Event,
+    EventKind,
+    Life,
+    Meter,
+    Phase,
+    egg_after,
+    is_over,
+    mood,
+)
 from wisp.lines import FIELDS, Moment
-from wisp.rules import LAST_EMBER_GIFTS, LONELY_PICTURES, Stage
+from wisp.rules import (
+    HEALTH_STRETCH,
+    LAST_EMBER_GIFTS,
+    LONELY_PICTURES,
+    WELLBEING_STRETCH,
+    Stage,
+)
 from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
@@ -40,6 +55,14 @@ _EDITING: Final = "editing a post in Wisp's House"
 _NEW_STAGE: Final = frozenset(
     {EventKind.HATCHED, EventKind.STAGE_UP, EventKind.GREW_OLD}
 )
+_DROPS_TITLE: Final = "♪ Wisp's meters dropped"
+_DROP_REASONS: Final = {
+    Meter.HEALTH: "nobody fed him a track for {hours} hours. Drop a track in {drop}.",
+    Meter.WELLBEING: (
+        "nobody chatted, played or poked him, or gave him a snack or gift, "
+        "for {hours} hours. Talk to him here or use {status}."
+    ),
+}
 _GENERAL_NEWS: Final = "# Wisp just {news} today! Go give him a birthday poke!"
 _GENERAL_CONTEXT: Final = "sharing Wisp's new stage in general chat"
 _STAGE_KEEPSAKES: Final = {
@@ -340,7 +363,10 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         return
     house = _House(bot, guild_id)
     await house.open()
+    drops = [event for event in events if event.kind is EventKind.METER_DROP]
     for event in events:
+        if event.kind is EventKind.METER_DROP:
+            continue
         if event.kind in _ENDINGS and not is_over(life):
             continue
         moment = Moment(event.kind.value)
@@ -351,6 +377,48 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
             await _give_milestone(bot, guild_id, house, life, kind)
         if event.kind in _ENDINGS:
             await _ask_to_begin_again(bot, guild_id, house, discord.utils.utcnow())
+    if drops and not is_over(life):
+        settings = await bot.settings.get(guild_id)
+        await house.say(
+            meter_drops_text(
+                drops, settings.tracks_channel_id, settings.status_thread_id
+            )
+        )
+
+
+# ---
+# Meter drops
+# ---
+
+
+def meter_drops_text(
+    drops: list[Event], tracks_channel_id: int | None, status_thread_id: int | None
+) -> str:
+    """One House post naming every meter that dropped in a tick, and why.
+
+    The track drop and the Status post are channel links when staff set them
+    and plain words when not.
+    """
+    where = {
+        "drop": (
+            "the track drop" if tracks_channel_id is None else f"<#{tracks_channel_id}>"
+        ),
+        "status": (
+            "the Status post" if status_thread_id is None else f"<#{status_thread_id}>"
+        ),
+    }
+    lengths = {Meter.HEALTH: HEALTH_STRETCH, Meter.WELLBEING: WELLBEING_STRETCH}
+    lines = [_DROPS_TITLE]
+    for drop in drops:
+        if drop.meter is None:
+            continue
+        hours = int(lengths[drop.meter].total_seconds() // 3600)
+        reason = _DROP_REASONS[drop.meter].format(hours=hours, **where)
+        lines.append(
+            f"・{drop.meter.value.capitalize()} -{drop.lost:g} "
+            f"(now {drop.value:g}): {reason}"
+        )
+    return "\n".join(lines)
 
 
 # ---
