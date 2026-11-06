@@ -12,7 +12,6 @@ from wisp.rules import (
     EGG_WARMTH,
     HATCHING_TIME,
     HEALTH_MAX,
-    MOOD_MAX,
     SNIFFLES_FOR,
     WELLBEING_MAX,
     Stage,
@@ -31,7 +30,6 @@ FACTS = CardFacts(
 )
 HEALTH_EMOJI = "<:full_full:1564444125976068186>"
 WELLBEING_EMOJI = "<:care_full:1564443602506088480>"
-MOOD_EMOJI = "<:happiness_full:1564443869204975626>"
 # Myra's card of 2026-10-31, byte for byte, with the real mention and House
 # link where her copy shows them as Discord displays them.
 MYRAS_CARD = "\n".join(
@@ -43,8 +41,6 @@ MYRAS_CARD = "\n".join(
         f"> {HEALTH_EMOJI * 10} │100%",
         "> 𝄡 Wellbeing",
         f"> {WELLBEING_EMOJI * 10} │100%",
-        "> 𝄡 Mood",
-        f"> {MOOD_EMOJI * 4} │40%",
         "> ",
         "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪",
         "> ",
@@ -87,7 +83,6 @@ def alive_life(**fields: object) -> Life:
     life.stage = life.peak_stage = Stage.BABY
     life.health = 55.0
     life.wellbeing = 65.0
-    life.mood_meter = 90.0
     life.hatched_at = NOW - timedelta(days=1, hours=3)
     for name, value in fields.items():
         setattr(life, name, value)
@@ -132,15 +127,10 @@ def test_the_card_is_myras_layout_byte_for_byte() -> None:
         stage=Stage.CHILD,
         wellbeing=WELLBEING_MAX,
         health=HEALTH_MAX,
-        mood_meter=40.0,
         hatched_at=NOW - timedelta(days=5, hours=1),
     )
     facts = CardFacts(2, 1, 1, WISP_ID, HOUSE_ID)
-    ids = {
-        "full_full": HEALTH_EMOJI,
-        "care_full": WELLBEING_EMOJI,
-        "happiness_full": MOOD_EMOJI,
-    }
+    ids = {"full_full": HEALTH_EMOJI, "care_full": WELLBEING_EMOJI}
 
     card = render_status(life, NOW, facts, lambda name: ids.get(name, ""))
 
@@ -158,8 +148,6 @@ def test_a_living_baby_has_every_line_in_its_place() -> None:
         f"> {pieces('full_full', 5)}{emoji('full_left')}│55%",
         "> 𝄡 Wellbeing",
         f"> {pieces('care_full', 6)}{emoji('care_left')}│65%",
-        "> 𝄡 Mood",
-        f"> {pieces('happiness_full', 9)} │90%",
         *tail("him", "𝐁𝐀𝐁𝐘"),
     ]
 
@@ -227,14 +215,12 @@ def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
         ">  │55%",
         "> 𝄡 Wellbeing",
         ">  │65%",
-        "> 𝄡 Mood",
-        ">  │90%",
     ]
     assert "<:" not in card
 
 
-def test_the_bars_are_health_wellbeing_then_mood_in_their_meters() -> None:
-    life = alive_life(health=HEALTH_MAX, wellbeing=0.0, mood_meter=MOOD_MAX / 4)
+def test_the_card_has_two_bars_health_then_wellbeing() -> None:
+    life = alive_life(health=HEALTH_MAX, wellbeing=WELLBEING_MAX / 4)
 
     card = render_status(life, NOW, FACTS, emoji)
 
@@ -242,10 +228,10 @@ def test_the_bars_are_health_wellbeing_then_mood_in_their_meters() -> None:
         "> 𝄡 Health",
         f"> {pieces('full_full', 10)} │100%",
         "> 𝄡 Wellbeing",
-        ">  │0%",
-        "> 𝄡 Mood",
-        f"> {pieces('happiness_full', 2)}{emoji('happiness_left')}│25%",
+        f"> {pieces('care_full', 2)}{emoji('care_left')}│25%",
     ]
+    assert "Mood" not in card
+    assert "happiness" not in card
 
 
 # ---
@@ -302,17 +288,6 @@ def test_day_counts_whole_days_since_hatching() -> None:
     card = render_status(life, NOW, FACTS, emoji)
 
     assert card.split("\n")[1] == "> 𝄡𝄚𝄂・・𝐃𝐀𝐘 **12**・♫ ♪. ♫‿♪"
-
-
-@pytest.mark.parametrize(
-    ("mood_meter", "shown"), [(0.0, 0.0), (MOOD_MAX / 4, 25.0), (MOOD_MAX, 100.0)]
-)
-def test_the_mood_bar_shows_his_mood_meter(mood_meter: float, shown: float) -> None:
-    card = render_status(alive_life(mood_meter=mood_meter), NOW, FACTS, emoji)
-
-    lines = card.split("\n")
-    meter = emoji("happiness_full"), emoji("happiness_left")
-    assert lines[lines.index("> 𝄡 Mood") + 1] == f"> {bar(shown, *meter)}"
 
 
 def test_no_house_channel_says_his_house() -> None:
@@ -436,7 +411,6 @@ def test_the_fullest_card_fits_one_message() -> None:
         stage=Stage.OLD_FOGEY,
         health=100.0,
         wellbeing=100.0,
-        mood_meter=100.0,
         cold_left=48 * 3600,
         sniffles_left=SNIFFLES_FOR.total_seconds(),
         hatched_at=NOW - timedelta(days=9999),
@@ -453,5 +427,5 @@ def test_the_fullest_card_fits_one_message() -> None:
 
     assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "Monster Pox" in card
     assert "a cold" in card
-    assert card.count("_full:") == 30
+    assert card.count("_full:") == 20
     assert text_length(card) <= MESSAGE_LIMIT

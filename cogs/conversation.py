@@ -365,7 +365,7 @@ async def _prompt(
         poked=poked,
         own_emojis=emojis,
         feelings=feelings_of(life, now),
-        hours_left=sick_hours(life),
+        sickness_hours=sick_hours(life),
         track_drop=track_drop,
         sight=sight,
     )
@@ -380,7 +380,7 @@ class Conversation(commands.Cog):
     """Wisp in his House: he answers when spoken to and sometimes chimes in.
 
     Talking to him earns no bond. A member's first three mentions of the UTC
-    day each fill his Wellbeing and their first three pokes his Mood; the
+    day each fill his Wellbeing and so do their first three pokes; the
     day's first credit of either kind also earns a Vault point.
     The recent chat and the talk cooldown live in `bot.talk`, shared with pokes.
     """
@@ -574,7 +574,7 @@ class Conversation(commands.Cog):
             expressions=expressions(self.bot, life.stage),
             dances=dances(self.bot, life.stage),
             feelings=feelings_of(life, now),
-            hours_left=sick_hours(life),
+            sickness_hours=sick_hours(life),
             track_drop=track_drop is not None,
         )
         reply = await ai_reply(self.bot, guild, prompt)

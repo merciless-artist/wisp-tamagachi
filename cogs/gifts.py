@@ -262,8 +262,8 @@ async def give_gift(
     Call this under the guild lock. He passes when he already kept a gift
     today; otherwise `rng` decides. A kept gift gives bond outside the daily
     cap, a bond moment's growth, and the collection bonus when it finishes its
-    collection. Every attempt counts as an interaction and gives Wisp care,
-    since its points are spent whatever he does with the gift.
+    collection. Every attempt counts as an interaction, fills his Wellbeing and
+    ends its stretch, since its points are spent whatever he does with the gift.
 
     Raises:
         Refusal: The member is banned, cannot feed Wisp or is short of points,
@@ -298,7 +298,7 @@ async def give_gift(
         0,
         now,
     )
-    change_meter(life, Meter.WELLBEING, WELLBEING_PER_GIFT)
+    change_meter(life, Meter.WELLBEING, WELLBEING_PER_GIFT, ends_stretch=True)
     if kept:
         await bot.players.add_bond(guild_id, member.id, bond)
         add_growth(life, GROWTH_PER_BOND_MOMENT)

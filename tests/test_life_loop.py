@@ -2244,7 +2244,7 @@ async def test_test_chore_late_runs_out_a_tantrum_and_spoils_him(
     await lay_awake(bot)
     posts = numbered_posts(server)
     await type_chore(cog, server, "tantrum")
-    mood_before = (await current_life(bot)).mood_meter
+    wellbeing_before = (await current_life(bot)).wellbeing
 
     await type_chore(cog, server, "late")
 
@@ -2252,7 +2252,7 @@ async def test_test_chore_late_runs_out_a_tantrum_and_spoils_him(
     assert edit["content"] in lines_in_any_mood(Moment.TANTRUM_MISSED)
     assert edit["view"] is None
     life = await current_life(bot)
-    assert life.mood_meter == mood_before - rules.TANTRUM_MOOD_PENALTY
+    assert life.wellbeing == wellbeing_before - rules.TANTRUM_WELLBEING_PENALTY
     assert life.spoiled_until == datetime(2026, 10, 23, tzinfo=UTC)
 
 
@@ -2263,7 +2263,7 @@ async def test_test_chore_late_runs_out_the_lights_and_makes_him_cranky(
     await lay_awake(bot)
     posts = numbered_posts(server)
     await type_chore(cog, server, "nap")
-    mood_before = (await current_life(bot)).mood_meter
+    wellbeing_before = (await current_life(bot)).wellbeing
 
     await type_chore(cog, server, "late")
 
@@ -2271,7 +2271,7 @@ async def test_test_chore_late_runs_out_the_lights_and_makes_him_cranky(
     assert edit["content"] in lines_in_any_mood(Moment.LIGHTS_MISSED)
     assert edit["view"] is None
     life = await current_life(bot)
-    assert life.mood_meter == mood_before - rules.LIGHTS_MOOD_PENALTY
+    assert life.wellbeing == wellbeing_before - rules.LIGHTS_WELLBEING_PENALTY
     assert life.cranky_until == (
         NOW + rules.NAP_FOR - rules.LIGHTS_WINDOW + rules.CRANKY_FOR
     )

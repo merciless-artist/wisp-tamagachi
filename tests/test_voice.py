@@ -1344,7 +1344,7 @@ def sick_system(stage: Stage, feeling: Feeling, hours: int) -> str:
         "how long do you have pox?",
         expressions=EXPRESSIONS,
         feelings=(feeling,),
-        hours_left={feeling: hours},
+        sickness_hours={feeling: hours},
     ).system
 
 

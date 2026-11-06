@@ -1763,15 +1763,18 @@ async def test_a_fourth_mention_does_not_restart_the_wellbeing_stretch(
     assert (await current(bot)).wellbeing_stretch == 3600.0
 
 
-async def test_the_first_three_pokes_a_day_add_five_mood_each(
+async def test_the_first_three_pokes_a_day_add_five_wellbeing_each(
     bot: app.WispBot, clock: Clock, poke: Press, db: Database
 ) -> None:
-    await lay(bot)
+    life = await lay(bot)
+    life.wellbeing_stretch = 3600.0
+    await bot.lives.save(GUILD_ID, life)
     await enroll(bot, FIRST)
 
     await poke_times(clock, poke, 4)
 
-    assert (await current(bot)).mood_meter == 65.0
+    after = await current(bot)
+    assert (after.wellbeing, after.wellbeing_stretch) == (65.0, 0.0)
     rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
     assert rows == [{"kind": "poke"}] * 3
 
@@ -1805,7 +1808,7 @@ async def test_a_member_who_cannot_feed_earns_no_credit_and_restarts_nothing(
     db: Database,
 ) -> None:
     life = await lay(bot)
-    life.wellbeing_stretch = life.mood_stretch = 1800.0
+    life.wellbeing_stretch = 1800.0
     await bot.lives.save(GUILD_ID, life)
     await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
     said = message.to_wisp("hello")
@@ -1818,8 +1821,7 @@ async def test_a_member_who_cannot_feed_earns_no_credit_and_restarts_nothing(
     assert private_reply(pressed) == "♪ You poked Wisp."
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     after = await current(bot)
-    assert (after.wellbeing, after.mood_meter) == (50.0, 50.0)
-    assert (after.wellbeing_stretch, after.mood_stretch) == (1800.0, 1800.0)
+    assert (after.wellbeing, after.wellbeing_stretch) == (50.0, 1800.0)
     assert await points(bot, FIRST) == 0
 
 
@@ -2030,7 +2032,7 @@ async def test_he_never_chimes_in_while_napping(
     server.house.send.assert_not_awaited()
 
 
-async def test_a_poke_wakes_him_cranky_with_no_mood_plus(
+async def test_a_poke_wakes_him_cranky_with_no_wellbeing_plus(
     bot: app.WispBot,
     ai: AsyncMock,
     clock: Clock,
@@ -2047,7 +2049,7 @@ async def test_a_poke_wakes_him_cranky_with_no_mood_plus(
     woken = await current(bot)
     assert woken.nap_left == 0
     assert woken.cranky_until == clock.now + CRANKY_FOR
-    assert woken.mood_meter == before.mood_meter
+    assert woken.wellbeing == before.wellbeing
     assert await db.fetchall(f"SELECT kind FROM {db.t('interactions')}") == []
     (prompt,) = prompts(ai)
     assert "woken up from a nap" in prompt.system
@@ -2069,7 +2071,7 @@ async def test_waking_him_with_the_lights_on_edits_the_lights_post(
     assert kwargs["content"] == WOKE_TEXT
     assert kwargs["view"] is None
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert (await current(bot)).mood_meter == before.mood_meter
+    assert (await current(bot)).wellbeing == before.wellbeing
 
 
 async def test_waking_him_after_lights_off_leaves_that_post_alone(

@@ -248,8 +248,9 @@ async def test_chats_and_pokes_have_their_own_three(bot: app.WispBot) -> None:
     assert await players.credit_poke(bot, GUILD_ID, member, NOW) is False
     life = await bot.lives.current(GUILD_ID)
     assert life is not None
-    assert life.wellbeing == 50.0 + 3 * rules.WELLBEING_PER_CHAT
-    assert life.mood_meter == 50.0 + 3 * rules.MOOD_PER_POKE
+    assert life.wellbeing == (
+        50.0 + 3 * rules.WELLBEING_PER_CHAT + 3 * rules.WELLBEING_PER_POKE
+    )
 
 
 async def test_chat_credit_records_a_chat_with_no_bond_or_meal(
@@ -317,14 +318,18 @@ async def test_chat_credit_needs_a_life(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
 
 
-async def test_the_status_card_shows_his_mood_bar(bot: app.WispBot) -> None:
+async def test_the_status_card_shows_health_and_wellbeing_only(
+    bot: app.WispBot,
+) -> None:
     life = await lay(bot)
-    life.mood_meter = 35.0
+    life.wellbeing = 35.0
 
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     lines = text.splitlines()
-    assert lines[lines.index("> 𝄡 Mood") + 1] == f"> {bar(35.0, '', '')}"
+    assert lines[lines.index("> 𝄡 Wellbeing") + 1] == f"> {bar(35.0, '', '')}"
+    assert "> 𝄡 Health" in lines
+    assert "Mood" not in text
 
 
 # ---

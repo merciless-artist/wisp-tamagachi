@@ -584,3 +584,9 @@ def test_the_cold_talk_lines_never_mention_spots(moment: Moment) -> None:
     for line in LINES[(moment, Mood.HAPPY)]:
         for word in ("spot", "itch", "scratch", "pox"):
             assert word not in line.lower(), line
+
+
+def test_no_line_names_a_mood_meter() -> None:
+    for lines in LINES.values():
+        for line in lines:
+            assert "Mood" not in line, line

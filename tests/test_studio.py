@@ -1842,10 +1842,10 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "WELLBEING_PER_CHAT",
         "WELLBEING_PER_SNACK",
         "WELLBEING_PER_GIFT",
-        "WELLBEING_PER_CLEANUP",
-        "MOOD_PER_POKE",
-        "MOOD_PER_PLAY",
-        "ROCKSTAR_MOOD",
+        "HEALTH_PER_CLEANUP",
+        "WELLBEING_PER_POKE",
+        "WELLBEING_PER_PLAY",
+        "ROCKSTAR_WELLBEING",
         "MEDICINE_COST",
         "CHAT_POINTS",
     ):
@@ -1853,9 +1853,8 @@ def test_rules_text_fits_with_every_number_at_four_digits(
     for name in (
         "HEALTH_PENALTY",
         "WELLBEING_PENALTY",
-        "MOOD_PENALTY",
-        "TANTRUM_MOOD_PENALTY",
-        "LIGHTS_MOOD_PENALTY",
+        "TANTRUM_WELLBEING_PENALTY",
+        "LIGHTS_WELLBEING_PENALTY",
     ):
         monkeypatch.setattr(rules, name, 9999.0)
     for name in (
@@ -1863,9 +1862,8 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "SNIFFLES_FOR",
         "HEALTH_STRETCH",
         "WELLBEING_STRETCH",
-        "MOOD_STRETCH",
         "MESS_LEFT_FOR",
-        "ROCKSTAR_MOOD_FOR",
+        "ROCKSTAR_WELLBEING_FOR",
     ):
         monkeypatch.setattr(rules, name, timedelta(hours=9999))
     for name in ("TANTRUM_WINDOW", "LIGHTS_WINDOW"):
@@ -1927,23 +1925,25 @@ def test_rules_text_points_to_the_snack_pack_and_wisps_lunchbox() -> None:
     )
 
 
-def test_rules_text_explains_the_three_meters(
+def test_rules_text_explains_the_two_meters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(rules, "PLAYS_PER_DAY", 3)
+    monkeypatch.setattr(rules, "PLAYS_PER_DAY", 4)
 
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
-    health, wellbeing, mood = section.split("\n")
-    assert health.startswith("・Health: tracks")
-    assert "Every 6 h without one costs 8" in health
+    health, wellbeing = section.split("\n")
+    assert health.startswith("・Health: tracks, cleanups")
+    assert "6 h with no track costs 8" in health
     assert "Hangry when low, dies at 0" in health
-    assert wellbeing.startswith("・Wellbeing: chats (3 a day), snacks, gifts, cleanups")
+    assert wellbeing.startswith(
+        "・Wellbeing: chats (3 a day), pokes (3 a day), duels (4 a day), snacks, "
+        "gifts"
+    )
     assert "lonely" in wellbeing and "never hurt" in wellbeing
-    assert mood.startswith("・Mood: duels (3 a day) and pokes (3 a day)")
-    assert "Rockstar needs 80 for 4 days" in mood
-    for old in ("Hunger", "Happy", "Care", "drain"):
+    assert "Rockstar: 80 for 4 days" in wellbeing
+    for old in ("Hunger", "Happy", "Care", "drain", "Mood"):
         assert old not in text, old
     assert "\nWho can feed him and earn points\n" in text
 
@@ -1951,7 +1951,7 @@ def test_rules_text_explains_the_three_meters(
 def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rules, "MEDICINE_COST", 13)
     monkeypatch.setattr(rules, "MESS_LEFT_FOR", timedelta(hours=5))
-    monkeypatch.setattr(rules, "TANTRUM_MOOD_PENALTY", 17.0)
+    monkeypatch.setattr(rules, "TANTRUM_WELLBEING_PENALTY", 17.0)
 
     text = rules_text(rules.MEAL_POINTS)
 
@@ -1960,7 +1960,7 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     assert "Clean up his mess in 5 h or he catches a cold" in section
     assert "medicine (13 WC) cures it" in section
     assert "5 h" in section
-    assert "Scold a tantrum" in section and "Mood drops 17" in section
+    assert "Scold a tantrum" in section and "Wellbeing drops 17" in section
     assert "Lights off" in section
     for hour in rules.NAP_HOURS:
         assert f"{hour:02d}:00" in section, hour
@@ -1973,11 +1973,11 @@ def test_rules_text_chore_numbers_come_from_the_rules(
     monkeypatch.setattr(rules, "NAP_HOURS", (1, 9, 17))
     monkeypatch.setattr(rules, "TANTRUM_WINDOW", timedelta(minutes=43))
     monkeypatch.setattr(rules, "LIGHTS_WINDOW", timedelta(minutes=47))
-    monkeypatch.setattr(rules, "LIGHTS_MOOD_PENALTY", 53.0)
+    monkeypatch.setattr(rules, "LIGHTS_WELLBEING_PENALTY", 53.0)
     monkeypatch.setattr(rules, "HEALTH_STRETCH", timedelta(hours=59))
     monkeypatch.setattr(rules, "HEALTH_PENALTY", 61.0)
-    monkeypatch.setattr(rules, "ROCKSTAR_MOOD", 67)
-    monkeypatch.setattr(rules, "ROCKSTAR_MOOD_FOR", timedelta(days=71))
+    monkeypatch.setattr(rules, "ROCKSTAR_WELLBEING", 67)
+    monkeypatch.setattr(rules, "ROCKSTAR_WELLBEING_FOR", timedelta(days=71))
 
     text = rules_text(rules.MEAL_POINTS)
 

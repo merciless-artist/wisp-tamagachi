@@ -99,7 +99,7 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     mess_hours = rules.MESS_LEFT_FOR // timedelta(hours=1)
     tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
     lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
-    rockstar_days = rules.ROCKSTAR_MOOD_FOR // timedelta(days=1)
+    rockstar_days = rules.ROCKSTAR_WELLBEING_FOR // timedelta(days=1)
     nap_times = ", ".join(f"{hour:02d}:00" for hour in sorted(rules.NAP_HOURS))
     return "\n".join(
         [
@@ -116,22 +116,22 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             f"・Your meals and snacks count up to {daily_cap} a day",
             "",
             "His meters",
-            f"・Health: tracks. Every {health_hours} h without one costs "
+            f"・Health: tracks, cleanups. {health_hours} h with no track costs "
             f"{rules.HEALTH_PENALTY:g}. Hangry when low, dies at 0",
-            f"・Wellbeing: chats ({rules.CHAT_CREDITS_PER_DAY} a day), snacks, "
-            "gifts, cleanups. Low is lonely, never hurt",
-            f"・Mood: duels ({rules.PLAYS_PER_DAY} a day) and pokes "
-            f"({rules.POKE_CREDITS_PER_DAY} a day). Rockstar needs "
-            f"{rules.ROCKSTAR_MOOD} for {rockstar_days} days",
+            f"・Wellbeing: chats ({rules.CHAT_CREDITS_PER_DAY} a day), pokes "
+            f"({rules.POKE_CREDITS_PER_DAY} a day), duels "
+            f"({rules.PLAYS_PER_DAY} a day), snacks, gifts. Low is lonely, "
+            f"never hurt. Rockstar: {rules.ROCKSTAR_WELLBEING} for "
+            f"{rockstar_days} days",
             "",
             "Chores",
             "・First press wins WC",
             f"・Clean up his mess in {mess_hours} h or he catches a cold; "
             f"medicine ({rules.MEDICINE_COST} WC) cures it",
-            f"・Scold a tantrum in {tantrum_minutes} min or Mood drops "
-            f"{rules.TANTRUM_MOOD_PENALTY:g}",
+            f"・Scold a tantrum in {tantrum_minutes} min or Wellbeing drops "
+            f"{rules.TANTRUM_WELLBEING_PENALTY:g}",
             f"・Lights off at naps ({nap_times} UTC) in {lights_minutes} min "
-            f"or Mood drops {rules.LIGHTS_MOOD_PENALTY:g}",
+            f"or Wellbeing drops {rules.LIGHTS_WELLBEING_PENALTY:g}",
             "",
             "Your bond",
             "・Tracks, games, snacks and gifts build it",

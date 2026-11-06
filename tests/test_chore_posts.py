@@ -554,7 +554,7 @@ async def test_the_first_eligible_press_cleans_up_and_pays(
     assert await points(bot, USER_ID) == 2
     after = await current_life(bot)
     assert not is_open(after, Chore.MESS)
-    assert after.wellbeing == 55.0
+    assert (after.health, after.wellbeing) == (55.0, 50.0)
     edit = post.edit.await_args.kwargs
     head, done, line = edit["content"].split("\n")
     assert head == POST_TEXT
@@ -642,7 +642,7 @@ async def test_two_presses_at_once_have_one_winner(bot: app.WispBot) -> None:
     ]
     assert sorted(private_replies(first) + private_replies(second)) == [ALREADY_DONE]
     post.edit.assert_awaited_once()
-    assert (await current_life(bot)).wellbeing == 55.0
+    assert (await current_life(bot)).health == 55.0
 
 
 async def test_a_rebuilt_button_still_cleans_up(bot: app.WispBot) -> None:

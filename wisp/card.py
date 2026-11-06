@@ -16,7 +16,6 @@ from wisp.rules import (
     EGG_WARMTH,
     HATCHING_TIME,
     HEALTH_MAX,
-    MOOD_MAX,
     WELLBEING_MAX,
 )
 from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted
@@ -46,7 +45,8 @@ class BarEmoji:
 
 HEALTH_BAR: Final = BarEmoji("full_full", "full_left")
 WELLBEING_BAR: Final = BarEmoji("care_full", "care_left")
-MOOD_BAR: Final = BarEmoji("happiness_full", "happiness_left")
+# The egg's Hatching bar and the hatching egg's Emerging bar.
+EGG_BAR: Final = BarEmoji("happiness_full", "happiness_left")
 
 
 @dataclass(frozen=True)
@@ -86,12 +86,12 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         hatching = _share(life.egg_food, EGG_FOOD_NEEDED)
         bars = [
             *_meter("Warmth", warmth, HEALTH_BAR, emoji),
-            *_meter("Hatching", hatching, MOOD_BAR, emoji),
+            *_meter("Hatching", hatching, EGG_BAR, emoji),
         ]
         return _card([], bars, "the egg", "EGG", facts)
     if life.phase is Phase.HATCHING:
         emerging = _share(life.phase_seconds, HATCHING_TIME.total_seconds())
-        bars = _meter("Emerging", emerging, MOOD_BAR, emoji)
+        bars = _meter("Emerging", emerging, EGG_BAR, emoji)
         return _card([], bars, "the egg", "HATCHING", facts)
     if life.phase is Phase.ALIVE:
         heading = [f"{SUB_CLEF}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
@@ -106,7 +106,6 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
             *_meter(
                 "Wellbeing", life.wellbeing / WELLBEING_MAX * 100, WELLBEING_BAR, emoji
             ),
-            *_meter("Mood", life.mood_meter / MOOD_MAX * 100, MOOD_BAR, emoji),
         ]
         return _card(heading, bars, "him", life.stage.label.upper(), facts)
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")

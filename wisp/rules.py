@@ -40,10 +40,10 @@ FED_REACTION: Final = "wisp_happy"
 CHAT_POINTS = 1
 PLAY_POINTS = 1
 # Each member's first CHAT_CREDITS_PER_DAY mentions of the UTC day fill Wellbeing
-# by WELLBEING_PER_CHAT; their first POKE_CREDITS_PER_DAY pokes fill Mood by
-# MOOD_PER_POKE.
+# by WELLBEING_PER_CHAT, and their first POKE_CREDITS_PER_DAY pokes by
+# WELLBEING_PER_POKE.
 WELLBEING_PER_CHAT = 5
-MOOD_PER_POKE = 5
+WELLBEING_PER_POKE = 5
 CHAT_CREDITS_PER_DAY = 3
 POKE_CREDITS_PER_DAY = 3
 # How long viibrmusic.com has to say which song a share link names.
@@ -53,10 +53,13 @@ VIIBR_RESOLVE_TIMEOUT = timedelta(seconds=5)
 # Health
 # ---
 
+# His body, and the only meter that can kill him. Fed by tracks, and by
+# HEALTH_PER_CLEANUP for each mess cleaned up.
 HEALTH_MAX = 100.0
 HEALTH_START = 50.0
 # Every HEALTH_STRETCH of counted time with no track fed costs HEALTH_PENALTY,
-# or OLD_FOGEY_HEALTH_PENALTY for an Old Fogey.
+# or OLD_FOGEY_HEALTH_PENALTY for an Old Fogey; Monster Pox and a cold make it
+# bigger (see SICK_DRAIN_MULTIPLIER).
 HEALTH_STRETCH = timedelta(hours=6)
 HEALTH_PENALTY = 8.0
 OLD_FOGEY_HEALTH_PENALTY = 6.0
@@ -67,17 +70,18 @@ FADING_BELOW = 10.0
 # Wellbeing
 # ---
 
-# Filled by snacks and every gift bought; below LONELY_BELOW he
-# is lonely, which only changes how he talks.
+# His heart, which never kills him. Filled by chats, pokes, counted Rhyme
+# Duels, snacks and every gift bought; below LONELY_BELOW he is lonely, which
+# only changes how he talks.
 WELLBEING_MAX = 100.0
 WELLBEING_START = 50.0
-# Every WELLBEING_STRETCH of counted time with no chat and no snack costs
-# WELLBEING_PENALTY.
+# Every WELLBEING_STRETCH of counted time with no credited chat, poke, duel,
+# snack, gift or cleanup costs WELLBEING_PENALTY.
 WELLBEING_STRETCH = timedelta(hours=6)
 WELLBEING_PENALTY = 10.0
 WELLBEING_PER_GIFT = 8
 WELLBEING_PER_SNACK = 8
-MOOD_PER_PLAY = 10
+WELLBEING_PER_PLAY = 10
 LONELY_BELOW = 30.0
 # The pictures in ASSETS/moments his lonely post picks from, by stage.
 LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
@@ -88,16 +92,6 @@ LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
     Stage.ROCKSTAR: ("cry_teen.gif",),
     Stage.OLD_FOGEY: ("cry_teen.gif",),
 }
-
-# ---
-# Mood
-# ---
-
-MOOD_MAX = 100.0
-MOOD_START = 50.0
-# Every MOOD_STRETCH of counted time with no game and no poke costs MOOD_PENALTY.
-MOOD_STRETCH = timedelta(hours=6)
-MOOD_PENALTY = 10.0
 
 # ---
 # Monster Pox, his childhood sickness (named "cold" in the code)
@@ -111,9 +105,10 @@ COLD_EARLIEST = timedelta(days=1)
 COLD_LATEST = timedelta(days=5)
 # Credited time he stays sick.
 SICK_FOR = timedelta(hours=48)
-# While sick the Health penalty is SICK_DRAIN_MULTIPLIER times as big but never
-# takes Health below SICK_FULL_FLOOR, and each member's daily meal cap has room
-# for SICK_EXTRA_MEAL_CAP more meal points.
+# While he has Monster Pox or a cold the Health penalty is SICK_DRAIN_MULTIPLIER
+# times as big but never takes Health below SICK_FULL_FLOOR. While he has
+# Monster Pox each member's daily meal cap has room for SICK_EXTRA_MEAL_CAP more
+# meal points.
 SICK_DRAIN_MULTIPLIER = 1.5
 SICK_FULL_FLOOR = 1.0
 SICK_EXTRA_MEAL_CAP = 15
@@ -128,10 +123,9 @@ SICK_PICTURES: Final[dict[Stage, str]] = {
 # A cold ("sniffles" in the code, so it is never mistaken for Monster Pox)
 # ---
 
-# Counted time a cold lasts; meanwhile the Wellbeing penalty is
-# SNIFFLES_PENALTY_MULTIPLIER times as big.
+# Counted time a cold lasts; meanwhile the Health penalty is
+# SICK_DRAIN_MULTIPLIER times as big, as with Monster Pox.
 SNIFFLES_FOR = timedelta(hours=48)
-SNIFFLES_PENALTY_MULTIPLIER = 2.0
 
 # ---
 # Chores
@@ -154,24 +148,24 @@ CHORE_POINTS: Final[dict[Chore, int]] = {
 # A fed track makes a mess due between MESS_DELAY_MIN and MESS_DELAY_MAX later,
 # when none is open or pending and MESS_GAP has passed since the last one
 # appeared. Left for MESS_LEFT_FOR it gives him a cold; a cleanup adds
-# WELLBEING_PER_CLEANUP.
+# HEALTH_PER_CLEANUP.
 MESS_DELAY_MIN = timedelta(minutes=30)
 MESS_DELAY_MAX = timedelta(minutes=90)
 MESS_GAP = timedelta(hours=6)
 MESS_LEFT_FOR = timedelta(hours=6)
-WELLBEING_PER_CLEANUP = 5
+HEALTH_PER_CLEANUP = 5
 # About once a day he throws a tantrum while awake. Myra may stretch the window
 # while the server is small.
 TANTRUM_WINDOW = timedelta(minutes=15)
-TANTRUM_MOOD_PENALTY = 15.0
+TANTRUM_WELLBEING_PENALTY = 15.0
 # He naps for NAP_FOR from each of NAP_HOURS (UTC); the lights must go off
-# within LIGHTS_WINDOW, or he loses LIGHTS_MOOD_PENALTY Mood and is cranky for
-# CRANKY_FOR after the nap. A poke that wakes him makes him cranky for
-# CRANKY_FOR too.
+# within LIGHTS_WINDOW, or he loses LIGHTS_WELLBEING_PENALTY Wellbeing and is
+# cranky for CRANKY_FOR after the nap. A poke that wakes him makes him cranky
+# for CRANKY_FOR too.
 NAP_HOURS: Final = (2, 10, 18)
 NAP_FOR = timedelta(hours=1)
 LIGHTS_WINDOW = timedelta(minutes=15)
-LIGHTS_MOOD_PENALTY = 10.0
+LIGHTS_WELLBEING_PENALTY = 10.0
 CRANKY_FOR = timedelta(hours=1)
 # What the mess is at each stage, its button label and its picture in
 # ASSETS/moments; a None picture posts the words and the button alone.
@@ -260,10 +254,10 @@ OLD_FOGEY_AT_DAY = 24
 FAREWELL_AT_DAY = 30
 LAST_EMBER_GIFTS = 3
 
-# An Adult whose Mood stays at ROCKSTAR_MOOD or more for ROCKSTAR_MOOD_FOR of
-# counted time becomes a Rockstar.
-ROCKSTAR_MOOD = 80
-ROCKSTAR_MOOD_FOR = timedelta(days=4)
+# An Adult whose Wellbeing stays at ROCKSTAR_WELLBEING or more for
+# ROCKSTAR_WELLBEING_FOR of counted time becomes a Rockstar.
+ROCKSTAR_WELLBEING = 80
+ROCKSTAR_WELLBEING_FOR = timedelta(days=4)
 
 GROWTH_PER_PLAY = 2
 PLAYS_PER_DAY = 5

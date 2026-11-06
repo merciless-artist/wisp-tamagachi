@@ -8,7 +8,9 @@ from wisp.rules import Stage
 
 # The columns keep their live names: `care` holds Life.health, `fondness` holds
 # Life.wellbeing and `high_happiness_since` holds Life.high_mood_since. The
-# cold's, Mood's, stretches' and chores' columns share their fields' names.
+# cold's, stretches' and chores' columns share their fields' names. The old Mood
+# meter's `mood_meter` and `mood_stretch` stay in the table, unread: a new life
+# gets their defaults and saving leaves them as they are.
 _COLUMNS = (
     "version",
     "phase",
@@ -34,10 +36,8 @@ _COLUMNS = (
     "cold_due_at",
     "cold_left",
     "had_cold",
-    "mood_meter",
     "health_stretch",
     "wellbeing_stretch",
-    "mood_stretch",
     "sniffles_left",
     "mess_in",
     "mess_left",
@@ -83,10 +83,8 @@ def _from_row(row: Row) -> Life:
         cold_due_at=from_db_time(row["cold_due_at"]),
         cold_left=row["cold_left"],
         had_cold=bool(row["had_cold"]),
-        mood_meter=row["mood_meter"],
         health_stretch=row["health_stretch"],
         wellbeing_stretch=row["wellbeing_stretch"],
-        mood_stretch=row["mood_stretch"],
         sniffles_left=row["sniffles_left"],
         mess_in=row["mess_in"],
         mess_left=row["mess_left"],
@@ -131,10 +129,8 @@ def _values(life: Life) -> tuple[Any, ...]:
         to_db_time(life.cold_due_at),
         life.cold_left,
         life.had_cold,
-        life.mood_meter,
         life.health_stretch,
         life.wellbeing_stretch,
-        life.mood_stretch,
         life.sniffles_left,
         life.mess_in,
         life.mess_left,

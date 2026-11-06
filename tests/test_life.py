@@ -1,5 +1,6 @@
 """Tests for the life engine: eggs, the meters, colds, stages and death."""
 
+import dataclasses
 import random
 from datetime import UTC, datetime, timedelta
 
@@ -45,12 +46,9 @@ from wisp.rules import (
     HEALTH_STRETCH,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
-    MOOD_MAX,
-    MOOD_START,
-    MOOD_STRETCH,
     OLD_FOGEY_AT_DAY,
-    ROCKSTAR_MOOD,
-    ROCKSTAR_MOOD_FOR,
+    ROCKSTAR_WELLBEING,
+    ROCKSTAR_WELLBEING_FOR,
     SICK_DRAIN_MULTIPLIER,
     SICK_FOR,
     SICK_FULL_FLOOR,
@@ -67,11 +65,10 @@ from wisp.rules import (
 T0 = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 FEEDER = 4242
 SIX_HOURS = timedelta(hours=6)
-STRETCHES = ("health_stretch", "wellbeing_stretch", "mood_stretch")
+STRETCHES = ("health_stretch", "wellbeing_stretch")
 LEVELS = {
     Meter.HEALTH: "health",
     Meter.WELLBEING: "wellbeing",
-    Meter.MOOD: "mood_meter",
 }
 
 
@@ -104,13 +101,13 @@ def run(
     people: int = 0,
     fed: bool = False,
     cared: bool = False,
-    mood_at: float | None = None,
+    wellbeing_at: float | None = None,
 ) -> list[Event]:
     """Tick `life` every `step` for `duration`, optionally tending a meter.
 
-    Before every step `fed` fills health, `cared` fills wellbeing and `mood_at`
-    sets the Mood meter, each ending that meter's stretch, as a track, a chat
-    or a game would.
+    Before every step `fed` fills health, `cared` fills wellbeing and
+    `wellbeing_at` sets it, each ending that meter's stretch, as a track, a
+    chat or a game would.
     """
     events: list[Event] = []
     end = life.last_tick_at + duration
@@ -119,8 +116,8 @@ def run(
             life.health, life.health_stretch = HEALTH_MAX, 0.0
         if cared:
             life.wellbeing, life.wellbeing_stretch = WELLBEING_MAX, 0.0
-        if mood_at is not None:
-            life.mood_meter, life.mood_stretch = mood_at, 0.0
+        if wellbeing_at is not None:
+            life.wellbeing, life.wellbeing_stretch = wellbeing_at, 0.0
         events += tick(
             life,
             life.last_tick_at + step,
@@ -132,8 +129,8 @@ def run(
 
 
 def tended(life: Life, duration: timedelta) -> list[Event]:
-    """Tick a fed, cared-for Wisp whose Mood is high enough to become a Rockstar."""
-    return run(life, duration, fed=True, cared=True, mood_at=ROCKSTAR_MOOD)
+    """Tick a Wisp fed and cared for enough to become a Rockstar."""
+    return run(life, duration, fed=True, wellbeing_at=ROCKSTAR_WELLBEING)
 
 
 def stretch_left(length: timedelta) -> float:
@@ -215,19 +212,19 @@ def test_hatching_does_not_drain_the_newborn_in_the_same_tick() -> None:
     egg.phase_seconds = HATCHING_TIME.total_seconds() - 1
     tick(egg, T0 + MAX_CREDITED_GAP, frozen=False, caretakers=0, people=0)
     assert egg.health == HEALTH_START
-    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0, 0.0]
+    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0]
 
 
 def test_meters_start_at_fifty_when_he_hatches() -> None:
     egg = new_egg(1, T0)
-    egg.wellbeing = egg.mood_meter = 0.0
-    egg.health_stretch = egg.wellbeing_stretch = egg.mood_stretch = 600.0
+    egg.wellbeing = 0.0
+    egg.health_stretch = egg.wellbeing_stretch = 600.0
     feed(egg, EGG_FOOD_NEEDED, FEEDER, T0)
     run(egg, HATCHING_TIME)
     assert egg.phase is Phase.ALIVE
-    assert (egg.health, egg.wellbeing, egg.mood_meter) == (50.0, 50.0, 50.0)
-    assert (HEALTH_START, WELLBEING_START, MOOD_START) == (50.0, 50.0, 50.0)
-    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0, 0.0]
+    assert (egg.health, egg.wellbeing) == (50.0, 50.0)
+    assert (HEALTH_START, WELLBEING_START) == (50.0, 50.0)
+    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0]
     assert not egg.lonely_warned
 
 
@@ -254,10 +251,16 @@ def test_feeding_over_life_is_ignored(phase: Phase) -> None:
 # ---
 
 
+def test_he_has_two_meters_health_and_wellbeing() -> None:
+    assert list(Meter) == [Meter.HEALTH, Meter.WELLBEING]
+    fields = {field.name for field in dataclasses.fields(Life)}
+    assert not {"mood_meter", "mood_stretch"} & fields
+
+
 def test_nothing_drains_between_penalties() -> None:
     life = alive()
     run(life, timedelta(hours=5, minutes=55))
-    assert (life.health, life.wellbeing, life.mood_meter) == (50.0, 50.0, 50.0)
+    assert (life.health, life.wellbeing) == (50.0, 50.0)
 
 
 def test_six_hours_without_a_track_costs_eight_health() -> None:
@@ -312,41 +315,46 @@ def test_six_hours_without_a_chat_or_snack_costs_ten_wellbeing() -> None:
     assert life.wellbeing == 40.0
 
 
-def test_a_cold_doubles_the_wellbeing_penalty() -> None:
+def test_a_cold_makes_the_health_penalty_twelve_not_the_wellbeing_one() -> None:
     life = alive(sniffles_left=SNIFFLES_FOR.total_seconds())
     run(life, SIX_HOURS)
-    assert life.wellbeing == 30.0
+    assert life.health == 50.0 - 8.0 * SICK_DRAIN_MULTIPLIER == 38.0
+    assert life.wellbeing == 40.0
 
 
-def test_six_hours_without_a_game_or_poke_costs_ten_mood() -> None:
-    life = alive()
-    run(life, SIX_HOURS)
-    assert life.mood_meter == 40.0
+def test_a_cold_keeps_him_at_one_health() -> None:
+    life = alive(health=5.0, sniffles_left=SNIFFLES_FOR.total_seconds())
+    events = run(life, SIX_HOURS)
+    assert life.health == SICK_FULL_FLOOR == 1.0
+    assert EventKind.DIED not in kinds(events)
+    assert life.phase is Phase.ALIVE
 
 
-@pytest.mark.parametrize("level", ["wellbeing", "mood_meter"])
-def test_a_penalty_never_takes_a_meter_below_zero(level: str) -> None:
+def test_monster_pox_and_a_cold_together_cost_health_only_once_over() -> None:
     life = alive(
-        **{level: 3.0},
-        wellbeing_stretch=stretch_left(WELLBEING_STRETCH),
-        mood_stretch=stretch_left(MOOD_STRETCH),
+        cold_left=SICK_FOR.total_seconds(),
+        had_cold=True,
+        sniffles_left=SNIFFLES_FOR.total_seconds(),
     )
+    run(life, SIX_HOURS)
+    assert life.health == 38.0
+    assert life.wellbeing == 40.0
+
+
+def test_a_penalty_never_takes_wellbeing_below_zero() -> None:
+    life = alive(wellbeing=3.0, wellbeing_stretch=stretch_left(WELLBEING_STRETCH))
     run(life, TICK_EVERY)
-    assert getattr(life, level) == 0.0
+    assert life.wellbeing == 0.0
     assert life.phase is Phase.ALIVE
 
 
 def test_change_meter_ending_a_stretch_restarts_only_that_meter() -> None:
     three_hours = timedelta(hours=3).total_seconds()
-    life = alive(
-        health_stretch=three_hours,
-        wellbeing_stretch=three_hours,
-        mood_stretch=three_hours,
-    )
-    change_meter(life, Meter.MOOD, 5, ends_stretch=True)
-    assert life.mood_stretch == 0.0
-    assert (life.health_stretch, life.wellbeing_stretch) == (three_hours,) * 2
-    assert life.mood_meter == 55.0
+    life = alive(health_stretch=three_hours, wellbeing_stretch=three_hours)
+    change_meter(life, Meter.WELLBEING, 5, ends_stretch=True)
+    assert life.wellbeing_stretch == 0.0
+    assert life.health_stretch == three_hours
+    assert life.wellbeing == 55.0
 
 
 def test_change_meter_without_ending_keeps_the_stretch() -> None:
@@ -357,37 +365,37 @@ def test_change_meter_without_ending_keeps_the_stretch() -> None:
 
 @pytest.mark.parametrize("meter", list(Meter))
 def test_change_meter_clamps_and_only_counts_while_alive(meter: Meter) -> None:
-    assert (HEALTH_MAX, WELLBEING_MAX, MOOD_MAX) == (100.0,) * 3
+    assert (HEALTH_MAX, WELLBEING_MAX) == (100.0,) * 2
     life = alive()
     change_meter(life, meter, 80)
     assert getattr(life, LEVELS[meter]) == 100.0
     change_meter(life, meter, -200)
     assert getattr(life, LEVELS[meter]) == 0.0
     for phase in (Phase.EGG, Phase.HATCHING, Phase.DEAD, Phase.COLD, Phase.PASSED):
-        other = alive(health_stretch=600.0, wellbeing_stretch=600.0, mood_stretch=600.0)
+        other = alive(health_stretch=600.0, wellbeing_stretch=600.0)
         other.phase = phase
         change_meter(other, meter, 10, ends_stretch=True)
         assert getattr(other, LEVELS[meter]) == 50.0
-        assert [getattr(other, name) for name in STRETCHES] == [600.0] * 3
+        assert [getattr(other, name) for name in STRETCHES] == [600.0] * 2
 
 
 def test_frozen_and_offline_time_never_fill_a_stretch() -> None:
     life = alive()
     run(life, timedelta(hours=7), step=MAX_CREDITED_GAP, frozen=True)
-    assert (life.health, life.wellbeing, life.mood_meter) == (50.0, 50.0, 50.0)
-    assert [getattr(life, name) for name in STRETCHES] == [0.0, 0.0, 0.0]
+    assert (life.health, life.wellbeing) == (50.0, 50.0)
+    assert [getattr(life, name) for name in STRETCHES] == [0.0, 0.0]
     back = life.last_tick_at + timedelta(hours=7)
     tick(life, back, frozen=False, caretakers=0, people=0)
     gap = MAX_CREDITED_GAP.total_seconds()
-    assert [getattr(life, name) for name in STRETCHES] == [gap, gap, gap]
-    assert (life.health, life.wellbeing, life.mood_meter) == (50.0, 50.0, 50.0)
+    assert [getattr(life, name) for name in STRETCHES] == [gap, gap]
+    assert (life.health, life.wellbeing) == (50.0, 50.0)
 
 
 def test_an_egg_fills_no_stretch() -> None:
     egg = new_egg(1, T0)
     run(egg, timedelta(hours=7))
-    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0, 0.0]
-    assert (egg.wellbeing, egg.mood_meter) == (WELLBEING_START, MOOD_START)
+    assert [getattr(egg, name) for name in STRETCHES] == [0.0, 0.0]
+    assert egg.wellbeing == WELLBEING_START
 
 
 @pytest.mark.parametrize(
@@ -422,7 +430,7 @@ def test_clock_going_backwards_credits_nothing() -> None:
     life = alive(health=50.0)
     tick(life, T0 - timedelta(minutes=5), frozen=False, caretakers=0, people=0)
     assert life.health == 50.0
-    assert [getattr(life, name) for name in STRETCHES] == [0.0, 0.0, 0.0]
+    assert [getattr(life, name) for name in STRETCHES] == [0.0, 0.0]
 
 
 def test_hungry_and_fading_warn_once_each() -> None:
@@ -499,10 +507,6 @@ def test_mood_hangry_beats_lonely() -> None:
 )
 def test_mood_lonely_below_the_line(wellbeing: float, expected: Mood) -> None:
     assert mood(alive(health=80.0, wellbeing=wellbeing)) is expected
-
-
-def test_a_low_mood_meter_never_makes_him_hangry_or_lonely() -> None:
-    assert mood(alive(health=80.0, wellbeing=80.0, mood_meter=0.0)) is Mood.HAPPY
 
 
 @pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
@@ -658,10 +662,10 @@ def test_late_bloomer_grows_when_caretakers_arrive() -> None:
     assert life.stage_started_at == life.last_tick_at
 
 
-def test_rockstar_after_four_days_of_mood_at_eighty() -> None:
-    assert (ROCKSTAR_MOOD, ROCKSTAR_MOOD_FOR) == (80, timedelta(days=4))
+def test_rockstar_after_four_days_of_wellbeing_at_eighty() -> None:
+    assert (ROCKSTAR_WELLBEING, ROCKSTAR_WELLBEING_FOR) == (80, timedelta(days=4))
     life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
-    almost = ROCKSTAR_MOOD_FOR - timedelta(hours=1)
+    almost = ROCKSTAR_WELLBEING_FOR - timedelta(hours=1)
     events = tended(life, almost)
     assert events == []
     events = tended(life, timedelta(hours=2))
@@ -670,56 +674,54 @@ def test_rockstar_after_four_days_of_mood_at_eighty() -> None:
     assert life.peak_stage is Stage.ROCKSTAR
 
 
-def test_a_mood_dip_resets_the_rockstar_clock() -> None:
-    almost = ROCKSTAR_MOOD_FOR - timedelta(days=1)
+def test_a_wellbeing_dip_resets_the_rockstar_clock() -> None:
+    almost = ROCKSTAR_WELLBEING_FOR - timedelta(days=1)
     life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tended(life, almost)
     assert life.high_mood_since is not None
-    run(life, TICK_EVERY, fed=True, cared=True, mood_at=ROCKSTAR_MOOD - 1)
+    run(life, TICK_EVERY, fed=True, wellbeing_at=ROCKSTAR_WELLBEING - 1)
     assert life.high_mood_since is None
     events = tended(life, almost)
     assert events == []
     assert life.stage is Stage.ADULT
-    events = run(
-        life, timedelta(days=1, hours=1), fed=True, cared=True, mood_at=MOOD_MAX
-    )
+    events = run(life, timedelta(days=1, hours=1), fed=True, cared=True)
     assert events == [Event(EventKind.STAGE_UP, Stage.ROCKSTAR)]
 
 
-def test_a_mood_penalty_below_eighty_resets_the_rockstar_clock() -> None:
+def test_a_wellbeing_penalty_below_eighty_resets_the_rockstar_clock() -> None:
     life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tended(life, timedelta(days=1))
     assert life.high_mood_since is not None
-    life.mood_stretch = stretch_left(MOOD_STRETCH)
-    run(life, TICK_EVERY, fed=True, cared=True)
-    assert life.mood_meter == ROCKSTAR_MOOD - 10
+    life.wellbeing_stretch = stretch_left(WELLBEING_STRETCH)
+    run(life, TICK_EVERY, fed=True)
+    assert life.wellbeing == ROCKSTAR_WELLBEING - 10
     assert life.high_mood_since is None
 
 
 def test_only_adults_build_a_rockstar_streak() -> None:
     life = alive(health=HEALTH_MAX, stage=Stage.TEEN)
-    run(life, timedelta(hours=1), fed=True, mood_at=MOOD_MAX)
+    run(life, timedelta(hours=1), fed=True, cared=True)
     assert life.high_mood_since is None
 
 
 def test_frozen_span_does_not_count_toward_rockstar() -> None:
     life = alive(health=HEALTH_MAX, stage=Stage.ADULT)
     tended(life, timedelta(days=1))
-    run(life, ROCKSTAR_MOOD_FOR, step=MAX_CREDITED_GAP, frozen=True)
+    run(life, ROCKSTAR_WELLBEING_FOR, step=MAX_CREDITED_GAP, frozen=True)
     events = tended(life, TICK_EVERY)
     assert events == []
     assert life.stage is Stage.ADULT
-    remaining = ROCKSTAR_MOOD_FOR - timedelta(days=1)
+    remaining = ROCKSTAR_WELLBEING_FOR - timedelta(days=1)
     events = tended(life, remaining)
     assert events == [Event(EventKind.STAGE_UP, Stage.ROCKSTAR)]
 
 
 def test_offline_gap_counts_only_fifteen_minutes_toward_rockstar() -> None:
-    life = alive(health=HEALTH_MAX, stage=Stage.ADULT, mood_meter=MOOD_MAX)
+    life = alive(health=HEALTH_MAX, stage=Stage.ADULT, wellbeing=WELLBEING_MAX)
     tick(life, T0 + TICK_EVERY, frozen=False, caretakers=0, people=0)
     since = life.high_mood_since
     assert since is not None
-    back = T0 + TICK_EVERY + timedelta(days=ROCKSTAR_MOOD_FOR.days + 1)
+    back = T0 + TICK_EVERY + timedelta(days=ROCKSTAR_WELLBEING_FOR.days + 1)
     life.health = HEALTH_MAX
     events = tick(life, back, frozen=False, caretakers=0, people=0)
     assert events == []
@@ -758,8 +760,8 @@ def test_old_age_wins_over_rockstar_in_the_same_tick() -> None:
     life = old(
         Stage.ADULT,
         OLD_FOGEY_AT_DAY,
-        high_mood_since=T0 - ROCKSTAR_MOOD_FOR,
-        mood_meter=float(ROCKSTAR_MOOD),
+        high_mood_since=T0 - ROCKSTAR_WELLBEING_FOR,
+        wellbeing=float(ROCKSTAR_WELLBEING),
     )
     events = tick(life, T0, frozen=False, caretakers=0, people=0)
     assert events == [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)]
@@ -1112,14 +1114,11 @@ def test_cure_sniffles_ends_it_at_once() -> None:
     assert catch_sniffles(life) is True
 
 
-def test_a_cold_never_touches_health() -> None:
-    sniffly = alive(sniffles_left=SNIFFLES_FOR.total_seconds())
-    well = alive()
-    sniffly_events = run(sniffly, SIX_HOURS)
-    run(well, SIX_HOURS)
-    assert sniffly.health == well.health == 42.0
-    assert sniffly.wellbeing == 30.0
-    assert sniffly_events == []
+def test_a_cold_never_kills_him() -> None:
+    sniffly = alive(health=1.0, sniffles_left=SNIFFLES_FOR.total_seconds())
+    events = run(sniffly, timedelta(days=1))
+    assert sniffly.health == 1.0
+    assert EventKind.DIED not in kinds(events)
     assert sniffly.phase is Phase.ALIVE
 
 

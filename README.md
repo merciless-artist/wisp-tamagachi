@@ -36,35 +36,41 @@ him in Wisp's House.
 - A brand-new server still gets its first egg on the first tick after setup,
   with no button.
 
-## His three meters
+## His two meters
 
-The status card shows three meters in this order, each from 0 to 100 and
-starting at 50 when he hatches, plus a line while he has Monster Pox or a cold.
+The status card shows two meters, Health then Wellbeing, each from 0 to 100
+and starting at 50 when he hatches, plus a line while he has Monster Pox or a
+cold.
 They move in steps: a plus for something done, a minus when a stretch of
 counted time passes with nothing done. There is no slow drain. A stretch counts
 only time he is alive and not frozen. All the numbers are starting values in
 `wisp/rules.py`.
 
-- **Health** is his food (`Life.health` in the code, stored in the old
+- **Health** is his body (`Life.health` in the code, stored in the old
   `lives.care` column). Each fed track adds its meal points, inside each
-  member's daily meal limit; snacks no longer fill it. Every 6 hours with no
-  track fed costs 8 (6 as an Old Fogey). Below 30 he is hangry, below 10 he is
-  fading, and at 0 he dies. Only Health can kill him.
-- **Wellbeing** is how looked after he feels. A chat adds 5 (a member's first 3
-  chats of the UTC day), a snack 8, a gift bought 8 (kept or not) and a mess
-  cleaned up 5. Every 6 hours with no chat and no snack costs 10, and 20 while
-  he has a cold. Below 30 he is lonely and grumpy in what he says and posts once
-  in the House with a picture for his stage. Hangry beats lonely beats happy,
-  and lonely never hurts him: no death, no growth penalty.
-- **Mood** is how much fun he is having. A rhyme duel that counts as play adds
-  10 (at most 5 a day per member) and a poke adds 5 (a member's first 3 pokes of
-  the UTC day; a poke that wakes him from a nap adds nothing). An unscolded
+  member's daily meal limit, and a mess cleaned up adds 5; snacks do not fill
+  it, so coins can never keep him alive instead of music. Every 6 hours with no
+  track fed costs 8 (6 as an Old Fogey). Monster Pox and a cold each make that
+  1.5 times as big (12), but neither takes Health below 1 on its own. Below 30
+  he is hangry, below 10 he is fading, and at 0 he dies. Only Health can kill
+  him.
+- **Wellbeing** is his heart (`Life.wellbeing`, stored in the old
+  `lives.fondness` column). A chat adds 5 (a member's first 3 chats of the UTC
+  day), a poke 5 (a member's first 3 pokes of the UTC day; a poke that wakes
+  him from a nap adds nothing), a rhyme duel that counts as play 10 (at most 5
+  a day per member), a snack 8 and a gift bought 8 (kept or not). An unscolded
   tantrum costs 15 and lights left on at a nap cost 10. Every 6 hours with no
-  duel and no poke costs 10. Mood at 80 or more for four days is what makes an
-  Adult a Rockstar.
+  credited chat, poke, duel, snack, gift or cleanup costs 10. Below 30 he is
+  lonely and grumpy in what he says and posts once in the House with a picture
+  for his stage. Hangry beats lonely beats happy, and Wellbeing never hurts
+  him: no death, no growth penalty. Wellbeing at 80 or more for four days is
+  what makes an Adult a Rockstar.
 
-Only credited actions end a stretch: a fed track, or a chat, snack, duel or poke
-that earned its plus. A member's first poke or mention of the UTC day also
+He used to have a third meter, Mood; it folded into Wellbeing on 2026-11-06.
+Its `mood_meter` and `mood_stretch` columns stay in the table, unread.
+
+Only credited actions end a stretch: a fed track ends Health's, and a chat,
+poke, duel, snack, gift or cleanup that earned its plus ends Wellbeing's. A member's first poke or mention of the UTC day also
 earns 1 Vault point. Only members who can feed Wisp and are not banned earn
 pluses and points, though anyone can still poke and chat. A chat counts toward
 Wisp learning a member's name, but not toward bond, growth, caretakers, the
@@ -84,22 +90,24 @@ while he is an egg, and the buttons keep working after a restart.
   (Clean up), a zit breakout for a Teen (Hand him face wash), takeout boxes and
   dirty dishes for an Adult (Take out the trash), the green room he trashed after
   a show for a Rockstar (Clean the green room) and dentures that need a soak for
-  an Old Fogey (Soak his teeth). A cleanup earns 2 points and adds 5 Wellbeing.
+  an Old Fogey (Soak his teeth). A cleanup earns 2 points and adds 5 Health.
   Left for 6 hours, the mess gives him a cold and its post is edited to say so.
 - **A cold** (`sniffles` in the code, so it is never mistaken for Monster Pox)
-  lasts 48 hours, doubles the Wellbeing penalty, makes his voice stuffy and
-  shows on the status card. It never kills him and cannot start while he has
-  Monster Pox. **Medicine** in the Vault (10 WC, shown only while he has a
+  lasts 48 hours, makes the Health penalty 1.5 times as big (never below 1
+  Health), makes his voice stuffy and shows on the status card. It never kills
+  him and cannot start while he has Monster Pox. **Medicine** in the Vault (10 WC, shown only while he has a
   cold) cures it at once: the first buyer gets 3 points and he posts a
   thank-you with the bottle.
 - **Tantrums** come about once a day while he is awake, never during a nap or
   just before one. Scold him within 15 minutes for 2 points; if nobody does he
-  loses 15 Mood and is spoiled (extra bratty) for the rest of the UTC day.
+  loses 15 Wellbeing and is spoiled (extra bratty) for the rest of the UTC
+  day.
 - **Naps** are at 02:00, 10:00 and 18:00 UTC, an hour each. Turn the lights off
-  within 15 minutes for 2 points; otherwise he loses 10 Mood and is cranky for an
-  hour after the nap. While he sleeps he answers only with sleepy noises, and a
-  poke wakes him early, cranky, with no Mood plus. A nap whose start falls while
-  he is frozen or the bot is down is skipped without a penalty.
+  within 15 minutes for 2 points; otherwise he loses 10 Wellbeing and is cranky
+  for an hour after the nap. While he sleeps he answers only with sleepy
+  noises, and a poke wakes him early, cranky, with no Wellbeing plus. A nap
+  whose start falls while he is frozen or the bot is down is skipped without a
+  penalty.
 
 **Monster Pox**, his childhood sickness (`is_sick` and the `SICK_*` rules in
 the code), comes once per life, at a random time between day 1 and day 5
@@ -215,7 +223,7 @@ where the command was used.
   - `cold`: he catches a cold, unless he is already sick.
   - `late`: every waiting chore runs out at once, the way it does when nobody
     helps: a left mess gives him a cold, a missed tantrum or missed lights
-    cost Mood. The same time also counts down a nap he is taking.
+    cost Wellbeing. The same time also counts down a nap he is taking.
   - Tip: run `!wisp test_lifestage baby`, then `!wisp test_chore mess`, to see
     the poop (a mess is the one of his current stage).
 - `!wisp test_lifestage <baby|child|teen|adult|rockstar|oldfogey|farewell|starve>`
@@ -277,8 +285,8 @@ the purchase is undone and the points come back.
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
 - `/wisp play rhyme` starts a Rhyme Duel with Wisp. A duel that counts as play
-  (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his Mood
-  and pays 1 Vault point.
+  (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his
+  Wellbeing and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
 its threads). He never answers in the Studio, so Burrito's post is left to
@@ -289,7 +297,7 @@ the AI is down, the egg and baby fall back to their pre-written lines. From
 Adult on he sometimes chimes in on his own and remembers things people
 tell him. Talking earns no bond. A member's first mention or poke of the UTC
 day also earns 1 Vault point, and the first 3 chats of the day fill his Wellbeing
-(see His three meters).
+(see His two meters).
 
 Poking: the Poke Wisp button on the status card and on the House's new-egg
 posts pokes him at every stage. The House sees who poked him and his AI
@@ -298,7 +306,7 @@ now and then a startle or a curious look; a House that has been quiet for
 2 hours wakes him up, and a flurry of pokes or low Health annoy him. He naps
 at the timed naps (see His chores), and a poke then wakes him early and
 cranky. Pokes and mentions share one cooldown per member; a
-member's first 3 pokes of the day fill his Mood and only the first poke or
+member's first 3 pokes of the day fill his Wellbeing and only the first poke or
 mention earns a point.
 
 Wisp knows his own emojis: when a message to him uses one of his app emojis
@@ -432,7 +440,7 @@ App emojis (uploaded to the application in the Developer Portal):
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
 `wisp_coin`, `wisp_coin_mini` (prices and balances), `medicine` (the Vault's
 medicine option), `viibr_logo` (the Vault's title), the status card's meters `full_full` / `full_left` (Health), `care_full` /
-`care_left` (Wellbeing) and `happiness_full` / `happiness_left` (Mood), `wisp_happy`, `wisp_hangry`,
+`care_left` (Wellbeing) and `happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars), `wisp_happy`, `wisp_hangry`,
 `wisp_sad`. The layouts are Myra's house style,
 `DOCS/specs/2026-10-27-house-style.md`.
 

@@ -410,24 +410,19 @@ _FEELING_LAYERS: Final = {
 
 def sick_hours(life: Life) -> dict[Feeling, int]:
     """Whole hours (rounded up) left of each sickness he has, as the card shows."""
-    left = {
-        Feeling.MONSTER_POX: life.cold_left if is_sick(life) else 0.0,
-        Feeling.SNIFFLES: life.sniffles_left if has_sniffles(life) else 0.0,
-    }
+    left = {Feeling.MONSTER_POX: life.cold_left, Feeling.SNIFFLES: life.sniffles_left}
     return {
-        feeling: hours_left(seconds) for feeling, seconds in left.items() if seconds
+        feeling: hours_left(seconds) for feeling, seconds in left.items() if seconds > 0
     }
 
 
 def _hours_note(hours: int, baby: bool) -> str:
     """The line telling him how long his sickness still lasts."""
-    span = f"{hours} hour" if hours == 1 else f"{hours} hours"
-    if baby:
-        return (
-            f" You have about {span} left of it. If anyone asks how long, tell "
-            "them in baby words."
-        )
-    return f" You have about {span} left of it. If anyone asks how long, tell them."
+    words = " in baby words" if baby else ""
+    return (
+        f" You have about {count(hours, 'hour')} left of it. If anyone asks how "
+        f"long, tell them{words}."
+    )
 
 
 def feelings_of(life: Life, now: datetime) -> frozenset[Feeling]:
@@ -887,7 +882,7 @@ def build_prompt(
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
     feelings: Collection[Feeling] = (),
-    hours_left: Mapping[Feeling, int] | None = None,
+    sickness_hours: Mapping[Feeling, int] | None = None,
     track_drop: bool = False,
     sight: Sight | None = None,
 ) -> Prompt:
@@ -900,10 +895,11 @@ def build_prompt(
     the dance emojis he may post, and from Teen on he knows the things in
     Myra's "Things you know". Each of his `feelings` adds a layer: Monster
     Pox is spotty and itchy, a cold stuffy and sneezy, spoiled extra bratty
-    for the rest of the day, cranky just woken and grumpy about it. `hours_left`
-    is how many whole hours each sickness still lasts (see `sick_hours`). With
-    `track_drop`, from Child on he sends people to the track drop for food
-    (see `link_track_drop`). `sight` is the picture that came with `message`.
+    for the rest of the day, cranky just woken and grumpy about it.
+    `sickness_hours` is how many whole hours each sickness still lasts (see
+    `sick_hours`). With `track_drop`, from Child on he sends people to the
+    track drop for food (see `link_track_drop`). `sight` is the picture that
+    came with `message`.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -922,7 +918,7 @@ def build_prompt(
     if (layers := _MOOD_LAYERS.get(mood)) is not None:
         grown, little = layers
         system.append(little if baby else grown)
-    left = hours_left or {}
+    left = sickness_hours or {}
     for kind in Feeling:
         if kind in feelings:
             layer = _FEELING_LAYERS[kind][baby]

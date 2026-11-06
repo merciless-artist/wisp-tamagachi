@@ -1192,11 +1192,9 @@ async def test_a_badge_bought_again_retires_its_older_purchases(db: Database) ->
 async def test_meters_and_chores_round_trip(db: Database) -> None:
     repo = LifeRepo(db)
     life = await repo.insert(GUILD, new_egg(1, NOW))
-    assert (life.mood_meter, life.nap_left, life.mess_message_id) == (50.0, 0.0, None)
-    life.mood_meter = 63.5
+    assert (life.nap_left, life.mess_message_id) == (0.0, None)
     life.health_stretch = 11.5
     life.wellbeing_stretch = 22.25
-    life.mood_stretch = 33.75
     life.sniffles_left = 4000.5
     life.mess_in = 1200.0
     life.mess_left = 900.5
@@ -1218,3 +1216,41 @@ async def test_meters_and_chores_round_trip(db: Database) -> None:
     for field in dataclasses.fields(life):
         assert getattr(loaded, field.name) == getattr(life, field.name), field.name
     assert loaded.tantrum_due_at == datetime(2026, 11, 2, 15, 30, tzinfo=UTC)
+
+
+async def test_a_new_life_leaves_the_old_mood_columns_at_their_defaults(
+    db: Database,
+) -> None:
+    life = await LifeRepo(db).insert(GUILD, new_egg(1, NOW))
+
+    row = await db.fetchone(
+        f"SELECT mood_meter, mood_stretch FROM {db.t('lives')} WHERE id = %s",
+        (life.id,),
+    )
+
+    assert row == {"mood_meter": 50.0, "mood_stretch": 0.0}
+
+
+async def test_a_live_row_with_a_mood_value_loads_and_saves_keeping_wellbeing(
+    db: Database,
+) -> None:
+    repo = LifeRepo(db)
+    life = await repo.insert(GUILD, new_egg(1, NOW))
+    await db.execute(
+        f"UPDATE {db.t('lives')} SET phase = 'alive', stage = 'adult', "
+        "care = 61.5, fondness = 72.25, wellbeing_stretch = 900.5, "
+        "mood_meter = 13.0, mood_stretch = 7200.0 WHERE id = %s",
+        (life.id,),
+    )
+
+    loaded = await repo.current(GUILD)
+    assert loaded is not None
+    assert (loaded.phase, loaded.stage) == (Phase.ALIVE, Stage.ADULT)
+    assert (loaded.health, loaded.wellbeing) == (61.5, 72.25)
+    assert loaded.wellbeing_stretch == 900.5
+    loaded.wellbeing = 80.0
+    await repo.save(GUILD, loaded)
+
+    saved = await repo.current(GUILD)
+    assert saved is not None
+    assert saved.wellbeing == 80.0

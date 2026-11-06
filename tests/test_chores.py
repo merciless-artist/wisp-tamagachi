@@ -26,11 +26,12 @@ from wisp.chores import (
 )
 from wisp.life import Life, Phase, credited_gap, new_egg
 from wisp.rules import (
-    MOOD_START,
+    HEALTH_PER_CLEANUP,
     NAP_HOURS,
     SICK_FOR,
     TANTRUM_WINDOW,
     TICK_EVERY,
+    WELLBEING_START,
     Chore,
     Stage,
 )
@@ -251,15 +252,17 @@ def test_an_unposted_mess_gives_no_cold() -> None:
     assert not is_open(life, Chore.MESS)
 
 
-def test_a_cleanup_adds_five_wellbeing_and_closes_the_mess() -> None:
-    life = alive(wellbeing_stretch=3600.0)
+def test_a_cleanup_adds_five_health_and_ends_the_wellbeing_stretch() -> None:
+    life = alive(health_stretch=3600.0, wellbeing_stretch=3600.0)
     open_mess(life)
     assert do_chore(life, Chore.MESS) is True
-    assert life.wellbeing == 55.0
-    assert life.wellbeing_stretch == 3600.0
+    assert HEALTH_PER_CLEANUP == 5
+    assert life.health == 55.0
+    assert life.wellbeing == WELLBEING_START
+    assert (life.health_stretch, life.wellbeing_stretch) == (3600.0, 0.0)
     assert not is_open(life, Chore.MESS)
     assert do_chore(life, Chore.MESS) is False
-    assert life.wellbeing == 55.0
+    assert life.health == 55.0
 
 
 # ---
@@ -355,7 +358,7 @@ def test_a_due_time_from_an_earlier_day_is_rolled_again() -> None:
     assert life.tantrum_due_at.date() == now.date()
 
 
-def test_a_missed_tantrum_costs_fifteen_mood_and_spoils_him_until_midnight() -> None:
+def test_a_missed_tantrum_costs_fifteen_wellbeing_and_spoils_him() -> None:
     life = alive()
     open_tantrum(life)
     set_message_id(life, Chore.TANTRUM, POST)
@@ -363,7 +366,7 @@ def test_a_missed_tantrum_costs_fifteen_mood_and_spoils_him_until_midnight() -> 
     assert run(life, T0 + timedelta(minutes=15)) == [
         event(ChoreEventKind.TANTRUM_MISSED, POST)
     ]
-    assert life.mood_meter == 35.0
+    assert life.wellbeing == 35.0
     assert life.spoiled_until == datetime(2026, 11, 3, tzinfo=UTC)
     assert not is_open(life, Chore.TANTRUM)
 
@@ -372,7 +375,7 @@ def test_an_unposted_tantrum_costs_nothing() -> None:
     life = alive()
     open_tantrum(life)
     assert run(life, T0 + timedelta(minutes=15)) == []
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.spoiled_until is None
     assert not is_open(life, Chore.TANTRUM)
 
@@ -384,7 +387,7 @@ def test_a_scold_closes_the_tantrum() -> None:
     assert do_chore(life, Chore.TANTRUM) is True
     assert not is_open(life, Chore.TANTRUM)
     assert run(life, T0 + timedelta(minutes=15)) == []
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.spoiled_until is None
     assert do_chore(life, Chore.TANTRUM) is False
 
@@ -413,7 +416,7 @@ def test_a_nap_start_missed_by_an_outage_is_skipped() -> None:
     assert tick_at(life, utc(10, 20)) == []
     assert life.nap_slot == utc(10)
     assert not is_napping(life)
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
 
 
@@ -431,12 +434,12 @@ def _napping_at_ten() -> Life:
     return life
 
 
-def test_missed_lights_cost_ten_mood_and_make_him_cranky() -> None:
+def test_missed_lights_cost_ten_wellbeing_and_make_him_cranky() -> None:
     life = _napping_at_ten()
     set_message_id(life, Chore.NAP, POST)
     assert run(life, utc(10, 10)) == []
     assert tick_at(life, utc(10, 15)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
-    assert life.mood_meter == 40.0
+    assert life.wellbeing == 40.0
     assert life.cranky_until == utc(10, 15) + timedelta(minutes=45) + timedelta(hours=1)
     assert not is_open(life, Chore.NAP)
     assert is_napping(life)
@@ -445,7 +448,7 @@ def test_missed_lights_cost_ten_mood_and_make_him_cranky() -> None:
 def test_unposted_lights_cost_nothing() -> None:
     life = _napping_at_ten()
     assert run(life, utc(10, 15)) == []
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
     assert not is_open(life, Chore.NAP)
     assert is_napping(life)
@@ -459,7 +462,7 @@ def test_lights_off_closes_the_window_and_he_sleeps_on() -> None:
     assert run(life, utc(10, 30)) == []
     assert is_napping(life)
     assert life.nap_left == 1800
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
     assert do_chore(life, Chore.NAP) is False
 
@@ -488,7 +491,7 @@ def test_wake_ends_the_nap_and_says_whether_the_lights_were_on(
     assert wake(life, T0) is not lights_off
     assert not is_napping(life)
     assert not is_open(life, Chore.NAP)
-    assert life.mood_meter == MOOD_START
+    assert life.wellbeing == WELLBEING_START
     assert life.cranky_until == T0 + timedelta(hours=1)
 
 

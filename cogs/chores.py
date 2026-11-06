@@ -226,7 +226,7 @@ async def _remember(
 async def wake_by_poke(
     bot: "WispBot", guild_id: int, user_id: int, now: datetime
 ) -> Life | None:
-    """Wake him if he is napping, cranky and with no Mood penalty.
+    """Wake him if he is napping, cranky and with no Wellbeing penalty.
 
     When the lights were still on, the nap post says who woke him and loses
     its button once the guild lock is released. Returns the woken life, or

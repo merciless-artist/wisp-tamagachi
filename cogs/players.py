@@ -22,10 +22,10 @@ from wisp.rules import (
     CHAT_CREDITS_PER_DAY,
     CHAT_POINTS,
     GROWTH_PER_BOND_MOMENT,
-    MOOD_PER_POKE,
     NAME_MAX,
     POKE_CREDITS_PER_DAY,
     WELLBEING_PER_CHAT,
+    WELLBEING_PER_POKE,
 )
 from wisp.text import USER_ERROR, count
 
@@ -103,7 +103,7 @@ async def credit_poke(
     member: discord.User | discord.Member,
     now: datetime,
 ) -> bool:
-    """Credit a member's poke of Wisp: Mood for the first few of the day.
+    """Credit a member's poke of Wisp: Wellbeing for the first few of the day.
 
     Returns whether it was credited; see `_credit`.
     """
@@ -112,8 +112,8 @@ async def credit_poke(
         guild_id,
         member,
         InteractionKind.POKE,
-        Meter.MOOD,
-        MOOD_PER_POKE,
+        Meter.WELLBEING,
+        WELLBEING_PER_POKE,
         POKE_CREDITS_PER_DAY,
         now,
     )

@@ -393,7 +393,7 @@ async def test_create_tables_adds_meters_and_chores_to_a_live_lives_table(
         assert set(METERS_AND_CHORES_COLUMNS) <= present
         life = await LifeRepo(db).current(1)
         assert life is not None
-        assert life.mood_meter == 50
+        assert life.wellbeing_stretch == 0
         assert life.nap_left == 0
         assert life.mess_message_id is None
     finally:

@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-06 (Mood folds into Wellbeing; sickness moves to Health)
+
+- Two meters remain: Health (his body, the only one that can kill him) and
+  Wellbeing (his heart, never kills him). The status card shows Health then
+  Wellbeing; the egg's Hatching and Emerging bars keep their look (`EGG_BAR`).
+- Everything that moved Mood moves Wellbeing by the same amounts and limits: a
+  counted Rhyme Duel +10 (`WELLBEING_PER_PLAY`), a credited poke +5
+  (`WELLBEING_PER_POKE`), an unscolded tantrum -15
+  (`TANTRUM_WELLBEING_PENALTY`), lights left on -10
+  (`LIGHTS_WELLBEING_PENALTY`).
+- One Wellbeing stretch: any credited chat, poke, duel, snack, gift or cleanup
+  ends it; a full one costs 10. The Mood stretch and penalty are gone.
+- Rockstar: an Adult whose Wellbeing stays at 80 or more for 4 days
+  (`ROCKSTAR_WELLBEING`, `ROCKSTAR_WELLBEING_FOR`), in the same
+  `high_happiness_since` column.
+- A cleanup adds 5 Health (`HEALTH_PER_CLEANUP`) instead of Wellbeing. A cold,
+  like Monster Pox, makes the Health penalty 1.5 times as big and cannot take
+  Health below 1; it no longer doubles the Wellbeing penalty
+  (`SNIFFLES_PENALTY_MULTIPLIER` is gone).
+- Storage is unchanged: `mood_meter` and `mood_stretch` stay in `lives`,
+  unread; a new life gets their defaults. The live Wisp keeps his Wellbeing.
+- The rules post and README say two meters.
+
 ## 2026-11-06 (Wisp makes pictures for people)
 
 - Wisp draws members pictures as presents. Nobody asks for one and there is no

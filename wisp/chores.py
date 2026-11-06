@@ -13,7 +13,8 @@ from enum import StrEnum, auto
 from wisp.life import Life, Meter, Phase, catch_sniffles, change_meter
 from wisp.rules import (
     CRANKY_FOR,
-    LIGHTS_MOOD_PENALTY,
+    HEALTH_PER_CLEANUP,
+    LIGHTS_WELLBEING_PENALTY,
     LIGHTS_WINDOW,
     MAX_CREDITED_GAP,
     MESS_DELAY_MAX,
@@ -22,10 +23,9 @@ from wisp.rules import (
     MESS_LEFT_FOR,
     NAP_FOR,
     NAP_HOURS,
-    TANTRUM_MOOD_PENALTY,
+    TANTRUM_WELLBEING_PENALTY,
     TANTRUM_WINDOW,
     TICK_EVERY,
-    WELLBEING_PER_CLEANUP,
     Chore,
 )
 
@@ -146,7 +146,7 @@ def run_out(life: Life) -> timedelta:
 
 
 def do_chore(life: Life, chore: Chore) -> bool:
-    """Close an open chore; a cleanup also fills Wellbeing.
+    """Close an open chore; a cleanup also fills Health and ends the Wellbeing stretch.
 
     Returns False, and changes nothing, when the chore was not open.
     """
@@ -155,7 +155,8 @@ def do_chore(life: Life, chore: Chore) -> bool:
     match chore:
         case Chore.MESS:
             life.mess_left = 0.0
-            change_meter(life, Meter.WELLBEING, WELLBEING_PER_CLEANUP)
+            change_meter(life, Meter.HEALTH, HEALTH_PER_CLEANUP)
+            change_meter(life, Meter.WELLBEING, 0, ends_stretch=True)
         case Chore.TANTRUM:
             life.tantrum_left = 0.0
         case Chore.NAP:
@@ -164,7 +165,7 @@ def do_chore(life: Life, chore: Chore) -> bool:
 
 
 def wake(life: Life, now: datetime) -> bool:
-    """End his nap at once and leave him cranky, with no Mood penalty.
+    """End his nap at once and leave him cranky, with no Wellbeing penalty.
 
     He stays cranky for at least CRANKY_FOR, longer when missed lights already
     made him so. Returns whether the lights were still on.
@@ -343,7 +344,7 @@ def _tick_tantrum(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]
     life.tantrum_left = max(life.tantrum_left - seconds, 0.0)
     if is_open(life, Chore.TANTRUM) or life.tantrum_message_id is None:
         return []
-    change_meter(life, Meter.MOOD, -TANTRUM_MOOD_PENALTY)
+    change_meter(life, Meter.WELLBEING, -TANTRUM_WELLBEING_PENALTY)
     life.spoiled_until = _midnight(now) + timedelta(days=1)
     return [ChoreEvent(ChoreEventKind.TANTRUM_MISSED, life.tantrum_message_id)]
 
@@ -351,7 +352,7 @@ def _tick_tantrum(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]
 def _tick_nap(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]:
     """Count down his nap and its lights window, which closes by the nap's end.
 
-    Posted lights nobody turned off cost Mood and leave him cranky for
+    Posted lights nobody turned off cost Wellbeing and leave him cranky for
     CRANKY_FOR after the rest of the nap.
     """
     if not is_napping(life):
@@ -362,6 +363,6 @@ def _tick_nap(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]:
     life.lights_left = min(max(life.lights_left - seconds, 0.0), life.nap_left)
     if is_open(life, Chore.NAP) or life.nap_message_id is None:
         return []
-    change_meter(life, Meter.MOOD, -LIGHTS_MOOD_PENALTY)
+    change_meter(life, Meter.WELLBEING, -LIGHTS_WELLBEING_PENALTY)
     life.cranky_until = now + timedelta(seconds=life.nap_left) + CRANKY_FOR
     return [ChoreEvent(ChoreEventKind.LIGHTS_MISSED, life.nap_message_id)]
