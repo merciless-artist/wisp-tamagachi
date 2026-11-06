@@ -57,6 +57,7 @@ from wisp.voice import (
     link_track_drop,
     own_emojis,
     poke_flavor,
+    sick_hours,
     talk_level,
 )
 
@@ -285,6 +286,7 @@ async def _prompt(
         poked=poked,
         own_emojis=emojis,
         feelings=feelings_of(life, now),
+        hours_left=sick_hours(life),
         track_drop=track_drop,
     )
 
@@ -491,6 +493,7 @@ class Conversation(commands.Cog):
             expressions=expressions(self.bot, life.stage),
             dances=dances(self.bot, life.stage),
             feelings=feelings_of(life, now),
+            hours_left=sick_hours(life),
             track_drop=track_drop is not None,
         )
         reply = await ai_reply(self.bot, guild, prompt)

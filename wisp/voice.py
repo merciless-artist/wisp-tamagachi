@@ -5,7 +5,7 @@ Pure functions. Nothing here calls an AI provider, Discord or the database.
 
 import random
 import re
-from collections.abc import Callable, Collection, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
@@ -13,7 +13,7 @@ from typing import Final
 
 from ai.prompt import Prompt
 from wisp.bond import PickleStance
-from wisp.life import Life, Mood, Phase, has_sniffles, is_over, is_sick
+from wisp.life import Life, Mood, Phase, has_sniffles, hours_left, is_over, is_sick
 from wisp.rules import (
     AI_MAX_CHARS,
     BOND_TIERS,
@@ -314,34 +314,45 @@ _MOOD_LAYERS: Final = {
     Mood.LONELY: (_LONELY, _BABY_LONELY),
 }
 
+_ASK_BURRITO: Final = (
+    " If anyone asks you something about your sickness that you're not sure of, "
+    "tell them to ask Burrito, your fairy god-bot, in Wisp's Studio. Don't guess."
+)
+
+_BABY_ASK_BURRITO: Final = (
+    " If anyone asks you something about your sickness that you don't know, say "
+    "in baby words that they should ask Burrito, your fairy god-bot, in Wisp's "
+    "Studio."
+)
+
 _SICK: Final = (
     "You have Monster Pox right now, your one childhood sickness. You're spotty, "
     "itchy and a little feverish, with a thermometer in your mouth: you scratch "
     "at your spots (*scratch scratch*) and you're extra hungry. You're not "
-    "scared, you know you'll be better in a couple of days. When anyone talks to "
-    "you or pokes you, say plainly that you have Monster Pox."
+    "scared, you know you'll get better. When anyone talks to "
+    "you or pokes you, say plainly that you have Monster Pox." + _ASK_BURRITO
 )
 
 _BABY_SICK: Final = (
     "You have Monster Pox right now, so you're covered in spots and itchy, and "
     'your little noises come out fussy and scratchy, like "*scratch scratch*" '
     'or "*itchy whimper*", never swearing. When anyone talks to you or pokes you, '
-    'say in baby words that you have pox, like "pox! itchy pox!".'
+    'say in baby words that you have pox, like "pox! itchy pox!".' + _BABY_ASK_BURRITO
 )
 
 _SNIFFLES: Final = (
     "You have a cold right now. You're stuffy and sneezy: your nose is blocked, "
     "your words come out a bit nasal, and now and then you sneeze mid-sentence "
     "(*achoo*) and sniffle (*sniffle*). You feel run down and want a song and "
-    "some medicine, and you know you'll be fine in a couple of days. When anyone "
-    "talks to you or pokes you, say plainly that you have a cold."
+    "some medicine, and you know you'll be fine. When anyone "
+    "talks to you or pokes you, say plainly that you have a cold." + _ASK_BURRITO
 )
 
 _BABY_SNIFFLES: Final = (
     "You have a cold right now, so you're a stuffy, sneezy baby: your little "
     'noises come out snuffly, like "*achoo*" or "*sniffly whimper*", never '
     "swearing. When anyone talks to you or pokes you, say in baby words that "
-    'you have a cold, like "cold! *achoo*".'
+    'you have a cold, like "cold! *achoo*".' + _BABY_ASK_BURRITO
 )
 
 _SPOILED: Final = (
@@ -387,6 +398,28 @@ _FEELING_LAYERS: Final = {
     Feeling.SPOILED: (_SPOILED, _BABY_SPOILED),
     Feeling.CRANKY: (_CRANKY, _BABY_CRANKY),
 }
+
+
+def sick_hours(life: Life) -> dict[Feeling, int]:
+    """Whole hours (rounded up) left of each sickness he has, as the card shows."""
+    left = {
+        Feeling.MONSTER_POX: life.cold_left if is_sick(life) else 0.0,
+        Feeling.SNIFFLES: life.sniffles_left if has_sniffles(life) else 0.0,
+    }
+    return {
+        feeling: hours_left(seconds) for feeling, seconds in left.items() if seconds
+    }
+
+
+def _hours_note(hours: int, baby: bool) -> str:
+    """The line telling him how long his sickness still lasts."""
+    span = f"{hours} hour" if hours == 1 else f"{hours} hours"
+    if baby:
+        return (
+            f" You have about {span} left of it. If anyone asks how long, tell "
+            "them in baby words."
+        )
+    return f" You have about {span} left of it. If anyone asks how long, tell them."
 
 
 def feelings_of(life: Life, now: datetime) -> frozenset[Feeling]:
@@ -836,6 +869,7 @@ def build_prompt(
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
     feelings: Collection[Feeling] = (),
+    hours_left: Mapping[Feeling, int] | None = None,
     track_drop: bool = False,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
@@ -847,7 +881,8 @@ def build_prompt(
     the dance emojis he may post, and from Teen on he knows the things in
     Myra's "Things you know". Each of his `feelings` adds a layer: Monster
     Pox is spotty and itchy, a cold stuffy and sneezy, spoiled extra bratty
-    for the rest of the day, cranky just woken and grumpy about it. With
+    for the rest of the day, cranky just woken and grumpy about it. `hours_left`
+    is how many whole hours each sickness still lasts (see `sick_hours`). With
     `track_drop`, from Child on he sends people to the track drop for food
     (see `link_track_drop`).
 
@@ -868,9 +903,13 @@ def build_prompt(
     if (layers := _MOOD_LAYERS.get(mood)) is not None:
         grown, little = layers
         system.append(little if baby else grown)
-    system.extend(
-        _FEELING_LAYERS[feeling][baby] for feeling in Feeling if feeling in feelings
-    )
+    left = hours_left or {}
+    for kind in Feeling:
+        if kind in feelings:
+            layer = _FEELING_LAYERS[kind][baby]
+            if kind in left:
+                layer += _hours_note(left[kind], baby)
+            system.append(layer)
     if track_drop and not baby:
         system.append(_TRACK_DROP_NOTE)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]

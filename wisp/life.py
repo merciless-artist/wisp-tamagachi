@@ -263,6 +263,11 @@ def sickness(life: Life) -> Sickness | None:
     return None
 
 
+def hours_left(seconds: float) -> int:
+    """Whole hours of a sickness still to go, rounded up, as the status card says."""
+    return math.ceil(seconds / timedelta(hours=1).total_seconds())
+
+
 def age_days(life: Life, now: datetime) -> int:
     """Whole days since hatching; zero for a Wisp that has not hatched."""
     if life.hatched_at is None:

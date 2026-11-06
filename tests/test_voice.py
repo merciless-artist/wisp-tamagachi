@@ -48,6 +48,7 @@ from wisp.voice import (
     own_emojis,
     parse_reply,
     poke_flavor,
+    sick_hours,
     talk_level,
 )
 
@@ -1327,3 +1328,43 @@ def test_the_sick_prompts_tell_him_to_say_what_he_has(
     ).system
     assert "talks to you or pokes you" in system
     assert named in system.split("talks to you or pokes you", 1)[1].lower()
+
+
+# ---
+# How long he is sick, and Burrito
+# ---
+
+
+def sick_system(stage: Stage, feeling: Feeling, hours: int) -> str:
+    return build_prompt(
+        stage,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "how long do you have pox?",
+        expressions=EXPRESSIONS,
+        feelings=(feeling,),
+        hours_left={feeling: hours},
+    ).system
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+@pytest.mark.parametrize("feeling", [Feeling.MONSTER_POX, Feeling.SNIFFLES])
+def test_a_sick_prompt_holds_the_hours_left(feeling: Feeling, stage: Stage) -> None:
+    assert "about 7 hours" in sick_system(stage, feeling, 7)
+    assert "about 1 hour " in sick_system(stage, feeling, 1)
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+@pytest.mark.parametrize("feeling", [Feeling.MONSTER_POX, Feeling.SNIFFLES])
+def test_a_sick_prompt_points_to_burrito(feeling: Feeling, stage: Stage) -> None:
+    system = sick_system(stage, feeling, 7)
+    assert "Burrito" in system.split("talks to you or pokes you", 1)[1]
+
+
+def test_sick_hours_round_up_like_the_status_card() -> None:
+    life = life_in(Phase.ALIVE, Stage.TEEN)
+    assert sick_hours(life) == {}
+    life.cold_left = 3601.0
+    life.sniffles_left = 1.0
+    assert sick_hours(life) == {Feeling.MONSTER_POX: 2, Feeling.SNIFFLES: 1}

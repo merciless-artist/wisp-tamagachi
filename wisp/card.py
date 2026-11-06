@@ -5,13 +5,12 @@ the picture shows under it and closes it. Each line is copied from her draft
 of 2026-10-31, blank lines and line breaks included.
 """
 
-import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Final
 
-from wisp.life import Life, Phase, age_days, has_sniffles, is_sick
+from wisp.life import Life, Phase, age_days, has_sniffles, hours_left, is_sick
 from wisp.rules import (
     EGG_FOOD_NEEDED,
     EGG_WARMTH,
@@ -33,7 +32,6 @@ WAITING: Final = quoted(
 _PERCENT_PER_PIECE: Final = 10
 _LEFT_FROM: Final = 5
 _MATH_BOLD_A: Final = 0x1D400
-_HOUR: Final = timedelta(hours=1).total_seconds()
 
 Emoji = Callable[[str], str]
 
@@ -98,10 +96,10 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
     if life.phase is Phase.ALIVE:
         heading = [f"{SUB_CLEF}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
         if is_sick(life):
-            hours = math.ceil(life.cold_left / _HOUR)
+            hours = hours_left(life.cold_left)
             heading.append(f"{SUB_CLEF} he has Monster Pox・{hours} h left")
         if has_sniffles(life):
-            hours = math.ceil(life.sniffles_left / _HOUR)
+            hours = hours_left(life.sniffles_left)
             heading.append(f"{SUB_CLEF} he has a cold・{hours} h left")
         bars = [
             *_meter("Health", life.health / HEALTH_MAX * 100, HEALTH_BAR, emoji),
