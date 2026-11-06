@@ -1,5 +1,6 @@
 """Talking in Wisp's House: answers, chiming in and the Poke Wisp button."""
 
+import asyncio
 import logging
 import random
 import re
@@ -41,6 +42,7 @@ from wisp.rules import (
     CHIME_IN_CHANCE,
     CHIME_IN_GAP,
     CONTEXT_LINE_CHARS,
+    VISION_EMBED_WAIT,
     VISION_TYPES,
 )
 from wisp.text import strip_emoji
@@ -95,6 +97,10 @@ _STICKER_PICTURES: Final = frozenset(
         discord.StickerFormatType.gif,
     }
 )
+
+_LINK: Final = re.compile(r"https?://\S+")
+# Embed types that are a picture; a link preview of a song or video is not.
+_PICTURE_EMBEDS: Final = frozenset({"image", "gifv"})
 
 _POKE_CONTEXT: Final = "the Poke Wisp button"
 _POKE_BANNED: Final = "♪ Wisp isn't answering you right now."
@@ -174,18 +180,38 @@ def _picture_url(message: discord.Message) -> str | None:
         if sticker.format in _STICKER_PICTURES:
             return sticker.url
     for embed in message.embeds:
-        if (link := embed.image.url or embed.thumbnail.url) is not None:
-            return link
+        if embed.type not in _PICTURE_EMBEDS:
+            continue
+        for part in (embed.image, embed.thumbnail):
+            if (link := part.proxy_url or part.url) is not None:
+                return link
     return None
+
+
+async def _with_late_embeds(message: discord.Message) -> discord.Message | None:
+    """The message as it is after VISION_EMBED_WAIT, or None if it can't be read.
+
+    Discord often adds the embed of a pasted GIF link in an edit after the
+    message is posted, so the one `on_message` saw may not have it yet.
+    """
+    await asyncio.sleep(VISION_EMBED_WAIT.total_seconds())
+    try:
+        return await message.channel.fetch_message(message.id)
+    except discord.HTTPException:
+        return None
 
 
 async def _sight(bot: "WispBot", message: discord.Message) -> Sight | None:
     """What the picture in the message shows, or None if it carries no picture.
 
-    A picture that can't be read is logged, not posted, and comes back as one
-    Wisp couldn't see.
+    A message with a link but no picture yet is read again once, since its embed
+    may still be on its way. A picture that can't be read is logged, not
+    posted, and comes back as one Wisp couldn't see.
     """
     link = _picture_url(message)
+    if link is None and _LINK.search(message.content):
+        refreshed = await _with_late_embeds(message)
+        link = None if refreshed is None else _picture_url(refreshed)
     if link is None:
         return None
     try:
@@ -318,7 +344,6 @@ async def _prompt(
             emoji=EGG_EXPRESSION in bot.emojis_by_name,
             poked=poked,
             own_emojis=emojis,
-            sight=sight,
         )
     remembers = keeps_notes(life.stage)
     notes = await bot.notes.recent(guild_id, player.user_id) if remembers else []
@@ -487,7 +512,7 @@ class Conversation(commands.Cog):
                 now,
                 emojis=emojis,
                 track_drop=track_drop is not None,
-                sight=await _sight(bot, message),
+                sight=None if level is Talk.EGG else await _sight(bot, message),
             )
             reply = await ai_reply(bot, guild, prompt)
         picture = sick_talk_image(life, bot.talk.rng)

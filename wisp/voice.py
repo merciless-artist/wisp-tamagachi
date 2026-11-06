@@ -1084,14 +1084,13 @@ def egg_prompt(
     emoji: bool,
     poked: PokeFlavor | None = None,
     own_emojis: Sequence[OwnEmoji] = (),
-    sight: Sight | None = None,
 ) -> Prompt:
     """The prompt for what the egg does when `poker` pokes it, saying `message`.
 
     The egg has no words, no tags and no face but its own `EGG_EXPRESSION`,
     offered only when `emoji` says it is uploaded. `poked` says how the egg
-    takes a press of the Poke Wisp button, `own_emojis` are the emojis of
-    Wisp's that `message` used and `sight` is the picture that came with it.
+    takes a press of the Poke Wisp button, and `own_emojis` are the emojis of
+    Wisp's that `message` used.
 
     Raises:
         ValueError: `life` is not an egg, hatching or not.
@@ -1115,8 +1114,6 @@ def egg_prompt(
         user.append(f"{poker.name} pokes the egg.")
     if poked is not None:
         user[-1] += f" {_EGG_POKE_FEELINGS[poked]}"
-    if sight is not None:
-        user.append(_sight_note(sight))
 
     return Prompt("\n\n".join(system), "\n\n".join(user))
 

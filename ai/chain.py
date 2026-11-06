@@ -81,7 +81,7 @@ class Provider(Protocol):
         ...
 
 
-async def _post_for_text(
+async def post_for_text(
     session: aiohttp.ClientSession,
     url: str,
     headers: dict[str, str],
@@ -138,16 +138,16 @@ class GeminiProvider:
                 "thinkingConfig": dict(GEMINI_NO_THINKING),
             },
         }
-        return await _post_for_text(
+        return await post_for_text(
             session,
             self._url,
             {"x-goog-api-key": self._api_key},
             body,
-            self._extract,
+            self.extract,
         )
 
     @staticmethod
-    def _extract(data: Any) -> str:
+    def extract(data: Any) -> str:
         candidate = data["candidates"][0]
         if candidate.get("finishReason") == GEMINI_CUT_OFF:
             raise ProviderError(CUT_OFF_REASON)
@@ -189,7 +189,7 @@ class ChatProvider:
             "max_tokens": AI_MAX_OUTPUT_TOKENS,
             **self._options,
         }
-        return await _post_for_text(
+        return await post_for_text(
             session,
             self._url,
             {"Authorization": f"Bearer {self._api_key}"},

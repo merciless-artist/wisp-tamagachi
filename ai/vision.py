@@ -1,5 +1,6 @@
 """Wisp's eyes: a Gemini vision model that describes the pictures members send."""
 
+import asyncio
 import base64
 
 import aiohttp
@@ -11,7 +12,7 @@ from ai.chain import (
     USER_AGENT,
     GeminiProvider,
     ProviderError,
-    _post_for_text,
+    post_for_text,
 )
 from wisp.rules import (
     AI_MAX_OUTPUT_TOKENS,
@@ -47,14 +48,25 @@ class Vision:
 
         Raises:
             ProviderError: it has no key, is closed, the picture is missing,
-                not an allowed type or over VISION_MAX_BYTES, or the model
-                gave no answer.
+                not an allowed type or over VISION_MAX_BYTES, the model gave
+                no answer, or the whole job took longer than AI_TIMEOUT.
         """
         if self._api_key is None:
             raise ProviderError("no Google key for the vision model")
         if self._closed:
             raise ProviderError("closed for shutdown")
-        session = self._open_session()
+        try:
+            async with asyncio.timeout(AI_TIMEOUT.total_seconds()):
+                return await self._describe(
+                    self._open_session(), picture_url, self._api_key
+                )
+        except TimeoutError as error:
+            raise ProviderError("timed out") from error
+
+    async def _describe(
+        self, session: aiohttp.ClientSession, picture_url: str, api_key: str
+    ) -> str:
+        """Download the picture and ask the model, with no limit of its own."""
         data, mime_type = await self._download(session, picture_url)
         body = {
             "contents": [
@@ -76,12 +88,12 @@ class Vision:
                 "thinkingConfig": dict(GEMINI_NO_THINKING),
             },
         }
-        answer = await _post_for_text(
+        answer = await post_for_text(
             session,
             self._url,
-            {"x-goog-api-key": self._api_key},
+            {"x-goog-api-key": api_key},
             body,
-            GeminiProvider._extract,
+            GeminiProvider.extract,
         )
         return " ".join(answer.split())[:VISION_MAX_CHARS]
 

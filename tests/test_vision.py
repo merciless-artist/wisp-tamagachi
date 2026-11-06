@@ -1,6 +1,8 @@
+import asyncio
 import base64
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -190,3 +192,30 @@ async def test_a_closed_vision_opens_no_session() -> None:
     await vision.close()
     with pytest.raises(ProviderError, match="closed"):
         await vision.describe("http://127.0.0.1:1/pic")
+
+
+async def test_a_model_answer_with_no_text_is_a_provider_error() -> None:
+    async def gemini(request: web.Request) -> web.Response:
+        return web.json_response({"candidates": [{"content": {"parts": []}}]})
+
+    async with serve(gemini, gif_picture) as url:
+        with pytest.raises(ProviderError, match="empty"):
+            await describe(url)
+
+
+async def test_download_and_model_share_one_time_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ai.vision.AI_TIMEOUT", timedelta(seconds=0.3))
+
+    async def gemini(request: web.Request) -> web.Response:
+        await asyncio.sleep(0.2)
+        return described("too late")
+
+    async def slow_picture(request: web.Request) -> web.Response:
+        await asyncio.sleep(0.2)
+        return await gif_picture(request)
+
+    async with serve(gemini, slow_picture) as url:
+        with pytest.raises(ProviderError, match="timed out"):
+            await describe(url)

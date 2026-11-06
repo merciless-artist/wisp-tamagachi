@@ -663,6 +663,7 @@ AI_MAX_CHARS = 600
 
 VISION_MAX_BYTES = 8 * 1024 * 1024
 VISION_MAX_CHARS = 300
+VISION_EMBED_WAIT = timedelta(seconds=2)
 VISION_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
 
 # ---

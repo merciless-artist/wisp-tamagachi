@@ -2329,10 +2329,17 @@ def sticker(kind: discord.StickerFormatType, url: str) -> MagicMock:
     return found
 
 
-def embed(image: str | None = None, thumbnail: str | None = None) -> MagicMock:
+def embed(
+    image: str | None = None,
+    thumbnail: str | None = None,
+    *,
+    kind: str = "gifv",
+    proxy: str | None = None,
+) -> MagicMock:
     found = MagicMock(spec=discord.Embed)
-    found.image = MagicMock(url=image)
-    found.thumbnail = MagicMock(url=thumbnail)
+    found.type = kind
+    found.image = MagicMock(url=image, proxy_url=proxy)
+    found.thumbnail = MagicMock(url=thumbnail, proxy_url=None)
     return found
 
 
@@ -2457,16 +2464,31 @@ async def test_a_picture_only_message_still_reaches_him(
     assert f"They sent a picture: {SEEN}" in prompt.user
 
 
-async def test_egg_and_baby_get_the_description_too(
+async def test_a_baby_gets_the_description_too(
     cog: Conversation,
     bot: app.WispBot,
     ai: AsyncMock,
     vision: AsyncMock,
     message: MessageFactory,
 ) -> None:
-    await lay(bot, Stage.EGG, Phase.EGG)
+    await lay(bot, Stage.BABY)
     await say_with_picture(cog, message, attachments=[attachment("image/png")])
     assert f"They sent a picture: {SEEN}" in prompts(ai)[0].user
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
+async def test_the_egg_sees_nothing_and_makes_no_vision_call(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+    phase: Phase,
+) -> None:
+    await lay(bot, Stage.EGG, phase)
+    await say_with_picture(cog, message, attachments=[attachment("image/png")])
+    vision.assert_not_awaited()
+    assert "picture" not in prompts(ai)[0].user
 
 
 @pytest.mark.parametrize(
@@ -2520,7 +2542,7 @@ async def test_no_picture_means_no_vision_call(
     assert "picture" not in prompts(ai)[0].user
 
 
-async def test_a_picture_in_a_chime_in_or_a_chat_line_is_never_described(
+async def test_a_picture_in_a_line_not_aimed_at_him_is_never_described(
     cog: Conversation,
     bot: app.WispBot,
     ai: AsyncMock,
@@ -2532,3 +2554,133 @@ async def test_a_picture_in_a_chime_in_or_a_chat_line_is_never_described(
     sent.attachments = [attachment("image/png")]
     await cog.on_message(sent)
     vision.assert_not_awaited()
+
+
+@pytest.mark.parametrize("kind", ["link", "video", "rich", "article"])
+async def test_a_link_preview_is_not_a_picture(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+    kind: str,
+) -> None:
+    await lay(bot)
+    preview = embed(thumbnail="https://soundcloud/art", kind=kind)
+    await say_with_picture(cog, message, embeds=[preview])
+    vision.assert_not_awaited()
+
+
+async def test_an_embed_picture_comes_from_the_media_proxy_when_given(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+) -> None:
+    await lay(bot)
+    found = embed(
+        image="https://tenor/image", kind="image", proxy="https://proxy/image"
+    )
+    await say_with_picture(cog, message, embeds=[found])
+    vision.assert_awaited_once_with("https://proxy/image")
+
+
+# ---
+# Embeds that arrive late
+# ---
+
+GIF_LINK = "https://tenor.com/view/cat-wave-123"
+
+
+@pytest.fixture(autouse=True)
+def no_embed_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("cogs.conversation.VISION_EMBED_WAIT", timedelta(0))
+
+
+def refetched(server: FakeServer, *, embeds: Sequence[MagicMock]) -> None:
+    """Make the House's next fetch of a message return it with `embeds`."""
+    later = MagicMock(spec=discord.Message)
+    later.attachments = []
+    later.stickers = []
+    later.embeds = list(embeds)
+    server.house.fetch_message = AsyncMock(return_value=later)
+
+
+async def test_an_embed_added_after_the_message_is_read_on_a_second_look(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    refetched(server, embeds=[embed(thumbnail="https://tenor/late.gif")])
+    sent = await say_with_picture(cog, message, text=f"look {GIF_LINK}")
+    server.house.fetch_message.assert_awaited_once_with(sent.id)
+    vision.assert_awaited_once_with("https://tenor/late.gif")
+    assert f"They sent a picture: {SEEN}" in prompts(ai)[0].user
+
+
+async def test_a_failed_second_look_means_no_picture(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    server.house.fetch_message = AsyncMock(
+        side_effect=discord.NotFound(MagicMock(status=404, reason="gone"), "gone")
+    )
+    sent = await say_with_picture(cog, message, text=f"look {GIF_LINK}")
+    vision.assert_not_awaited()
+    assert "picture" not in prompts(ai)[0].user
+    assert reply_text(sent) == "hey you"
+
+
+async def test_a_link_that_never_gets_a_picture_is_looked_at_once(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    refetched(server, embeds=[])
+    await say_with_picture(cog, message, text=f"look {GIF_LINK}")
+    server.house.fetch_message.assert_awaited_once()
+    vision.assert_not_awaited()
+
+
+async def test_no_second_look_without_a_link(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    refetched(server, embeds=[])
+    await say_with_picture(cog, message, text="no link here")
+    server.house.fetch_message.assert_not_awaited()
+    vision.assert_not_awaited()
+
+
+async def test_no_second_look_when_the_picture_is_already_there(
+    cog: Conversation,
+    bot: app.WispBot,
+    vision: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+) -> None:
+    await lay(bot)
+    refetched(server, embeds=[])
+    await say_with_picture(
+        cog,
+        message,
+        text=f"look {GIF_LINK}",
+        embeds=[embed(thumbnail="https://tenor/now.gif")],
+    )
+    server.house.fetch_message.assert_not_awaited()
+    vision.assert_awaited_once_with("https://tenor/now.gif")
