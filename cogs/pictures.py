@@ -111,8 +111,9 @@ class Picture:
         """
         if image is None:
             return await send(None), None
+        art = discord.File(image)
         try:
-            message = await send(discord.File(image))
+            message = await send(art)
         except discord.NotFound:
             raise
         except discord.HTTPException as error:
@@ -126,5 +127,7 @@ class Picture:
                     where=self._where,
                 )
             return message, None
+        finally:
+            art.close()
         self._bot.failing_displays.discard(self._key)
         return message, image.name

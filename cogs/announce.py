@@ -157,8 +157,9 @@ class _House:
         if self._channel is None:
             return None
         extras: dict[str, Any] = {}
-        if image is not None:
-            extras["file"] = discord.File(image)
+        art = None if image is None else discord.File(image)
+        if art is not None:
+            extras["file"] = art
         if view is not None:
             extras["view"] = view
         mentions = (
@@ -176,6 +177,9 @@ class _House:
         except discord.DiscordException as error:
             await self._bot.report_error(self._guild, _POSTING, error)
             return None
+        finally:
+            if art is not None:
+                art.close()
 
     async def edit(self, message_id: int, text: str) -> None:
         """Replace a House post's words and take its buttons away, pinging nobody.
@@ -363,11 +367,16 @@ async def _tell_general(bot: "WispBot", guild_id: int, event: Event) -> None:
         await bot.report_error(guild, _GENERAL_CONTEXT, error)
         return
     image = _image_for(event)
-    art: dict[str, Any] = {} if image is None else {"file": discord.File(image)}
+    art = None if image is None else discord.File(image)
     try:
-        await channel.send(general_news(event), allowed_mentions=_NO_PING, **art)
+        await channel.send(
+            general_news(event), allowed_mentions=_NO_PING, **art_kwargs("file", art)
+        )
     except discord.DiscordException as error:
         await bot.report_error(guild, _GENERAL_CONTEXT, error)
+    finally:
+        if art is not None:
+            art.close()
 
 
 # ---

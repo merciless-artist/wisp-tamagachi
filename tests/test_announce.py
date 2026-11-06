@@ -584,6 +584,59 @@ async def test_post_in_house_returns_the_message_or_none(
     assert await post_in_house(bot, GUILD_ID, "hello") is None
 
 
+@pytest.mark.parametrize("fails", [False, True])
+async def test_post_in_house_closes_its_picture_whether_or_not_the_send_works(
+    bot: app.WispBot, server: FakeServer, tmp_path: Path, fails: bool
+) -> None:
+    sent: list[discord.File] = []
+
+    async def send(*_args: Any, **kwargs: Any) -> MagicMock:
+        sent.append(kwargs["file"])
+        if fails:
+            raise discord.HTTPException(MagicMock(status=500), "boom")
+        return MagicMock(spec=discord.Message)
+
+    server.house.send = AsyncMock(side_effect=send)
+    await post_in_house(bot, GUILD_ID, "hello", picture(tmp_path, "pic"))
+    assert sent[0].fp.closed
+
+
+@pytest.mark.parametrize("error", [forbidden(), ValueError("bad")])
+async def test_an_attached_picture_is_closed_even_when_the_send_fails(
+    bot: app.WispBot, tmp_path: Path, error: Exception
+) -> None:
+    sent: list[discord.File] = []
+    refused = [error]
+
+    async def send(art: discord.File | None) -> MagicMock:
+        if art is not None:
+            sent.append(art)
+            raise refused[0]
+        return MagicMock(spec=discord.Message)
+
+    display = pictures.Picture(bot, GUILD_ID, None, "message", "test")
+    try:
+        await display.attach(picture(tmp_path, "pic"), send)
+    except ValueError:
+        pass
+    assert sent[0].fp.closed
+
+
+async def test_an_attached_picture_is_closed_after_a_good_send(
+    bot: app.WispBot, tmp_path: Path
+) -> None:
+    sent: list[discord.File] = []
+
+    async def send(art: discord.File | None) -> MagicMock:
+        assert art is not None
+        sent.append(art)
+        return MagicMock(spec=discord.Message)
+
+    display = pictures.Picture(bot, GUILD_ID, None, "message", "test")
+    await display.attach(picture(tmp_path, "pic"), send)
+    assert sent[0].fp.closed
+
+
 async def test_edit_in_house_takes_the_buttons_away_without_pinging(
     bot: app.WispBot, server: FakeServer
 ) -> None:
