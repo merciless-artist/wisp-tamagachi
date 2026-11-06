@@ -15,7 +15,7 @@ from discord.ext import commands
 
 from cogs.announce import post_events, post_in_house, say_in_mealtime, show_in_thread
 from cogs.channels import in_channel
-from cogs.players import can_feed, maybe_meet
+from cogs.players import Blocker, feeder_blocker, maybe_meet
 from cogs.staff import StaffContext, guild_of, is_command, reply
 from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
@@ -37,9 +37,12 @@ _MOOD_EMOJIS: Final = {
     Mood.HANGRY: "wisp_hangry",
     Mood.LONELY: "wisp_sad",
 }
-_NO_ROLE: Final = "you don't have a role that can feed him."
-_NOT_OPENED: Final = "you haven't opened /wisp board yet."
 _BANNED: Final = "you are banned from feeding him right now."
+_BLOCKERS: Final = {
+    Blocker.BANNED: _BANNED,
+    Blocker.NO_ROLE: "you don't have a role that can feed him.",
+    Blocker.NOT_OPENED: "you haven't opened /wisp board yet.",
+}
 _NO_WISP: Final = "there's no living Wisp to feed right now."
 _REPEAT: Final = "that track was already fed."
 _NO_SONG: Final = "that viibrmusic.com share link names no song."
@@ -91,13 +94,9 @@ class Feeding(commands.Cog):
             return
         now = discord.utils.utcnow()
         player = await self.bot.players.get(guild.id, author.id)
-        if not await can_feed(self.bot, guild.id, author):
-            qualifying = await self.bot.settings.roles(guild.id)
-            has_role = not qualifying.isdisjoint(role.id for role in author.roles)
-            await self._refuse(guild, author, _NOT_OPENED if has_role else _NO_ROLE)
-            return
-        if player.is_banned(now):
-            await self._refuse(guild, author, _BANNED)
+        blocker = await feeder_blocker(self.bot, guild.id, author, now)
+        if blocker is not None:
+            await self._refuse(guild, author, _BLOCKERS[blocker])
             return
         track = (
             await self._resolve(guild, author, found)

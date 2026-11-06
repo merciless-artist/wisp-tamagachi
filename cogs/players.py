@@ -3,6 +3,7 @@
 import contextlib
 import re
 from datetime import UTC, datetime
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Final, cast
 
 import discord
@@ -161,6 +162,26 @@ async def _credit(
 # ---
 
 
+class Blocker(Enum):
+    """Why a member may not feed Wisp."""
+
+    BANNED = "banned"
+    NO_ROLE = "no role"
+    NOT_OPENED = "not opened"
+
+
+async def _missing_requirement(
+    bot: "WispBot", guild_id: int, member: discord.Member
+) -> Blocker | None:
+    """NO_ROLE or NOT_OPENED when the member lacks a feeding requirement."""
+    qualifying = await bot.settings.roles(guild_id)
+    if qualifying.isdisjoint(role.id for role in member.roles):
+        return Blocker.NO_ROLE
+    if (await bot.players.get(guild_id, member.id)).activated_at is None:
+        return Blocker.NOT_OPENED
+    return None
+
+
 async def can_feed(
     bot: "WispBot", guild_id: int, member: discord.User | discord.Member
 ) -> bool:
@@ -171,10 +192,19 @@ async def can_feed(
     """
     if not isinstance(member, discord.Member):
         return False
-    qualifying = await bot.settings.roles(guild_id)
-    if qualifying.isdisjoint(role.id for role in member.roles):
-        return False
-    return (await bot.players.get(guild_id, member.id)).activated_at is not None
+    return await _missing_requirement(bot, guild_id, member) is None
+
+
+async def feeder_blocker(
+    bot: "WispBot", guild_id: int, member: discord.Member, now: datetime
+) -> Blocker | None:
+    """The first reason the member may not feed Wisp, or None when they may.
+
+    A ban comes first, then a missing role, then /wisp board not opened.
+    """
+    if (await bot.players.get(guild_id, member.id)).is_banned(now):
+        return Blocker.BANNED
+    return await _missing_requirement(bot, guild_id, member)
 
 
 class Refusal(Exception):

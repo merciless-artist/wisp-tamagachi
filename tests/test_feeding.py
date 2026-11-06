@@ -250,20 +250,17 @@ async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
 
 def assert_refused(server: FakeServer, *reason: str, user_id: int = FIRST_USER) -> None:
     """One House post named the member without pinging and gave the reason."""
-    server.house.send.assert_awaited_once()
-    (text,) = server.house.send.await_args.args
-    assert text.startswith(f"♪ <@{user_id}> ")
-    for part in reason:
-        assert part in text
-    assert sends_without_pinging(server.house.send.await_args.kwargs)
+    assert_refused_after_feed(server, *reason, user_id=user_id)
     server.mealtime.send.assert_not_awaited()
 
 
-def assert_refused_after_feed(server: FakeServer, *reason: str) -> None:
-    """An earlier track was forwarded; the later one got one House reason."""
+def assert_refused_after_feed(
+    server: FakeServer, *reason: str, user_id: int = FIRST_USER
+) -> None:
+    """An earlier track may have been forwarded; this one got one House reason."""
     server.house.send.assert_awaited_once()
     (text,) = server.house.send.await_args.args
-    assert text.startswith(f"♪ <@{FIRST_USER}> ")
+    assert text.startswith(f"♪ <@{user_id}> ")
     for part in reason:
         assert part in text
     assert sends_without_pinging(server.house.send.await_args.kwargs)
@@ -696,7 +693,7 @@ async def test_a_share_link_is_not_checked_for_a_member_who_cannot_feed(
 
     assert viibr_site == []
     await assert_nothing_fed(bot)
-    assert server.house.send.await_count == 1
+    assert_refused(server, "role that can feed")
 
 
 async def test_a_share_link_is_resolved_outside_the_guild_lock(
@@ -1464,3 +1461,32 @@ async def test_a_track_staff_made_worth_nothing_gets_a_reason(
 
     await assert_nothing_fed(bot)
     assert_refused(server, "0 meal points")
+
+
+async def test_a_banned_member_without_the_board_opened_is_told_they_are_banned(
+    cog: Feeding, bot: app.WispBot, server: FakeServer, message: MessageFactory
+) -> None:
+    await configure(bot)
+    await start_life(bot)
+    await bot.players.set_offense(GUILD_ID, FIRST_USER, 1, None, True)
+
+    await cog.on_message(message(VIIBR_URL))
+
+    await assert_nothing_fed(bot)
+    assert_refused(server, "banned")
+
+
+async def test_a_frozen_wisp_is_still_fed(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).health == 55.0
+    server.mealtime.send.assert_awaited_once()
+    server.house.send.assert_not_awaited()
