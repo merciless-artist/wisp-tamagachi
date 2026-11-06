@@ -34,7 +34,7 @@ from cogs.staff import is_command
 from db.players import Player
 from wisp.bond import tier_for
 from wisp.chores import is_napping
-from wisp.life import Life, has_sniffles, is_sick, mood
+from wisp.life import Life, Sickness, mood, sickness
 from wisp.lines import Moment
 from wisp.rules import CHIME_IN_CHANCE, CHIME_IN_GAP, CONTEXT_LINE_CHARS
 from wisp.text import strip_emoji
@@ -144,15 +144,48 @@ def _aimed_at(message: discord.Message, wisp: discord.ClientUser) -> bool:
 
 
 async def _reply(
-    message: discord.Message, text: str, image: Path | None = None
+    bot: "WispBot", message: discord.Message, text: str, image: Path | None = None
 ) -> None:
+    """Reply to `message` with `text`, and `image` when given.
+
+    A picture Discord refuses is dropped: the words are sent again without it
+    and the refusal is reported once per streak.
+    """
+    if image is None:
+        await _send_reply(message, text, None)
+        return
+    guild_id = message.guild.id if message.guild is not None else 0
+    key = (guild_id, "reply picture")
+    try:
+        await _send_reply(message, text, image)
+    except discord.NotFound:
+        raise
+    except discord.HTTPException as error:
+        await _send_reply(message, text, None)
+        if key not in bot.failing_displays:
+            bot.failing_displays.add(key)
+            await bot.report_error(
+                message.guild,
+                "attaching the sick reply picture",
+                error,
+                where=message.channel,
+            )
+        return
+    bot.failing_displays.discard(key)
+
+
+async def _send_reply(message: discord.Message, text: str, image: Path | None) -> None:
     art = None if image is None else discord.File(image)
-    await message.reply(
-        text,
-        mention_author=False,
-        allowed_mentions=_NO_PING,
-        **art_kwargs("file", art),
-    )
+    try:
+        await message.reply(
+            text,
+            mention_author=False,
+            allowed_mentions=_NO_PING,
+            **art_kwargs("file", art),
+        )
+    finally:
+        if art is not None:
+            art.close()
 
 
 def _sick_moment(life: Life, level: Talk) -> Moment | None:
@@ -161,11 +194,13 @@ def _sick_moment(life: Life, level: Talk) -> Moment | None:
     Monster Pox wins over a cold; a Baby says it in baby words.
     """
     baby = level is Talk.BABY
-    if is_sick(life):
-        return Moment.POX_BABY_TALK if baby else Moment.POX_TALK
-    if has_sniffles(life):
-        return Moment.COLD_BABY_TALK if baby else Moment.COLD_TALK
-    return None
+    match sickness(life):
+        case Sickness.POX:
+            return Moment.POX_BABY_TALK if baby else Moment.POX_TALK
+        case Sickness.COLD:
+            return Moment.COLD_BABY_TALK if baby else Moment.COLD_TALK
+        case None:
+            return None
 
 
 # ---
@@ -356,7 +391,9 @@ class Conversation(commands.Cog):
     ) -> None:
         """Answer a mention with a sleepy noise: no AI, no credit."""
         try:
-            await _reply(message, self.bot.lines.pick(Moment.NAP_TALK, mood(life)))
+            await _reply(
+                self.bot, message, self.bot.lines.pick(Moment.NAP_TALK, mood(life))
+            )
         except discord.HTTPException as error:
             await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
 
@@ -398,9 +435,9 @@ class Conversation(commands.Cog):
         picture = sick_talk_image(life, bot.talk.rng)
         if reply is None:
             moment = _sick_moment(life, level) or _FALLBACK[level]
-            await _reply(message, bot.lines.pick(moment, mood(life)), picture)
+            await _reply(bot, message, bot.lines.pick(moment, mood(life)), picture)
             return
-        await _reply(message, link_track_drop(reply.text, track_drop), picture)
+        await _reply(bot, message, link_track_drop(reply.text, track_drop), picture)
         if level is Talk.EGG:
             return
         await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import discord
 
 from cogs.assets import ASSETS_DIR, moment_image
-from wisp.life import Life, Phase, has_sniffles, is_sick
+from wisp.life import Life, Phase, Sickness, has_sniffles, is_sick, sickness
 from wisp.rules import (
     COLD_PICTURES,
     POX_PICTURES,
@@ -62,12 +62,13 @@ def sick_talk_image(life: Life, rng: random.Random) -> Path | None:
     pool, skipping any file that is missing; None when he is not sick or the
     pool has nothing on disk.
     """
-    if is_sick(life):
-        names = POX_PICTURES[life.stage]
-    elif has_sniffles(life):
-        names = COLD_PICTURES
-    else:
-        return None
+    match sickness(life):
+        case Sickness.POX:
+            names = POX_PICTURES[life.stage]
+        case Sickness.COLD:
+            names = COLD_PICTURES
+        case None:
+            return None
     found = [path for name in names if (path := moment_image(name)) is not None]
     return rng.choice(found) if found else None
 

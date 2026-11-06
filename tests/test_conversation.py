@@ -21,6 +21,7 @@ from ai.chain import AllProvidersFailed
 from ai.prompt import Prompt
 from cogs import assets
 from cogs.conversation import Conversation, PokeButton
+from cogs.pictures import sick_talk_image
 from cogs.speech import dances, expressions
 from db.activity import ActivityRepo
 from db.database import Database
@@ -2095,6 +2096,9 @@ SICK = [
 ]
 
 
+PICTURE_CASES = [pytest.param(*case.values[:3], id=case.id) for case in SICK]
+
+
 def sick_pool(stage: Stage, pox: float) -> set[str]:
     return set(POX_PICTURES[stage] if pox > 0 else COLD_PICTURES)
 
@@ -2111,7 +2115,7 @@ async def lay_sick(bot: app.WispBot, stage: Stage, pox: float, cold: float) -> N
     await bot.lives.save(GUILD_ID, life)
 
 
-@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+@pytest.mark.parametrize(("stage", "pox", "cold"), PICTURE_CASES)
 async def test_a_sick_reply_carries_one_picture_from_the_sickness_pool(
     cog: Conversation,
     bot: app.WispBot,
@@ -2120,7 +2124,6 @@ async def test_a_sick_reply_carries_one_picture_from_the_sickness_pool(
     stage: Stage,
     pox: float,
     cold: float,
-    moment: Moment,
 ) -> None:
     await lay_sick(bot, stage, pox, cold)
     said = message.to_wisp("how are you")
@@ -2198,7 +2201,7 @@ async def test_with_no_picture_on_disk_the_sick_reply_is_words_only(
     assert reply_picture(said) is None
 
 
-@pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
+@pytest.mark.parametrize(("stage", "pox", "cold"), PICTURE_CASES)
 async def test_a_sick_poke_posts_one_picture_from_the_pool(
     bot: app.WispBot,
     ai: AsyncMock,
@@ -2207,7 +2210,6 @@ async def test_a_sick_poke_posts_one_picture_from_the_pool(
     stage: Stage,
     pox: float,
     cold: float,
-    moment: Moment,
 ) -> None:
     await lay_sick(bot, stage, pox, cold)
 
@@ -2245,3 +2247,59 @@ async def test_a_healthy_poke_has_no_picture(
     await poke()
 
     assert house_pictures(server) == [None]
+
+
+async def test_a_refused_sick_picture_still_sends_the_words(
+    cog: Conversation,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+) -> None:
+    await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    said = message.to_wisp("how are you")
+    refused = discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
+    said.reply.side_effect = [refused, None]
+
+    await cog.on_message(said)
+
+    first, second = said.reply.await_args_list
+    assert first.kwargs["file"].filename in sick_pool(Stage.TEEN, 10.0)
+    assert first.kwargs["file"].fp.closed
+    assert "file" not in second.kwargs
+    assert first.args == second.args == ("hey you",)
+    (report,) = reports(server)
+    assert report.startswith("Error in attaching the sick reply picture: HTTPException")
+
+
+async def test_a_refused_sick_picture_is_reported_once_per_streak(
+    cog: Conversation,
+    bot: app.WispBot,
+    clock: Clock,
+    server: FakeServer,
+    message: MessageFactory,
+) -> None:
+    await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    refused = discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
+    for _ in range(2):
+        said = message.to_wisp("how are you")
+        said.reply.side_effect = [refused, None]
+        await cog.on_message(said)
+        clock.advance(TALK_COOLDOWN)
+
+    assert len(reports(server)) == 1
+
+
+def test_both_pictures_of_a_two_file_pool_can_be_picked() -> None:
+    life = new_egg(1, START)
+    life.phase = Phase.ALIVE
+    life.stage = Stage.ADULT
+    life.sniffles_left = 10.0
+    rng = random.Random(7)
+
+    picked = {
+        picture.name
+        for picture in (sick_talk_image(life, rng) for _ in range(40))
+        if picture is not None
+    }
+
+    assert picked == set(COLD_PICTURES)

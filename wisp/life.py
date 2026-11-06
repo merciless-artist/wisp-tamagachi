@@ -80,6 +80,13 @@ class Mood(StrEnum):
     LONELY = auto()
 
 
+class Sickness(StrEnum):
+    """What he is sick with: Monster Pox or a cold."""
+
+    POX = auto()
+    COLD = auto()
+
+
 class Meter(StrEnum):
     """The three meters members fill: Health, Wellbeing and Mood."""
 
@@ -245,6 +252,15 @@ def is_sick(life: Life) -> bool:
 def has_sniffles(life: Life) -> bool:
     """Whether he has a cold right now."""
     return life.sniffles_left > 0
+
+
+def sickness(life: Life) -> Sickness | None:
+    """What he is sick with right now, or None; Monster Pox wins over a cold."""
+    if is_sick(life):
+        return Sickness.POX
+    if has_sniffles(life):
+        return Sickness.COLD
+    return None
 
 
 def age_days(life: Life, now: datetime) -> int:
