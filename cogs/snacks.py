@@ -73,6 +73,7 @@ from wisp.bond import (
     meal_grant,
     tier_for,
 )
+from wisp.chores import is_napping
 from wisp.gifts import GiftState, Outcome
 from wisp.life import (
     Life,
@@ -914,8 +915,9 @@ async def _give_medicine(interaction: discord.Interaction) -> None:
     """Spend the member's points on Wisp's medicine, which cures his cold.
 
     The Vault is shown again under the result, or under the reason it was
-    refused. A cure is announced in his House, pinging nobody. If the
-    confirmation fails, the error posted says the medicine went through.
+    refused. A cure is announced in his House, pinging nobody, with a sleepy
+    line while he naps. If the confirmation fails, the error posted says the
+    medicine went through.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -937,7 +939,7 @@ async def _give_medicine(interaction: discord.Interaction) -> None:
     await say_in_house(
         bot,
         guild_id,
-        Moment.MEDICINE,
+        Moment.MEDICINE_ASLEEP if is_napping(life) else Moment.MEDICINE,
         life,
         name=player.name or user.display_name,
         image=moment_image(MEDICINE_PICTURE),
@@ -1258,7 +1260,10 @@ def _eating_gif(gif_name: str) -> Path | None:
 
 
 async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
-    """Feed Wisp the chosen snack, tell the member, then show it in his House."""
+    """Feed Wisp the chosen snack, tell the member, then show it in his House.
+
+    While he naps he eats in his sleep, and his line is a sleepy one.
+    """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
@@ -1283,6 +1288,8 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     moment, gif_name = _reaction(
         snack, meal.player.pickle_stance, meal.life.favorite_snack
     )
+    if is_napping(meal.life):
+        moment = Moment.SNACK_ASLEEP
     await say_in_house(
         bot,
         guild_id,

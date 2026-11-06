@@ -26,6 +26,14 @@
 - The quiet line follows real talk in the House (`bot.talk.quiet_for`), not
   credited interactions. After a restart the quiet is counted from the first
   tick, so a redeploy never makes him say it at once.
+- While he naps, `/wisp play rhyme` and the Status post's Play, Rhyme Duel
+  button are refused with `♪ Wisp is napping until HH:MM UTC. Poke him awake
+  first.` The time comes from `nap_time_text`, the one place nap times are
+  worded (the card's next nap uses it too), and is when his nap time left
+  runs out, rounded up to the minute.
+- Snacks, gifts and medicine still work while he naps, but his House line
+  comes from new sleepy sets: eating, getting a gift and taking medicine in
+  his sleep, five lines each.
 
 ## 2026-11-06 (The Status post is the control panel)
 

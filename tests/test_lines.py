@@ -75,6 +75,9 @@ ONE_MOOD_MOMENTS = {
     Moment.SCOLDED,
     Moment.LIGHTS_OFF,
     Moment.MEDICINE,
+    Moment.SNACK_ASLEEP,
+    Moment.GIFT_ASLEEP,
+    Moment.MEDICINE_ASLEEP,
     Moment.DRAWING_GIFT,
     Moment.DRAWING_BOND,
     Moment.DRAWING_TOP_FEEDER,
@@ -245,6 +248,25 @@ def is_sleepy_noise(line: str) -> bool:
         return False
     words = [word.strip(".,!?").lower() for word in line.strip("*").split()]
     return bool(words) and all(_NOISE_WORD.fullmatch(word) for word in words)
+
+
+@pytest.mark.parametrize(
+    ("moment", "fields"),
+    [
+        (Moment.SNACK_ASLEEP, {"name"}),
+        (Moment.GIFT_ASLEEP, {"name", "gift"}),
+        (Moment.MEDICINE_ASLEEP, {"name"}),
+    ],
+)
+def test_the_asleep_moments_are_a_few_sleepy_lines(
+    moment: Moment, fields: set[str]
+) -> None:
+    assert FIELDS[moment] == fields
+    lines = LINES[(moment, Mood.HAPPY)]
+    assert 4 <= len(lines) <= 8
+    for line in lines:
+        assert line.startswith("*") and line.endswith("*"), line
+        assert re.search(r"\*(?:[^*]*\b)?(?:zzz|snore|snrrk|mm)", line), line
 
 
 def test_nap_talk_is_only_sleepy_noises() -> None:

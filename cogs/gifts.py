@@ -26,6 +26,7 @@ from cogs.players import (
 from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
+from wisp.chores import is_napping
 from wisp.gifts import GiftState, Outcome, collection_of, decide, with_article
 from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
@@ -350,14 +351,16 @@ async def announce_gift(
 ) -> None:
     """Tell Wisp's House about a gift, with its picture when he kept it.
 
-    The post tags and pings the giver, so they see how Wisp took it.
+    The post tags and pings the giver, so they see how Wisp took it. Given
+    while he naps, his line is a sleepy one.
     """
     feeling = mood(given.life)
     title = given.gift.title
     giver = given.player.user_id
+    moment = Moment.GIFT_ASLEEP if is_napping(given.life) else _MOMENTS[given.outcome]
     lines = [
         f"♪ <@{giver}> gave Wisp {with_article(title)}",
-        bot.lines.pick(_MOMENTS[given.outcome], feeling, name=name, gift=title),
+        bot.lines.pick(moment, feeling, name=name, gift=title),
     ]
     if given.completed:
         collection = collection_of(given.gift).name

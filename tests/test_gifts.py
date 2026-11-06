@@ -665,6 +665,25 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
 
 
 @pytest.mark.parametrize("roll", [KEEP, PASS])
+async def test_a_gift_while_he_naps_gets_a_sleepy_line(
+    bot: app.WispBot, server: FakeServer, cog: Gifts, roll: float
+) -> None:
+    life = await lay(bot)
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    cog.rng = FixedRandom(roll)
+    pick = say(bot)
+
+    await give(bot, "alien_blue")
+
+    text, _kwargs = house_post(server)
+    assert text.startswith(f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll\n[gift_asleep]")
+    pick.assert_called_once_with(
+        Moment.GIFT_ASLEEP, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
+    )
+
+
+@pytest.mark.parametrize("roll", [KEEP, PASS])
 async def test_every_gift_bought_adds_eight_wellbeing_and_ends_its_stretch(
     bot: app.WispBot, cog: Gifts, roll: float
 ) -> None:

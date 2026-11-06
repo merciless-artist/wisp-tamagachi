@@ -67,6 +67,9 @@ class Moment(StrEnum):
     LIGHTS_MISSED = auto()
     LIGHTS_OFF = auto()
     NAP_TALK = auto()
+    SNACK_ASLEEP = auto()
+    GIFT_ASLEEP = auto()
+    MEDICINE_ASLEEP = auto()
     POX_TALK = auto()
     POX_BABY_TALK = auto()
     COLD_TALK = auto()
@@ -137,6 +140,9 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.LIGHTS_MISSED: _NONE,
     Moment.LIGHTS_OFF: _NAME,
     Moment.NAP_TALK: _NONE,
+    Moment.SNACK_ASLEEP: _NAME,
+    Moment.GIFT_ASLEEP: _GIFT,
+    Moment.MEDICINE_ASLEEP: _NAME,
     Moment.POX_TALK: _NONE,
     Moment.POX_BABY_TALK: _NONE,
     Moment.COLD_TALK: _NONE,
@@ -690,6 +696,30 @@ _NAP_TALK = (
     "*mmf*",
 )
 
+_SNACK_ASLEEP = (
+    "*munch... zzz*... mm, thanks {name}... *snore*",
+    "*chews without opening his eyes* ...tasty... *zzz*",
+    "*snrrk* ...is that a snack... {name}... *nom* *zzz*",
+    "*sleep-eating noises* ...mmf... more later... *snore*",
+    "*mumbles* {name}'s the best... *crunch*... *zzz*",
+)
+
+_GIFT_ASLEEP = (
+    "*stirs* ...{gift}?... for me?... *snore*",
+    "*mumbles* ...thank you {name}... I'll look when I wake up... *zzz*",
+    "*hugs the {gift} in his sleep* ...mm... *snrrk*",
+    "*half opens one eye* ...{name}... you're nice... *zzz*",
+    "*sleepy mumble* ...a present... *snore... snore*",
+)
+
+_MEDICINE_ASLEEP = (
+    "*gulp*... *sniffle*... thanks {name}... *zzz*",
+    "*swallows it in his sleep* ...mm... nose works again... *snore*",
+    "*mumbles* ...medicine... {name}... *zzz... mmm*",
+    "*sleepy sniff* ...oh. all better... *snrrk*",
+    "*takes the spoon without waking up* ...thank you {name}... *snore*",
+)
+
 _MESS_CLEANED = (
     "all clean! thank you {name}, I feel so fresh",
     "{name} cleaned it all up. you're my favorite person for like an hour",
@@ -1193,6 +1223,9 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.LIGHTS_MISSED, _LIGHTS_MISSED),
     **_either_mood(Moment.LIGHTS_OFF, _LIGHTS_OFF),
     **_either_mood(Moment.NAP_TALK, _NAP_TALK),
+    **_either_mood(Moment.SNACK_ASLEEP, _SNACK_ASLEEP),
+    **_either_mood(Moment.GIFT_ASLEEP, _GIFT_ASLEEP),
+    **_either_mood(Moment.MEDICINE_ASLEEP, _MEDICINE_ASLEEP),
     **_either_mood(Moment.POX_TALK, _POX_TALK),
     **_either_mood(Moment.POX_BABY_TALK, _POX_BABY_TALK),
     **_either_mood(Moment.COLD_TALK, _COLD_TALK),

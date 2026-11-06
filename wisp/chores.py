@@ -217,13 +217,28 @@ def latest_nap_start(now: datetime) -> datetime:
     return max(start for start in starts if start <= now)
 
 
+def nap_time_text(moment: datetime) -> str:
+    """A nap time as members see it, such as "18:00 UTC"."""
+    return f"{moment:%H:%M} UTC"
+
+
 def next_nap_text(now: datetime) -> str:
     """When his next nap starts after `now`, as the status card says it.
 
     Such as "next nap 18:00 UTC". At a nap's start the next one is meant.
     """
     start = min(start for start in _nap_starts(_midnight(now)) if start > now)
-    return f"next nap {start:%H:%M} UTC"
+    return f"next nap {nap_time_text(start)}"
+
+
+def nap_ends_at(life: Life, now: datetime) -> datetime:
+    """When his nap ends if nothing pauses it, rounded up to the minute.
+
+    His nap counts down on counted time, so it is `now` plus what is left.
+    """
+    end = now + timedelta(seconds=life.nap_left)
+    whole = end.replace(second=0, microsecond=0)
+    return whole if whole == end else whole + timedelta(minutes=1)
 
 
 def _nap_starts(day: datetime) -> list[datetime]:

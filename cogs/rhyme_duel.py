@@ -29,6 +29,7 @@ from cogs.players import (
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
+from wisp.chores import is_napping, nap_ends_at, nap_time_text
 from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
@@ -283,16 +284,27 @@ async def _record_play(
 
 
 async def _host(interaction: discord.Interaction, guild_id: int) -> None:
-    """Run one duel for the member, or say why they cannot have one."""
+    """Run one duel for the member, or say why they cannot have one.
+
+    The command and the Rhyme Duel button both come here, so both refuse the
+    same way, a nap included.
+    """
     bot = bot_of(interaction)
     user = interaction.user
+    now = discord.utils.utcnow()
     player = await bot.players.get(guild_id, user.id)
     life = await bot.lives.current(guild_id)
-    if player.is_banned(discord.utils.utcnow()):
+    if player.is_banned(now):
         await say_privately(interaction, _BANNED)
         return
     if life is None or life.phase is not Phase.ALIVE:
         await say_privately(interaction, no_wisp_text(life, "Rhymes"))
+        return
+    if is_napping(life):
+        until = nap_time_text(nap_ends_at(life, now))
+        await say_privately(
+            interaction, f"♪ Wisp is napping until {until}. Poke him awake first."
+        )
         return
     thread = await _open_thread(
         bot, guild_id, interaction.guild, player.name or user.display_name

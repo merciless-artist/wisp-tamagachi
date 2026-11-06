@@ -15,6 +15,8 @@ from wisp.chores import (
     is_napping,
     is_open,
     message_id,
+    nap_ends_at,
+    nap_time_text,
     next_nap_text,
     next_tantrum,
     open_mess,
@@ -468,6 +470,27 @@ def test_naps_start_at_two_ten_and_eighteen_utc(hour: int) -> None:
 )
 def test_the_next_nap_is_the_first_start_after_now(now: datetime, nap: str) -> None:
     assert next_nap_text(now) == nap
+
+
+def test_a_nap_time_reads_as_the_card_says_it() -> None:
+    assert nap_time_text(utc(18)) == "18:00 UTC"
+    assert nap_time_text(utc(2, 5)) == "02:05 UTC"
+
+
+@pytest.mark.parametrize(
+    ("left", "ends"),
+    [
+        (timedelta(minutes=30), "10:45 UTC"),
+        (timedelta(minutes=30, seconds=1), "10:46 UTC"),
+        (timedelta(seconds=1), "10:16 UTC"),
+        (timedelta(hours=1), "11:15 UTC"),
+    ],
+)
+def test_a_nap_ends_when_its_time_left_runs_out_rounded_up(
+    left: timedelta, ends: str
+) -> None:
+    life = alive(nap_left=left.total_seconds())
+    assert nap_time_text(nap_ends_at(life, utc(10, 15))) == ends
 
 
 def test_a_nap_start_missed_by_an_outage_is_skipped() -> None:

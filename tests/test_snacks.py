@@ -1567,6 +1567,25 @@ async def test_buying_medicine_cures_him_and_pays_three(
     assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
 
 
+async def test_medicine_while_he_naps_gets_a_sleepy_line(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    life = await current_life(bot)
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    select = await medicine_select(bot)
+    pick = say(bot, "*gulp* zzz")
+
+    await choose(bot, select, "medicine")
+
+    assert (await current_life(bot)).sniffles_left == 0
+    pick.assert_called_once_with(Moment.MEDICINE_ASLEEP, Mood.HAPPY, name="Member1")
+    assert house_text(server) == "*gulp* zzz"
+
+
 async def test_a_second_buyer_is_refused_before_paying(bot: app.WispBot) -> None:
     await lay(bot)
     await catch_cold(bot)
@@ -1707,6 +1726,23 @@ async def test_his_favorite_snack_gets_its_own_line(
 
     pick.assert_called_once_with(Moment.SNACK_FAVORITE, Mood.HAPPY, name="Member1")
     assert house_text(server) == "my favorite"
+
+
+@pytest.mark.parametrize("key", ["cheese", "pickles", "spicywave", "sinewave"])
+async def test_a_snack_while_he_naps_is_eaten_in_his_sleep(
+    bot: app.WispBot, server: FakeServer, key: str
+) -> None:
+    life = await lay(bot, health=50.0)
+    life.favorite_snack = "cheese"
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    pick = say(bot, "*munch* zzz")
+
+    interaction = await eat(bot, key)
+
+    pick.assert_called_once_with(Moment.SNACK_ASLEEP, Mood.HAPPY, name="Member1")
+    assert house_text(server).endswith("*munch* zzz")
+    assert reply_text(interaction).startswith("♪ Wisp ate your ")
 
 
 async def test_a_snack_that_is_not_his_favorite_gets_the_usual_line(

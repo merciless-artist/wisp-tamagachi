@@ -7,7 +7,7 @@ the real ones.
 import asyncio
 import random
 from collections.abc import Callable, Iterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -1128,6 +1128,30 @@ async def test_the_rhyme_duel_button_gives_the_commands_reasons(
 
     assert replies(interaction) == [reason]
     server.house.create_thread.assert_not_awaited()
+
+
+@pytest.mark.parametrize("opener", ["command", "button"])
+async def test_a_duel_while_he_naps_is_refused_until_he_wakes(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    opener: str,
+) -> None:
+    life = await lay(bot)
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    monkeypatch.setattr(
+        discord.utils, "utcnow", lambda: datetime(2026, 11, 6, 10, 15, 30, tzinfo=UTC)
+    )
+    interaction = make_interaction(bot, server)
+
+    await (start if opener == "command" else press_rhyme_duel)(interaction)
+
+    assert replies(interaction) == [
+        "♪ Wisp is napping until 10:46 UTC. Poke him awake first."
+    ]
+    server.house.create_thread.assert_not_awaited()
+    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
 
 
 async def test_the_button_and_the_command_share_one_duel_per_player(
