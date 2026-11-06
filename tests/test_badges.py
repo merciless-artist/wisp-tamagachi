@@ -21,6 +21,7 @@ from cogs.badges import ensure_badge_roles, sweep_badges
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -143,6 +144,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
@@ -260,6 +262,12 @@ def shown_note(interaction: MagicMock) -> str:
     assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
     assert "content" not in call.kwargs
     return layout_text(call.kwargs["view"]).splitlines()[0]
+
+
+def shown_lines(interaction: MagicMock) -> list[str]:
+    """The Vault's text lines as the interaction last showed them."""
+    call = interaction.edit_original_response.await_args
+    return layout_text(call.kwargs["view"]).splitlines()
 
 
 def vault_section(text: str, heading: str) -> list[str]:
@@ -791,6 +799,8 @@ async def test_a_member_short_on_points_is_refused(
         text.format(name="Member1")
         for text in LINES[(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY)]
     }
+    cost = BADGE_BY_KEY["pickle_diplomat"].cost
+    assert shown_lines(interaction)[1] == (f"♪ That costs {cost} WC and you have 24.")
     player = await bot.players.get(GUILD_ID, USER_ID)
     assert (player.balance, player.bond) == (24, 0)
     server.members[USER_ID].add_roles.assert_not_awaited()

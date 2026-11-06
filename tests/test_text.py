@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from wisp.card import bar
 from wisp.text import (
     BLANK,
     BOX_WIDTH,
@@ -21,6 +22,7 @@ from wisp.text import (
     meter_receipt,
     note,
     richest,
+    round_half_up,
     sections,
     strip_emoji,
     sub,
@@ -50,12 +52,19 @@ def test_count_pluralises_unless_one(amount: int, expected: str) -> None:
         (96.0, 100.0, "Wellbeing +4 (now 100)"),
         (100.0, 100.0, "Wellbeing +0 (now 100)"),
         (40.0, 25.0, "Wellbeing -15 (now 25)"),
+        (60.0, 66.5, "Wellbeing +7 (now 67)"),
     ],
 )
 def test_meter_receipt_adds_up_in_whole_numbers(
     before: float, after: float, expected: str
 ) -> None:
     assert meter_receipt("Wellbeing", before, after) == expected
+
+
+def test_a_receipt_rounds_a_half_up_as_the_status_card_does() -> None:
+    assert round_half_up(66.5) == 67
+    assert meter_receipt("Health", 66.5, 66.5) == "Health +0 (now 67)"
+    assert bar(66.5, "", "").endswith("│67%")
 
 
 def test_richest_swaps_in_rich_lines_while_they_fit() -> None:

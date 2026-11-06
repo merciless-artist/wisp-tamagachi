@@ -216,7 +216,18 @@ def make_interaction(
     interaction.response.defer = AsyncMock()
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
+    interaction.is_expired = MagicMock(return_value=False)
+    interaction.edit_original_response = AsyncMock()
     return interaction
+
+
+def receipt(interaction: MagicMock) -> str:
+    """The receipt added under the first private answer, which pings nobody."""
+    call = interaction.edit_original_response.await_args
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    started, text = call.kwargs["content"].split("\n", 1)
+    assert started == f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
+    return str(text)
 
 
 def replies(interaction: MagicMock) -> list[str]:
@@ -272,7 +283,7 @@ async def test_duel_scores_perfect_and_slant(
     interaction = await duel(bot, server, said("Choir!"), said("mine"))
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    assert replies(interaction)[0] == f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
+    assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
     server.house.create_thread.assert_awaited_once_with(
         name="Rhyme Duel ・ Member1",
         type=discord.ChannelType.public_thread,
@@ -840,9 +851,9 @@ async def test_a_counted_duel_says_what_it_did_and_what_is_left(
     interaction = await duel(bot, server, said("choir"))
 
     now = life.wellbeing + WELLBEING_PER_PLAY
-    assert replies(interaction)[1] == (
+    assert receipt(interaction) == (
         f"♪ Your duel counted. Wellbeing +{WELLBEING_PER_PLAY} (now {now:.0f}). "
-        f"{count(PLAY_POINTS, 'Vault point')}. "
+        f"+{PLAY_POINTS} WC. "
         f"{count(PLAYS_PER_DAY - 1, 'counted game')} left today."
     )
 
@@ -854,7 +865,7 @@ async def test_a_duel_without_a_rhyme_says_so(
 
     interaction = await duel(bot, server, said("water"))
 
-    assert replies(interaction)[1] == (
+    assert receipt(interaction) == (
         "♪ This duel didn't count toward his Wellbeing: you didn't score a rhyme."
     )
 
@@ -878,7 +889,7 @@ async def test_a_duel_past_the_daily_limit_says_so(
 
     interaction = await duel(bot, server, said("choir"))
 
-    assert replies(interaction)[1] == (
+    assert receipt(interaction) == (
         "♪ This duel didn't count toward his Wellbeing: you've already played "
         f"{count(PLAYS_PER_DAY, 'counted game')} today (resets at 00:00 UTC)."
     )
@@ -909,7 +920,7 @@ async def test_a_duel_by_someone_who_cannot_feed_says_why(
 
     await start(interaction)
 
-    assert replies(interaction)[1] == (
+    assert receipt(interaction) == (
         f"♪ This duel didn't count toward his Wellbeing: {reason}"
     )
 
@@ -936,8 +947,87 @@ async def test_a_duel_when_wisp_died_says_he_isnt_alive(
     interaction = make_interaction(bot, server)
     await start(interaction)
 
-    assert replies(interaction)[1] == (
+    assert receipt(interaction) == (
         "♪ This duel didn't count toward his Wellbeing: Wisp isn't alive right now."
+    )
+
+
+async def test_a_member_banned_during_the_duel_gets_it_uncounted(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    wisp_says: Callable[..., list[Any]],
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+    turns = cast(Turns, bot.wait_for)
+    turns.load(said("choir"))
+
+    async def ban_then_answer(
+        event: str, *, check: Callable[[Any], bool], timeout: float
+    ) -> MagicMock:
+        await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
+        return await turns(event, check=check, timeout=timeout)
+
+    monkeypatch.setattr(bot, "wait_for", ban_then_answer)
+    interaction = make_interaction(bot, server)
+    await start(interaction)
+
+    assert receipt(interaction) == (
+        "♪ This duel didn't count toward his Wellbeing: "
+        "you are banned from feeding Wisp right now."
+    )
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 0
+
+
+async def test_a_duel_while_frozen_says_he_is_frozen(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    life = await lay(bot)
+    await bot.settings.update(GUILD_ID, frozen=True)
+    wisp_says(None)
+
+    interaction = await duel(bot, server, said("choir"))
+
+    assert receipt(interaction) == (
+        "♪ This duel didn't count toward his Wellbeing: "
+        "Wisp is frozen right now, so nothing can change until staff unfreeze him."
+    )
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 0
+    current = await bot.lives.current(GUILD_ID)
+    assert current is not None and current.wellbeing == life.wellbeing
+
+
+async def test_an_expired_interaction_gets_the_receipt_in_the_thread(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+    cast(Turns, bot.wait_for).load(said("choir"))
+    interaction = make_interaction(bot, server)
+    interaction.is_expired.return_value = True
+
+    await start(interaction)
+
+    interaction.edit_original_response.assert_not_awaited()
+    assert server.posts()[-1].startswith("♪ Your duel counted.")
+
+
+async def test_a_receipt_that_cannot_be_sent_is_reported_in_the_thread(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+    cast(Turns, bot.wait_for).load(said("choir"))
+    interaction = make_interaction(bot, server)
+    interaction.edit_original_response.side_effect = discord.NotFound(
+        MagicMock(status=404, reason="Not Found"), "Unknown Webhook"
+    )
+
+    await start(interaction)
+
+    assert server.posts()[-1].startswith(
+        "Error in sending a Rhyme Duel receipt: NotFound"
     )
 
 

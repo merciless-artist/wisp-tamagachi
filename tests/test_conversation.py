@@ -1819,7 +1819,8 @@ async def test_a_counted_poke_says_what_it_did_and_what_is_left(
         f"(now {50 + WELLBEING_PER_POKE}). "
         f"{count(left, 'poke')} left today that raise it."
     )
-    assert private_reply(second).endswith(
+    assert private_reply(second) == (
+        f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
         f"(now {50 + 2 * WELLBEING_PER_POKE}). "
         f"{count(left - 1, 'poke')} left today that raise it."
     )
@@ -1850,6 +1851,22 @@ async def test_a_poke_that_wakes_him_says_so(
     assert private_reply(pressed) == (
         f"{NOT_RAISED}he was napping, so you woke him up cranky."
     )
+
+
+async def test_a_poke_while_frozen_says_he_is_frozen(
+    bot: app.WispBot, poke: Press
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    pressed = await poke()
+
+    assert private_reply(pressed) == (
+        f"{NOT_RAISED}Wisp is frozen right now, "
+        "so nothing can change until staff unfreeze him."
+    )
+    assert (await current(bot)).wellbeing == 50.0
 
 
 async def test_a_poke_from_a_member_without_a_feeding_role_says_so(

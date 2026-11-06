@@ -16,7 +16,13 @@ from discord.ext import commands
 
 from cogs.announce import post_in_house
 from cogs.assets import ASSETS_DIR, asset_image
-from cogs.players import Refusal, check_member, no_wisp_text, too_poor_text
+from cogs.players import (
+    Refusal,
+    check_member,
+    no_wisp_text,
+    require_unfrozen,
+    too_poor_text,
+)
 from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
@@ -273,6 +279,7 @@ async def give_gift(
             Wisp is not alive, he already has the gift, or someone gave from
             its collection today. Nothing is spent then.
     """
+    await require_unfrozen(bot, guild_id)
     player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
     life_id = _living_id(life)
@@ -287,7 +294,7 @@ async def give_gift(
     if not await bot.players.spend(guild_id, member.id, GIFT_COST):
         name = player.name or member.display_name
         line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
-        raise Refusal(too_poor_text(line, GIFT_COST, player.balance))
+        raise Refusal(too_poor_text(bot, line, GIFT_COST, player.balance))
     outcome = decide(state, rng)
     kept = outcome is Outcome.KEPT
     completed = kept and state.completes(gift)

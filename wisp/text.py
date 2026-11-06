@@ -377,13 +377,18 @@ def count(amount: int, noun: str) -> str:
     return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"
 
 
+def round_half_up(value: float) -> int:
+    """`value` as a whole number, a half rounding up, as the status card shows it."""
+    return int(value + 0.5)
+
+
 def meter_receipt(meter: str, before: float, after: float) -> str:
     """What a meter did, as whole numbers: `Wellbeing +8 (now 66)`.
 
     The change is the difference of the shown numbers, so it always adds up.
     """
-    shown = round(after)
-    change = shown - round(before)
+    shown = round_half_up(after)
+    change = shown - round_half_up(before)
     return f"{meter} {change:+d} (now {shown})"
 
 

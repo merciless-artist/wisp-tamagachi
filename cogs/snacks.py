@@ -57,6 +57,7 @@ from cogs.players import (
     no_wisp_text,
     refusal_text,
     report_failure,
+    require_unfrozen,
     say_privately,
     too_poor_text,
 )
@@ -709,7 +710,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
             name=player.name or user.display_name,
         )
         await say_privately(
-            interaction, too_poor_text(line, snack.cost, player.balance)
+            interaction, too_poor_text(bot, line, snack.cost, player.balance)
         )
     else:
         await bot.activity_log.add_snack(guild_id, user.id, snack.key)
@@ -806,7 +807,7 @@ async def _take_badge(
     if not await bot.players.spend(guild_id, member.id, badge.cost):
         name = player.name or member.display_name
         line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
-        raise Refusal(too_poor_text(line, badge.cost, player.balance))
+        raise Refusal(too_poor_text(bot, line, badge.cost, player.balance))
     if not await bot.badges.record(
         guild_id, member.id, badge.key, life.id, life.version, now
     ):
@@ -890,7 +891,7 @@ async def _take_magazine(
     if not await bot.players.spend(guild_id, member.id, MAGAZINE_COST):
         name = player.name or member.display_name
         line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
-        raise Refusal(too_poor_text(line, MAGAZINE_COST, player.balance))
+        raise Refusal(too_poor_text(bot, line, MAGAZINE_COST, player.balance))
     if not await bot.magazines.record(
         guild_id, member.id, magazine.key, life.id, life.version, now
     ):
@@ -951,16 +952,17 @@ async def _take_medicine(
             with a cold, or the member is short of points. Nothing is spent
             then.
     """
+    await require_unfrozen(bot, guild_id)
     player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
     if life is None or life.phase is not Phase.ALIVE:
-        raise Refusal(no_wisp_text(life, "Medicine"))
+        raise Refusal(no_wisp_text(life, "Doses of medicine"))
     if not has_sniffles(life):
         raise Refusal(_NO_COLD)
     if not await bot.players.spend(guild_id, member.id, MEDICINE_COST):
         name = player.name or member.display_name
         line = bot.lines.pick(Moment.NOT_ENOUGH_POINTS, mood(life), name=name)
-        raise Refusal(too_poor_text(line, MEDICINE_COST, player.balance))
+        raise Refusal(too_poor_text(bot, line, MEDICINE_COST, player.balance))
     cure_sniffles(life)
     await bot.lives.save(guild_id, life)
     await bot.players.add_points(guild_id, member.id, MEDICINE_POINTS)
@@ -1182,6 +1184,7 @@ async def _eat(
     """
     log = bot.activity_log
     user_id = member.id
+    await require_unfrozen(bot, guild_id)
     player = await check_member(bot, guild_id, member, now)
     life = await bot.lives.current(guild_id)
     if life is None or life.id is None or life.phase is not Phase.ALIVE:

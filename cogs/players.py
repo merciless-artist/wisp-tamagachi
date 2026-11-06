@@ -28,7 +28,8 @@ from wisp.rules import (
     WELLBEING_PER_CHAT,
     WELLBEING_PER_POKE,
 )
-from wisp.text import USER_ERROR, count
+from wisp.text import USER_ERROR, count, with_emoji
+from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -103,7 +104,6 @@ async def credit_chat(
         guild_id,
         member,
         InteractionKind.CHAT,
-        Meter.WELLBEING,
         WELLBEING_PER_CHAT,
         CHAT_CREDITS_PER_DAY,
         "mention",
@@ -126,7 +126,6 @@ async def credit_poke(
         guild_id,
         member,
         InteractionKind.POKE,
-        Meter.WELLBEING,
         WELLBEING_PER_POKE,
         POKE_CREDITS_PER_DAY,
         "poke",
@@ -139,17 +138,17 @@ async def _credit(
     guild_id: int,
     member: discord.User | discord.Member,
     kind: InteractionKind,
-    meter: Meter,
     amount: float,
     per_day: int,
     noun: str,
     now: datetime,
 ) -> Credit:
-    """Record one credited chat or poke, fill its meter and pay the day's point.
+    """Record one credited chat or poke, fill Wellbeing and pay the day's point.
 
     A credit records an interaction of `kind`, which earns no bond or growth,
-    moves `meter` by `amount` and restarts that meter's stretch. It is given
-    only while Wisp has a life, to a member who is not banned and can feed him,
+    moves Wellbeing by `amount` and restarts its stretch. It is given only
+    while Wisp has a life and is not frozen, to a member who is not banned and
+    can feed him,
     and only until the member has had `per_day` of that kind on the UTC day of
     `now`. The first credit of the day, of either kind, also pays CHAT_POINTS.
     A refusal names its reason.
@@ -157,7 +156,9 @@ async def _credit(
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
         if life is None or life.id is None:
-            return Credit(False, _NO_WISP_REASON)
+            return Credit(False, NOT_ALIVE_REASON)
+        if await is_frozen(bot, guild_id):
+            return Credit(False, FROZEN_REASON)
         blocker = await member_blocker(bot, guild_id, member, now)
         if blocker is not None:
             return Credit(False, BLOCKER_REASONS[blocker])
@@ -169,7 +170,7 @@ async def _credit(
             return Credit(False, f"you've used your {count(per_day, noun)} for today.")
         await log.record_interaction(guild_id, life.id, member.id, kind, 0, 0, now)
         before = life.wellbeing
-        change_meter(life, meter, amount, ends_stretch=True)
+        change_meter(life, Meter.WELLBEING, amount, ends_stretch=True)
         await bot.lives.save(guild_id, life)
         if chats + pokes == 0:
             await bot.players.add_points(guild_id, member.id, CHAT_POINTS)
@@ -194,7 +195,10 @@ BLOCKER_REASONS: Final = {
     Blocker.NO_ROLE: "you don't have a role that can feed Wisp.",
     Blocker.NOT_OPENED: "you haven't opened /wisp board yet.",
 }
-_NO_WISP_REASON: Final = "Wisp isn't alive right now."
+NOT_ALIVE_REASON: Final = "Wisp isn't alive right now."
+FROZEN_REASON: Final = (
+    "Wisp is frozen right now, so nothing can change until staff unfreeze him."
+)
 
 
 async def _missing_requirement(
@@ -207,19 +211,6 @@ async def _missing_requirement(
     if (await bot.players.get(guild_id, member.id)).activated_at is None:
         return Blocker.NOT_OPENED
     return None
-
-
-async def can_feed(
-    bot: "WispBot", guild_id: int, member: discord.User | discord.Member
-) -> bool:
-    """Whether a member may feed Wisp and count as playing with him.
-
-    They need a qualifying role and must have opened /wisp board once. Bans are
-    checked separately, since they get their own reply.
-    """
-    if not isinstance(member, discord.Member):
-        return False
-    return await _missing_requirement(bot, guild_id, member) is None
 
 
 async def feeder_blocker(
@@ -246,6 +237,16 @@ async def member_blocker(
     return await feeder_blocker(bot, guild_id, member, now)
 
 
+async def is_frozen(bot: "WispBot", guild_id: int) -> bool:
+    """Whether staff have frozen Wisp's time in this guild."""
+    return (await bot.settings.get(guild_id)).frozen
+
+
+def chore_refusal_text(blocker: Blocker) -> str:
+    """What a member who may not feed Wisp is told when they try to do a chore."""
+    return f"♪ You can't take care of Wisp: {BLOCKER_REASONS[blocker]}"
+
+
 def refusal_text(blocker: Blocker) -> str:
     """What a member who may not feed Wisp is told when they try to give him things."""
     if blocker is Blocker.BANNED:
@@ -263,13 +264,24 @@ def no_wisp_text(life: Life | None, things: str) -> str:
     return f"♪ Wisp isn't alive right now, so {things.lower()} have to wait."
 
 
-def too_poor_text(line: str, cost: int, balance: int) -> str:
+def too_poor_text(bot: "WispBot", line: str, cost: int, balance: int) -> str:
     """Wisp's not-enough-points `line` with what the thing costs and the balance."""
-    return f"{line}\n♪ That costs {cost} WC and you have {balance}."
+    price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{cost} WC")
+    return f"{line}\n♪ That costs {price} and you have {balance}."
 
 
 class Refusal(Exception):
     """A reason the member cannot do something with Wisp right now, worded for them."""
+
+
+async def require_unfrozen(bot: "WispBot", guild_id: int) -> None:
+    """Stop an action while Wisp is frozen.
+
+    Raises:
+        Refusal: Staff have frozen Wisp, with the reason.
+    """
+    if await is_frozen(bot, guild_id):
+        raise Refusal(f"♪ {FROZEN_REASON}")
 
 
 async def check_member(

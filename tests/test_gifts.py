@@ -841,7 +841,9 @@ async def test_members_who_cannot_feed_cannot_give(
 
     interaction = await give(bot, "alien_blue", roles=())
 
-    assert "you don't have a role that can feed Wisp." in edited(interaction)
+    assert edited(interaction).startswith(
+        "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+    )
     assert await balance(bot) == 100
     server.house.send.assert_not_awaited()
 
@@ -849,9 +851,9 @@ async def test_members_who_cannot_feed_cannot_give(
 @pytest.mark.parametrize(
     ("phase", "reason"),
     [
-        (Phase.EGG, "isn't hatched yet"),
-        (Phase.HATCHING, "isn't hatched yet"),
-        (Phase.DEAD, "isn't alive right now"),
+        (Phase.EGG, "♪ Wisp isn't hatched yet. Gifts have to wait until he is."),
+        (Phase.HATCHING, "♪ Wisp isn't hatched yet. Gifts have to wait until he is."),
+        (Phase.DEAD, "♪ Wisp isn't alive right now, so gifts have to wait."),
     ],
 )
 async def test_wisp_must_be_alive_for_gifts(
@@ -863,7 +865,23 @@ async def test_wisp_must_be_alive_for_gifts(
 
     interaction = await give(bot, "alien_blue", select=select)
 
-    assert reason in edited(interaction)
+    assert edited(interaction).startswith(reason)
+    assert await balance(bot) == 100
+    server.house.send.assert_not_awaited()
+
+
+async def test_a_gift_while_frozen_says_he_is_frozen(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    select = await item_select(bot, "aliens")
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    interaction = await give(bot, "alien_blue", select=select)
+
+    assert edited(interaction).startswith(
+        "♪ Wisp is frozen right now, so nothing can change until staff unfreeze him."
+    )
     assert await balance(bot) == 100
     server.house.send.assert_not_awaited()
 

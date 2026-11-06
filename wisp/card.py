@@ -18,7 +18,7 @@ from wisp.rules import (
     HEALTH_MAX,
     WELLBEING_MAX,
 )
-from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted
+from wisp.text import ITEM_CLEF, SUB_CLEF, count, quoted, round_half_up
 
 # ---
 # Layout
@@ -162,7 +162,7 @@ def bar(value: float, full: str, left: str) -> str:
     `left` piece, including one whose `left` is not uploaded, has a space
     before the `│`.
     """
-    percent = int(min(max(value, 0.0), 100.0) + 0.5)
+    percent = round_half_up(min(max(value, 0.0), 100.0))
     tens, ones = divmod(percent, _PERCENT_PER_PIECE)
     end = left if ones >= _LEFT_FROM and left else " "
     return f"{full * tens}{end}│{percent}%"

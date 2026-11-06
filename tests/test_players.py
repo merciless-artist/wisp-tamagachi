@@ -363,6 +363,17 @@ async def test_a_credit_for_a_non_feeder_names_why(
     assert (given.credited, given.reason) == (False, reason)
 
 
+async def test_a_credit_while_frozen_says_he_is_frozen(bot: app.WispBot) -> None:
+    await lay(bot)
+    await enroll(bot)
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    given = await players.credit_poke(bot, GUILD_ID, make_member(), NOW)
+
+    assert (given.credited, given.reason) == (False, players.FROZEN_REASON)
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == 0
+
+
 async def test_chat_credit_needs_a_life(bot: app.WispBot) -> None:
     await enroll(bot)
 

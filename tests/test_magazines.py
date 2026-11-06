@@ -18,6 +18,7 @@ from cogs.magazines import cover_art
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
+from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -33,7 +34,7 @@ from tests.layout import (
 )
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
-from wisp.rules import BADGES, GIFT_BY_KEY, MAGAZINES, SNACKS, Stage
+from wisp.rules import BADGES, GIFT_BY_KEY, MAGAZINE_COST, MAGAZINES, SNACKS, Stage
 from wisp.text import (
     BLANK,
     LAYOUT_TEXT_LIMIT,
@@ -74,6 +75,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
     wisp_bot.gifts = GiftRepo(db)
+    wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: guild)
@@ -388,6 +390,9 @@ async def test_a_member_short_of_points_is_refused(
         line.format(name="Member1")
         for line in LINES[(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY)]
     }
+    assert shown(interaction).splitlines()[1] == (
+        f"♪ That costs {MAGAZINE_COST} WC and you have 99."
+    )
     assert await balance(bot) == 99
     assert life.id is not None
     assert await bot.magazines.owned(GUILD_ID, USER_ID, life.id) == set()
@@ -471,10 +476,8 @@ async def test_a_member_who_cannot_feed_is_refused(
 
     interaction = await pick(select, bot, guild, "viibrations", member(roles=()))
 
-    assert (
-        shown(interaction)
-        .splitlines()[0]
-        .startswith("♪ Wisp can't take that from you: you don't have a role")
+    assert shown(interaction).splitlines()[0] == (
+        "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
     )
     assert await balance(bot) == 1000
 

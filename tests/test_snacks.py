@@ -197,9 +197,9 @@ def emoji_text(name: str, index: int = 1) -> str:
 
 
 async def lay(
-    bot: app.WispBot, phase: Phase = Phase.ALIVE, health: float = 50.0
+    bot: app.WispBot, phase: Phase = Phase.ALIVE, health: float = 50.0, version: int = 1
 ) -> Life:
-    life = new_egg(1, discord.utils.utcnow() - timedelta(days=1))
+    life = new_egg(version, discord.utils.utcnow() - timedelta(days=1))
     life.phase = phase
     life.health = health
     if phase is Phase.ALIVE:
@@ -297,6 +297,21 @@ async def eat(bot: app.WispBot, key: str, user_id: int = USER_ID) -> MagicMock:
 
 def option_values(select: discord.ui.Select[Any]) -> list[str]:
     return [option.value for option in select.options]
+
+
+CLOUD_COST = next(snack.cost for snack in SNACKS if snack.key == "cloudwave")
+HATCH_FIRST = "♪ Wisp isn't hatched yet. Snacks have to wait until he is."
+NOT_ALIVE = "♪ Wisp isn't alive right now, so snacks have to wait."
+FROZEN = "♪ Wisp is frozen right now, so nothing can change until staff unfreeze him."
+
+
+def ate(name: str, meals: int = 1) -> str:
+    """The receipt for the `meals`th snack a fresh Wisp has eaten."""
+    now = rules.WELLBEING_START + meals * rules.WELLBEING_PER_SNACK
+    return (
+        f"♪ Wisp ate your {name}. "
+        f"Wellbeing +{rules.WELLBEING_PER_SNACK} (now {now:.0f})."
+    )
 
 
 def reply_text(interaction: MagicMock) -> str:
@@ -873,7 +888,8 @@ async def test_buy_refused_when_short(bot: app.WispBot) -> None:
     pick.assert_called_once_with(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY, name="Member1")
     interaction.followup.send.assert_awaited_once()
     assert reply_text(interaction) == (
-        "not enough points for that one" "\n♪ That costs 3 WC and you have 2."
+        "not enough points for that one"
+        f"\n♪ That costs {CLOUD_COST} WC and you have 2."
     )
     assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
     interaction.edit_original_response.assert_not_awaited()
@@ -1068,9 +1084,7 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 1
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     interaction.response.defer.assert_awaited_once_with()
-    assert (
-        reply_text(interaction) == "♪ Wisp ate your Spicy Wave. Wellbeing +8 (now 58)."
-    )
+    assert reply_text(interaction) == ate("Spicy Wave")
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     server.house.send.assert_awaited_once()
 
@@ -1131,7 +1145,7 @@ async def test_the_snack_confirmation_says_wellbeing(bot: app.WispBot) -> None:
 
     reply = await eat(bot, "spicywave")
 
-    assert reply_text(reply) == "♪ Wisp ate your Spicy Wave. Wellbeing +8 (now 58)."
+    assert reply_text(reply) == ate("Spicy Wave")
 
 
 async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
@@ -1144,7 +1158,7 @@ async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     life = await current_life(bot)
     assert (life.health, life.growth) == (50.0, 1)
-    assert reply_text(first) == "♪ Wisp ate your Sine Wave. Wellbeing +8 (now 58)."
+    assert reply_text(first) == ate("Sine Wave")
 
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
     _, select = await open_feeding(bot)
@@ -1229,7 +1243,7 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
 
     life = await current_life(bot)
     assert (life.health, life.growth) == (40.0, 1)
-    assert reply_text(capped) == "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 58)."
+    assert reply_text(capped) == ate("Cloud Wave")
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
 
@@ -1248,9 +1262,9 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
     replies = [reply_text(await eat(bot, "cloudwave")) for _ in range(4)]
 
     assert replies == [
-        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 58).",
-        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 66).",
-        "♪ Wisp ate your Cloud Wave. Wellbeing +8 (now 74).",
+        ate("Cloud Wave", 1),
+        ate("Cloud Wave", 2),
+        ate("Cloud Wave", 3),
         "♪ Wisp is full from you today. Save it for tomorrow.",
     ]
     assert (await current_life(bot)).health == 40.0
@@ -1291,11 +1305,7 @@ async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
 
 @pytest.mark.parametrize(
     ("phase", "reason"),
-    [
-        (Phase.EGG, "isn't hatched yet"),
-        (Phase.HATCHING, "isn't hatched yet"),
-        (Phase.DEAD, "isn't alive right now"),
-    ],
+    [(Phase.EGG, HATCH_FIRST), (Phase.HATCHING, HATCH_FIRST), (Phase.DEAD, NOT_ALIVE)],
 )
 async def test_cannot_feed_egg_with_snacks(
     bot: app.WispBot, server: FakeServer, phase: Phase, reason: str
@@ -1306,7 +1316,7 @@ async def test_cannot_feed_egg_with_snacks(
 
     interaction = await choose(bot, select, "cloudwave")
 
-    assert reason in reply_text(interaction)
+    assert reply_text(interaction) == reason
     assert interaction.edit_original_response.await_args.kwargs["view"] is None
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     life = await current_life(bot)
@@ -1320,6 +1330,20 @@ async def test_cannot_feed_egg_with_snacks(
     server.house.send.assert_not_awaited()
 
 
+async def test_cannot_feed_while_frozen(bot: app.WispBot, server: FakeServer) -> None:
+    await lay(bot)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
+    _, select = await open_feeding(bot)
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    interaction = await choose(bot, select, "cloudwave")
+
+    assert reply_text(interaction) == FROZEN
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
+    assert (await current_life(bot)).wellbeing == rules.WELLBEING_START
+    server.house.send.assert_not_awaited()
+
+
 async def test_cannot_feed_before_any_life_exists(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -1328,7 +1352,7 @@ async def test_cannot_feed_before_any_life_exists(
 
     interaction = await choose(bot, select, "cloudwave")
 
-    assert "Wisp isn't alive right now" in reply_text(interaction)
+    assert reply_text(interaction) == NOT_ALIVE
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     server.house.send.assert_not_awaited()
 
@@ -1496,7 +1520,52 @@ async def test_medicine_needs_enough_coins(bot: app.WispBot) -> None:
     assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 9
     assert (await current_life(bot)).sniffles_left > 0
     pick.assert_any_call(Moment.NOT_ENOUGH_POINTS, Mood.HAPPY, name="Member1")
-    assert "not enough points for that one" in reply_text(interaction)
+    assert reply_text(interaction).startswith(
+        "not enough points for that one"
+        f"\n♪ That costs {rules.MEDICINE_COST} WC and you have 9."
+    )
+
+
+@pytest.mark.parametrize(
+    ("phase", "reason"),
+    [
+        (
+            Phase.EGG,
+            "♪ Wisp isn't hatched yet. Doses of medicine have to wait until he is.",
+        ),
+        (
+            Phase.DEAD,
+            "♪ Wisp isn't alive right now, so doses of medicine have to wait.",
+        ),
+    ],
+)
+async def test_medicine_needs_a_living_wisp(
+    bot: app.WispBot, phase: Phase, reason: str
+) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    select = await medicine_select(bot)
+    await lay(bot, phase=phase, health=0.0, version=2)
+
+    interaction = await choose(bot, select, "medicine")
+
+    assert reply_text(interaction).startswith(reason)
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 10
+
+
+async def test_medicine_while_frozen_says_he_is_frozen(bot: app.WispBot) -> None:
+    await lay(bot)
+    await catch_cold(bot)
+    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    select = await medicine_select(bot)
+    await bot.settings.update(GUILD_ID, frozen=True)
+
+    interaction = await choose(bot, select, "medicine")
+
+    assert reply_text(interaction).startswith(FROZEN)
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 10
+    assert (await current_life(bot)).sniffles_left > 0
 
 
 # ---
