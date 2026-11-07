@@ -28,7 +28,7 @@ from db.activity import InteractionKind
 from db.settings import meal_points
 from wisp.bond import daily_meal_cap, meal_grant
 from wisp.chores import schedule_mess
-from wisp.life import Event, Mood, feed, is_over, mood
+from wisp.life import Event, Life, Mood, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.links import ShareLink, Track, TrackKind, find_track
 from wisp.rules import BOND_PER_VIIBR_TRACK, FED_REACTION, MEAL_POINTS_MAX
@@ -179,7 +179,8 @@ class Feeding(commands.Cog):
     ) -> tuple[list[Event], Mood]:
         """Record a feed worth `points` and apply it.
 
-        A fed track also makes a mess due, when one may come.
+        As much of it as fits under the member's daily meal limit is
+        credited, through `credit_feed`.
 
         Raises:
             NotFed: Nothing was fed; the error says why.
@@ -189,7 +190,7 @@ class Feeding(commands.Cog):
             if (await bot.players.get(guild_id, user_id)).is_banned(now):
                 raise NotFed(BLOCKER_REASONS[Blocker.BANNED])
             life = await bot.lives.current(guild_id)
-            if life is None or life.id is None or is_over(life):
+            if life is None or is_over(life):
                 raise NotFed(_NO_WISP)
             eaten = await bot.activity_log.meal_points_today(guild_id, user_id, now)
             cap = daily_meal_cap(life)
@@ -201,20 +202,9 @@ class Feeding(commands.Cog):
                     "you've reached the daily meal limit "
                     f"({eaten} of {cap} meal points today, resets at 00:00 UTC)."
                 )
-            if not await bot.activity_log.record_feed(
-                guild_id, life.id, user_id, track, grant, message_id, now
-            ):
-                raise NotFed(_REPEAT)
-            bond = BOND_PER_VIIBR_TRACK if track.kind is TrackKind.VIIBR else 0
-            await bot.activity_log.record_interaction(
-                guild_id, life.id, user_id, InteractionKind.FEED, bond, grant, now
+            events = await credit_feed(
+                bot, guild_id, life, user_id, track, grant, message_id, now, self.rng
             )
-            await bot.players.add_points(guild_id, user_id, grant)
-            if bond:
-                await bot.players.add_bond(guild_id, user_id, bond)
-            events = feed(life, grant, user_id, now)
-            schedule_mess(life, self.rng)
-            await bot.lives.save(guild_id, life)
             return events, mood(life)
 
     async def _forward(
@@ -237,6 +227,51 @@ class Feeding(commands.Cog):
             f"{f'{emoji} ' if emoji else ''}{reaction}"
         )
         await say_in_mealtime(self.bot, guild, text, "forwarding a track to Mealtime")
+
+
+# ---
+# Crediting a feed
+# ---
+
+
+async def credit_feed(
+    bot: "WispBot",
+    guild_id: int,
+    life: Life,
+    user_id: int,
+    track: Track,
+    grant: int,
+    message_id: int,
+    now: datetime,
+    rng: random.Random,
+) -> list[Event]:
+    """Credit a member with feeding `life` `track`, worth `grant` meal points.
+
+    The feed is recorded, the member earns its points (and bond, for a
+    viibrmusic.com track), Wisp eats and a mess is made due when one may
+    come; `rng` picks when. Returns what happened to him. Call this under the
+    guild lock; `life` is saved.
+
+    Raises:
+        NotFed: The life is not stored, or the guild already fed that track.
+    """
+    if life.id is None:
+        raise NotFed(_NO_WISP)
+    if not await bot.activity_log.record_feed(
+        guild_id, life.id, user_id, track, grant, message_id, now
+    ):
+        raise NotFed(_REPEAT)
+    bond = BOND_PER_VIIBR_TRACK if track.kind is TrackKind.VIIBR else 0
+    await bot.activity_log.record_interaction(
+        guild_id, life.id, user_id, InteractionKind.FEED, bond, grant, now
+    )
+    await bot.players.add_points(guild_id, user_id, grant)
+    if bond:
+        await bot.players.add_bond(guild_id, user_id, bond)
+    events = feed(life, grant, user_id, now)
+    schedule_mess(life, rng)
+    await bot.lives.save(guild_id, life)
+    return events
 
 
 # ---

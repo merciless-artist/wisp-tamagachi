@@ -20,6 +20,7 @@ from wisp.life import (
     change_meter,
     credited_gap,
     cure_sniffles,
+    cut_short,
     egg_after,
     end_stretch,
     feed,
@@ -32,7 +33,6 @@ from wisp.life import (
     own_time,
     ready_to_pass_on,
     schedule_cold,
-    starve,
     tick,
 )
 from wisp.rules import (
@@ -1307,13 +1307,30 @@ def test_ready_to_pass_on_says_farewell_on_the_next_tick() -> None:
     assert life.phase is Phase.PASSED
 
 
-def test_starve_ends_even_a_sick_wisp_on_the_next_tick() -> None:
-    life = sick(health=HEALTH_MAX)
-    life.last_tick_at = T0
-    starve(life)
-    events = tick(life, T0, frozen=False, caretakers=0, people=0)
-    assert events == [Event(EventKind.DIED)]
-    assert life.phase is Phase.DEAD
+@pytest.mark.parametrize(
+    ("phase", "ended"),
+    [
+        (Phase.EGG, Phase.COLD),
+        (Phase.HATCHING, Phase.COLD),
+        (Phase.ALIVE, Phase.DEAD),
+    ],
+)
+def test_cut_short_ends_a_life_at_once(phase: Phase, ended: Phase) -> None:
+    life = alive(phase=phase, phase_seconds=60.0)
+    cut_short(life, T0 + SIX_HOURS)
+    assert (life.phase, life.phase_seconds, life.ended_at) == (
+        ended,
+        0.0,
+        T0 + SIX_HOURS,
+    )
+    assert tick(life, T0 + SIX_HOURS, frozen=False, caretakers=0, people=0) == []
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
+def test_cut_short_leaves_an_ended_life_as_it_is(phase: Phase) -> None:
+    life = alive(phase=phase, ended_at=T0)
+    cut_short(life, T0 + SIX_HOURS)
+    assert (life.phase, life.ended_at) == (phase, T0)
 
 
 # ---

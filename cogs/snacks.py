@@ -939,12 +939,22 @@ async def _give_medicine(interaction: discord.Interaction) -> None:
         f"♪ You gave Wisp his medicine ・ +{MEDICINE_POINTS} WC",
         "confirming medicine (the medicine went through)",
     )
+    await announce_medicine(bot, guild_id, life, player.name or user.display_name)
+
+
+async def announce_medicine(
+    bot: "WispBot", guild_id: int, life: Life, name: str
+) -> None:
+    """Say in his House that `name` gave Wisp his medicine, with its picture.
+
+    His line is a sleepy one while he naps. Nobody is pinged.
+    """
     await say_in_house(
         bot,
         guild_id,
         Moment.MEDICINE_ASLEEP if is_napping(life) else Moment.MEDICINE,
         life,
-        name=player.name or user.display_name,
+        name=name,
         image=moment_image(MEDICINE_PICTURE),
     )
 

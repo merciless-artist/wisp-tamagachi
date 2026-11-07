@@ -715,6 +715,13 @@ def ready_to_pass_on(life: Life, now: datetime, rng: random.Random) -> None:
     life.hatched_at = now - timedelta(days=FAREWELL_AT_DAY)
 
 
-def starve(life: Life) -> None:
-    """Empty a living Wisp's health; his next tick, even a sick one, ends his life."""
-    life.health = 0.0
+def cut_short(life: Life, now: datetime) -> None:
+    """End a life at once, for a staff test life that starts over.
+
+    An egg, hatching or not, goes cold and a living Wisp dies, so no keepsake
+    is given for it. A life already over is left as it is.
+    """
+    if is_over(life):
+        return
+    _enter(life, Phase.DEAD if life.phase is Phase.ALIVE else Phase.COLD)
+    life.ended_at = now

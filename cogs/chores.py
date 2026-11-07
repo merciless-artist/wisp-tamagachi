@@ -25,6 +25,7 @@ from cogs.players import (
     report_failure,
     require_unfrozen,
     say_privately,
+    test_press,
 )
 from wisp.chores import (
     ChoreEvent,
@@ -277,15 +278,27 @@ async def wake_by_poke(
 
 
 async def _press(interaction: discord.Interaction, chore: Chore, life_id: int) -> None:
+    """Do the chore for the first eligible presser, unless a test life holds it.
+
+    While a staff test life runs in the guild, only its runner's press counts.
+    """
+    await interaction.response.defer()
+    guild_id = require_guild(interaction)
+    async with test_press(interaction, guild_id) as allowed:
+        if allowed:
+            await _do_chore(interaction, guild_id, chore, life_id)
+
+
+async def _do_chore(
+    interaction: discord.Interaction, guild_id: int, chore: Chore, life_id: int
+) -> None:
     """Do the chore for the first eligible presser and pay them its points.
 
     A member who cannot earn, or who comes too late, is told why privately and
     nothing changes. The winner is told what it did privately; their post says
     who did it and loses its button, edited after the guild lock is released.
     """
-    await interaction.response.defer()
     bot = bot_of(interaction)
-    guild_id = require_guild(interaction)
     user = interaction.user
     player = await bot.players.get(guild_id, user.id)
     blocker = await member_blocker(bot, guild_id, user, discord.utils.utcnow())

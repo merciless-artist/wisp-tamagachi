@@ -8,7 +8,7 @@ import random
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Final
+from typing import TYPE_CHECKING, Final
 
 import discord
 import pymysql
@@ -37,6 +37,7 @@ from cogs.players import (
     report_failure,
     say_privately,
     status_text,
+    test_press,
 )
 from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.status_card import show_status, status_view
@@ -44,40 +45,19 @@ from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.card import WAITING
-from wisp.chores import (
-    ChoreEvent,
-    ChoreEventKind,
-    is_napping,
-    is_open,
-    open_mess,
-    open_tantrum,
-    run_out,
-    start_nap,
-    tick_chores,
-)
+from wisp.chores import ChoreEvent, is_napping, tick_chores
 from wisp.life import (
     Event,
     EventKind,
     Life,
     Phase,
-    catch_sniffles,
     credited_gap,
     is_over,
-    jump_to,
-    ready_to_pass_on,
     schedule_cold,
-    starve,
     tick,
 )
 from wisp.lines import Moment
-from wisp.rules import (
-    PAID_SNACKS,
-    PEOPLE_WINDOW,
-    QUIET_AFTER,
-    TICK_EVERY,
-    Chore,
-    Stage,
-)
+from wisp.rules import PAID_SNACKS, PEOPLE_WINDOW, QUIET_AFTER, TICK_EVERY
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -86,86 +66,6 @@ _BEGIN_CONTEXT: Final = "the Begin again button"
 _STAFF_ONLY: Final = "♪ Only staff can start a new Wisp."
 _ALREADY_HERE: Final = "♪ Wisp is already here."
 _ON_ITS_WAY: Final = "♪ A new egg is on its way."
-
-# ---
-# Testing a life stage
-# ---
-
-_TEST_STAGES: Final = {
-    "baby": Stage.BABY,
-    "child": Stage.CHILD,
-    "teen": Stage.TEEN,
-    "adult": Stage.ADULT,
-    "rockstar": Stage.ROCKSTAR,
-    "oldfogey": Stage.OLD_FOGEY,
-}
-_FAREWELL: Final = "farewell"
-_STARVE: Final = "starve"
-_ENDINGS: Final = (_FAREWELL, _STARVE)
-_TEST_USAGE: Final = f"<{'|'.join([*_TEST_STAGES, *_ENDINGS])}>"
-_UNFREEZE_FIRST: Final = "♪ Unfreeze Wisp first: his life only ends while time passes."
-_NOT_ALIVE: Final = "♪ Wisp has to be hatched and alive to test a life stage."
-
-
-def _test_step(argument: str) -> str:
-    """Accept a stage or an ending as typed, in any case."""
-    step = argument.lower()
-    if step not in _TEST_STAGES and step not in _ENDINGS:
-        raise commands.BadArgument(f"Not a life stage: {argument}")
-    return step
-
-
-def _tested(step: str) -> str:
-    """The answer once a test step is done."""
-    if step == _FAREWELL:
-        return "♪ Test: Wisp has said his farewell."
-    if step == _STARVE:
-        return "♪ Test: Wisp has starved."
-    return f"♪ Test: Wisp is in his {_TEST_STAGES[step].label} stage now."
-
-
-# ---
-# Testing a chore
-# ---
-
-_TEST_CHORES: Final = ("mess", "tantrum", "nap", "cold", "late")
-_OPENERS: Final = {"mess": open_mess, "tantrum": open_tantrum, "nap": start_nap}
-_CHORE_USAGE: Final = f"<{'|'.join(_TEST_CHORES)}>"
-_UNFREEZE_CHORES_FIRST: Final = (
-    "♪ Unfreeze Wisp first: his chores only run while time passes."
-)
-_NOT_ALIVE_FOR_CHORE: Final = "♪ Wisp has to be hatched and alive to test a chore."
-_CHORE_WAITING: Final = "♪ That chore is already waiting in the House."
-_ALREADY_SICK: Final = "♪ Wisp is already sick."
-_NOTHING_TO_RUN_OUT: Final = "♪ No chore is waiting to run out."
-_CHORE_TESTED: Final = {
-    "mess": "♪ Test: Wisp made a mess.",
-    "tantrum": "♪ Test: Wisp is having a tantrum.",
-    "nap": "♪ Test: Wisp is taking a nap.",
-    "cold": "♪ Test: Wisp caught a cold.",
-    "late": "♪ Test: every waiting chore ran out.",
-}
-
-
-def _test_chore_step(argument: str) -> str:
-    """Accept a chore to test as typed, in any case."""
-    step = argument.lower()
-    if step not in _TEST_CHORES:
-        raise commands.BadArgument(f"Not a chore: {argument}")
-    return step
-
-
-def _begin_chore(life: Life, step: str) -> list[ChoreEvent] | str:
-    """Start the chore `step` names; the refusal to say when it cannot start."""
-    if step == "cold":
-        return (
-            [ChoreEvent(ChoreEventKind.SNIFFLES)]
-            if catch_sniffles(life)
-            else _ALREADY_SICK
-        )
-    waiting = is_napping(life) if step == "nap" else is_open(life, Chore(step))
-    return _CHORE_WAITING if waiting else [_OPENERS[step](life)]
-
 
 # ---
 # Loop
@@ -212,12 +112,15 @@ class LifeLoop(commands.Cog):
         """Advance every guild to `now`, one failing guild never stopping the rest.
 
         Guilds without a House channel or a Status thread, and guilds the bot
-        can no longer see, are skipped. A database or Discord failure in one
-        guild is reported with that guild.
+        can no longer see, are skipped, and so is a guild with a staff test
+        life running: its steps tick it themselves. A database or Discord
+        failure in one guild is reported with that guild.
         """
         for guild_id in await self.bot.settings.guilds():
+            if guild_id in self.bot.test_runs:
+                continue
             try:
-                await self._tick_guild(guild_id, now)
+                await self.tick_guild(guild_id, now)
             except (pymysql.err.Error, discord.HTTPException) as error:
                 await self.bot.report_error(
                     self.bot.get_guild(guild_id), "life loop", error
@@ -227,7 +130,15 @@ class LifeLoop(commands.Cog):
     # One guild
     # ---
 
-    async def _tick_guild(self, guild_id: int, now: datetime) -> None:
+    async def tick_guild(self, guild_id: int, now: datetime) -> None:
+        """Advance one guild to `now` and bring its posts, card and Vault up to date.
+
+        Takes `bot.guild_lock`, so it must be called outside it.
+
+        Raises:
+            pymysql.err.Error: The database failed.
+            discord.HTTPException: Discord failed.
+        """
         bot = self.bot
         settings = await bot.settings.get(guild_id)
         if settings.house_channel_id is None or settings.status_thread_id is None:
@@ -331,96 +242,6 @@ class LifeLoop(commands.Cog):
             self.bot, guild_id, Moment.QUIET, life, image=nap_image(life.stage)
         )
 
-    # ---
-    # Testing a life stage
-    # ---
-
-    @commands.command(name="test_lifestage", usage=_TEST_USAGE)
-    async def test_lifestage(
-        self, ctx: StaffContext, step: Annotated[str, _test_step]
-    ) -> None:
-        """Jump the real Wisp to a life stage, or end his life, to test it.
-
-        A stage is announced like a real one and his card, House panel and
-        Vault catch up at once. Farewell and starve end his life through his
-        own tick, so they need him unfrozen.
-        """
-        bot = self.bot
-        guild_id = guild_of(ctx).id
-        now = discord.utils.utcnow()
-        if step in _ENDINGS and (await bot.settings.get(guild_id)).frozen:
-            await reply(ctx, _UNFREEZE_FIRST)
-            return
-        events: list[Event] = []
-        async with bot.guild_lock(guild_id):
-            life = await bot.lives.current(guild_id)
-            if life is not None and life.phase is Phase.ALIVE:
-                if step == _FAREWELL:
-                    ready_to_pass_on(life, now, self.rng)
-                elif step == _STARVE:
-                    starve(life)
-                else:
-                    event = jump_to(life, _TEST_STAGES[step], now, self.rng)
-                    events = [] if event is None else [event]
-                await bot.lives.save(guild_id, life)
-        if life is None or life.phase is not Phase.ALIVE:
-            await reply(ctx, _NOT_ALIVE)
-            return
-        await post_events(bot, guild_id, events)
-        await self._tick_guild(guild_id, now)
-        await reply(ctx, _tested(step))
-
-    # ---
-    # Testing a chore
-    # ---
-
-    @commands.command(name="test_chore", usage=_CHORE_USAGE)
-    async def test_chore(
-        self, ctx: StaffContext, step: Annotated[str, _test_chore_step]
-    ) -> None:
-        """Make Wisp do a chore now, or run the waiting ones out, to test it.
-
-        A mess, tantrum or nap is the one his tick opens, posted the same way.
-        Late fast-forwards counted time so every waiting chore ends the way it
-        does for real. Chores only run while time passes, so he must be
-        unfrozen.
-        """
-        bot = self.bot
-        guild_id = guild_of(ctx).id
-        now = discord.utils.utcnow()
-        result = await self._run_chore_test(guild_id, step, now)
-        if isinstance(result, str):
-            await reply(ctx, result)
-            return
-        life, events = result
-        await post_chores(bot, guild_id, life, events)
-        await self._tick_guild(guild_id, now)
-        await reply(ctx, _CHORE_TESTED[step])
-
-    async def _run_chore_test(
-        self, guild_id: int, step: str, now: datetime
-    ) -> tuple[Life, list[ChoreEvent]] | str:
-        """Do the test under the guild lock and save it, or say why it cannot be.
-
-        Frozen is read under the lock, so a freeze that lands first is honored.
-        """
-        async with self.bot.guild_lock(guild_id):
-            if (await self.bot.settings.get(guild_id)).frozen:
-                return _UNFREEZE_CHORES_FIRST
-            life = await self.bot.lives.current(guild_id)
-            if life is None or life.phase is not Phase.ALIVE:
-                return _NOT_ALIVE_FOR_CHORE
-            if step != "late":
-                outcome = _begin_chore(life, step)
-            elif (late := run_out(life)).total_seconds() > 0:
-                outcome = tick_chores(life, now, late, self.rng, frozen=False)
-            else:
-                outcome = _NOTHING_TO_RUN_OUT
-            if isinstance(outcome, str):
-                return outcome
-            await self.bot.lives.save(guild_id, life)
-            return life, outcome
-
 
 # ---
 # Status card
@@ -489,6 +310,18 @@ class BeginButton(
 
 
 async def _begin(interaction: discord.Interaction) -> None:
+    """Begin again for the presser, unless a staff test life holds the button.
+
+    While a test life runs in the guild, only its runner's press counts.
+    """
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    guild_id = require_guild(interaction)
+    async with test_press(interaction, guild_id) as allowed:
+        if allowed:
+            await _begin_for(interaction, guild_id)
+
+
+async def _begin_for(interaction: discord.Interaction, guild_id: int) -> None:
     """Lay the next egg for staff, retiring the pressed button either way.
 
     Anyone else is turned away. A press that finds Wisp already here lays
@@ -496,9 +329,7 @@ async def _begin(interaction: discord.Interaction) -> None:
     button is retired before the egg is shown, so a press on the waiting
     status card ends with the egg's own card. The answer is private.
     """
-    await interaction.response.defer(ephemeral=True, thinking=True)
     bot = bot_of(interaction)
-    guild_id = require_guild(interaction)
     user = interaction.user
     if not isinstance(user, discord.Member) or not await is_staff(bot, user):
         await say_privately(interaction, _STAFF_ONLY)

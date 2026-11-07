@@ -2,7 +2,7 @@
 
 import contextlib
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -380,6 +380,29 @@ async def press(
         await action(interaction)
     except failures as error:
         await report_failure(interaction, context, error)
+
+
+@contextlib.asynccontextmanager
+async def test_press(
+    interaction: discord.Interaction, guild_id: int
+) -> AsyncIterator[bool]:
+    """Hold a button press that a staff test life may be waiting on.
+
+    While a test life runs in the guild, anyone but its runner is told
+    privately whose run it is and this yields False: the press does nothing.
+    Otherwise it yields True, and once the runner's press is handled the run
+    is woken, so the step waiting on it looks again.
+    """
+    run = bot_of(interaction).test_runs.get(guild_id)
+    if run is not None and not run.is_runner(interaction.user.id):
+        await say_privately(interaction, run.refusal)
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        if run is not None:
+            run.wake()
 
 
 # ---

@@ -358,6 +358,9 @@ RHYME_LEADERBOARD_SIZE = 5
 MAX_CREDITED_GAP = timedelta(minutes=15)
 TICK_EVERY = timedelta(minutes=5)
 QUIET_AFTER = timedelta(hours=9)
+# A staff test life holds this long after each step that waits for no button,
+# so its posts can be read.
+TEST_STEP_PAUSE = timedelta(seconds=8)
 
 # The stages that have nap art, and so show it when he is woken or goes quiet.
 NAP_STAGES: Final = frozenset({Stage.BABY, Stage.CHILD})

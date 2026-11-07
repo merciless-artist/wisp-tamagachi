@@ -218,23 +218,43 @@ where the command was used.
 - `!wisp begin` does what the Begin again button does, for when no button
   can be pressed: it lays the next egg after an ending, or answers
   `♪ Wisp is already here.`
-- `!wisp test_chore <mess|tantrum|nap|cold|late>` shows a chore without waiting
-  for one. It needs a living, unfrozen Wisp, and refuses a chore that is
-  already waiting.
-  - `mess`: he makes the mess of his stage (poop for a Baby, a zit breakout
-    for a Teen, ...) with its button.
-  - `tantrum`: he throws a tantrum with the Scold button.
-  - `nap`: he dozes off with the Lights off button.
-  - `cold`: he catches a cold, unless he is already sick.
-  - `late`: every waiting chore runs out at once, the way it does when nobody
-    helps: a left mess gives him a cold, a missed tantrum or missed lights
-    cost Wellbeing. The same time also counts down a nap he is taking.
-  - Tip: run `!wisp test_lifestage baby`, then `!wisp test_chore mess`, to see
-    the poop (a mess is the one of his current stage).
-- `!wisp test_lifestage <baby|child|teen|adult|rockstar|oldfogey|farewell|starve>`
-  moves the real Wisp to a life stage, announced like a real one, to test it.
-  It changes the real Wisp. `farewell` and `starve` end his life and need him
-  unfrozen; `!wisp begin` starts over afterwards.
+- `!wisp testlife` plays one whole life on the server's real Wisp, one step
+  after another, through the real code, so every post, picture, button and
+  meter change is the real one. Before each step Wisp posts in his House
+  `♪ Test life, step N of 17: <what happens>`. The steps: a new egg is laid; it
+  is fed until it hatches; Monster Pox, caught and got over; a mess with its
+  button; a second mess left too long, so he catches a cold; medicine cures it;
+  a tantrum with Scold; a nap with Lights off; his meters drop; he gets lonely;
+  Child, Teen and Adult, each with its keepsake; a drawing for you; Rockstar,
+  with the Guitar Pick and the magazines on the shelf; Old Fogey, with the Time
+  Piece; his farewell and Last Ember, then Begin again.
+  - A button step waits, with no time limit, until the staff member who
+    started the run presses the button. Anyone else who presses it is told
+    privately `♪ This button is for <name>'s test run.` and nothing happens.
+    Every other step holds 8 seconds so its posts can be read.
+  - It is real: you get the feed, the points, the keepsakes and the drawing,
+    and the life joins the history. The feed is lifted past the daily meal
+    limit and the medicine is free, for the test only. To press the chore
+    buttons you need to be able to feed Wisp, as anyone does.
+  - While it runs, Wisp's own five-minute tick leaves the server alone, so
+    nothing runs out or drains behind the test's back.
+  - A step that fails posts `Error in test life step N: <Type>: <message>` and
+    the run goes on. It ends with
+    `♪ Test life done: N steps passed, K failed (steps ...)`.
+  - One run per server at a time; a second gets
+    `♪ A test life is already running.` It will not start while Wisp is frozen,
+    and freezing him during a run ends it before the next step.
+- `!wisp testlife starve` plays the egg and the hatching, then lets his Health
+  run out (he dies), then waits for your Begin again.
+- `!wisp testlife confirm`: when the server has a living Wisp past the egg,
+  `!wisp testlife` (or `starve`) first asks
+  `♪ This ends the current Wisp (vN). Type !wisp testlife confirm to go on.`
+  and does nothing else. Confirm ends him (he dies, with no Last Ember) and runs
+  the test that was asked for. An egg, an ended life or no life needs no
+  confirm. A restart forgets what was asked.
+- `!wisp testlife stop` ends a run after its current step, or at once while it
+  waits for a button. The summary still posts, the life is left as it is and
+  the tick picks the server up again.
 - `!wisp punish @member <reason>` bans a member from Wisp, on a rising ladder
   of offenses. The reason is the rest of the line, and the answer, reason
   included, is public.

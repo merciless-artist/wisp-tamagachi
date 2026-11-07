@@ -22,7 +22,6 @@ from wisp.chores import (
     next_tantrum,
     open_mess,
     open_tantrum,
-    run_out,
     schedule_mess,
     set_message_id,
     start_nap,
@@ -156,15 +155,6 @@ def test_start_nap_sets_only_the_nap() -> None:
         event(ChoreEventKind.NAP),
         {"nap_left": 3600.0, "lights_left": 900.0, "nap_message_id": None},
     )
-
-
-def test_run_out_is_the_longest_open_window() -> None:
-    life = alive(mess_left=10800.0, lights_left=600.0, tantrum_left=60.0)
-    assert run_out(life) == timedelta(hours=3)
-
-
-def test_run_out_is_zero_when_nothing_is_open() -> None:
-    assert run_out(alive(nap_left=1800.0)) == timedelta(0)
 
 
 def test_message_ids_are_kept_per_chore() -> None:

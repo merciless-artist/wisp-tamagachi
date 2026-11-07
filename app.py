@@ -28,6 +28,7 @@ from cogs.staff import (
     staff_check,
     usage_line,
 )
+from cogs.test_runs import TestRun
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
@@ -59,6 +60,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.conversation",
     "cogs.chores",
     "cogs.life_loop",
+    "cogs.life_test",
     "cogs.discipline",
     "cogs.staff",
 )
@@ -202,6 +204,7 @@ class WispBot(commands.Bot):
         self.display_locks: dict[tuple[int, str], asyncio.Lock] = {}
         self.shown_images: dict[tuple[int, str], tuple[int, str]] = {}
         self.rhyme_duels: set[tuple[int, int]] = set()
+        self.test_runs: dict[int, TestRun] = {}
         self._guild_locks: dict[int, asyncio.Lock] = {}
         self._drawing_locks: dict[int, asyncio.Lock] = {}
         self._startup_reports: list[tuple[str, str]] = []
