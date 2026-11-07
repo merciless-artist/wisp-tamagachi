@@ -3,7 +3,8 @@
 import random
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -31,7 +32,8 @@ from wisp.chores import (
 from wisp.life import Life, Phase, credited_gap, new_egg
 from wisp.rules import (
     HEALTH_PER_CLEANUP,
-    NAP_HOURS,
+    NAP_LOCAL_HOURS,
+    NAP_TIMEZONE,
     SICK_FOR,
     TANTRUM_WINDOW,
     TICK_EVERY,
@@ -43,6 +45,7 @@ from wisp.rules import (
 T0 = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
 DAY = datetime(2026, 11, 2, tzinfo=UTC)
 QUIET_BEFORE_NAP = TANTRUM_WINDOW + TICK_EVERY
+PACIFIC = ZoneInfo("America/Los_Angeles")
 NEVER = T0 + timedelta(days=365)
 POST = 77
 
@@ -102,6 +105,23 @@ def utc(hour: int, minute: int = 0) -> datetime:
 
 def event(kind: ChoreEventKind, post: int | None = None) -> ChoreEvent:
     return ChoreEvent(kind, post)
+
+
+def pacific(day: date, hour: int) -> datetime:
+    """That hour on the Pacific clock on `day`, in UTC."""
+    return datetime.combine(day, time(hour), PACIFIC).astimezone(UTC)
+
+
+def naps_started(start: datetime, end: datetime) -> list[datetime]:
+    """When an awake Wisp ticked from `start` dozes off, every tick up to `end`."""
+    life = alive(at=start, nap_slot=None)
+    starts: list[datetime] = []
+    now = start
+    while now < end:
+        now += TICK_EVERY
+        if event(ChoreEventKind.NAP) in tick_at(life, now):
+            starts.append(now)
+    return starts
 
 
 # ---
@@ -318,15 +338,27 @@ def test_a_cleanup_adds_five_health_and_ends_the_wellbeing_stretch() -> None:
 
 
 def _naps_around(moment: datetime) -> list[datetime]:
-    day = moment.replace(hour=0, minute=0, second=0, microsecond=0)
     return [
-        day + timedelta(days=offset, hours=hour)
-        for offset in (-1, 0, 1)
-        for hour in NAP_HOURS
+        pacific(moment.date() + timedelta(days=offset), hour)
+        for offset in (-2, -1, 0, 1, 2)
+        for hour in NAP_LOCAL_HOURS
     ]
 
 
-@pytest.mark.parametrize("after", [utc(0), utc(9, 50), utc(23, 59)])
+@pytest.mark.parametrize(
+    "after",
+    [
+        utc(0),
+        utc(14, 50),
+        utc(23, 59),
+        datetime(2026, 3, 7, 23, 59, tzinfo=UTC),
+        datetime(2026, 3, 8, 0, tzinfo=UTC),
+        datetime(2026, 3, 8, 13, 50, tzinfo=UTC),
+        datetime(2026, 10, 31, 23, 59, tzinfo=UTC),
+        datetime(2026, 11, 1, 0, tzinfo=UTC),
+        datetime(2026, 11, 1, 4, 50, tzinfo=UTC),
+    ],
+)
 def test_next_tantrum_is_always_awake(after: datetime) -> None:
     for seed in range(200):
         due = next_tantrum(after, random.Random(seed))
@@ -341,7 +373,7 @@ def test_next_tantrum_is_always_awake(after: datetime) -> None:
 def test_next_tantrum_moves_to_the_next_day_when_today_has_no_awake_time_left(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("wisp.chores.NAP_HOURS", (2, 10, 23))
+    monkeypatch.setattr("wisp.chores.NAP_LOCAL_HOURS", (7, 13, 15))
     for seed in range(50):
         due = next_tantrum(utc(23, 30), random.Random(seed))
         assert (
@@ -361,36 +393,36 @@ def test_a_tantrum_starts_when_due() -> None:
 
 
 def test_a_tantrum_due_during_a_nap_waits_until_he_wakes() -> None:
-    life = alive(at=utc(9, 55), nap_slot=None, tantrum_due_at=utc(10, 20))
-    assert run(life, utc(10, 55)) == [event(ChoreEventKind.NAP)]
+    life = alive(at=utc(14, 55), nap_slot=None, tantrum_due_at=utc(15, 20))
+    assert run(life, utc(15, 55)) == [event(ChoreEventKind.NAP)]
     assert not is_open(life, Chore.TANTRUM)
-    assert run(life, utc(11)) == [event(ChoreEventKind.TANTRUM)]
+    assert run(life, utc(16)) == [event(ChoreEventKind.TANTRUM)]
     assert not is_napping(life)
 
 
 def test_a_tantrum_due_at_the_last_awake_moment_closes_before_the_nap() -> None:
-    due = utc(10) - QUIET_BEFORE_NAP - timedelta(microseconds=1)
-    life = alive(at=utc(9, 35), nap_slot=None, tantrum_due_at=due)
+    due = utc(15) - QUIET_BEFORE_NAP - timedelta(microseconds=1)
+    life = alive(at=utc(14, 35), nap_slot=None, tantrum_due_at=due)
     assert tick_at(life, due) == [event(ChoreEventKind.TANTRUM)]
-    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert run(life, utc(15)) == [event(ChoreEventKind.NAP)]
     assert not is_open(life, Chore.TANTRUM)
     assert is_napping(life)
 
 
 def test_a_tantrum_due_during_an_outage_waits_out_the_nap_coming() -> None:
-    life = alive(at=utc(9), nap_slot=None, tantrum_due_at=utc(9, 20))
-    assert tick_at(life, utc(9, 45)) == []
+    life = alive(at=utc(14), nap_slot=None, tantrum_due_at=utc(14, 20))
+    assert tick_at(life, utc(14, 45)) == []
     assert not is_open(life, Chore.TANTRUM)
     assert life.tantrum_due_at is not None
-    assert utc(11) <= life.tantrum_due_at < DAY + timedelta(days=1)
-    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert utc(16) <= life.tantrum_due_at < DAY + timedelta(days=1)
+    assert run(life, utc(15)) == [event(ChoreEventKind.NAP)]
     assert event(ChoreEventKind.TANTRUM) in run(life, utc(23, 55))
 
 
 def test_a_tantrum_closing_on_the_naps_first_tick_lets_the_nap_start() -> None:
-    life = alive(at=utc(9, 45), nap_slot=None)
+    life = alive(at=utc(14, 45), nap_slot=None)
     open_tantrum(life)
-    assert run(life, utc(10)) == [event(ChoreEventKind.NAP)]
+    assert run(life, utc(15)) == [event(ChoreEventKind.NAP)]
     assert not is_open(life, Chore.TANTRUM)
     assert is_napping(life)
 
@@ -444,8 +476,13 @@ def test_a_scold_closes_the_tantrum() -> None:
 # ---
 
 
-@pytest.mark.parametrize("hour", [2, 10, 18])
-def test_naps_start_at_two_ten_and_eighteen_utc(hour: int) -> None:
+def test_naps_follow_the_pacific_clock() -> None:
+    assert NAP_TIMEZONE == "America/Los_Angeles"
+    assert NAP_LOCAL_HOURS == (7, 13, 22)
+
+
+@pytest.mark.parametrize("hour", [6, 15, 21])
+def test_naps_start_at_seven_one_and_ten_pacific(hour: int) -> None:
     life = alive(at=utc(hour) - timedelta(hours=1), nap_slot=None, nap_message_id=5)
     assert run(life, utc(hour) - TICK_EVERY) == []
     assert run(life, utc(hour)) == [event(ChoreEventKind.NAP)]
@@ -458,32 +495,86 @@ def test_naps_start_at_two_ten_and_eighteen_utc(hour: int) -> None:
 
 
 @pytest.mark.parametrize(
+    ("day", "hours"),
+    [
+        (date(2026, 3, 7), (6, 15, 21)),
+        (date(2026, 3, 8), (6, 14, 20)),
+        (date(2026, 3, 9), (5, 14, 20)),
+        (date(2026, 10, 31), (5, 14, 20)),
+        (date(2026, 11, 1), (5, 15, 21)),
+        (date(2026, 11, 2), (6, 15, 21)),
+    ],
+)
+def test_each_utc_day_naps_at_its_pacific_slots_across_daylight_saving(
+    day: date, hours: tuple[int, ...]
+) -> None:
+    midnight = datetime.combine(day, time(), UTC)
+    starts = naps_started(midnight - TICK_EVERY, midnight + timedelta(days=1))
+    assert starts == [midnight + timedelta(hours=hour) for hour in hours]
+    assert [start.astimezone(PACIFIC).hour for start in starts] == [22, 7, 13]
+
+
+@pytest.mark.parametrize("first", [date(2026, 3, 5), date(2026, 10, 29)])
+def test_no_pacific_slot_is_lost_or_doubled_at_the_utc_midnight_seam(
+    first: date,
+) -> None:
+    days = [first + timedelta(days=offset) for offset in range(6)]
+    start = datetime.combine(days[0], time(), UTC)
+    end = datetime.combine(days[-1], time(), UTC) + timedelta(days=1)
+    expected = sorted(
+        moment
+        for day in [days[0] - timedelta(days=1), *days]
+        for hour in NAP_LOCAL_HOURS
+        if start < (moment := pacific(day, hour)) <= end
+    )
+    assert len(expected) == 18
+    assert naps_started(start, end) == expected
+
+
+@pytest.mark.parametrize(
     ("now", "nap"),
     [
-        (DAY, "next nap 02:00 UTC"),
-        (utc(1, 59), "next nap 02:00 UTC"),
-        (utc(2), "next nap 10:00 UTC"),
-        (utc(12), "next nap 18:00 UTC"),
-        (utc(18), "next nap 02:00 UTC"),
-        (utc(23, 59), "next nap 02:00 UTC"),
+        (DAY, "next nap 10pm Pacific"),
+        (utc(5, 59), "next nap 10pm Pacific"),
+        (utc(6), "next nap 7am Pacific"),
+        (utc(12), "next nap 7am Pacific"),
+        (utc(15), "next nap 1pm Pacific"),
+        (utc(21), "next nap 10pm Pacific"),
+        (utc(23, 59), "next nap 10pm Pacific"),
+        (datetime(2026, 3, 8, 13, 59, tzinfo=UTC), "next nap 7am Pacific"),
+        (datetime(2026, 3, 8, 23, 59, tzinfo=UTC), "next nap 10pm Pacific"),
+        (datetime(2026, 11, 1, 4, 59, tzinfo=UTC), "next nap 10pm Pacific"),
+        (datetime(2026, 11, 1, 5, 0, tzinfo=UTC), "next nap 7am Pacific"),
     ],
 )
 def test_the_next_nap_is_the_first_start_after_now(now: datetime, nap: str) -> None:
     assert next_nap_text(now) == nap
 
 
-def test_a_nap_time_reads_as_the_card_says_it() -> None:
-    assert nap_time_text(utc(18)) == "18:00 UTC"
-    assert nap_time_text(utc(2, 5)) == "02:05 UTC"
+@pytest.mark.parametrize(
+    ("moment", "shown"),
+    [
+        (utc(21), "1pm Pacific"),
+        (utc(2, 5), "6:05pm Pacific"),
+        (utc(20), "12pm Pacific"),
+        (utc(20, 30), "12:30pm Pacific"),
+        (utc(8), "12am Pacific"),
+        (utc(8, 1), "12:01am Pacific"),
+        (utc(15), "7am Pacific"),
+        (datetime(2026, 7, 1, 21, tzinfo=UTC), "2pm Pacific"),
+    ],
+)
+def test_a_nap_time_reads_on_the_pacific_clock(moment: datetime, shown: str) -> None:
+    assert nap_time_text(moment) == shown
 
 
 @pytest.mark.parametrize(
     ("left", "ends"),
     [
-        (timedelta(minutes=30), "10:45 UTC"),
-        (timedelta(minutes=30, seconds=1), "10:46 UTC"),
-        (timedelta(seconds=1), "10:16 UTC"),
-        (timedelta(hours=1), "11:15 UTC"),
+        (timedelta(minutes=30), "2:45am Pacific"),
+        (timedelta(minutes=30, seconds=1), "2:46am Pacific"),
+        (timedelta(seconds=1), "2:16am Pacific"),
+        (timedelta(hours=1), "3:15am Pacific"),
     ],
 )
 def test_a_nap_ends_when_its_time_left_runs_out_rounded_up(
@@ -493,44 +584,70 @@ def test_a_nap_ends_when_its_time_left_runs_out_rounded_up(
     assert nap_time_text(nap_ends_at(life, utc(10, 15))) == ends
 
 
-def test_a_nap_start_missed_by_an_outage_is_skipped() -> None:
-    life = alive(at=utc(9, 50), nap_slot=None)
-    assert tick_at(life, utc(9, 55)) == []
-    assert tick_at(life, utc(10, 20)) == []
-    assert life.nap_slot == utc(10)
+SLOTS_EITHER_SIDE_OF_A_CHANGE = [
+    utc(15),
+    datetime(2026, 3, 8, 14, tzinfo=UTC),
+    datetime(2026, 11, 1, 15, tzinfo=UTC),
+]
+
+
+@pytest.mark.parametrize("slot", SLOTS_EITHER_SIDE_OF_A_CHANGE)
+def test_a_nap_start_missed_by_an_outage_is_skipped(slot: datetime) -> None:
+    life = alive(at=slot - timedelta(minutes=10), nap_slot=None)
+    assert tick_at(life, slot - TICK_EVERY) == []
+    assert tick_at(life, slot + timedelta(minutes=20)) == []
+    assert life.nap_slot == slot
     assert not is_napping(life)
     assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
 
 
-def test_a_nap_start_while_frozen_is_skipped() -> None:
-    life = alive(at=utc(9, 50), nap_slot=None)
-    assert run(life, utc(10), frozen=True) == []
-    assert tick_at(life, utc(10, 5)) == []
-    assert life.nap_slot == utc(10)
+@pytest.mark.parametrize("slot", SLOTS_EITHER_SIDE_OF_A_CHANGE)
+def test_a_nap_start_while_frozen_is_skipped(slot: datetime) -> None:
+    life = alive(at=slot - timedelta(minutes=10), nap_slot=None)
+    assert run(life, slot, frozen=True) == []
+    assert tick_at(life, slot + TICK_EVERY) == []
+    assert life.nap_slot == slot
     assert not is_napping(life)
 
 
-def _napping_at_ten() -> Life:
-    life = alive(at=utc(9, 55), nap_slot=None)
-    assert tick_at(life, utc(10)) == [event(ChoreEventKind.NAP)]
+@pytest.mark.parametrize(
+    ("old_slot", "next_slot"),
+    [(utc(2), utc(6)), (utc(10), utc(15)), (utc(18), utc(21))],
+)
+def test_a_nap_stored_on_the_old_utc_slots_finishes_then_naps_go_pacific(
+    old_slot: datetime, next_slot: datetime
+) -> None:
+    life = alive(
+        at=old_slot + timedelta(minutes=30), nap_slot=old_slot, nap_left=1800.0
+    )
+    assert run(life, old_slot + timedelta(hours=1)) == []
+    assert not is_napping(life)
+    assert run(life, next_slot - TICK_EVERY) == []
+    assert run(life, next_slot) == [event(ChoreEventKind.NAP)]
+    assert life.nap_slot == next_slot
+
+
+def _napping_at_seven_pacific() -> Life:
+    life = alive(at=utc(14, 55), nap_slot=None)
+    assert tick_at(life, utc(15)) == [event(ChoreEventKind.NAP)]
     return life
 
 
 def test_missed_lights_cost_ten_wellbeing_and_make_him_cranky() -> None:
-    life = _napping_at_ten()
+    life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    assert run(life, utc(10, 10)) == []
-    assert tick_at(life, utc(10, 15)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    assert run(life, utc(15, 10)) == []
+    assert tick_at(life, utc(15, 15)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
     assert life.wellbeing == 40.0
-    assert life.cranky_until == utc(10, 15) + timedelta(minutes=45) + timedelta(hours=1)
+    assert life.cranky_until == utc(15, 15) + timedelta(minutes=45) + timedelta(hours=1)
     assert not is_open(life, Chore.NAP)
     assert is_napping(life)
 
 
 def test_unposted_lights_cost_nothing() -> None:
-    life = _napping_at_ten()
-    assert run(life, utc(10, 15)) == []
+    life = _napping_at_seven_pacific()
+    assert run(life, utc(15, 15)) == []
     assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
     assert not is_open(life, Chore.NAP)
@@ -538,11 +655,11 @@ def test_unposted_lights_cost_nothing() -> None:
 
 
 def test_lights_off_closes_the_window_and_he_sleeps_on() -> None:
-    life = _napping_at_ten()
+    life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
     assert do_chore(life, Chore.NAP) is True
     assert not is_open(life, Chore.NAP)
-    assert run(life, utc(10, 30)) == []
+    assert run(life, utc(15, 30)) == []
     assert is_napping(life)
     assert life.nap_left == 1800
     assert life.wellbeing == WELLBEING_START
@@ -551,14 +668,14 @@ def test_lights_off_closes_the_window_and_he_sleeps_on() -> None:
 
 
 def test_he_wakes_after_an_hour_of_counted_time() -> None:
-    life = _napping_at_ten()
+    life = _napping_at_seven_pacific()
     do_chore(life, Chore.NAP)
-    assert tick_at(life, utc(11, 30)) == []
+    assert tick_at(life, utc(16, 30)) == []
     assert life.nap_left == 2700
     assert is_napping(life)
-    run(life, utc(12, 10))
+    run(life, utc(17, 10))
     assert is_napping(life)
-    run(life, utc(12, 15))
+    run(life, utc(17, 15))
     assert not is_napping(life)
     assert life.nap_left == 0.0
 
@@ -579,12 +696,12 @@ def test_wake_ends_the_nap_and_says_whether_the_lights_were_on(
 
 
 def test_a_poke_after_missed_lights_never_shortens_the_crankiness() -> None:
-    life = _napping_at_ten()
+    life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    run(life, utc(10, 15))
+    run(life, utc(15, 15))
     cranky_until = life.cranky_until
-    assert cranky_until == utc(12)
-    assert wake(life, utc(10, 20)) is False
+    assert cranky_until == utc(17)
+    assert wake(life, utc(15, 20)) is False
     assert life.cranky_until == cranky_until
 
 
@@ -592,20 +709,20 @@ def test_a_lights_window_never_outlasts_the_nap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("wisp.chores.LIGHTS_WINDOW", timedelta(hours=2))
-    life = _napping_at_ten()
+    life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    assert run(life, utc(10, 55)) == []
-    assert run(life, utc(11)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    assert run(life, utc(15, 55)) == []
+    assert run(life, utc(16)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
     assert not is_napping(life)
     assert not is_open(life, Chore.NAP)
-    assert life.cranky_until == utc(12)
+    assert life.cranky_until == utc(17)
 
 
 def test_no_nap_starts_over_an_open_tantrum() -> None:
-    life = alive(at=utc(9, 55), nap_slot=None)
+    life = alive(at=utc(14, 55), nap_slot=None)
     open_tantrum(life)
-    assert run(life, utc(10, 30)) == []
-    assert life.nap_slot == utc(10)
+    assert run(life, utc(15, 30)) == []
+    assert life.nap_slot == utc(15)
     assert not is_napping(life)
     assert not is_open(life, Chore.TANTRUM)
 
@@ -618,12 +735,12 @@ def test_no_nap_starts_over_an_open_tantrum() -> None:
 @pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING, Phase.DEAD])
 def test_only_a_living_wisp_has_chores(phase: Phase) -> None:
     life = alive(
-        at=utc(9, 55), phase=phase, mess_in=300.0, nap_slot=None, tantrum_due_at=None
+        at=utc(14, 55), phase=phase, mess_in=300.0, nap_slot=None, tantrum_due_at=None
     )
     open_tantrum(life)
     before = asdict(life)
-    assert tick_at(life, utc(10)) == []
-    assert asdict(life) == {**before, "last_tick_at": utc(10)}
+    assert tick_at(life, utc(15)) == []
+    assert asdict(life) == {**before, "last_tick_at": utc(15)}
 
 
 def test_frozen_time_pauses_every_chore() -> None:

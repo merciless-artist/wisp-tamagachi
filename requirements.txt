@@ -6,3 +6,4 @@ pronouncing==0.3.0
 cmudict==1.1.3
 aiohttp==3.14.5
 yarl==1.25.1
+tzdata==2026.6

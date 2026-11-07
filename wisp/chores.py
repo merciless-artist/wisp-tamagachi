@@ -2,13 +2,15 @@
 
 Pure game logic. Nothing here touches the database, Discord or the clock;
 callers pass the current time (timezone-aware UTC) and their rng. Deadlines
-run on counted time, like his meters; only the nap start times are wall-clock.
+run on counted time, like his meters; only the nap start times are wall-clock,
+set on the NAP_TIMEZONE clock and worked with as UTC moments.
 """
 
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum, auto
+from zoneinfo import ZoneInfo
 
 from wisp.life import Life, Meter, Phase, catch_sniffles, change_meter, end_stretch
 from wisp.rules import (
@@ -22,7 +24,9 @@ from wisp.rules import (
     MESS_GAP,
     MESS_LEFT_FOR,
     NAP_FOR,
-    NAP_HOURS,
+    NAP_LOCAL_HOURS,
+    NAP_TIMEZONE,
+    NAP_TIMEZONE_NAME,
     TANTRUM_WELLBEING_PENALTY,
     TANTRUM_WINDOW,
     TICK_EVERY,
@@ -31,6 +35,7 @@ from wisp.rules import (
 
 _MICROSECOND = timedelta(microseconds=1)
 _QUIET_BEFORE_NAP = TANTRUM_WINDOW + TICK_EVERY
+_NAP_ZONE = ZoneInfo(NAP_TIMEZONE)
 
 # ---
 # Types
@@ -207,25 +212,34 @@ def _midnight(moment: datetime) -> datetime:
 
 
 def latest_nap_start(now: datetime) -> datetime:
-    """The latest of today's and yesterday's nap starts at or before `now`."""
-    day = _midnight(now)
-    starts = (
-        day + timedelta(days=offset, hours=hour)
-        for offset in (-1, 0)
-        for hour in NAP_HOURS
-    )
-    return max(start for start in starts if start <= now)
+    """The latest nap start at or before `now`."""
+    return max(start for start in _nap_starts(_midnight(now)) if start <= now)
+
+
+def nap_clock_text(*clocks: time) -> str:
+    """Times on the nap clock as members read them, such as "7am, 1pm Pacific".
+
+    On the hour a time reads "2pm", off it "2:30pm"; noon is "12pm" and
+    midnight "12am".
+    """
+    return f"{', '.join(_clock_text(clock) for clock in clocks)} {NAP_TIMEZONE_NAME}"
+
+
+def _clock_text(clock: time) -> str:
+    hour = clock.hour % 12 or 12
+    minutes = "" if clock.minute == 0 else f":{clock.minute:02d}"
+    return f"{hour}{minutes}{'am' if clock.hour < 12 else 'pm'}"
 
 
 def nap_time_text(moment: datetime) -> str:
-    """A nap time as members see it, such as "18:00 UTC"."""
-    return f"{moment:%H:%M} UTC"
+    """A moment on the nap clock as members see it, such as "2pm Pacific"."""
+    return nap_clock_text(moment.astimezone(_NAP_ZONE).time())
 
 
 def next_nap_text(now: datetime) -> str:
     """When his next nap starts after `now`, as the status card says it.
 
-    Such as "next nap 18:00 UTC". At a nap's start the next one is meant.
+    Such as "next nap 7am Pacific". At a nap's start the next one is meant.
     """
     start = min(start for start in _nap_starts(_midnight(now)) if start > now)
     return f"next nap {nap_time_text(start)}"
@@ -241,12 +255,30 @@ def nap_ends_at(life: Life, now: datetime) -> datetime:
     return whole if whole == end else whole + timedelta(minutes=1)
 
 
+def _nap_starts_on(day: datetime) -> list[datetime]:
+    """Every nap start inside the UTC day from `day`, in order.
+
+    The starts are NAP_LOCAL_HOURS on the NAP_TIMEZONE clock, so they move in
+    UTC when daylight saving starts and ends. A UTC day holds starts of two
+    local days, and each start falls inside exactly one UTC day.
+    """
+    end = day + timedelta(days=1)
+    starts = (
+        datetime.combine(
+            day.date() + timedelta(days=offset), time(hour), _NAP_ZONE
+        ).astimezone(UTC)
+        for offset in (-1, 0, 1)
+        for hour in NAP_LOCAL_HOURS
+    )
+    return sorted(start for start in starts if day <= start < end)
+
+
 def _nap_starts(day: datetime) -> list[datetime]:
     """Every nap start of the UTC day from `day`, the day before and the day after."""
     return [
-        day + timedelta(days=offset, hours=hour)
+        start
         for offset in (-1, 0, 1)
-        for hour in NAP_HOURS
+        for start in _nap_starts_on(day + timedelta(days=offset))
     ]
 
 

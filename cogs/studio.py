@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import time, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Final
 from urllib.parse import urlsplit
@@ -23,6 +23,7 @@ from cogs.speech import POKE_ID, poke_view
 from cogs.staff import StaffContext, guild_of, refused, reply, usage_line
 from db.settings import Settings, meal_points
 from wisp import rules
+from wisp.chores import nap_clock_text
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
 from wisp.text import MESSAGE_LIMIT, SEPARATOR, any_role, count, text_length
@@ -105,7 +106,7 @@ def rules_text(
     tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
     lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
     rockstar_days = rules.ROCKSTAR_WELLBEING_FOR // timedelta(days=1)
-    nap_times = ", ".join(f"{hour:02d}:00" for hour in sorted(rules.NAP_HOURS))
+    nap_times = nap_clock_text(*(time(hour) for hour in sorted(rules.NAP_LOCAL_HOURS)))
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
@@ -135,7 +136,7 @@ def rules_text(
             f"medicine ({rules.MEDICINE_COST} WC) cures it",
             f"・Scold a tantrum in {tantrum_minutes} min or Wellbeing drops "
             f"{rules.TANTRUM_WELLBEING_PENALTY:g}",
-            f"・Lights off at naps ({nap_times} UTC) in {lights_minutes} min "
+            f"・Lights off at naps ({nap_times}) in {lights_minutes} min "
             f"or Wellbeing drops {rules.LIGHTS_WELLBEING_PENALTY:g}",
             "",
             "Your bond",

@@ -50,7 +50,7 @@ MYRAS_CARD = "\n".join(
         "> ",
         "> 𝄡𝄚𝄂 **right now**",
         "> 𝄡 happy",
-        "> 𝄡𝄚𝄂 next nap 18:00 UTC",
+        "> 𝄡𝄚𝄂 next nap 7am Pacific",
         "> ",
         "> 𝄡 Health",
         f"> {HEALTH_EMOJI * 10} │100%",
@@ -72,7 +72,7 @@ MYRAS_CARD = "\n".join(
 )
 BLANK = "> "
 RIGHT_NOW = "> 𝄡𝄚𝄂 **right now**"
-NEXT_NAP = "> 𝄡𝄚𝄂 next nap 18:00 UTC"
+NEXT_NAP = "> 𝄡𝄚𝄂 next nap 7am Pacific"
 HUNGRY = f"> 𝄡 hungry: drop a track in <#{TRACKS_ID}>"
 LONELY = "> 𝄡 lonely: chat, play, poke or give him a snack or gift"
 MESS = "> 𝄡 a mess is waiting in his House"
@@ -531,16 +531,17 @@ def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
 @pytest.mark.parametrize(
     ("now", "nap"),
     [
-        (datetime(2026, 10, 20, 0, 0, tzinfo=UTC), "02:00"),
-        (datetime(2026, 10, 20, 2, 0, tzinfo=UTC), "10:00"),
-        (datetime(2026, 10, 20, 12, 0, tzinfo=UTC), "18:00"),
-        (datetime(2026, 10, 20, 23, 59, tzinfo=UTC), "02:00"),
+        (datetime(2026, 10, 20, 0, 0, tzinfo=UTC), "10pm"),
+        (datetime(2026, 10, 20, 5, 0, tzinfo=UTC), "7am"),
+        (datetime(2026, 10, 20, 12, 0, tzinfo=UTC), "7am"),
+        (datetime(2026, 10, 20, 14, 0, tzinfo=UTC), "1pm"),
+        (datetime(2026, 10, 20, 23, 59, tzinfo=UTC), "10pm"),
     ],
 )
 def test_the_card_says_when_his_next_nap_is(now: datetime, nap: str) -> None:
     card = render_status(alive_life(hatched_at=now), now, FACTS, emoji)
 
-    assert f"> 𝄡𝄚𝄂 next nap {nap} UTC" in card.split("\n")
+    assert f"> 𝄡𝄚𝄂 next nap {nap} Pacific" in card.split("\n")
 
 
 def test_eggs_have_no_right_now_or_next_nap() -> None:

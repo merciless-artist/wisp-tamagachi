@@ -1148,7 +1148,7 @@ async def test_a_duel_while_he_naps_is_refused_until_he_wakes(
     await (start if opener == "command" else press_rhyme_duel)(interaction)
 
     assert replies(interaction) == [
-        "♪ Wisp is napping until 10:46 UTC. Poke him awake first."
+        "♪ Wisp is napping until 2:46am Pacific. Poke him awake first."
     ]
     server.house.create_thread.assert_not_awaited()
     assert (GUILD_ID, USER_ID) not in bot.rhyme_duels

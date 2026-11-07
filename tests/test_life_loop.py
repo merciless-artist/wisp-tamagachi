@@ -69,7 +69,8 @@ WISP_ID = 5000
 WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 FULL_GAP = rules.MAX_CREDITED_GAP
-NAP_TIME = datetime(2026, 10, 22, 10, 0, tzinfo=UTC)
+# 10pm Pacific on the 21st.
+NAP_TIME = datetime(2026, 10, 22, 5, 0, tzinfo=UTC)
 # Every tick in these tests comes before it, so no tantrum interrupts them.
 LATE_TANTRUM = datetime(2026, 10, 22, 23, 59, tzinfo=UTC)
 

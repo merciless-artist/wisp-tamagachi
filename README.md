@@ -105,7 +105,9 @@ while he is an egg, and the buttons keep working after a restart.
   just before one. Scold him within 15 minutes for 2 points; if nobody does he
   loses 15 Wellbeing and is spoiled (extra bratty) for the rest of the UTC
   day.
-- **Naps** are at 02:00, 10:00 and 18:00 UTC, an hour each. Turn the lights off
+- **Naps** are at 7am, 1pm and 10pm Pacific, an hour each; they follow the
+  Pacific clock through daylight saving (so they move by an hour in UTC), and
+  everything else stays on UTC. Turn the lights off
   within 15 minutes for 2 points; otherwise he loses 10 Wellbeing and is cranky
   for an hour after the nap. While he sleeps he answers only with sleepy
   noises, and a poke wakes him early, cranky, with no Wellbeing plus. A nap

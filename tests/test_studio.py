@@ -1910,7 +1910,7 @@ def test_rules_text_fits_with_every_number_at_four_digits(
     monkeypatch.setattr(
         rules, "CHORE_POINTS", {chore: 9999 for chore in rules.CHORE_POINTS}
     )
-    monkeypatch.setattr(rules, "NAP_HOURS", (22, 23, 21))
+    monkeypatch.setattr(rules, "NAP_LOCAL_HOURS", (22, 23, 0))
     monkeypatch.setattr(
         rules,
         "BOND_TIERS",
@@ -2026,16 +2026,14 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     assert "medicine (13 WC) cures it" in section
     assert "5 h" in section
     assert "Scold a tantrum" in section and "Wellbeing drops 17" in section
-    assert "Lights off" in section
-    for hour in rules.NAP_HOURS:
-        assert f"{hour:02d}:00" in section, hour
-    assert "UTC" in section
+    assert "Lights off at naps (7am, 1pm, 10pm Pacific)" in section
+    assert "UTC" not in section
 
 
 def test_rules_text_chore_numbers_come_from_the_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(rules, "NAP_HOURS", (1, 9, 17))
+    monkeypatch.setattr(rules, "NAP_LOCAL_HOURS", (17, 1, 12))
     monkeypatch.setattr(rules, "TANTRUM_WINDOW", timedelta(minutes=43))
     monkeypatch.setattr(rules, "LIGHTS_WINDOW", timedelta(minutes=47))
     monkeypatch.setattr(rules, "LIGHTS_WELLBEING_PENALTY", 53.0)
@@ -2047,7 +2045,8 @@ def test_rules_text_chore_numbers_come_from_the_rules(
     text = rules_text(rules.MEAL_POINTS)
 
     section = text.split("\nChores\n")[1].split("\n\n")[0]
-    for number in ("01:00", "09:00", "17:00", "43", "47", "53"):
+    assert "naps (1am, 12pm, 5pm Pacific)" in section
+    for number in ("43", "47", "53"):
         assert number in section, number
     meters = text.split("\nHis meters\n")[1].split("\n\n")[0]
     for number in ("59", "61", "67", "71"):
