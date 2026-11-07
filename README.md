@@ -234,16 +234,26 @@ where the command was used.
     Every other step holds 8 seconds so its posts can be read.
   - It is real: you get the feed, the points, the keepsakes and the drawing,
     and the life joins the history. The feed is lifted past the daily meal
-    limit and the medicine is free, for the test only. To press the chore
-    buttons you need to be able to feed Wisp, as anyone does.
+    limit and the medicine is free, for the test only.
   - While it runs, Wisp's own five-minute tick leaves the server alone, so
     nothing runs out or drains behind the test's back.
-  - A step that fails posts `Error in test life step N: <Type>: <message>` and
-    the run goes on. It ends with
-    `♪ Test life done: N steps passed, K failed (steps ...)`.
+  - A step that fails, for any reason, posts
+    `Error in test life step N: <Type>: <message>` and the run goes on. It
+    ends with, for example, `♪ Test life done: 17 steps passed, 0 failed.` or
+    `♪ Test life done: 16 steps passed, 1 failed (step 14).` (or
+    `(steps 3, 5)` for more than one).
   - One run per server at a time; a second gets
     `♪ A test life is already running.` It will not start while Wisp is frozen,
-    and freezing him during a run ends it before the next step.
+    and freezing him during a run ends it before the next step. A freeze during
+    a button wait keeps the step waiting, and the press is refused with the
+    frozen reason until he is unfrozen.
+  - It is refused before anything is asked or changed when you can't feed Wisp
+    (`♪ You can't run a test life: <why>`, such as no feeding role), or when
+    the server has no House or Status post
+    (`♪ You can't run a test life: Wisp's House is not set. Run !wisp setup
+    first.`).
+  - During a run, `!wisp begin` from anyone but you is refused with
+    `♪ A test life is running, so only <name> can begin again.`
 - `!wisp testlife starve` plays the egg and the hatching, then lets his Health
   run out (he dies), then waits for your Begin again.
 - `!wisp testlife confirm`: when the server has a living Wisp past the egg,
@@ -251,7 +261,8 @@ where the command was used.
   `♪ This ends the current Wisp (vN). Type !wisp testlife confirm to go on.`
   and does nothing else. Confirm ends him (he dies, with no Last Ember) and runs
   the test that was asked for. An egg, an ended life or no life needs no
-  confirm. A restart forgets what was asked.
+  confirm. A confirm that is refused (say, he was frozen meanwhile) can be typed
+  again; a restart forgets what was asked.
 - `!wisp testlife stop` ends a run after its current step, or at once while it
   waits for a button. The summary still posts, the life is left as it is and
   the tick picks the server up again.

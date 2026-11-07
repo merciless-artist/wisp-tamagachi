@@ -367,15 +367,23 @@ async def begin(ctx: StaffContext) -> None:
     """Begin again by typing, for when no Begin again button can be pressed.
 
     Like the button it lays nothing while Wisp is here. Only staff reach it.
+    While a staff test life runs, only its runner may, and their egg wakes
+    the run's waiting step.
     """
     bot = ctx.bot
     guild_id = guild_of(ctx).id
+    run = bot.test_runs.get(guild_id)
+    if run is not None and not run.is_runner(ctx.author.id):
+        await reply(ctx, run.begin_refusal)
+        return
     now = discord.utils.utcnow()
     egg = await begin_again(bot, guild_id, now)
     if egg is None:
         await reply(ctx, _ALREADY_HERE)
         return
     await _show_egg(bot, guild_id, egg, now)
+    if run is not None:
+        run.wake()
     await reply(ctx, _ON_ITS_WAY)
 
 

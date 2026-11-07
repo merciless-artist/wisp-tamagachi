@@ -17,10 +17,10 @@ import pytest
 from discord.ext import commands
 
 import app
-from cogs import life_test, test_runs
+from cogs import life_loop, lifetest_runs, lifetester
 from cogs.chores import ChoreButton
 from cogs.life_loop import BeginButton, LifeLoop
-from cogs.life_test import LifeTest
+from cogs.lifetester import LifeTest
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
@@ -224,7 +224,7 @@ def bot(
 @pytest.fixture(autouse=True)
 def frozen_clock_and_no_pause(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(discord.utils, "utcnow", lambda: NOW)
-    monkeypatch.setattr(life_test, "TEST_STEP_PAUSE", timedelta(0))
+    monkeypatch.setattr(lifetester, "TEST_STEP_PAUSE", timedelta(0))
 
 
 @pytest.fixture
@@ -290,7 +290,7 @@ async def type_testlife(
     cog: LifeTest, server: FakeServer, *words: str, member: MagicMock = RUNNER
 ) -> None:
     """Type `!wisp testlife [word]` as `member`, read as the command reads it."""
-    word = life_test._word(words[0]) if words else None
+    word = lifetester._word(words[0]) if words else None
     await cog.testlife.callback(cog, staff_context(cog.bot, server, member), word)
 
 
@@ -654,14 +654,14 @@ async def test_freezing_mid_run_ends_the_run(
     server: FakeServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real_credit = life_test.credit_feed
+    real_credit = lifetester.credit_feed
 
     async def credit_then_freeze(*args: Any, **kwargs: Any) -> Any:
         events = await real_credit(*args, **kwargs)
         await bot.settings.update(GUILD_ID, frozen=True)
         return events
 
-    monkeypatch.setattr(life_test, "credit_feed", credit_then_freeze)
+    monkeypatch.setattr(lifetester, "credit_feed", credit_then_freeze)
 
     await type_testlife(cog, server, "starve")
 
@@ -677,6 +677,167 @@ async def test_freezing_mid_run_ends_the_run(
 
 
 # ---
+# The preflight
+# ---
+
+
+async def test_a_runner_who_cannot_feed_wisp_is_refused_before_anything_changes(
+    cog: LifeTest, bot: app.WispBot, server: FakeServer
+) -> None:
+    living = await lay(bot, Phase.ALIVE)
+    roleless = make_member(RUNNER_ID, "Runner")
+    roleless.roles = []
+
+    async with asyncio.timeout(60):
+        await type_testlife(cog, server, member=roleless)
+        await type_testlife(cog, server, "confirm", member=roleless)
+
+    assert server.texts() == [
+        "♪ You can't run a test life: you don't have a role that can feed Wisp: "
+        f"<@&{FEEDER_ROLE}>.",
+        "♪ Nothing to confirm. Type !wisp testlife first.",
+    ]
+    life = await current_life(bot)
+    assert (life.id, life.phase) == (living.id, Phase.ALIVE)
+    assert bot.test_runs == {}
+
+
+@pytest.mark.parametrize(
+    ("unset", "missing"),
+    [
+        (("house_channel_id",), "Wisp's House is not set"),
+        (("status_thread_id",), "the Status post is not set"),
+        (
+            ("house_channel_id", "status_thread_id"),
+            "Wisp's House and the Status post are not set",
+        ),
+    ],
+)
+async def test_a_server_that_is_not_set_up_is_refused_before_anything_changes(
+    cog: LifeTest,
+    bot: app.WispBot,
+    server: FakeServer,
+    unset: tuple[str, ...],
+    missing: str,
+) -> None:
+    living = await lay(bot, Phase.ALIVE)
+    await bot.settings.update(GUILD_ID, **{name: None for name in unset})
+
+    await type_testlife(cog, server, "starve")
+
+    assert server.texts() == [
+        f"♪ You can't run a test life: {missing}. Run !wisp setup first."
+    ]
+    life = await current_life(bot)
+    assert (life.id, life.phase) == (living.id, Phase.ALIVE)
+    assert bot.test_runs == {}
+
+
+async def test_a_refused_confirm_keeps_the_ask(
+    cog: LifeTest, bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot, Phase.ALIVE)
+    await type_testlife(cog, server)
+    await bot.settings.update(GUILD_ID, frozen=True)
+    await type_testlife(cog, server, "confirm")
+    await bot.settings.update(GUILD_ID, frozen=False)
+
+    run = asyncio.create_task(type_testlife(cog, server, "confirm"))
+    await until(lambda: bool(server.with_button("Clean up")) or run.done())
+    assert not run.done()
+    await type_testlife(cog, server, "stop")
+    await run
+
+    assert server.texts()[1] == FROZEN
+    assert server.step_lines()[0] == "♪ Test life, step 1 of 17: a new egg is laid."
+
+
+# ---
+# Typed Begin again
+# ---
+
+
+async def test_typed_begin_is_refused_for_anyone_but_the_runner(
+    cog: LifeTest, bot: app.WispBot, server: FakeServer
+) -> None:
+    run = asyncio.create_task(type_testlife(cog, server, "starve"))
+    await next_button(server, "Begin again", 0)
+
+    await life_loop.begin(staff_context(bot, server, OTHER))
+
+    assert server.texts()[-1] == (
+        "♪ A test life is running, so only Runner can begin again."
+    )
+    assert (await current_life(bot)).phase is Phase.DEAD
+    await asyncio.sleep(0.05)
+    assert not run.done()
+
+    await life_loop.begin(staff_context(bot, server, RUNNER))
+    await run
+
+    assert (await current_life(bot)).phase is Phase.EGG
+    assert server.texts()[-1] == "♪ Test life done: 4 steps passed, 0 failed."
+
+
+# ---
+# Any failure, unload and stopping mid-step
+# ---
+
+
+async def test_any_error_in_a_step_is_reported_and_the_run_goes_on(
+    cog: LifeTest,
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        lifetester, "credit_feed", AsyncMock(side_effect=KeyError("boom"))
+    )
+
+    await type_testlife(cog, server, "starve")
+
+    reports = [text for text in server.reports() if text.startswith("Error in test")]
+    assert reports[0] == "Error in test life step 2: KeyError: 'boom'"
+    assert len(server.step_lines()) == 4
+    assert server.texts()[-1] == (
+        "♪ Test life done: 1 step passed, 3 failed (steps 2, 3, 4)."
+    )
+    assert bot.test_runs == {}
+
+
+async def test_unloading_the_cog_releases_a_waiting_run(
+    waiting_run: asyncio.Task[None], cog: LifeTest, bot: app.WispBot, server: FakeServer
+) -> None:
+    await cog.cog_unload()
+    await waiting_run
+
+    assert server.texts()[-1] == "♪ Test life done: 3 steps passed, 0 failed."
+    assert bot.test_runs == {}
+
+
+async def test_a_stop_during_a_step_ends_the_run_after_that_step(
+    cog: LifeTest,
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_credit = lifetester.credit_feed
+
+    async def credit_then_stop(*args: Any, **kwargs: Any) -> Any:
+        events = await real_credit(*args, **kwargs)
+        await type_testlife(cog, server, "stop")
+        return events
+
+    monkeypatch.setattr(lifetester, "credit_feed", credit_then_stop)
+
+    await type_testlife(cog, server, "starve")
+
+    assert len(server.step_lines()) == 2
+    assert (await current_life(bot)).phase is Phase.ALIVE
+    assert server.texts()[-1] == "♪ Test life done: 2 steps passed, 0 failed."
+
+
+# ---
 # The scheduled tick
 # ---
 
@@ -688,7 +849,7 @@ async def test_the_scheduled_tick_skips_a_guild_under_test(
     life.last_tick_at = NOW - timedelta(minutes=10)
     await bot.lives.save(GUILD_ID, life)
     loop = LifeLoop(bot)
-    bot.test_runs[GUILD_ID] = test_runs.TestRun(GUILD_ID, RUNNER_ID, "Runner")
+    bot.test_runs[GUILD_ID] = lifetest_runs.LifeTestRun(GUILD_ID, RUNNER_ID, "Runner")
 
     await loop.run_tick(NOW)
 
@@ -713,19 +874,19 @@ async def test_testlife_is_a_staff_command_with_its_words(
     loop = LifeLoop(bot)
     monkeypatch.setattr(bot, "get_cog", lambda name: loop)
 
-    await life_test.setup(bot)
+    await lifetester.setup(bot)
 
     command = bot.get_command("testlife")
     assert command is not None
     assert command.usage == "[starve | confirm | stop]"
     assert command.ignore_extra is False
-    assert [life_test._word(typed) for typed in ("Starve", "CONFIRM", "stop")] == [
-        life_test.Word.STARVE,
-        life_test.Word.CONFIRM,
-        life_test.Word.STOP,
+    assert [lifetester._word(typed) for typed in ("Starve", "CONFIRM", "stop")] == [
+        lifetester.Word.STARVE,
+        lifetester.Word.CONFIRM,
+        lifetester.Word.STOP,
     ]
     with pytest.raises(commands.BadArgument):
-        life_test._word("stpo")
+        lifetester._word("stpo")
 
 
 def test_the_old_test_commands_are_gone(bot: app.WispBot) -> None:

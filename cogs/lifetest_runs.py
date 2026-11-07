@@ -2,7 +2,7 @@
 
 The run lives in `bot.test_runs`, keyed by guild. While a guild has one, the
 scheduled tick leaves that guild alone and only its runner may press the
-chore and Begin again buttons there.
+chore and Begin again buttons there, or type `!wisp begin`.
 """
 
 import asyncio
@@ -12,7 +12,7 @@ from datetime import timedelta
 
 
 @dataclass(eq=False)
-class TestRun:
+class LifeTestRun:
     """One server's test life: who runs it and whether it should stop.
 
     `runner_id` is the staff member who started it, matched by Discord ID;
@@ -30,6 +30,11 @@ class TestRun:
     def refusal(self) -> str:
         """What anyone else pressing one of the run's buttons is told."""
         return f"♪ This button is for {self.runner_name}'s test run."
+
+    @property
+    def begin_refusal(self) -> str:
+        """What anyone else typing `!wisp begin` during the run is told."""
+        return f"♪ A test life is running, so only {self.runner_name} can begin again."
 
     def is_runner(self, user_id: int) -> bool:
         """Whether `user_id` started this run."""

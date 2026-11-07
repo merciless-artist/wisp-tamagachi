@@ -17,6 +17,7 @@ from ai.images import images_from_config
 from ai.vision import vision_from_config
 from cogs.channels import in_channel, may_post_in, where_of
 from cogs.groups import wisp, wispadmin
+from cogs.lifetest_runs import LifeTestRun
 from cogs.share_links import ShareLinkResolver
 from cogs.speech import HouseTalk
 from cogs.staff import (
@@ -28,7 +29,6 @@ from cogs.staff import (
     staff_check,
     usage_line,
 )
-from cogs.test_runs import TestRun
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
@@ -60,7 +60,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.conversation",
     "cogs.chores",
     "cogs.life_loop",
-    "cogs.life_test",
+    "cogs.lifetester",
     "cogs.discipline",
     "cogs.staff",
 )
@@ -204,7 +204,7 @@ class WispBot(commands.Bot):
         self.display_locks: dict[tuple[int, str], asyncio.Lock] = {}
         self.shown_images: dict[tuple[int, str], tuple[int, str]] = {}
         self.rhyme_duels: set[tuple[int, int]] = set()
-        self.test_runs: dict[int, TestRun] = {}
+        self.test_runs: dict[int, LifeTestRun] = {}
         self._guild_locks: dict[int, asyncio.Lock] = {}
         self._drawing_locks: dict[int, asyncio.Lock] = {}
         self._startup_reports: list[tuple[str, str]] = []

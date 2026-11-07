@@ -20,12 +20,13 @@ from discord.ext import commands
 from cogs.announce import begin_again, post_events, post_in_house
 from cogs.chores import post_chores
 from cogs.drawings import DrawResult, draw_for
-from cogs.feeding import NotFed, credit_feed
+from cogs.feeding import credit_feed
 from cogs.life_loop import LifeLoop
-from cogs.players import EXPECTED_FAILURES, FROZEN_REASON, is_frozen
+from cogs.lifetest_runs import LifeTestRun
+from cogs.players import FROZEN_REASON, blocker_reason, is_frozen, member_blocker
 from cogs.snacks import announce_medicine
 from cogs.staff import StaffContext, guild_of, reply
-from cogs.test_runs import TestRun
+from db.settings import Settings
 from wisp.chores import (
     ChoreEvent,
     is_open,
@@ -69,6 +70,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 _ALREADY_RUNNING: Final = "♪ A test life is already running."
+_CANNOT: Final = "♪ You can't run a test life: {reason}"
 _CONFIRM: Final = (
     "♪ This ends the current Wisp (v{version}). "
     "Type !wisp testlife confirm to go on."
@@ -119,9 +121,6 @@ class StepFailed(Exception):
 
 class _Stopped(Exception):
     """Staff stopped the run while a step waited for a button."""
-
-
-_STEP_FAILURES: Final = (StepFailed, NotFed, *EXPECTED_FAILURES)
 
 
 def summary(passed: int, failed: list[int]) -> str:
@@ -177,8 +176,12 @@ class LifeTest(commands.Cog):
                 await self._stop(ctx)
 
     async def _confirm(self, ctx: StaffContext) -> None:
-        """Play the test life this server was asked to confirm, once."""
-        mode = self._asked.pop(guild_of(ctx).id, None)
+        """Play the test life this server was asked to confirm.
+
+        The ask is kept until a run really starts, so a refused confirm can
+        be typed again.
+        """
+        mode = self._asked.get(guild_of(ctx).id)
         if mode is None:
             await reply(ctx, _NOTHING_TO_CONFIRM)
             return
@@ -196,10 +199,11 @@ class LifeTest(commands.Cog):
     async def _ask(self, ctx: StaffContext, mode: Mode) -> None:
         """Play `mode`, or first ask to confirm when it would end a living Wisp.
 
-        An egg, an ended life or no life at all needs no confirm.
+        An egg, an ended life or no life at all needs no confirm. A run that
+        could not go is refused first, so nothing is asked for it.
         """
         guild_id = guild_of(ctx).id
-        refusal = await self._refusal(guild_id)
+        refusal = await self._refusal(ctx)
         if refusal is not None:
             await reply(ctx, refusal)
             return
@@ -214,15 +218,16 @@ class LifeTest(commands.Cog):
         """Play `mode` for the member who typed the command, one run per server.
 
         The run is in `bot.test_runs` from the moment it is let start until it
-        ends, however it ends.
+        ends, however it ends. Starting uses up the server's ask to confirm.
         """
         guild_id = guild_of(ctx).id
-        refusal = await self._refusal(guild_id)
+        refusal = await self._refusal(ctx)
         if refusal is not None:
             await reply(ctx, refusal)
             return
+        self._asked.pop(guild_id, None)
         member = ctx.author
-        run = TestRun(guild_id, member.id, member.display_name)
+        run = LifeTestRun(guild_id, member.id, member.display_name)
         self.bot.test_runs[guild_id] = run
         try:
             life = _TestLife(
@@ -232,17 +237,47 @@ class LifeTest(commands.Cog):
         finally:
             del self.bot.test_runs[guild_id]
 
-    async def _refusal(self, guild_id: int) -> str | None:
-        """Why no test life may start now, or None when one may.
+    async def _refusal(self, ctx: StaffContext) -> str | None:
+        """Why no test life may start for the member typing now, or None.
 
-        The running check comes last, after every wait, so two runs started
-        at once cannot both pass it.
+        Checked before anything is asked or changed. The runner must be able
+        to feed Wisp, since the button steps wait for their presses, and the
+        server needs the House and Status post the steps' ticks post to. The
+        running check comes last, after every wait, so two runs started at
+        once cannot both pass it.
         """
-        if await is_frozen(self.bot, guild_id):
+        guild_id = guild_of(ctx).id
+        blocker = await member_blocker(
+            self.bot, guild_id, ctx.author, discord.utils.utcnow()
+        )
+        if blocker is not None:
+            reason = await blocker_reason(self.bot, guild_id, blocker)
+            return _CANNOT.format(reason=reason)
+        settings = await self.bot.settings.get(guild_id)
+        missing = _not_set_up(settings)
+        if missing is not None:
+            return _CANNOT.format(reason=missing)
+        if settings.frozen:
             return f"♪ {FROZEN_REASON}"
         if guild_id in self.bot.test_runs:
             return _ALREADY_RUNNING
         return None
+
+
+def _not_set_up(settings: Settings) -> str | None:
+    """What setup a test life lacks, and how to set it, or None when it has all."""
+    missing = [
+        name
+        for name, channel_id in (
+            ("Wisp's House", settings.house_channel_id),
+            ("the Status post", settings.status_thread_id),
+        )
+        if channel_id is None
+    ]
+    if not missing:
+        return None
+    verb = "is" if len(missing) == 1 else "are"
+    return f"{' and '.join(missing)} {verb} not set. Run !wisp setup first."
 
 
 # ---
@@ -274,7 +309,7 @@ class _TestLife:
         self,
         bot: "WispBot",
         life_loop: LifeLoop,
-        run: TestRun,
+        run: LifeTestRun,
         member: discord.User | discord.Member,
         message_id: int,
         rng: random.Random,
@@ -293,6 +328,11 @@ class _TestLife:
 
         Each step is announced first. A failing step is reported and the run
         goes on. A stop, or Wisp frozen before a step, ends the run there.
+
+        The catch around each step is the test run's top-level error reporter:
+        a tester's job is to report whatever breaks and keep going, so any
+        error is caught there. A stop is caught first, and a cancel passes
+        through.
         """
         steps = self._steps(mode)
         passed = 0
@@ -308,7 +348,7 @@ class _TestLife:
                 await step.run()
             except _Stopped:
                 break
-            except _STEP_FAILURES as error:
+            except Exception as error:
                 failed.append(number)
                 await self._bot.report_error(
                     self._bot.get_guild(self._guild_id),
