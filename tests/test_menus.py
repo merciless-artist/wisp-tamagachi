@@ -5,15 +5,18 @@ the way discord.py dispatches it; the interactions and messages are fakes.
 """
 
 import asyncio
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pytest
 from discord.components import ActionRow as RowComponent
-from discord.ui.view import ViewStore
+from discord.ui.view import BaseView, ViewStore
+from discord.webhook import async_ as async_webhook
 
 from cogs.menus import CLOSED, RUN, ClosedMenu, menu_id
-from cogs.snacks import Menu, ShopButton, SnackSelect
+from cogs.snacks import Menu, ShopButton, SnackSelect, VaultLayout, _VaultPiece
 from wisp.rules import SNACKS
 
 MESSAGE_ID = 1234
@@ -97,8 +100,75 @@ async def test_a_menu_select_carries_this_runs_token() -> None:
     assert (match["run"], match["slot"]) == (RUN, "feed")
 
 
-async def test_a_menu_never_times_out() -> None:
-    assert snack_menu([]).timeout is None
+def sent_message() -> dict[str, Any]:
+    """What Discord answers an ephemeral follow-up with: the message it made."""
+    return {
+        "id": str(MESSAGE_ID),
+        "channel_id": "1",
+        "type": 0,
+        "content": "",
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": False,
+        "mention_everyone": False,
+        "tts": False,
+        "timestamp": "2026-11-06T00:00:00+00:00",
+        "edited_timestamp": None,
+        "flags": 64,
+        "components": [],
+        "author": {"id": "2", "username": "wisp", "discriminator": "0", "avatar": None},
+    }
+
+
+async def send_privately(view: BaseView, store: ViewStore) -> None:
+    """Send `view` as an ephemeral follow-up through discord.py's real Webhook.send.
+
+    Only the HTTP call is faked; the view goes into the real `store`.
+    """
+    adapter = MagicMock()
+    adapter.execute_webhook = AsyncMock(return_value=sent_message())
+    async_webhook.async_context.set(adapter)
+    state = MagicMock()
+    state.store_view.side_effect = lambda view, message_id: store.add_view(
+        view, message_id
+    )
+    hook = discord.Webhook(
+        {"id": 9, "type": 3, "token": "t", "application_id": 9},
+        session=MagicMock(),
+        state=state,
+    )
+    await hook.send(view=view, ephemeral=True, wait=True)
+
+
+def vault_menu() -> VaultLayout:
+    options = [
+        discord.SelectOption(label=snack.name, value=snack.key) for snack in SNACKS
+    ]
+    select = SnackSelect(options, "Buy a snack", AsyncMock(), "snacks")
+    return VaultLayout([_VaultPiece(["the Vault"], [select])])
+
+
+@pytest.mark.parametrize("make", [lambda: snack_menu([]), vault_menu])
+async def test_a_menu_sent_privately_never_times_out(
+    make: Callable[[], BaseView],
+) -> None:
+    store = ViewStore(MagicMock())
+    menu = make()
+
+    await send_privately(menu, store)
+
+    assert menu.timeout is None
+    assert menu._BaseView__timeout_task is None  # type: ignore[attr-defined]
+    assert not menu.is_finished()
+    assert store._views[MESSAGE_ID]
+
+
+async def test_a_menus_timeout_cannot_be_set() -> None:
+    menu = snack_menu([])
+    menu.timeout = 900.0
+    assert menu.timeout is None
 
 
 # ---

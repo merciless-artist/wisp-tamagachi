@@ -45,7 +45,7 @@ from cogs.magazines import (
     magazines_owned,
     on_the_shelf,
 )
-from cogs.menus import ClosedMenu, menu_id
+from cogs.menus import ClosedMenu, Lasting, menu_id
 from cogs.players import (
     EXPECTED_FAILURES,
     NOT_TAKING,
@@ -353,7 +353,7 @@ class MedicineSelect(discord.ui.Select[Any]):
         await _give_medicine(interaction)
 
 
-class Menu(discord.ui.View):
+class Menu(Lasting, discord.ui.View):
     """An ephemeral menu of selects; a failure is reported as `context`.
 
     It never times out; see `cogs.menus` for a press after a restart.
@@ -389,7 +389,7 @@ class _VaultPiece:
     picture: str | None = None
 
 
-class VaultLayout(discord.ui.LayoutView):
+class VaultLayout(Lasting, discord.ui.LayoutView):
     """The Vault as one Components V2 message, with no container around it.
 
     Each piece's lines are one text display, followed by an action row for each

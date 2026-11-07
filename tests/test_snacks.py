@@ -1034,7 +1034,7 @@ async def open_feed_menu(interaction: MagicMock) -> None:
 @pytest.mark.parametrize(
     "opener", [vault_command, shop_button, snackpack_command, open_feed_menu]
 )
-async def test_every_private_menu_is_filed_under_its_message_and_never_times_out(
+async def test_every_private_menu_is_filed_under_its_message(
     bot: app.WispBot, opener: Any
 ) -> None:
     await lay(bot)
@@ -1049,7 +1049,6 @@ async def test_every_private_menu_is_filed_under_its_message_and_never_times_out
     ]
     assert sent.kwargs["wait"] is True
     assert sent.kwargs["ephemeral"] is True
-    assert sent.kwargs["view"].timeout is None
 
 
 async def test_the_vaults_selects_carry_this_runs_token(bot: app.WispBot) -> None:

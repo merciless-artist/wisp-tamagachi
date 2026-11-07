@@ -1,9 +1,9 @@
 """Private menus: the selects of the Vault and the snack menu.
 
-A menu lives only in the memory of the bot that sent it, so it never times
-out, and every menu select's custom id carries this run's token. After a
-restart the old menu's selects still show; `ClosedMenu` catches a press on
-one and tells the member to open the menu again. A press on a menu this run
+A menu lives only in the memory of the bot that sent it. It never times out
+(`Lasting`), and every menu select's custom id carries this run's token.
+After a restart the old menu's selects still show; `ClosedMenu` catches a
+press on one and tells the member to open the menu again. A press on a menu this run
 sent goes to the menu itself: discord.py offers every press to the dynamic
 items as well as to the live view, so `ClosedMenu` turns away this run's
 token and each press is answered once.
@@ -19,6 +19,23 @@ RUN: Final = secrets.token_hex(4)
 CLOSED: Final = (
     "♪ This menu closed when Wisp restarted. Open it again from the Status post."
 )
+
+
+class Lasting:
+    """Makes a menu view never time out, whatever a send sets.
+
+    discord.py gives a private follow-up's view 15 minutes when it has none;
+    this timeout stays None, so the menu lasts until the bot restarts.
+    """
+
+    @property
+    def timeout(self) -> float | None:
+        """Always None: the menu never times out."""
+        return None
+
+    @timeout.setter
+    def timeout(self, value: float | None) -> None:
+        """Ignore the timeout a send would set."""
 
 
 def menu_id(slot: str, run: str = RUN) -> str:
