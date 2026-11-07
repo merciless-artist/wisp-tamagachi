@@ -127,38 +127,40 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
       <p>In a category with two channels:</p>
       <ul>
         <li><strong>Wisp's House</strong> is a text channel. You hang out with him there, and his big moments happen there: hatching, growing up, warnings, goodbyes and his chores.</li>
-        <li><strong>Wisp's Studio</strong> is a forum with six posts: <em>Status</em> (his live card), <em>Mealtime</em> (every track that fed him), <em>The ViiBR Vault</em> (shop and leaderboard), <em>Jam Space</em>, <em>Wisp FAQ</em> and <em>Burrito, Fairy God-bot</em>, where Burrito answers your questions about how Wisp works.</li>
+        <li><strong>Wisp's Studio</strong> is a forum with six posts: <em>Status</em> (his live card), <em>Mealtime</em> (every track that fed him), <em>Leaderboard</em> (the leaderboard and Wisp's past versions), <em>Jam Space</em>, <em>Wisp FAQ</em> and <em>Burrito, Fairy God-bot</em>, where Burrito answers your questions about how Wisp works.</li>
       </ul>
     </div>
     <div class="qa">
       <h3>How do I check on him?</h3>
-      <p>Open the Status post in his Studio. His card is pinned there, kept up to date:</p>
+      <p>Open the Status post in his Studio. His card is there, kept up to date, with buttons under it to feed him, poke him, open the Vault and your Snack Pack, play and see his lunchbox. Every answer is private to you:</p>
       <pre class="card">𝄃𝄞𝄚𝄚𝄚𝄚𝄆 𝕎𝒾𝓈𝓅 𝕊𝓉𝒶𝓉𝓈 𝄇𝄡𝄚𝄚𝄚𝄚𝄂
 ╔════════════════════╗
 ║𝄡𝄚𝄂・・𝐃𝐀𝐘 <strong>9</strong>・♫ ♪. ♫‿♪
 ╠═══⇕
+║𝄡𝄚𝄂 <strong>right now</strong>
+║𝄡 happy
+║𝄡𝄚𝄂 next nap 1pm Pacific
+╠═══⇕
 ║𝄡 Health    🟦🟦🟦🟦🟦🟦🟦 │72%
 ║𝄡 Wellbeing 🟥🟥🟥🟥🟥 │50%
-║𝄡 Mood      🟪🟪🟪🟪🟪🟪 │60%
 ╠═══⇕
 ║𝄡𝄚𝄂 Fed by 04 people today・♬‿♩. ♪
 ║𝄡𝄚𝄂 3 ViiBR tracks and 2 Suno tracks・♪‿♫ ♪
 ╠═══⇕
 ║𝄡 Poke him or tag @Wisp in #wisp-house to say hi!!
-║𝄡 check your snackpack with /wisp snackpack
-║𝄡 check the ViiBR Vault to buy treats and toys for Wisp!
+║𝄡 feed Wisp, shop the Vault and play
+║  with the buttons below!
 ╠═══⇕
 ║𝄡𝄚𝄂・・<strong>life stage</strong>・𝐓𝐄𝐄𝐍・♪‿♪ ♫.
 ╚════════════════════╝
 𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂</pre>
     </div>
     <div class="qa">
-      <h3>What do Health, Wellbeing and Mood mean?</h3>
-      <p>All three run 0 to 100 and start at 50. They only move in steps: a plus for something done, a minus when a stretch passes with nothing done. There is no slow drain.</p>
+      <h3>What do Health and Wellbeing mean?</h3>
+      <p>Both run 0 to 100 and start at 50. They only move in steps: a plus for something done, a minus when a stretch passes with nothing done. There is no slow drain. When a meter drops, Wisp says so once in his House and tells you what would help.</p>
       <ul>
-        <li><strong>Health</strong> is his food. Like a Tamagotchi, a full bar means he's well fed. Tracks fill it, and every 6 hours without a track costs 8. Below 30 he gets hangry, and if it hits zero, he dies. Only Health can kill him.</li>
-        <li><strong>Wellbeing</strong> is how looked after he feels. Chats (+5, your first 3 a day), snacks (+8), gifts (+8) and cleaning up his messes (+5) fill it. Every 6 hours with no chat and no snack costs 10. Below 30 he gets lonely and grumpy, but it never hurts him.</li>
-        <li><strong>Mood</strong> is how much fun he's having. Rhyme duels (+10, up to 5 a day) and pokes (+5, your first 3 a day) fill it. Every 6 hours with no duel and no poke costs 10, and tantrums and missed lights cost it too. A Rockstar needs Mood at 80 or more for 4 days.</li>
+        <li><strong>Health</strong> is his body. Like a Tamagotchi, a full bar means he's well fed. Tracks fill it, and so does cleaning up his messes (+5). Every 6 hours without a track costs 8. Below 30 he gets hangry, and if it hits zero, he dies. Only Health can kill him.</li>
+        <li><strong>Wellbeing</strong> is his heart: how looked after and how much fun he feels. Chats (+5, your first 3 a day), pokes (+5, your first 3 a day), Rhyme Duels (+10, up to 5 a day), snacks (+8) and gifts (+8) fill it. Every 6 hours with no chat, poke, duel, snack, gift or cleanup costs 10, and tantrums and missed lights cost it too. Below 30 he gets lonely and grumpy, but it never hurts him. A Rockstar needs Wellbeing at 80 or more for 4 days.</li>
       </ul>
     </div>
     <div class="qa">
@@ -171,7 +173,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     <h2 id="h-feeding"><span class="note">♪</span>Feeding him</h2>
     <div class="qa">
       <h3>How do I feed Wisp?</h3>
-      <p>Post your tracks in the track drop like you always do. Wisp never posts or reacts there. He picks up the track, eats it, and forwards it to his Mealtime post with your name and his reaction.</p>
+      <p>Post your tracks in the track drop like you always do. Wisp never posts there. He picks up the track, eats it, reacts to your post with his happy face, and forwards it to his Mealtime post with your name and his reaction.</p>
     </div>
     <div class="qa">
       <h3>Which tracks count, and how much?</h3>
@@ -196,13 +198,14 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     </div>
     <div class="qa">
       <h3>Why didn't my track feed him?</h3>
-      <p>He stays quiet when a post doesn't qualify. Usually it's one of these:</p>
+      <p>When a post with a track link doesn't feed him, Wisp tells you why in his House, with your name and no ping. Usually it's one of these:</p>
       <ul>
         <li>You haven't opened <span class="cmd">/wisp board</span> yet.</li>
-        <li>You're not at Active Lounger yet.</li>
+        <li>You don't have a role that can feed him (the note names the roles that can).</li>
         <li>You hit today's limit.</li>
         <li>The link was already used.</li>
-        <li>It's not a real Suno or viibrmusic.com track page.</li>
+        <li>It's not a real Suno or viibrmusic.com track page, or it's a share link for no song.</li>
+        <li>You're banned from Wisp, or there's no living Wisp right now.</li>
       </ul>
     </div>
   </section>
@@ -212,8 +215,8 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     <div class="qa">
       <h3>What's the difference?</h3>
       <ul>
-        <li><strong>The ViiBR Vault</strong> is Wisp's shop: snacks, gifts, medicine while he has a cold, and the leaderboard. Open it with <span class="cmd">/wisp vault</span> or the <em>Shop the Vault</em> button.</li>
-        <li><strong>Your Snack Pack</strong> is yours. <span class="cmd">/wisp snackpack</span> shows your wisp coins, the snacks you've saved, any keepsakes Wisp has given you and your badges.</li>
+        <li><strong>The ViiBR Vault</strong> is Wisp's shop: snacks, gifts, medicine while he has a cold, badges and, for a Rockstar, magazines. Open it with the <em>Vault</em> button on the Status post, or <span class="cmd">/wisp vault</span>. The leaderboard has its own post, the Leaderboard.</li>
+        <li><strong>Your Snack Pack</strong> is yours. The <em>Snack Pack</em> button on the Status post, or <span class="cmd">/wisp snackpack</span>, shows your wisp coins, the snacks you've saved, any keepsakes Wisp has given you, your badges and the drawings he's made you.</li>
       </ul>
     </div>
     <div class="qa">
@@ -324,7 +327,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
             <tr><td>Child</td><td>3+ days as a Baby, 20 growth, caretakers a quarter of his people. Day 7 at the latest</td></tr>
             <tr><td>Teen</td><td>3+ days as a Child, 60 growth, caretakers half of his people. Day 13 at the latest</td></tr>
             <tr><td>Adult</td><td>3+ days as a Teen, 150 growth, caretakers three quarters of his people. Day 20 at the latest</td></tr>
-            <tr><td>Rockstar</td><td>An Adult whose Mood stays at 80 or more for 4 days straight</td></tr>
+            <tr><td>Rockstar</td><td>An Adult whose Wellbeing stays at 80 or more for 4 days straight</td></tr>
             <tr><td>Old Fogey</td><td>Day 24, from Adult or Rockstar. He says his farewell on day 30</td></tr>
           </tbody>
         </table>
@@ -337,7 +340,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     </div>
     <div class="qa">
       <h3>Does he get sick?</h3>
-      <p>Once in his life, while he's a Baby, Child or Teen, Wisp catches <strong>Monster Pox</strong>: 2 days of spots, itching and a fever. He gets hungrier (every stretch without a track costs more Health), but he can't die from it, and everyone can give him up to <strong>30 meal points a day</strong> instead of 15. He tells the House when he catches it and when he's better. It isn't the same as a cold, which comes from a messy House (see below).</p>
+      <p>Once in his life, while he's a Baby or Child, Wisp catches <strong>Monster Pox</strong>: 2 days of spots, itching and a fever. He gets hungrier (every stretch without a track costs more Health), but he can't die from it, and everyone can give him up to <strong>30 meal points a day</strong> instead of 15. He tells the House when he catches it and when he's better, and anyone who talks to him meanwhile hears how long it lasts. A Teen never catches it. It isn't the same as a cold, which comes from a messy House (see below).</p>
     </div>
   </section>
 
@@ -362,11 +365,11 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
           </tbody>
         </table>
       </div>
-      <p>Cleaning it up earns you 2 WC and adds 5 to his Wellbeing.</p>
+      <p>Cleaning it up earns you 2 WC and adds 5 to his Health.</p>
     </div>
     <div class="qa">
       <h3>What if nobody cleans it up?</h3>
-      <p>After 6 hours he catches a cold. A cold lasts 48 hours, doubles the Wellbeing he loses when nobody chats or snacks, and makes him stuffy and sneezy. It never kills him, and he can't catch one while he has Monster Pox.</p>
+      <p>After 6 hours he catches a cold. A cold lasts 48 hours, makes the Health he loses when nobody feeds him 1.5 times as big (never below 1), and makes him stuffy and sneezy. It never kills him, and he can't catch one while he has Monster Pox.</p>
     </div>
     <div class="qa">
       <h3>How do I cure a cold?</h3>
@@ -374,11 +377,11 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     </div>
     <div class="qa">
       <h3>What's a tantrum?</h3>
-      <p>About once a day, while he's awake, Wisp throws a fit for no reason. Press <strong>Scold</strong> within 15 minutes to win 2 WC. If nobody does, he loses 15 Mood and is extra bratty for the rest of the UTC day.</p>
+      <p>About once a day, while he's awake, Wisp throws a fit for no reason. Press <strong>Scold</strong> within 15 minutes to win 2 WC. If nobody does, he loses 15 Wellbeing and is extra bratty for the rest of the UTC day.</p>
     </div>
     <div class="qa">
       <h3>What's Lights off?</h3>
-      <p>Wisp naps for an hour at 02:00, 10:00 and 18:00 UTC. Press <strong>Lights off</strong> within 15 minutes to win 2 WC. If the lights stay on, he loses 10 Mood and wakes up cranky. While he sleeps he only makes sleepy noises, and a poke wakes him early and cranky.</p>
+      <p>Wisp naps for an hour at 7am, 1pm and 10pm Pacific time (they follow daylight saving). Press <strong>Lights off</strong> within 15 minutes to win 2 WC. If the lights stay on, he loses 10 Wellbeing and wakes up cranky. While he sleeps he only makes sleepy noises, and a poke wakes him early and cranky. Snacks, gifts and medicine still work, with sleepy replies, but a Rhyme Duel waits until he's up.</p>
     </div>
   </section>
 
@@ -412,7 +415,15 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     </div>
     <div class="qa">
       <h3>Does talking earn me anything?</h3>
-      <p>Your first poke or mention of the day earns 1 WC (if you can feed him). Your first 3 chats of the day also fill his Wellbeing and your first 3 pokes fill his Mood. None of it adds bond or growth. After that it's just for fun.</p>
+      <p>Your first poke or mention of the day earns 1 WC (if you can feed him). Your first 3 chats and your first 3 pokes of the day also fill his Wellbeing. None of it adds bond or growth. After that it's just for fun.</p>
+    </div>
+    <div class="qa">
+      <h3>Can he see my pictures?</h3>
+      <p>Yes. Mention him or reply to him with a picture or a GIF in Wisp's House and he looks at it and answers what he sees. A picture link works too, once Discord shows its preview. He doesn't look while he's still an egg, and if he can't see it he says so instead of guessing.</p>
+    </div>
+    <div class="qa">
+      <h3>Does he draw?</h3>
+      <p>Sometimes, as a present. Nobody asks for it. He might draw you a picture when you give him a gift he loves, when your bond reaches a new tier, when you fed the most tracks the day before, or just because he likes you. He posts it in his House with a note to you. He makes at most 1 per person and 6 in all each day.</p>
     </div>
     <div class="qa">
       <h3>What's he like?</h3>
@@ -424,7 +435,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     <h2 id="h-games"><span class="note">♪</span>Games</h2>
     <div class="qa">
       <h3>How does Rhyme Duel work?</h3>
-      <p><span class="cmd">/wisp play rhyme</span> opens a short thread off his House, one player at a time.</p>
+      <p><span class="cmd">/wisp play rhyme</span>, or <em>Play</em> then <em>Rhyme Duel</em> on the Status post, opens a short thread off his House, one player at a time.</p>
       <ul>
         <li>Wisp says a word, and you have 15 seconds to rhyme it. Then he rhymes back. No repeats.</li>
         <li>A perfect rhyme is 2 points. A slant rhyme (same vowel sound, different ending, like <em>fire</em> and <em>mine</em>) is 1.</li>
@@ -433,7 +444,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     </div>
     <div class="qa">
       <h3>Who can play?</h3>
-      <p>Anyone. Your best score always goes on the leaderboard. A duel only counts as playing with him (Mood, bond, growth and 1 WC) if you're a qualifying member and you landed at least one rhyme, up to 5 duels a day.</p>
+      <p>Anyone. Your best score always goes on the leaderboard. A duel only counts as playing with him (Wellbeing, bond, growth and 1 WC) if you're a qualifying member and you landed at least one rhyme, up to 5 duels a day.</p>
     </div>
   </section>
 
@@ -475,18 +486,23 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
     <h2 id="h-staff"><span class="note">♪</span>For staff</h2>
     <div class="qa">
       <h3>What commands do staff have?</h3>
-      <p>All staff commands need the Manage Server permission.</p>
+      <p>Staff type <code>!wisp</code> commands. Staff are the app owner, anyone with Manage Server, and members with a staff role. Anyone else is ignored.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
           <tbody>
-            <tr><td><code>/wispadmin setup</code></td><td>Sets his House, Studio forum and track drop, and builds the Studio posts</td></tr>
-            <tr><td><code>/wispadmin roles add</code> · <code>remove</code> · <code>list</code></td><td>The level roles that can feed him</td></tr>
-            <tr><td><code>/wispadmin food</code></td><td>Changes how many meal points a viibrmusic.com or Suno track is worth</td></tr>
-            <tr><td><code>/wispadmin freeze</code> · <code>unfreeze</code></td><td>Pauses his meters and chores (holidays, outages)</td></tr>
-            <tr><td><code>/wispadmin punish</code> · <code>unban</code></td><td>The ban ladder</td></tr>
-            <tr><td><code>/wispadmin strip</code></td><td>Takes points from someone</td></tr>
-            <tr><td><code>/wispadmin resetname</code></td><td>Clears the name Wisp calls someone, so they can choose again</td></tr>
+            <tr><td><code>!wisp setup</code> (or <code>/wispadmin setup</code>)</td><td>Sets his House, Studio forum and track drop, and builds the Studio posts</td></tr>
+            <tr><td><code>!wisp roles add</code> · <code>remove</code> · <code>list</code></td><td>The level roles that can feed him</td></tr>
+            <tr><td><code>!wisp staff add</code> · <code>remove</code> · <code>list</code></td><td>The roles that count as Wisp staff</td></tr>
+            <tr><td><code>!wisp food</code></td><td>Changes how many meal points a viibrmusic.com or Suno track is worth</td></tr>
+            <tr><td><code>!wisp faq</code> (or <code>/wispadmin faq</code>)</td><td>Rebuilds this FAQ thread</td></tr>
+            <tr><td><code>!wisp freeze</code> · <code>unfreeze</code></td><td>Pauses his meters, chores and age (holidays, outages)</td></tr>
+            <tr><td><code>!wisp begin</code></td><td>Lays the next egg after an ending, like the Begin again button</td></tr>
+            <tr><td><code>!wisp testlife</code></td><td>Plays one whole life on the real Wisp, step by step, so staff can see everything. It ends the current Wisp first, after a <code>confirm</code></td></tr>
+            <tr><td><code>!wisp punish</code> · <code>unban</code></td><td>The ban ladder</td></tr>
+            <tr><td><code>!wisp strip</code></td><td>Takes points from someone</td></tr>
+            <tr><td><code>!wisp resetname</code></td><td>Clears the name Wisp calls someone, so they can choose again</td></tr>
+            <tr><td><code>!wisp song</code></td><td>Posts words and a song link in Jam Space as Wisp</td></tr>
           </tbody>
         </table>
       </div>

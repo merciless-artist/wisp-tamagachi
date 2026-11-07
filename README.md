@@ -9,6 +9,39 @@ want to begin again?", and the next egg comes only when staff press **Begin
 again**; after a full life the coal becomes that egg. Members can also talk to
 him in Wisp's House.
 
+## The Status post
+
+The Status post in the Studio is the control panel. Its live card shows his
+picture, the Health and Wellbeing bars, who fed him today and how many tracks,
+then a **right now** heading: what he needs, worst first, one line each.
+
+- hungry, with the track drop channel to post in
+- lonely, with what fills Wellbeing: chat, play, poke, or a snack or gift
+- a mess is waiting, he is having a tantrum, or he is asleep and the lights
+  need turning off, each pointing at his House
+
+When there is nothing to do it says `happy`. The last line is his next nap in
+Pacific time, such as `next nap 2pm Pacific`. A line under the card points at
+the buttons. There are six, three to a row, and every answer is private:
+
+- **Feed Wisp** opens the snack menu.
+- **Poke Wisp** pokes him, as everywhere else.
+- **Vault** opens what `/wisp vault` opens.
+- **Snack Pack** opens what `/wisp snackpack` opens.
+- **Play** opens a games menu, with one game for now, **Rhyme Duel**. It
+  starts a duel exactly as `/wisp play rhyme` does.
+- **Lunchbox** shows his lunchbox to you alone. `/wisp lunchbox` still posts
+  it in the channel.
+
+The buttons work on old cards after a restart. While no Wisp is here the card
+carries only **Begin again** (see below).
+
+Menus the buttons open never time out on their own. After the bot restarts, a
+press on a menu opened before the restart gets
+`♪ This menu closed when Wisp restarted. Open it again from the Status post.`
+Menus opened before the update that added this fail once, with Discord's
+"This interaction failed", on their first press.
+
 ## Begin again
 
 - Every ending (a death, a cold egg, an old-age farewell) is announced as
@@ -110,20 +143,60 @@ while he is an egg, and the buttons keep working after a restart.
   everything else stays on UTC. Turn the lights off
   within 15 minutes for 2 points; otherwise he loses 10 Wellbeing and is cranky
   for an hour after the nap. While he sleeps he answers only with sleepy
-  noises, and a poke wakes him early, cranky, with no Wellbeing plus. A nap
-  whose start falls while he is frozen or the bot is down is skipped without a
-  penalty.
+  noises, and a poke wakes him early, cranky, with no Wellbeing plus. A Rhyme
+  Duel is refused with `♪ Wisp is napping until 2pm Pacific. Poke him awake
+  first.` Snacks, gifts and medicine still work, and he answers them with
+  sleepy lines. A nap whose start falls while he is frozen or the bot is down
+  is skipped without a penalty.
 
 **Monster Pox**, his childhood sickness (`is_sick` and the `SICK_*` rules in
-the code), comes once per life, at a random time between day 1 and day 5
-while he is a Baby or Child, so every Wisp who grows up has had it. He
-is spotty, itchy and feverish. It lasts 48 hours (it carries on if he grows a
-stage). While sick the Health penalty is 1.5 times as big, but Health never
-drops below 1, so he cannot die of it; he can still be hangry and fading. Each
-member's daily meal limit goes from 15 to 30 meal points, room for about one
-extra song and one extra snack. He posts once when he catches it (with his
-sick picture) and once when he is better, and the status card and Poke Wisp
-panel show his sick picture meanwhile.
+the code), comes once per life, at a random time between day 1 and day 5,
+and only while he is a Baby or Child. A Teen never catches it, so a Wisp who
+skipped those days (a staff stage jump) never has it. He is spotty, itchy and
+feverish. It lasts 48 hours (it carries on if he grows a stage). While sick the
+Health penalty is 1.5 times as big, but Health never drops below 1, so he
+cannot die of it; he can still be hangry and fading. Only Monster Pox (not a
+cold) raises each member's daily meal limit from 15 to 30 meal points, room
+for about one extra song and one extra snack. He posts once when he catches it
+(with his sick picture) and once when he is better, and the status card and
+Poke Wisp panel show his sick picture meanwhile.
+
+While he has Monster Pox or a cold, anyone who talks to him or pokes him gets a
+reply that says plainly what he has and how many hours are left, and that
+Burrito can answer questions about his sickness, with a picture: his sick
+picture or `sneeze.gif` for Monster Pox, `wispsick.gif` or `sneeze.gif` for a
+cold. Monster Pox wins when he has both. If Discord refuses the picture, the
+words are sent without it. A poke that wakes him from a nap shows the nap
+picture.
+
+## Meter drop posts, receipts and reasons
+
+- **Meter drops.** When a stretch with nothing done runs out and a meter
+  loses points, Wisp posts once in his House, whatever the number of meters:
+  `♪ Wisp's meters dropped`, then a line for each, such as
+  `・Health -8 (now 42): nobody fed him a track for 6 hours.` It says what
+  to do about it and links the track drop or the Status post. The number is
+  what was really lost (never below Health 1 while he is sick). Nobody is
+  pinged. A drop that kills him posts only the death.
+- **Receipts.** Everything you do to him answers privately with what it did:
+  a snack (`Wellbeing +8 (now 66)`), a gift (that line, then what he did with
+  it), a counted poke (and how many pokes are left today that raise it), a
+  counted Rhyme Duel (Wellbeing, the Vault point and games left today) and a
+  chore (its wisp coins, and Health for a cleanup).
+- **Reasons.** When you press a button or use a command and it cannot work,
+  you are told the exact reason in a private message: banned, no feeding role
+  (naming the server's feeding roles), the board not opened with `/wisp board`,
+  no living Wisp, frozen, daily limit, not enough wisp coins (with the price
+  and your balance), or already done. A duel or poke that did not count says
+  why. While he is frozen, snacks, gifts, medicine, pokes, duels and chores
+  are refused; tracks, badge buys and magazine buys still work.
+- **Tracks.** A track that feeds him gets his `wisp_happy` reaction. A post
+  with a track link that does not feed him gets one note in his House naming
+  you without a ping and the reason: no feeding role, board not opened, banned,
+  no living Wisp, daily limit (how much you have eaten), link already fed, a
+  share link for no song, or staff set that kind of track to 0 meal points. A
+  post with no track link gets no note. Wisp still never posts in the track
+  drop.
 
 ## Setup
 
@@ -147,6 +220,12 @@ panel show his sick picture meanwhile.
    - `MYSQL_PASSWORD`
    - `MYSQL_DATABASE`
    - `WISP_TABLE_PREFIX` (optional, defaults to `wisp_`)
+   - Optional, for his talking, sight and drawings: `GOOGLE_API_KEY`,
+     `GOOGLE_CHAT_MODEL`, `GOOGLE_FALLBACK_MODEL`, `GOOGLE_VISION_MODEL`,
+     `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
+     and `CF_IMAGE_WORKER_URL` (the picture worker, whose source is
+     `tools/cloudflare_wispimages_worker.js`; it has no sign-in, so keep its
+     address in `.env` only)
 
 3. Tables are created on startup.
 
@@ -197,13 +276,16 @@ where the command was used.
   server's general chat (mentions, ids or names). When he hatches or reaches a
   new stage, he posts his stage picture in general chat with "# Wisp just
   became a teen today! Go give him a birthday poke!"; leaving `#general` out
-  turns that off. Setup also creates the Studio threads that are missing (see Wisp's Studio). It also
-  pins one Poke Wisp panel in the House: "♪ Poke Wisp" with the Poke Wisp
-  button. The panel shows Wisp's current picture (the egg, the coal
-  egg or his stage), and the life loop swaps it when the picture changes. A rerun leaves a panel that still exists alone, pins it again or
+  turns that off. Setup also creates the Studio threads that are missing (see
+  Wisp's Studio). It also pins one Poke Wisp panel in the House: "♪ Poke Wisp"
+  with the Poke Wisp button. The panel shows Wisp's current picture (the egg,
+  the coal egg or his stage), and the life loop swaps it when the picture
+  changes. A rerun leaves a panel that still exists alone, pins it again or
   gives back its button if needed, and posts a new one if it was deleted.
 - `!wisp roles add @role`, `!wisp roles remove @role`, `!wisp roles list`
-  choose which roles can feed Wisp.
+  choose which roles can feed Wisp. Adding or removing one brings the rules
+  post at the end of the Wisp FAQ up to date, and a refusal for a missing role
+  names the server's feeding roles (up to two, then "or N more").
 - `!wisp staff add @role`, `!wisp staff remove @role`, `!wisp staff list`
   choose which roles are Wisp staff. The owner or a Manage Server member adds
   the first one.
@@ -211,10 +293,12 @@ where the command was used.
   track and a Suno track feed Wisp (0 to 50 each; leaderboard points match),
   and updates the quick rules post at the end of the Wisp FAQ. Until staff
   set them, the starting values in `wisp/rules.py` apply.
-- `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes Wisp's own FAQ
-  pictures (one per question, or one per section from before) and rules post,
-  posts them fresh and updates the table of contents. Run it after the FAQ pictures change in a new release.
-- `!wisp freeze` and `!wisp unfreeze` pause and resume his meters and chores.
+- `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes
+  Wisp's own FAQ pictures (one per question, or one per section from before)
+  and rules post, posts them fresh and updates the table of contents. Run it
+  after the FAQ pictures change in a new release.
+- `!wisp freeze` and `!wisp unfreeze` pause and resume his meters, chores and
+  age. Tracks still feed him while he is frozen.
 - `!wisp begin` does what the Begin again button does, for when no button
   can be pressed: it lays the next egg after an ending, or answers
   `♪ Wisp is already here.`
@@ -283,14 +367,16 @@ where the command was used.
 Member commands:
 
 - `/wisp board` shows the leaderboard and Wisp's past versions, privately,
-  with the shop and Snack Pack buttons.
-- `/wisp vault` is the shop: buy snacks with your wisp coins (WC, the points
-  you can spend), get a badge, or give Wisp a gift from one of seven
-  collections: pick a collection, then a gift. He might not like it. It is one
-  private Components V2 message with each menu under its section.
-- `/wisp snackpack` shows your Snack Pack: your saved snacks, keepsakes
-  like a Last Ember, every badge you ever wore and any magazine covers you
-  bought, with a button to shop the Vault.
+  with the shop and Snack Pack buttons. Open it once to join in.
+- `/wisp vault` (also the Status post's **Vault** button) is the shop: buy
+  snacks with your wisp coins (WC, the points you can spend), get a badge, or
+  give Wisp a gift from one of seven collections: pick a collection, then a
+  gift. He might not like it. It is one private Components V2 message with each
+  menu under its section.
+- `/wisp snackpack` (also the **Snack Pack** button) shows your Snack Pack:
+  your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
+  any magazine covers you bought and how many drawings Wisp has made you, with
+  a button to shop the Vault.
 
 Magazines: while the living Wisp is a Rockstar, the Vault has a Magazines
 section selling two covers, the VIIBRATIONS cover and the Music & Science
@@ -313,14 +399,16 @@ also renames a badge role whose name is not its badge's, and deletes the
 roles Wisp made for badges no longer sold. A badge bought before it was
 retired stays in the buyer's Snack Pack. If Discord will not give the role,
 the purchase is undone and the points come back.
-- `/wisp lunchbox` shows Wisp's lunchbox: his favorite song of each day (picked
+- `/wisp lunchbox` (the **Lunchbox** button shows it to you alone) shows
+  Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
   the gift collections of this life. It is posted publicly where it was asked
   for, pinging nobody and with no link previews; asked for in the track drop,
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
-- `/wisp play rhyme` starts a Rhyme Duel with Wisp. A duel that counts as play
+- `/wisp play rhyme` (also Play, then **Rhyme Duel**, on the Status post)
+  starts a Rhyme Duel with Wisp. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his
   Wellbeing and pays 1 Vault point.
 
@@ -339,11 +427,25 @@ Poking: the Poke Wisp button on the status card and on the House's new-egg
 posts pokes him at every stage. The House sees who poked him and his AI
 reaction (a pre-written line if the AI is down), which is usually a giggle,
 now and then a startle or a curious look; a House that has been quiet for
-2 hours wakes him up, and a flurry of pokes or low Health annoy him. He naps
-at the timed naps (see His chores), and a poke then wakes him early and
-cranky. Pokes and mentions share one cooldown per member; a
-member's first 3 pokes of the day fill his Wellbeing and only the first poke or
-mention earns a point.
+2 hours (counted from real talk there) wakes him up, and a flurry of pokes or
+low Health annoy him. He naps at the timed naps (see His chores), and a poke
+then wakes him early and cranky. Pokes and mentions share one cooldown per
+member; a member's first 3 pokes of the day fill his Wellbeing and only the
+first poke or mention earns a point.
+
+Sight: when a message that mentions or replies to him in his House has a
+picture or a GIF (an attachment, a sticker or a picture link whose preview
+shows), he looks at it and answers what he sees. A late preview is waited for
+2 seconds. If he cannot see it he says so instead of guessing. He does not look
+at pictures in chat he was not spoken to in, in pokes, or as an egg, and only
+png, jpeg, webp and gif pictures up to 8 MB.
+
+Questions about how Wisp works: when he is not sure how something in the game
+works, or someone asks him about his sickness and he doesn't know, he points
+them to Burrito, his fairy god-bot, in the Studio instead of guessing.
+
+No AI provider is asked to think first, and an answer that was cut off at the
+length limit is never posted: the next provider answers instead.
 
 Wisp knows his own emojis: when a message to him uses one of his app emojis
 or any emote with "wisp" in its name, his AI is told which of his faces,
@@ -356,8 +458,11 @@ drop: a viibrmusic.com song (`https://viibrmusic.com/songs/<id>` or the site's
 share link `https://viibrmusic.com/s/<code>`) or a Suno song. For a share
 link Wisp asks viibrmusic.com which song it names (one request, 5 second
 timeout) before feeding, so a share link and the song's own link are the same
-track. A share link for no song is ignored. If the site cannot be reached the
-post is not fed and the error goes to Wisp's House.
+track. A share link for no song is explained in Wisp's House. If the site
+cannot be reached the post is not fed and the error goes to Wisp's House. A fed
+track gets his `wisp_happy` reaction and is forwarded to Mealtime; a track that
+did not feed him gets a note in his House with the reason (see Meter drop
+posts, receipts and reasons).
 
 ## Keepsakes
 
@@ -375,18 +480,35 @@ Snack Pack and announced in Wisp's House:
 
 Nobody gets one when nobody was there or the member is banned.
 
+## His drawings
+
+Wisp draws members pictures as presents. Nobody asks for one and there is no
+command. He makes one when a member gives him a gift he loves, when a member's
+bond reaches a new tier, for the member who fed the most tracks the day before
+(at the first tick of the UTC day), and, once a UTC day at a random time, for a
+member who fed him, chatted with him or played with him in the last 24 hours.
+At most 1 per member and 6 per server each UTC day, only while he is alive and
+not frozen, for members who can feed him and are not banned. He posts it in the
+House with a line to the member (pinging them). A drawing that fails is posted
+as `Error in making a drawing for <name>: ...` and does not use up the day's
+limit. A member's Snack Pack shows how many he has made them. `!wisp testlife`
+makes one too.
+
 ## Wisp's Studio
 
 The Studio forum holds six threads, named exactly:
 
-- `☀️ | Status`: the live status card, which shows Wisp's current picture
-  (the egg, the coal egg, then his stage).
+- `☀️ | Status`: the live status card and its six buttons (see The Status
+  post), which shows Wisp's current picture (the egg, the coal egg, then his
+  stage).
 - `🧡 | Mealtime`: every track that feeds him.
-- `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last post). Its card has no buttons; the
-  Vault (shop) button is on the Status post. When the board's text changes,
-  Wisp posts a fresh header and card at the bottom of the thread and deletes
-  the old pair, so the thread always ends with the current board. The post
-  was `🔒| The ViiBR Vault`; setup renames it in place.
+- `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last
+  post). Its card has no buttons; the Vault (shop) button is on the Status
+  post. When the board's text changes, Wisp posts a fresh header and card at
+  the bottom of the thread and deletes the old pair, so the thread always ends
+  with the current board; text that did not change posts nothing, and a
+  delete that fails is reported in the thread. The post was
+  `🔒| The ViiBR Vault`; setup renames it in place.
 
 Status and the Leaderboard stay unlocked, since a locked post's buttons and
 menus don't work for members. Wisp deletes anything a member types in them
@@ -431,7 +553,8 @@ posts text only.
   `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
   older) when Wellbeing drops below the lonely line, and `sick_baby.png`,
   `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture
-  is also on the status card and the Poke Wisp panel while he is sick.
+  is also on the status card and the Poke Wisp panel while he is sick, and
+  `sneeze.gif` joins the pictures his sick replies pick from.
 - `moments/` pictures for his chores: `poop.gif` (Baby and Child),
   `pimple.gif` (Teen), `trash_adult.gif` (Adult), `trash_rockstar.gif`
   (Rockstar) and `dentures.gif` (Old Fogey) for the messes; `wispsick.gif` for a

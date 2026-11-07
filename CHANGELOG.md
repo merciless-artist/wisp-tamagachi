@@ -1,9 +1,124 @@
 # Changelog
 
+## 2026-11-06 (Control panel and clarity)
+
+- The Status post is now the control panel: six private buttons (Feed Wisp,
+  Poke Wisp, Vault, Snack Pack, Play, Lunchbox) and a "right now" block that
+  says what he needs.
+- Every press and every command says what it did, or exactly why it could not.
+  A track that did not feed him gets a note in his House with the reason, and
+  a track that did gets his happy face.
+- Wisp tells the House when a meter drops and what would help, and he sounds
+  and looks sick when he is sick, with a picture and a pointer to Burrito.
+- He sees the pictures and GIFs people send him, and he draws members pictures
+  as presents.
+- Two meters, not three: Mood folded into Wellbeing, and Health is the sick
+  meter. Monster Pox only comes to a Baby or Child, between day 1 and day 5.
+- Naps are 7am, 1pm and 10pm Pacific, and freezing him pauses his age too.
+- Menus stay open until the bot restarts (and then say so), the Leaderboard
+  post is reposted when it changes, and no AI provider is asked to think or
+  allowed to send a cut-off reply.
+- Staff get `!wisp testlife`, which plays one whole life on the real Wisp.
+
+### For Myra
+
+- FAQ pictures that show old rules. The words in `DOCS/wisp_faq.html` are
+  fixed; these pictures in `ASSETS/faq/` need re-rendering from it:
+  - `01_basics_1.png`: names The ViiBR Vault as the shop and leaderboard post.
+  - `01_basics_2.png`: the status card with a Mood bar and the `/wisp snackpack`
+    and Vault hint lines.
+  - `01_basics_3.png`: explains three meters, with Mood.
+  - `02_feeding_1.png`: says Wisp never reacts to a track.
+  - `02_feeding_4.png`: says he stays quiet when a track does not feed him.
+  - `03_vault_1.png`: the Vault and the leaderboard as one thing, `/wisp vault`,
+    `/wisp snackpack` and the "Shop the Vault" button.
+  - `06_growing_2.png`: Rockstar needs Mood at 80.
+  - `06_growing_4.png`: Monster Pox for a "Baby, Child or Teen" (Pox in the
+    teens).
+  - `07_talking_3.png`: pokes fill his Mood.
+  - `08_games_2.png`: a duel fills his Mood.
+  - `08_games_1.png`: only worth a touch, it does not mention the Play button.
+  - The Chores section has no pictures, so nothing shows the new nap times. The
+    two new questions (he sees pictures, he draws) and the staff commands have
+    no pictures either.
+- A new Leaderboard thumbnail: the Leaderboard thread still uses `vault.png`.
+- Draft wording for you to redesign: the Status card hint "feed Wisp, shop the
+  Vault and play with the buttons below!", the Leaderboard subtitle "The
+  leaderboard.", the line "Shop the Vault with the button on the Status post."
+  and the right now lines.
+- The `adult_spark` picture (`ASSETS/keepsakes/adult_spark.gif`) is in the old
+  style.
+- The picture worker that draws for Wisp has no sign-in. Its address lives only
+  in `.env`, so keep it there and out of anything public.
+- The rules post at the end of the Wisp FAQ lost four lines of wording so the
+  role names fit under 2,000 characters:
+  - "Suno and viibrmusic.com links in the track drop" is now "Links posted in the
+    track drop:".
+  - "Each link feeds him once and earns leaderboard points" is now "Each link
+    feeds him once, for leaderboard points".
+  - "Old Fogey around day 24; around day 30 he passes on and the coal becomes
+    an egg, 5 of 20 fed" is now "Old Fogey at day 24. At day 30 he passes on;
+    his coal is a new egg, 5 of 20 fed".
+  - The intro lost "Neglected, he fades."
+- Naps at 7am, 1pm and 10pm Pacific are my pick when you were unsure. It is
+  one line in the rules to change.
+- Behaviour changes to know:
+  - Cleaning up a mess now gives Health, not Wellbeing.
+  - Giving him a gift now ends the Wellbeing stretch, like a chat or a snack.
+  - The bigger sick meal limit (30 instead of 15) is for Monster Pox only, not
+    a cold.
+  - Badge and magazine buys still work while he is frozen.
+- `!wisp testlife` is real: it ends the current Wisp quietly (no farewell),
+  gives the runner real points, keepsakes and a drawing, and adds a life to the
+  history and leaderboard. The runner needs a feeding role and an opened
+  `/wisp board`; the drawing step needs that day's drawing caps free.
+- Menus sent before this update fail once ("This interaction failed") on their
+  first press after the deploy.
+
+## 2026-11-06 (`!wisp testlife` plays a whole life)
+
+- Staff get `!wisp testlife`. It plays one whole life on the server's real
+  Wisp, one step after another, through the same code the real game uses, so
+  every post, picture, button and meter change is the real one. Before each
+  step Wisp posts `♪ Test life, step N of 17: <what happens>` in his House.
+- A step with a button waits, with no time limit, for the staff member who
+  started the run. Anyone else who presses it is told privately it is for the
+  runner. Every other step holds 8 seconds (`TEST_STEP_PAUSE`) so its posts can
+  be read.
+- It is real: it ends the current Wisp quietly (no farewell, no Last Ember),
+  the runner earns real points, keepsakes and a drawing, and the life joins the
+  history and the leaderboard. The feed is lifted past the daily meal limit and
+  the medicine is free, for the test only. Wisp's own five-minute tick leaves
+  the server alone while it runs.
+- `!wisp testlife starve` plays the egg and the hatching, then lets his Health
+  run out. `!wisp testlife confirm` goes on when the server has a living Wisp
+  past the egg (it first asks, and does nothing else). `!wisp testlife stop`
+  ends a run after its current step.
+- A step that fails posts `Error in test life step N: <Type>: <message>` and
+  the run goes on; it ends with `♪ Test life done: 17 steps passed, 0 failed.`
+  One run per server at a time. It is refused up front if the runner cannot
+  feed Wisp, if Wisp is frozen, or if the House or Status post is not set.
+- `!wisp test_lifestage` and `!wisp test_chore` are gone; this replaces both.
+
+## 2026-11-06 (Naps follow the Pacific clock)
+
+- His three naps are now 7am, 1pm and 10pm Pacific, an hour each (they were
+  02:00, 10:00 and 18:00 UTC). They follow daylight saving, so in UTC they
+  move by an hour twice a year. The rules post, the status card's "next nap"
+  and the Rhyme Duel refusal all say the time the same way, such as
+  `next nap 7am Pacific` or `Wisp is napping until 2pm Pacific.`
+- Everything else, and everything stored, stays on UTC. A UTC day holds every
+  nap that starts in it, so 10pm Pacific falls in the next UTC day. A nap that
+  was already running at the deploy finishes, then the naps go Pacific, with no
+  second nap on the changeover.
+- `tzdata` is pinned in `requirements.txt` so the Pacific clock works on
+  Windows.
+
 ## 2026-11-06 (Audit fixes)
 
-- Private menus never go quiet. The Vault and the snack menu never time out:
-  their `timeout` is pinned to None (`Lasting` in `cogs/menus.py`), since
+- Private menus never go quiet. From this deploy on, the Vault and the snack
+  menu never time out (a menu sent before the deploy fails once, on its first
+  press): their `timeout` is pinned to None (`Lasting` in `cogs/menus.py`), since
   discord.py otherwise gives a private follow-up's view 15 minutes. The
   Snack Pack's one button is persistent, so it works whatever its view's
   timeout. Every menu select carries this run's token in its
@@ -18,9 +133,10 @@
 - `/wisp lunchbox` used in a Studio thread answers privately instead of
   posting between the cards.
 - Monster Pox is only ever caught as a Baby or Child: a due time found at a
-  later stage is cleared. `!wisp test_lifestage` to Baby or Child rolls a
-  Pox not had yet afresh from now (one to five days on his own clock), so a
-  staff jump never starts it at once; any other stage clears it.
+  later stage is cleared. A staff stage jump to Baby or Child rolls a Pox not
+  had yet afresh from now (one to five days on his own clock), so a staff jump
+  never starts it at once; any other stage clears it. (The staff jump command,
+  `!wisp test_lifestage`, was later replaced by `!wisp testlife`.)
 - Chores: the first press on a chore whose post id is not stored yet does
   the chore (and stores the id) instead of hearing "already taken"; a chore
   whose post failed is dropped at no cost, and a dropped mess does not hold
@@ -31,10 +147,11 @@
   credited interactions. After a restart the quiet is counted from the first
   tick, so a redeploy never makes him say it at once.
 - While he naps, `/wisp play rhyme` and the Status post's Play, Rhyme Duel
-  button are refused with `♪ Wisp is napping until HH:MM UTC. Poke him awake
-  first.` The time comes from `nap_time_text`, the one place nap times are
-  worded (the card's next nap uses it too), and is when his nap time left
-  runs out, rounded up to the minute.
+  button are refused with `♪ Wisp is napping until 2pm Pacific. Poke him awake
+  first.` (naps moved to the Pacific clock later the same day). The time comes
+  from `nap_time_text`, the one place nap times are worded (the card's next
+  nap uses it too), and is when his nap time left runs out, rounded up to the
+  minute.
 - Snacks, gifts and medicine still work while he naps, but his House line
   comes from new sleepy sets: eating, getting a gift and taking medicine in
   his sleep, five lines each. A gift he passes on keeps its usual line,
@@ -91,7 +208,7 @@
 - The card shows a Right now block under the day (and any sickness): what he
   needs, worst first (hungry with the track drop channel, lonely, a mess, a
   tantrum, the lights left on while he naps), or `happy`, then `next nap
-  HH:MM UTC`. One line pointing at the buttons replaces the two hints about
+  7am Pacific`. One line pointing at the buttons replaces the two hints about
   `/wisp snackpack` and the ViiBR Vault.
 - `status_view` moved from `cogs/snacks.py` to `cogs/status_card.py` (snacks
   importing the duel cog would be an import cycle), and the shared button
@@ -168,6 +285,81 @@
   The Snack Pack gets a "Drawings from Wisp" line with the member's count.
 - The AI chain, the vision model and the picture client now share one session
   helper (`ai/session.py`).
+
+## 2026-11-06 (He sees pictures and GIFs)
+
+- When a message that mentions or replies to Wisp in his House has a picture or
+  a GIF (an attachment, a sticker, or a picture link whose preview shows), he
+  looks at it and answers what he sees. A picture with no words works too.
+- A preview that Discord adds a moment late is waited for, 2 seconds
+  (`VISION_EMBED_WAIT`), and fetched once more. Only real picture previews
+  count, not links to videos or articles.
+- If he cannot see it (too big, wrong kind, the AI is down) he says so instead
+  of guessing, and nothing is posted about the failure; it is only logged.
+- He does not look at pictures in chat he was not spoken to in, in pokes, or
+  while he is an egg. Only png, jpeg, webp and gif, up to 8 MB
+  (`VISION_MAX_BYTES`).
+- The sight comes from a Gemini vision model, `GOOGLE_VISION_MODEL` (default
+  `gemini-3.6-flash`), in the new `ai/vision.py`.
+
+## 2026-11-06 (Sick replies with pictures)
+
+- While he has Monster Pox or a cold, anyone who talks to him or pokes him gets
+  a reply that says plainly what he has and how many hours are left, and tells
+  people to ask Burrito, his fairy god-bot, about it. Babies say it in baby
+  words. If his AI is down there are pre-written sick lines (eight for each of
+  Monster Pox and a cold, for babies and for the rest).
+- The reply comes with a picture: his sick picture or `sneeze.gif` for Monster
+  Pox, `wispsick.gif` or `sneeze.gif` for a cold. Monster Pox wins when he has
+  both. A poke that wakes him from a nap still shows the nap picture.
+- If Discord refuses the picture, the words are sent without it and the failure
+  is reported in the House once per run of failures.
+- `ASSETS/moments/sneeze.gif` is new.
+
+## 2026-11-06 (A track says whether it fed him)
+
+- A track that feeds Wisp gets his `wisp_happy` reaction on the member's post
+  (`FED_REACTION`). With no such emoji uploaded there is no reaction, and a
+  failed reaction is reported in the House and never undoes the feed. The bot
+  now needs Add Reactions in the track drop.
+- A post with a track link that did not feed him gets one note in his House,
+  naming the member without a ping, with the exact reason: no feeding role
+  (naming the roles), the board not opened, banned, no living Wisp, the daily
+  limit (how much they have eaten), the link already fed, a share link for no
+  song, or the kind of track set to 0 meal points. A post with no track link
+  gets nothing. Wisp still never posts in the track drop.
+- Banned is told first, then the missing role, then the unopened board, from
+  one place (`feeder_blocker`) shared by everything that checks who may feed.
+- Chat and `!wisp` commands typed in the track drop are ignored by the feeding
+  code.
+
+## 2026-11-06 (Wisp posts when a meter drops)
+
+- When a stretch with nothing done runs out and a meter loses points, Wisp
+  posts once in his House per tick: `♪ Wisp's meters dropped`, then one line per
+  meter, such as `・Health -8 (now 42): nobody fed him a track for 6 hours.
+  Drop a track in <the track drop>.` Wellbeing's line names what fills it (chat,
+  play, poke, snack or gift) and links the Status post. Nobody is pinged.
+- The numbers are what was really lost, after the sick multiplier and floor,
+  and the stretch is worded as it is ("6 hours", "1 hour", "45 minutes"). A
+  drop that kills him posts only the death.
+
+## 2026-11-06 (Monster Pox comes earlier, and only to the young)
+
+- Monster Pox is due between day 1 and day 5 (it was day 1 to 7), which always
+  falls while he is a Baby or Child. A Teen never catches it. The rules,
+  README and FAQ say so.
+
+## 2026-11-06 (No thinking models, no cut-off replies)
+
+- Every AI provider is asked not to think first (Groq `reasoning_effort:
+  none`, Gemini `thinkingBudget: 0`, OpenRouter `reasoning.enabled: false`).
+  Thinking spent the same budget as the reply, so a long prompt could stop Wisp
+  in the middle of a word.
+- An answer that stopped at the token limit is refused, so the next provider
+  answers instead and a half sentence is never posted.
+- The live Groq model is now `qwen/qwen3.8-27b`. The Cloudflare picture worker
+  was fixed and its source saved in `tools/cloudflare_wispimages_worker.js`.
 
 ## 2026-11-06 (The Vault post becomes the Leaderboard)
 
