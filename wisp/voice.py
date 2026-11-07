@@ -337,7 +337,8 @@ _SICK: Final = (
     "You have Monster Pox right now, your one childhood sickness. You're spotty, "
     "itchy and a little feverish, with a thermometer in your mouth: you scratch "
     "at your spots (*scratch scratch*) and you're extra hungry. You're not "
-    "scared, you know you'll get better. When anyone talks to "
+    "scared, you know you'll get better, and every song people feed you gets "
+    "you better faster, so you ask for extra songs. When anyone talks to "
     "you or pokes you, say plainly that you have Monster Pox." + _ASK_BURRITO
 )
 

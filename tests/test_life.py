@@ -49,6 +49,7 @@ from wisp.rules import (
     LONELY_BELOW,
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
+    POX_HEALED_PER_MEAL_POINT,
     ROCKSTAR_WELLBEING,
     ROCKSTAR_WELLBEING_FOR,
     SICK_DRAIN_MULTIPLIER,
@@ -1113,6 +1114,48 @@ def test_he_cannot_die_while_sick() -> None:
         after += tick(life, now, frozen=False, caretakers=0, people=0)
     assert kinds(after) == [EventKind.DIED]
     assert life.phase is Phase.DEAD
+
+
+def test_pox_heals_15_minutes_per_meal_point_fed() -> None:
+    assert POX_HEALED_PER_MEAL_POINT == timedelta(minutes=15)
+    life = sick(health=50.0)
+
+    assert feed(life, 5, FEEDER, T0) == []
+
+    assert life.cold_left == SICK_FOR.total_seconds() - 5 * 15 * 60
+    assert life.health == 55.0
+
+
+def test_a_meal_that_ends_the_pox_says_he_recovered() -> None:
+    life = sick(health=50.0)
+    life.cold_left = 10 * 60.0
+
+    events = feed(life, 1, FEEDER, T0)
+
+    assert kinds(events) == [EventKind.RECOVERED]
+    assert events[0].stage is Stage.BABY
+    assert life.cold_left == 0.0
+    assert not is_sick(life)
+
+
+def test_feeding_a_well_wisp_or_a_cold_leaves_the_pox_alone() -> None:
+    well = alive(50.0)
+    cold = alive(50.0, sniffles_left=SNIFFLES_FOR.total_seconds())
+
+    assert feed(well, 5, FEEDER, T0) == []
+    assert feed(cold, 5, FEEDER, T0) == []
+
+    assert well.cold_left == 0.0 and cold.cold_left == 0.0
+    assert cold.sniffles_left == SNIFFLES_FOR.total_seconds()
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.PASSED, Phase.HATCHING])
+def test_feeding_a_sick_life_that_is_not_alive_heals_nothing(phase: Phase) -> None:
+    life = sick(health=50.0)
+    life.phase = phase
+
+    assert feed(life, 5, FEEDER, T0) == []
+    assert life.cold_left == SICK_FOR.total_seconds()
 
 
 def test_the_sick_floor_never_feeds_him() -> None:

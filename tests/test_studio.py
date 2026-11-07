@@ -1918,7 +1918,7 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         "ROCKSTAR_WELLBEING_FOR",
     ):
         monkeypatch.setattr(rules, name, timedelta(hours=9999))
-    for name in ("TANTRUM_WINDOW", "LIGHTS_WINDOW"):
+    for name in ("TANTRUM_WINDOW", "LIGHTS_WINDOW", "POX_HEALED_PER_MEAL_POINT"):
         monkeypatch.setattr(rules, name, timedelta(minutes=9999))
     monkeypatch.setattr(
         rules, "CHORE_POINTS", {chore: 9999 for chore in rules.CHORE_POINTS}
@@ -2072,6 +2072,7 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     monkeypatch.setattr(rules, "DAILY_MEAL_CAP", 20)
     monkeypatch.setattr(rules, "SICK_EXTRA_MEAL_CAP", 7)
     monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=36))
+    monkeypatch.setattr(rules, "POX_HEALED_PER_MEAL_POINT", timedelta(minutes=20))
 
     text = rules_text(rules.MEAL_POINTS)
 
@@ -2079,10 +2080,9 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     pox = next(line for line in text.split("\n") if "Monster Pox" in line)
     assert pox.startswith("・Once, as a Baby or Child: Monster Pox")
     assert "before Adult" not in pox
-    assert "Monster Pox for 36 h" in pox
-    assert "Bigger Health penalty" in pox
+    assert "Monster Pox, 36 h max, 20 min off per meal point" in pox
     assert "faster drain" not in pox.lower()
-    assert "he can't die" in pox
+    assert "He can't die" in pox
     assert "meals count up to 27 a day" in pox
 
 

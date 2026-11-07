@@ -100,6 +100,7 @@ def rules_text(
     daily_cap = count(rules.DAILY_MEAL_CAP, "point")
     sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     sick_hours = rules.SICK_FOR // timedelta(hours=1)
+    pox_minutes = rules.POX_HEALED_PER_MEAL_POINT // timedelta(minutes=1)
     health_hours = rules.HEALTH_STRETCH // timedelta(hours=1)
     chat_points = count(rules.CHAT_POINTS, "point")
     mess_hours = rules.MESS_LEFT_FOR // timedelta(hours=1)
@@ -160,8 +161,9 @@ def rules_text(
             f"{rules.COAL_EGG_FOOD} of {rules.EGG_FOOD_NEEDED} fed",
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
             "Last Ember, unless he died of neglect",
-            f"・Once, as a Baby or Child: Monster Pox for {sick_hours} h. Bigger "
-            f"Health penalty, he can't die, meals count up to {sick_cap} a day",
+            f"・Once, as a Baby or Child: Monster Pox, {sick_hours} h max, "
+            f"{pox_minutes} min off per meal point. He can't die, meals count up "
+            f"to {sick_cap} a day",
             "",
             "Talking to Wisp",
             "・Mention or reply to him in Wisp's House. Talking earns no bond",

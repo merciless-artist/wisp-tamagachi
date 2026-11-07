@@ -81,6 +81,16 @@ LIGHTS = "> 𝄡 he's asleep: turn the lights off in his House"
 HAPPY = "> 𝄡 happy"
 
 
+def pox_need(track_drop: str) -> str:
+    return (
+        f"> 𝄡 Monster Pox: feed him tracks in {track_drop}: every meal gets him "
+        "better faster"
+    )
+
+
+POX = pox_need(f"<#{TRACKS_ID}>")
+
+
 def stage_line(bold: str) -> str:
     return f"> 𝄡𝄚𝄂・・**life stage**・{bold}・♪‿♪ ♫."
 
@@ -505,6 +515,31 @@ def test_right_now_lists_everything_he_needs_worst_first() -> None:
     assert right_now(card) == [HUNGRY, LONELY, MESS, TANTRUM, LIGHTS]
 
 
+@pytest.mark.parametrize("health", [100.0, 5.0])
+def test_with_monster_pox_right_now_says_feeding_gets_him_better(
+    health: float,
+) -> None:
+    life = alive_life(cold_left=3600.0, health=health)
+
+    card = render_status(life, NOW, FACTS, emoji)
+
+    assert right_now(card) == [POX]
+
+
+def test_a_cold_alone_keeps_the_hungry_line() -> None:
+    life = alive_life(sniffles_left=3600.0, health=5.0)
+
+    assert right_now(render_status(life, NOW, FACTS, emoji)) == [HUNGRY]
+
+
+def test_the_pox_line_without_a_track_drop_names_it_in_words() -> None:
+    life = alive_life(cold_left=3600.0)
+
+    card = render_status(life, NOW, replace(FACTS, tracks_id=None), emoji)
+
+    assert right_now(card) == [pox_need("the track drop")]
+
+
 def test_right_now_without_a_track_drop_names_it_in_words() -> None:
     life = alive_life(health=5.0)
 
@@ -525,7 +560,7 @@ def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
         "> 𝄡𝄚𝄂 he has a cold・2 h left",
         BLANK,
         RIGHT_NOW,
-        HUNGRY,
+        POX,
         NEXT_NAP,
         BLANK,
     ]
@@ -610,7 +645,7 @@ def test_the_fullest_card_fits_one_message() -> None:
     assert "𝐎𝐋𝐃 𝐅𝐎𝐆𝐄𝐘" in card and "Monster Pox" in card
     assert "a cold" in card
     assert card.count("_full:") == 20
-    assert right_now(card) == [MESS, TANTRUM, LIGHTS]
+    assert right_now(card) == [pox_need(f"<#{LONGEST_ID}>"), MESS, TANTRUM, LIGHTS]
     assert text_length(card) <= MESSAGE_LIMIT
 
 
@@ -632,7 +667,7 @@ def test_a_sick_card_needing_everything_fits_one_message() -> None:
 
     assert "Monster Pox" in card and "a cold" in card
     assert right_now(card) == [
-        f"> 𝄡 hungry: drop a track in <#{LONGEST_ID}>",
+        pox_need(f"<#{LONGEST_ID}>"),
         LONELY,
         MESS,
         TANTRUM,

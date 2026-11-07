@@ -154,7 +154,10 @@ while he is an egg, and the buttons keep working after a restart.
 the code), comes once per life, at a random time between day 1 and day 5,
 and only while he is a Baby or Child. A Teen never catches it, so a Wisp who
 skipped those days (a staff stage jump) never has it. He is spotty, itchy and
-feverish. It lasts 48 hours (it carries on if he grows a stage). While sick the
+feverish. It lasts up to 48 hours (it carries on if he grows a stage), and each
+meal point fed while he has it takes 15 minutes off (`POX_HEALED_PER_MEAL_POINT`),
+so the more he is fed the sooner he is better. While he has it the status
+card's Right now block says so, in place of the hungry line. While sick the
 Health penalty is 1.5 times as big, but Health never drops below 1, so he
 cannot die of it; he can still be hangry and fading. Only Monster Pox (not a
 cold) raises each member's daily meal limit from 15 to 30 meal points, room

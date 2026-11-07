@@ -112,6 +112,9 @@ SICK_FOR = timedelta(hours=48)
 SICK_DRAIN_MULTIPLIER = 1.5
 SICK_FULL_FLOOR = 1.0
 SICK_EXTRA_MEAL_CAP = 15
+# Each meal point fed while he has Monster Pox takes POX_HEALED_PER_MEAL_POINT off
+# what is left of it, so the more he is fed the sooner he is better.
+POX_HEALED_PER_MEAL_POINT = timedelta(minutes=15)
 # The picture in ASSETS/moments his sick post and his card show, by stage.
 SICK_PICTURES: Final[dict[Stage, str]] = {
     Stage.BABY: "sick_baby.png",

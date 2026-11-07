@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-07 (Feeding cures Monster Pox faster)
+
+- Every meal point fed while he has Monster Pox takes 15 minutes off it, so a
+  ViiBR track takes off 75 minutes. The more people feed him, the sooner he is
+  better; a meal that ends it posts his "all better" moment straight away.
+- While he has Monster Pox, the status card's right now block says how to help:
+  feed him tracks in the track drop, every meal gets him better faster.
+- The FAQ rules post, the FAQ page, the README and his own sick talk say the
+  same.
+
+### For Myra
+
+- `06_growing_4.png` (already on the list) also needs the new rule: feeding
+  him gets him better faster.
+
 ## 2026-11-06 (Control panel and clarity)
 
 - The Status post is now the control panel: six private buttons (Feed Wisp,

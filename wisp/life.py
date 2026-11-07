@@ -29,6 +29,7 @@ from wisp.rules import (
     MAX_CREDITED_GAP,
     OLD_FOGEY_AT_DAY,
     OLD_FOGEY_HEALTH_PENALTY,
+    POX_HEALED_PER_MEAL_POINT,
     ROCKSTAR_WELLBEING,
     ROCKSTAR_WELLBEING_FOR,
     SICK_DRAIN_MULTIPLIER,
@@ -293,11 +294,27 @@ def age_days(life: Life, now: datetime) -> int:
 
 
 def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Event]:
-    """Feed an egg or a living Wisp; ignored in every other phase."""
+    """Feed an egg or a living Wisp; ignored in every other phase.
+
+    While he has Monster Pox each meal point also takes
+    POX_HEALED_PER_MEAL_POINT off it, and a meal that ends it returns RECOVERED.
+    """
     if life.phase is Phase.EGG:
         return _feed_egg(life, meal_points, feeder_id, now)
+    if life.phase is not Phase.ALIVE:
+        return []
     change_meter(life, Meter.HEALTH, meal_points, ends_stretch=True)
-    return []
+    return _heal_pox(life, meal_points)
+
+
+def _heal_pox(life: Life, meal_points: int) -> list[Event]:
+    if not is_sick(life) or meal_points <= 0:
+        return []
+    healed = meal_points * POX_HEALED_PER_MEAL_POINT.total_seconds()
+    life.cold_left = max(life.cold_left - healed, 0.0)
+    if is_sick(life):
+        return []
+    return [Event(EventKind.RECOVERED, stage=life.stage)]
 
 
 def add_growth(life: Life, points: int) -> None:

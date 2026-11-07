@@ -46,6 +46,7 @@ _CHORE_NEEDS: Final = {
     Chore.TANTRUM: "he's having a tantrum in his House",
     Chore.NAP: "he's asleep: turn the lights off in his House",
 }
+_POX_NEED: Final = "Monster Pox: feed him tracks in"
 _HAPPY: Final = "happy"
 
 _PERCENT_PER_PIECE: Final = 10
@@ -174,7 +175,9 @@ def _right_now(
 ) -> list[str]:
     """The Right now block: what he needs, worst first, then his nap.
 
-    He is hungry while the Health bar shows a percent under the hangry line,
+    While he has Monster Pox the first need says how to get him better, and it
+    stands in for the hungry line, since both ask for tracks. Otherwise he is
+    hungry while the Health bar shows a percent under the hangry line,
     lonely while the Wellbeing bar shows one under the lonely line, so the
     block always agrees with the bars; `health` and `wellbeing` are the bars'
     values from 0 to 100. Then each chore waiting in his House is named; with
@@ -182,9 +185,14 @@ def _right_now(
     else when his next nap starts.
     """
     track_drop = channel_or("the track drop", facts.tracks_id)
-    hungry = [f"hungry: drop a track in {track_drop}"]
+    if is_sick(life):
+        food = [f"{_POX_NEED} {track_drop}: every meal gets him better faster"]
+    elif _shown_percent(health) < HANGRY_BELOW:
+        food = [f"hungry: drop a track in {track_drop}"]
+    else:
+        food = []
     needs = [
-        *(hungry if _shown_percent(health) < HANGRY_BELOW else []),
+        *food,
         *([_LONELY] if _shown_percent(wellbeing) < LONELY_BELOW else []),
         *(need for chore, need in _CHORE_NEEDS.items() if is_open(life, chore)),
     ]
