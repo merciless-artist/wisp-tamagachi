@@ -12,7 +12,7 @@ are posted at the bottom of the thread and the old pair is deleted.
 
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -41,10 +41,10 @@ def _open(name: str) -> discord.File | None:
     return None if path is None else discord.File(path)
 
 
-def art_file(name: str) -> dict[str, Any]:
-    """The keyword that attaches the picture `name` to a send, if there is one."""
-    picture = _open(name)
-    return {} if picture is None else {"file": picture}
+def _close(*pictures: discord.File | None) -> None:
+    for picture in pictures:
+        if picture is not None:
+            picture.close()
 
 
 async def send_headed(
@@ -52,11 +52,16 @@ async def send_headed(
 ) -> None:
     """Send the `header` picture on its own, then `text` with the footer under it.
 
-    `kwargs` go with the text. A missing picture is left out.
+    `kwargs` go with the text. A missing picture is left out. Both pictures
+    are closed once sent, or once a send failed.
     """
-    if top := art_file(header):
-        await send(**top)
-    await send(text, **kwargs, **art_file(FOOTER))
+    top, bottom = _open(header), _open(FOOTER)
+    try:
+        if top is not None:
+            await send(file=top)
+        await send(text, **kwargs, **({} if bottom is None else {"file": bottom}))
+    finally:
+        _close(top, bottom)
 
 
 # ---
@@ -71,9 +76,17 @@ def gallery(name: str) -> discord.ui.MediaGallery[Any] | None:
     return discord.ui.MediaGallery(discord.MediaGalleryItem(f"attachment://{name}"))
 
 
-def gallery_files(*names: str) -> list[discord.File]:
-    """The files a layout's galleries of `names` show, leaving out missing ones."""
-    return [discord.File(path) for name in names if (path := art(name)) is not None]
+@contextlib.contextmanager
+def gallery_files(*names: str) -> Iterator[list[discord.File]]:
+    """The files a layout's galleries of `names` show, leaving out missing ones.
+
+    They are closed when the block ends, after the send or its failure.
+    """
+    files = [discord.File(path) for name in names if (path := art(name)) is not None]
+    try:
+        yield files
+    finally:
+        _close(*files)
 
 
 # ---
@@ -245,9 +258,7 @@ async def _post_headed(
                     await title.delete()
             raise
     finally:
-        for picture in pictures:
-            if picture is not None:
-                picture.close()
+        _close(*pictures)
     await bot.settings.update(
         guild_id,
         **{

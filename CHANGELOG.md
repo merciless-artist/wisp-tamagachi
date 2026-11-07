@@ -62,6 +62,11 @@
   in `wisp/rules.py`.
 - `requirements.txt` pins `aiohttp==3.14.5` and `yarl==1.25.1`, the versions
   installed (both are imported directly).
+- Every picture file the bot opens is closed once its send or edit is done
+  or has failed: header pictures (`send_headed`, which drops `art_file`), the
+  Vault's gallery files (`gallery_files` is now a context manager), the
+  magazine cover, every FAQ picture, and the Studio thumbnails on creating a
+  thread, adding a thumbnail and updating a first post.
 
 ## 2026-11-06 (The Status post is the control panel)
 

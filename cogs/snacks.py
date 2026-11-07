@@ -847,7 +847,7 @@ async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) ->
     The purchase is made under the guild lock. The Vault is shown again under
     the result, or under the reason it was refused; the picture follows only
     to the buyer. A picture that cannot be sent is reported where it happened,
-    and the purchase stands.
+    and the purchase stands. Its file is closed once sent or failed.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -866,9 +866,11 @@ async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) ->
         "confirming a magazine (the purchase went through)",
     )
     try:
-        await interaction.followup.send(
-            file=discord.File(cover_art(magazine)), ephemeral=True
-        )
+        cover = discord.File(cover_art(magazine))
+        try:
+            await interaction.followup.send(file=cover, ephemeral=True)
+        finally:
+            cover.close()
     except (discord.HTTPException, OSError) as error:
         await report_failure(
             interaction,
@@ -1047,20 +1049,22 @@ async def _open_vault(interaction: discord.Interaction) -> None:
 
     Every private menu is a follow-up sent with `wait`, so discord.py files
     its view under the menu's own message id, never under the key it shares
-    with the persistent buttons.
+    with the persistent buttons. The header and footer files are closed once
+    the Vault is sent or has failed.
     """
     if not await _admit(interaction):
         return
     vault = await _vault(
         bot_of(interaction), require_guild(interaction), interaction.user.id
     )
-    await interaction.followup.send(
-        view=vault,
-        files=gallery_files(_VAULT_HEADER, FOOTER),
-        ephemeral=True,
-        allowed_mentions=_NO_PING,
-        wait=True,
-    )
+    with gallery_files(_VAULT_HEADER, FOOTER) as pictures:
+        await interaction.followup.send(
+            view=vault,
+            files=pictures,
+            ephemeral=True,
+            allowed_mentions=_NO_PING,
+            wait=True,
+        )
 
 
 async def _open_snack_pack(interaction: discord.Interaction) -> None:

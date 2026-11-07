@@ -2167,3 +2167,128 @@ def test_rules_text_numbers_come_from_the_rules(
     for number in (109, 127, 160):
         assert str(number) in text, number
     assert "permanent" in text
+
+
+# ---
+# Picture files are closed
+# ---
+
+
+def vault_spec() -> studio.StudioThread:
+    return next(spec for spec in studio.STUDIO_THREADS if spec.name == VAULT)
+
+
+def kept_files(mock: AsyncMock, field: str) -> list[discord.File]:
+    """The files each call to `mock` was given in `field`, a file or a list."""
+    files: list[discord.File] = []
+    for call in mock.await_args_list:
+        given = call.kwargs.get(field)
+        files.extend(given if isinstance(given, list) else [given] if given else [])
+    return files
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_a_new_threads_thumbnail_is_closed_after_creating_it(
+    bot: app.WispBot, art_dir: Path, fails: bool
+) -> None:
+    add_thumbnails(art_dir)
+    forum = MagicMock(spec=discord.ForumChannel)
+    forum.guild = MagicMock(spec=discord.Guild, id=GUILD_ID)
+    created = MagicMock()
+    created.thread.id = 7001
+    created.message.id = 7002
+    forum.create_thread = AsyncMock(
+        side_effect=(
+            discord.HTTPException(MagicMock(status=500), "boom") if fails else None
+        ),
+        return_value=created,
+    )
+
+    if fails:
+        with pytest.raises(discord.HTTPException):
+            await studio._create_thread(bot, forum, vault_spec())
+    else:
+        await studio._create_thread(bot, forum, vault_spec())
+
+    (thumbnail,) = kept_files(forum.create_thread, "file")
+    assert thumbnail.filename == "vault.png"
+    assert thumbnail.fp.closed
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_an_added_thumbnail_is_closed_after_the_edit(
+    bot: app.WispBot, art_dir: Path, fails: bool
+) -> None:
+    add_thumbnails(art_dir)
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    starter = MagicMock(spec=discord.Message)
+    starter.attachments = []
+    starter.edit = AsyncMock(
+        side_effect=(
+            discord.HTTPException(MagicMock(status=500), "boom") if fails else None
+        )
+    )
+    thread = MagicMock(spec=discord.Thread)
+    thread.fetch_message = AsyncMock(return_value=starter)
+
+    await studio._add_thumbnail(
+        bot, MagicMock(spec=discord.Guild), thread, vault_spec()
+    )
+
+    (thumbnail,) = kept_files(starter.edit, "attachments")
+    assert thumbnail.fp.closed
+    assert bot.report_error.await_count == (1 if fails else 0)
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_an_updated_first_post_closes_its_picture(
+    bot: app.WispBot, art_dir: Path, fails: bool
+) -> None:
+    add_thumbnails(art_dir)
+    bot.report_error = AsyncMock()  # type: ignore[method-assign]
+    starter = MagicMock(spec=discord.Message)
+    starter.content = "an older first post"
+    starter.edit = AsyncMock(
+        side_effect=(
+            discord.HTTPException(MagicMock(status=500), "boom") if fails else None
+        )
+    )
+    thread = MagicMock(spec=discord.Thread)
+    thread.fetch_message = AsyncMock(return_value=starter)
+
+    await studio._update_starter(
+        bot, MagicMock(spec=discord.Guild), thread, vault_spec()
+    )
+
+    (thumbnail,) = kept_files(starter.edit, "attachments")
+    assert thumbnail.fp.closed
+    assert bot.report_error.await_count == (1 if fails else 0)
+
+
+@pytest.mark.parametrize("failing", [None, 0, 3])
+async def test_every_faq_picture_is_closed_after_its_post(
+    bot: app.WispBot, failing: int | None
+) -> None:
+    thread = MagicMock(spec=discord.Thread)
+    thread.id = 4242
+    posts = 0
+
+    async def send(*_args: Any, **_kwargs: Any) -> MagicMock:
+        nonlocal posts
+        posts += 1
+        if posts - 1 == failing:
+            raise discord.HTTPException(MagicMock(status=500), "boom")
+        return MagicMock(spec=discord.Message, id=5000 + posts)
+
+    thread.send = AsyncMock(side_effect=send)
+    thread.get_partial_message.return_value.edit = AsyncMock()
+
+    if failing is None:
+        await faq.fill_faq(bot, GUILD_ID, thread, "the rules")
+    else:
+        with pytest.raises(discord.HTTPException):
+            await faq.fill_faq(bot, GUILD_ID, thread, "the rules")
+
+    pictures = kept_files(thread.send, "file")
+    assert len(pictures) == (len(FAQ_PICTURES) if failing is None else failing + 1)
+    assert all(picture.fp.closed for picture in pictures)

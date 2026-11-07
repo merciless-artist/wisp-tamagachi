@@ -93,7 +93,8 @@ async def fill_faq(
     pictures, whether one per section or one per question, and rules post, as
     stored, are deleted first; the thread's first post never is. What was
     posted is stored even when posting stops part way, so the next setup or
-    !wisp faq clears it.
+    !wisp faq clears it. Each picture's file is closed once its post is sent
+    or has failed.
 
     Raises:
         FileNotFoundError: A picture is missing; nothing has changed.
@@ -111,9 +112,11 @@ async def fill_faq(
     stored: dict[str, Any] = {}
     try:
         for picture in pictures:
-            posted = await thread.send(
-                file=discord.File(picture), allowed_mentions=_NO_PING
-            )
+            art = discord.File(picture)
+            try:
+                posted = await thread.send(file=art, allowed_mentions=_NO_PING)
+            finally:
+                art.close()
             picture_ids.append(posted.id)
         stored["rules_message_id"] = (
             await thread.send(rules, allowed_mentions=_NO_PING)

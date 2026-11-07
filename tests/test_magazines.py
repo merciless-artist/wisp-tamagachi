@@ -352,7 +352,7 @@ async def test_buying_a_cover_spends_records_and_sends_the_picture_privately(
     assert call.kwargs["ephemeral"] is True
     (picture,) = sent_files(interaction)
     assert picture.filename == "viibrations_cover.jpg"
-    picture.close()
+    assert picture.fp.closed
     select = magazine_select(
         layout_selects(interaction.edit_original_response.await_args.kwargs["view"])
     )
@@ -501,6 +501,31 @@ async def test_the_next_rockstar_life_sells_the_covers_again(
     for picture in sent_files(interaction):
         picture.close()
     assert await balance(bot) == 800
+
+
+async def test_a_cover_whose_send_fails_is_closed_and_reported(
+    bot: app.WispBot, guild: MagicMock
+) -> None:
+    await lay(bot)
+    await rich(bot, points=100)
+    _, _, selects = await open_vault(bot, guild)
+    select = magazine_select(selects)
+    assert select is not None
+    select._values = ["viibrations"]
+    interaction = make_interaction(bot, guild)
+    interaction.followup.send.side_effect = discord.HTTPException(
+        MagicMock(status=500), "boom"
+    )
+
+    await select.callback(interaction)
+
+    (picture,) = sent_files(interaction)
+    assert picture.fp.closed
+    report = cast(AsyncMock, bot.report_error).await_args
+    assert report is not None
+    assert report.args[1] == (
+        "sending the VIIBRATIONS cover picture (the purchase went through)"
+    )
 
 
 async def test_a_picture_that_cannot_be_sent_is_reported_and_the_purchase_stands(

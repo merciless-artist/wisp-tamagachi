@@ -478,6 +478,22 @@ async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
     assert isinstance(header, discord.ui.MediaGallery)
 
 
+async def test_a_vault_that_cannot_be_sent_still_closes_its_pictures(
+    bot: app.WispBot,
+) -> None:
+    interaction = make_interaction(bot)
+    interaction.followup.send.side_effect = discord.HTTPException(
+        MagicMock(status=500), "boom"
+    )
+
+    with pytest.raises(discord.HTTPException):
+        await vault_command(interaction)
+
+    files = interaction.followup.send.await_args.kwargs["files"]
+    assert [file.filename for file in files] == ["vault_title.png", "box_footer.png"]
+    assert all(file.fp.closed for file in files)
+
+
 async def test_the_vault_opens_with_myras_header_and_closes_with_her_footer(
     bot: app.WispBot,
 ) -> None:
@@ -488,6 +504,7 @@ async def test_the_vault_opens_with_myras_header_and_closes_with_her_footer(
         "vault_title.png",
         "box_footer.png",
     ]
+    assert all(file.fp.closed for file in call.kwargs["files"])
     children = call.kwargs["view"].children
     header, footer = children[0], children[-1]
     assert isinstance(header, discord.ui.MediaGallery)

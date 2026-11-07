@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Final
+from typing import TYPE_CHECKING, Annotated, Final
 from urllib.parse import urlsplit
 
 import discord
@@ -323,16 +323,22 @@ async def _show_as_gallery(bot: "WispBot", forum: discord.ForumChannel) -> None:
 async def _create_thread(
     bot: "WispBot", forum: discord.ForumChannel, spec: StudioThread
 ) -> tuple[discord.Thread, int]:
-    """Create one Studio thread and remember it; return it and its first message id."""
-    art: dict[str, Any] = {}
-    if (path := _thumbnail(spec)) is not None:
-        art["file"] = discord.File(path)
-    created = await forum.create_thread(
-        name=spec.name,
-        content=spec.content,
-        auto_archive_duration=rules.STUDIO_THREAD_ARCHIVE_MINUTES,
-        **art,
-    )
+    """Create one Studio thread and remember it; return it and its first message id.
+
+    The thumbnail's file is closed once the thread is made, or has failed.
+    """
+    path = _thumbnail(spec)
+    thumbnail = None if path is None else discord.File(path)
+    try:
+        created = await forum.create_thread(
+            name=spec.name,
+            content=spec.content,
+            auto_archive_duration=rules.STUDIO_THREAD_ARCHIVE_MINUTES,
+            **art_kwargs("file", thumbnail),
+        )
+    finally:
+        if thumbnail is not None:
+            thumbnail.close()
     values = {spec.attr: created.thread.id}
     if spec.message_attr is not None:
         values[spec.message_attr] = created.message.id
@@ -395,14 +401,18 @@ async def _add_thumbnail(
     """Give the thread's first post its picture when it has no attachment yet.
 
     A forum thread's first post has the thread's id. A post that is gone is
-    left alone.
+    left alone. The picture's file is closed once the edit is done or failed.
     """
     if (path := _thumbnail(spec)) is None:
         return
     try:
         starter = await thread.fetch_message(thread.id)
         if not starter.attachments:
-            await starter.edit(attachments=[discord.File(path)])
+            thumbnail = discord.File(path)
+            try:
+                await starter.edit(attachments=[thumbnail])
+            finally:
+                thumbnail.close()
     except discord.NotFound:
         return
     except discord.HTTPException as error:
@@ -417,16 +427,24 @@ async def _update_starter(
     """Edit the thread's first post to `spec.content` when its text differs.
 
     The edit brings the post's picture up to date with it. A first post that
-    is gone is left alone; a failed edit is posted in the thread.
+    is gone is left alone; a failed edit is posted in the thread. The
+    picture's file is closed once the edit is done or failed.
     """
     try:
         starter = await thread.fetch_message(thread.id)
         if starter.content == spec.content:
             return
-        art: dict[str, Any] = {}
-        if (path := _thumbnail(spec)) is not None:
-            art["attachments"] = [discord.File(path)]
-        await starter.edit(content=spec.content, allowed_mentions=_NO_PING, **art)
+        path = _thumbnail(spec)
+        thumbnail = None if path is None else discord.File(path)
+        try:
+            await starter.edit(
+                content=spec.content,
+                allowed_mentions=_NO_PING,
+                **art_kwargs("attachments", thumbnail),
+            )
+        finally:
+            if thumbnail is not None:
+                thumbnail.close()
     except discord.NotFound:
         return
     except discord.HTTPException as error:
