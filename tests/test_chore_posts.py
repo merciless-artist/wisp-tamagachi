@@ -54,7 +54,10 @@ FIRST_POST_ID = 9000
 POST_TEXT = "a chore post"
 NO_PING = discord.AllowedMentions.none().to_dict()
 ALREADY_DONE = "♪ Someone already took care of that."
-NO_ROLE = "♪ You can't take care of Wisp: you don't have a role that can feed Wisp."
+NO_ROLE = (
+    "♪ You can't take care of Wisp: you don't have a role that can feed Wisp: "
+    f"<@&{QUALIFYING_ROLE}>."
+)
 NOT_OPENED = "♪ You can't take care of Wisp: you haven't opened /wisp board yet."
 BANNED = "♪ You can't take care of Wisp: you are banned from feeding Wisp right now."
 FROZEN = "♪ Wisp is frozen right now, so nothing can change until staff unfreeze him."

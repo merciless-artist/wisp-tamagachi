@@ -103,6 +103,7 @@ from wisp.rules import (
     PAID_SNACKS,
     SNACK_BY_KEY,
     SNACKS,
+    VAULT_WIDTH,
     WELLBEING_PER_SNACK,
     Badge,
     Gift,
@@ -151,8 +152,6 @@ _NONE_YET: Final = item("none yet")
 _NOTHING_SAVED: Final = item("nothing saved yet")
 _VAULT_HEADER: Final = "vault_title.png"
 _PACK_HEADER: Final = "snack_pack_title.png"
-# Wide enough for the widest badge row, from its name and padding to its price.
-VAULT_WIDTH: Final = 24
 _VAULT_CONTEXT: Final = "the ViiBR Vault menu"
 # Spaces after each snack's name in the Vault, tuned by Myra so the │ line up.
 _VAULT_PADDING: Final[dict[str, int]] = {
@@ -239,7 +238,7 @@ async def _admit(interaction: discord.Interaction, *, feeding: bool = False) -> 
         banned = await _is_banned(bot, guild_id, interaction.user.id)
         blocker = Blocker.BANNED if banned else None
     if blocker is not None:
-        await say_privately(interaction, refusal_text(blocker))
+        await say_privately(interaction, await refusal_text(bot, guild_id, blocker))
         return False
     return True
 
@@ -744,7 +743,9 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
     await interaction.response.defer()
     if not isinstance(user, discord.Member) or guild is None:
         await _confirm(
-            interaction, refusal_text(Blocker.NO_ROLE), "showing a refused badge"
+            interaction,
+            await refusal_text(bot, guild_id, Blocker.NO_ROLE),
+            "showing a refused badge",
         )
         return
     role = await badge_role(bot, guild, badge)

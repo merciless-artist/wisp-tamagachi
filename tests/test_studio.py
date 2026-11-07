@@ -1705,24 +1705,27 @@ async def test_studio_thread_rejects_an_unknown_setting(
 # ---
 
 
-async def test_roles_add_list_remove(bot: app.WispBot, server: FakeServer) -> None:
+async def test_roles_add_list_remove(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(feeding, "refresh_rules", AsyncMock())
     ctx = make_ctx(server, bot)
-    await invoke(studio.roles_list, ctx)
+    await invoke(feeding.roles_list, ctx)
     assert "No qualifying roles" in sent_text(ctx)
 
     for role_id in (7, 5, 7):
         ctx = make_ctx(server, bot)
-        await invoke(studio.roles_add, ctx, make_role(role_id))
+        await invoke(feeding.roles_add, ctx, make_role(role_id))
         assert f"<@&{role_id}>" in sent_text(ctx)
     assert await bot.settings.roles(GUILD_ID) == {5, 7}
 
     ctx = make_ctx(server, bot)
-    await invoke(studio.roles_list, ctx)
+    await invoke(feeding.roles_list, ctx)
     listed = sent_text(ctx)
     assert listed.index("<@&5>") < listed.index("<@&7>")
 
     ctx = make_ctx(server, bot)
-    await invoke(studio.roles_remove, ctx, make_role(5))
+    await invoke(feeding.roles_remove, ctx, make_role(5))
     assert "<@&5>" in sent_text(ctx)
     assert await bot.settings.roles(GUILD_ID) == {7}
 
@@ -1750,12 +1753,12 @@ async def test_freezing_says_meters_and_chores_pause(
     ctx = make_ctx(server, bot)
     await invoke(studio.freeze, ctx)
     assert sent_text(ctx) == (
-        "♪ Wisp is frozen. His meters and chores pause until you unfreeze him."
+        "♪ Wisp is frozen. His meters, chores and age pause until you unfreeze him."
     )
 
     ctx = make_ctx(server, bot)
     await invoke(studio.unfreeze, ctx)
-    assert sent_text(ctx) == "♪ Wisp is unfrozen. His meters and chores run again."
+    assert sent_text(ctx) == "♪ Wisp is unfrozen. His meters, chores and age run again."
 
 
 # ---
@@ -1795,10 +1798,46 @@ async def test_the_studio_commands_join_the_bot(bot: app.WispBot) -> None:
     assert bot.get_command("unfreeze") is studio.unfreeze
     assert bot.get_command("eggs") is None
     assert bot.get_command("faq") is studio.rebuild_faq
-    assert bot.get_command("roles") is studio.roles
-    assert bot.get_command("roles add") is studio.roles_add
-    assert bot.get_command("roles remove") is studio.roles_remove
-    assert bot.get_command("roles list") is studio.roles_list
+    assert bot.get_command("roles") is None
+
+
+async def test_the_feeding_role_commands_join_the_bot(bot: app.WispBot) -> None:
+    await feeding.setup(bot)
+
+    assert bot.get_command("roles") is feeding.roles
+    assert bot.get_command("roles add") is feeding.roles_add
+    assert bot.get_command("roles remove") is feeding.roles_remove
+    assert bot.get_command("roles list") is feeding.roles_list
+
+
+@pytest.mark.parametrize("command", ["roles_add", "roles_remove"])
+async def test_changing_the_feeding_roles_updates_the_rules_post(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    refresh = AsyncMock()
+    monkeypatch.setattr(feeding, "refresh_rules", refresh)
+
+    await invoke(getattr(feeding, command), make_ctx(server, bot), make_role(5))
+
+    refresh.assert_awaited_once_with(bot, GUILD_ID)
+
+
+async def test_the_rules_post_names_the_feeding_roles(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.add_role(GUILD_ID, 7)
+    await bot.settings.add_role(GUILD_ID, 5)
+    tracks = make_channel(discord.TextChannel, TRACKS_ID)
+
+    await run_setup(bot, server, tracks)
+
+    *_sections, posted = server.live_posts(server.thread_named(FAQ))
+    assert posted.content == rules_text(rules.MEAL_POINTS, {5, 7})
+    assert "・Anyone with <@&5> or <@&7> who opened /wisp board" in posted.content
+    assert sends_without_pinging(posted.sent_kwargs)
 
 
 def test_studio_is_a_loaded_extension() -> None:
@@ -1881,10 +1920,36 @@ def test_rules_text_fits_with_every_number_at_four_digits(
         rules, "BAN_LADDER", (timedelta(days=9999), timedelta(days=9999), None)
     )
 
-    text = rules_text({kind: 9999 for kind in TrackKind})
+    many_roles = [10**19 + index for index in range(10)]
+    text = rules_text({kind: 9999 for kind in TrackKind}, many_roles)
 
     assert "9999" in text
+    assert "or 8 more" in text
     assert text_length(text) < MESSAGE_LIMIT
+
+
+def test_rules_text_fits_with_many_long_feeding_roles() -> None:
+    biggest = {kind: rules.MEAL_POINTS_MAX for kind in TrackKind}
+    for roles_set in range(0, 12):
+        roles = [10**19 + index for index in range(roles_set)]
+        assert text_length(rules_text(biggest, roles)) < MESSAGE_LIMIT
+
+
+@pytest.mark.parametrize(
+    ("roles", "line"),
+    [
+        ((), "・Anyone with a role that can feed Wisp who opened /wisp board"),
+        ((7,), "・Anyone with <@&7> who opened /wisp board"),
+        ((9, 7), "・Anyone with <@&7> or <@&9> who opened /wisp board"),
+        ((9, 7, 8), "・Anyone with <@&7>, <@&8> or 1 more who opened /wisp board"),
+    ],
+)
+def test_rules_text_names_the_feeding_roles(roles: tuple[int, ...], line: str) -> None:
+    text = rules_text(rules.MEAL_POINTS, roles)
+
+    section = text.split("\nWho can feed him and earn points\n")[1].split("\n\n")[0]
+    assert section == line
+    assert "Active Lounger" not in text
 
 
 def test_rules_text_shows_the_food_values_it_is_given() -> None:
@@ -2000,7 +2065,8 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
 
     assert "・Your meals and snacks count up to 20 points a day" in text
     pox = next(line for line in text.split("\n") if "Monster Pox" in line)
-    assert "Once before Adult" in pox
+    assert pox.startswith("・Once, as a Baby or Child: Monster Pox")
+    assert "before Adult" not in pox
     assert "Monster Pox for 36 h" in pox
     assert "Bigger Health penalty" in pox
     assert "faster drain" not in pox.lower()
@@ -2046,7 +2112,7 @@ def test_rules_text_explains_gifts_with_numbers_from_the_rules(
 def test_rules_text_covers_every_topic() -> None:
     text = rules_text(rules.MEAL_POINTS)
     for phrase in (
-        "Active Lounger or higher",
+        "a role that can feed Wisp",
         "/wisp board",
         "Suno",
         "viibrmusic.com",

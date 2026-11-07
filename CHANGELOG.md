@@ -38,6 +38,30 @@
   new `frozen_seconds` column (additive, default 0), and `age_days` and the
   Monster Pox due time leave it out (`own_time`), so stage days, Old Fogey,
   farewell and Pox all wait out a freeze. A staff stage jump forgets it.
+- A refusal for a missing feeding role names the server's feeding roles as
+  role mentions (pinging nobody): `you don't have a role that can feed Wisp:
+  <@&1> or <@&2>.`, at most `FEEDING_ROLES_SHOWN` (2) then "or N more", and
+  the old sentence when none is set. The rules post does the same in "Who
+  can feed him" and says Pox comes "Once, as a Baby or Child". `!wisp roles
+  add|remove|list` moved to `cogs/feeding.py` next to `!wisp food`, so adding
+  or removing a role brings the rules post up to date. Worst case measured:
+  1,907 UTF-16 units with the real numbers, both foods at 50 and ten 20-digit
+  role ids (1,988 with every number at four digits); a few lines were
+  shortened to make room ("Links posted in the track drop:", "Each link
+  feeds him once, for leaderboard points", "Old Fogey at day 24. At day 30
+  he passes on; his coal is a new egg, 5 of 20 fed", and the intro without
+  "Neglected, he fades.").
+- Lonely lines and the lonely AI layer ask for what fills Wellbeing: chat,
+  play (duels), pokes, snacks and gifts, never cleanups.
+- `!wisp freeze` and `!wisp unfreeze` say his age pauses too.
+- Error reports are cut to 2,000 UTF-16 units with `clip` (a report full of
+  characters outside the BMP no longer fails to post).
+- `!wisp song` whose words and link come to more than 2,000 units is refused
+  with the usage line and the limit, and the command message is kept.
+- `STUDIO_THREAD_ARCHIVE_MINUTES`, `PUNISH_REASON_MAX` and `VAULT_WIDTH` live
+  in `wisp/rules.py`.
+- `requirements.txt` pins `aiohttp==3.14.5` and `yarl==1.25.1`, the versions
+  installed (both are imported directly).
 
 ## 2026-11-06 (The Status post is the control panel)
 

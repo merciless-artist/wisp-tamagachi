@@ -209,6 +209,9 @@ def test_lonely_mood_reaches_the_prompt() -> None:
     lonely = prompt_for(mood=Mood.LONELY).system
     assert "You're lonely right now" in lonely and "grumpy" in lonely
     assert "never blame" in lonely
+    for fills_wellbeing in ("chatted", "played", "poked", "snack", "gift"):
+        assert fills_wellbeing in lonely, fills_wellbeing
+    assert "clean" not in lonely
     assert "You're starving" not in lonely
     for mood in (Mood.HAPPY, Mood.HANGRY):
         assert "lonely" not in prompt_for(mood=mood).system

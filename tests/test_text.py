@@ -11,6 +11,7 @@ from wisp.text import (
     SEPARATOR,
     USER_ERROR,
     WIDTHS,
+    any_role,
     box_bottom,
     box_room,
     box_top,
@@ -344,3 +345,25 @@ def test_strip_emoji_keeps_the_flair() -> None:
 
 def test_the_member_is_told_where_the_error_is() -> None:
     assert USER_ERROR == "That didn't work. The error is posted in this channel."
+
+
+# ---
+# Roles
+# ---
+
+
+@pytest.mark.parametrize(
+    ("role_ids", "named"),
+    [
+        ((), ""),
+        ((7,), "<@&7>"),
+        ((9, 7), "<@&7> or <@&9>"),
+        ((9, 7, 8), "<@&7>, <@&8> or <@&9>"),
+        ((9, 7, 8, 6), "<@&6>, <@&7>, <@&8> or 1 more"),
+        ((5, 9, 7, 8, 6), "<@&5>, <@&6>, <@&7> or 2 more"),
+    ],
+)
+def test_any_role_names_the_roles_lowest_id_first(
+    role_ids: tuple[int, ...], named: str
+) -> None:
+    assert any_role(role_ids, 3) == named

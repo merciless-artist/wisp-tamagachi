@@ -178,6 +178,15 @@ def test_the_lonely_moment_has_its_own_lines() -> None:
     assert not set(lines) & others
 
 
+def test_the_lonely_lines_ask_for_what_fills_wellbeing() -> None:
+    """Chats, play, pokes, snacks and gifts fill Wellbeing; a cleanup does not."""
+    lines = " ".join(LINES[(Moment.LONELY, Mood.HAPPY)]).lower()
+    for asks in ("chat", "duel", "poke", "snack", "gift"):
+        assert asks in lines, asks
+    for never in ("clean", "mess"):
+        assert never not in lines, never
+
+
 @pytest.mark.parametrize("moment", [Moment.SICK, Moment.RECOVERED])
 def test_the_monster_pox_moments_have_about_eight_lines(moment: Moment) -> None:
     assert FIELDS[moment] == set()

@@ -17,7 +17,6 @@ import app
 from cogs import gifts, snacks
 from cogs.assets import asset_image
 from cogs.gifts import Gifts
-from cogs.snacks import VAULT_WIDTH
 from cogs.wisp_lunchbox import lunchbox_text
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
@@ -34,7 +33,7 @@ from wisp import rules
 from wisp.gifts import GiftState, Outcome, decide, like_chance, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
-from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
+from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, VAULT_WIDTH, Stage
 from wisp.text import (
     BLANK,
     LAYOUT_TEXT_LIMIT,
@@ -861,7 +860,8 @@ async def test_members_who_cannot_feed_cannot_give(
     interaction = await give(bot, "alien_blue", roles=())
 
     assert edited(interaction).startswith(
-        "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+        "♪ Wisp can't take that from you: you don't have a role that can feed "
+        f"Wisp: <@&{QUALIFYING_ROLE}>."
     )
     assert await balance(bot) == 100
     server.house.send.assert_not_awaited()

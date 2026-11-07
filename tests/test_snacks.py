@@ -68,7 +68,10 @@ USER_ID = 1
 OTHER_USER_ID = 2
 NEWCOMER_ID = 3
 QUALIFYING_ROLE = 7
-NO_ROLE = "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+NO_ROLE = (
+    "♪ Wisp can't take that from you: you don't have a role that can feed Wisp: "
+    f"<@&{QUALIFYING_ROLE}>."
+)
 NOT_OPENED = "♪ Wisp can't take that from you: you haven't opened /wisp board yet."
 SPEC_LINES = frozenset(
     (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")

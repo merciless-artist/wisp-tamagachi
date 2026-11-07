@@ -304,11 +304,11 @@ _BABY_HANGRY: Final = (
 )
 
 _LONELY: Final = (
-    "You're lonely right now. Nobody has played a Rhyme Duel with you or "
-    "brought you a gift in a while, so you feel left out and a bit grumpy "
-    "about it. You can sulk and say you miss everyone, but you never blame "
-    "or guilt-trip anyone, and you perk up as soon as someone spends time "
-    "with you."
+    "You're lonely right now. Nobody has chatted with you, played with you, "
+    "poked you or brought you a snack or a gift in a while, so you feel left "
+    "out and a bit grumpy about it. You can sulk, say you miss everyone and "
+    "ask for any of those, but you never blame or guilt-trip anyone, and you "
+    "perk up as soon as someone spends time with you."
 )
 
 _BABY_LONELY: Final = (

@@ -10,13 +10,12 @@ from cogs.announce import say_in_house
 from cogs.staff import StaffContext, guild_of, reply
 from wisp.life import is_over
 from wisp.lines import Moment
-from wisp.rules import BAN_LADDER
+from wisp.rules import BAN_LADDER, PUNISH_REASON_MAX
 from wisp.text import count
 
 if TYPE_CHECKING:
     from app import WispBot
 
-_REASON_MAX: Final = 500
 _MAX_POINTS: Final = 2**31 - 1
 
 # ---
@@ -48,7 +47,7 @@ async def punish(
     ctx: StaffContext,
     member: discord.Member,
     *,
-    reason: commands.Range[str, 1, _REASON_MAX],
+    reason: commands.Range[str, 1, PUNISH_REASON_MAX],
 ) -> None:
     """Give the member their next offense and the ban that goes with it.
 

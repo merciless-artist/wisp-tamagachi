@@ -465,7 +465,9 @@ async def test_food_command_saves_the_values_and_updates_the_rules_post(
     settings = await bot.settings.get(GUILD_ID)
     assert (settings.viibr_meal_points, settings.suno_meal_points) == (12, 1)
     server.rules.get_partial_message.assert_called_once_with(RULES_MESSAGE_ID)
-    expected = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    roles = await bot.settings.roles(GUILD_ID)
+    assert roles
+    expected = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1}, roles)
     assert server.rules_edit.await_args.kwargs["content"] == expected
     ctx.channel.send.assert_awaited_once()
     assert ctx.channel.send.await_args.args == (

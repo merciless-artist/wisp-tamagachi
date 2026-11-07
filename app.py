@@ -42,7 +42,7 @@ from db.players import PlayerRepo
 from db.schema import create_tables
 from db.settings import SettingsRepo
 from wisp.lines import LinePicker
-from wisp.text import MESSAGE_LIMIT, USER_ERROR
+from wisp.text import MESSAGE_LIMIT, USER_ERROR, clip
 
 log = logging.getLogger("wisp")
 
@@ -432,8 +432,8 @@ class WispBot(commands.Bot):
 
 
 def _report_line(context: str, error: BaseException) -> str:
-    """The plain error report, cut to one message."""
-    return f"Error in {context}: {type(error).__name__}: {error}"[:MESSAGE_LIMIT]
+    """The plain error report, cut to one message by `text_length`."""
+    return clip(f"Error in {context}: {type(error).__name__}: {error}", MESSAGE_LIMIT)
 
 
 # ---

@@ -54,7 +54,10 @@ OTHER_USER_ID = 2
 LEFT_USER_ID = 3
 QUALIFYING_ROLE = 7
 NO_PING = discord.AllowedMentions.none().to_dict()
-NO_ROLE = "♪ Wisp can't take that from you: you don't have a role that can feed Wisp."
+NO_ROLE = (
+    "♪ Wisp can't take that from you: you don't have a role that can feed Wisp: "
+    f"<@&{QUALIFYING_ROLE}>."
+)
 BANDMATE_BOND = BOND_TIERS[-1][1]
 EMOJI = "[🀀-🿿☀-♩♫-➿️]"
 

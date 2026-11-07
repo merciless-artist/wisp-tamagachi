@@ -900,7 +900,7 @@ async def test_a_duel_past_the_daily_limit_says_so(
 @pytest.mark.parametrize(
     ("roles", "activated", "reason"),
     [
-        ((), True, "you don't have a role that can feed Wisp."),
+        ((), True, f"you don't have a role that can feed Wisp: <@&{QUALIFYING_ROLE}>."),
         ((QUALIFYING_ROLE,), False, "you haven't opened /wisp board yet."),
     ],
 )

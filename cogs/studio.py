@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -25,7 +25,7 @@ from db.settings import Settings, meal_points
 from wisp import rules
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import SEPARATOR, count
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, any_role, count, text_length
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 log = logging.getLogger("wisp")
 _NO_PING: Final = discord.AllowedMentions.none()
 _LINK_SCHEMES: Final = frozenset({"http", "https"})
-_ARCHIVE_AFTER_MINUTES: Final = 10080
 _NUMBER_WORDS: Final = (
     "zero",
     "one",
@@ -77,12 +76,18 @@ def _ban_line() -> str:
     return f"・Offenses: banned {', then '.join(steps)}"
 
 
-def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
+def rules_text(
+    meal_values: Mapping[TrackKind, int], feeding_roles: Collection[int] = ()
+) -> str:
     """Return the Wisp FAQ's rules post, the live text after its pictures.
 
-    The meal points are the guild's effective values; every other number is
-    taken from the rules.
+    The meal points are the guild's effective values and `feeding_roles` the
+    roles that can feed Wisp, named as mentions (the post pings nobody);
+    every other number is taken from the rules.
     """
+    feeders = any_role(feeding_roles, rules.FEEDING_ROLES_SHOWN) or (
+        "a role that can feed Wisp"
+    )
     meals = [
         f"・{TRACK_LABELS[kind]}: {count(points, 'meal point')}"
         for kind, points in meal_values.items()
@@ -104,15 +109,15 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
-            "One Wisp per server: share music and he grows. Neglected, he " "fades.",
+            "One Wisp per server: share music and he grows.",
             SEPARATOR,
             "Who can feed him and earn points",
-            "・Active Lounger or higher who opened /wisp board",
+            f"・Anyone with {feeders} who opened /wisp board",
             "",
             "What counts",
-            "・Suno and viibrmusic.com links in the track drop",
+            "・Links posted in the track drop:",
             *meals,
-            "・Each link feeds him once and earns leaderboard points",
+            "・Each link feeds him once, for leaderboard points",
             f"・Your meals and snacks count up to {daily_cap} a day",
             "",
             "His meters",
@@ -149,13 +154,13 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
             "favorites and gifts",
             "",
             "His life",
-            f"・Old Fogey around day {rules.OLD_FOGEY_AT_DAY}; around day "
-            f"{rules.FAREWELL_AT_DAY} he passes on and the coal becomes an egg, "
+            f"・Old Fogey at day {rules.OLD_FOGEY_AT_DAY}. At day "
+            f"{rules.FAREWELL_AT_DAY} he passes on; his coal is a new egg, "
             f"{rules.COAL_EGG_FOOD} of {rules.EGG_FOOD_NEEDED} fed",
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
             "Last Ember, unless he died of neglect",
-            f"・Once before Adult: Monster Pox for {sick_hours} h. Bigger Health "
-            f"penalty, he can't die, meals count up to {sick_cap} a day",
+            f"・Once, as a Baby or Child: Monster Pox for {sick_hours} h. Bigger "
+            f"Health penalty, he can't die, meals count up to {sick_cap} a day",
             "",
             "Talking to Wisp",
             "・Mention or reply to him in Wisp's House. Talking earns no bond",
@@ -174,9 +179,9 @@ def rules_text(meal_values: Mapping[TrackKind, int]) -> str:
 # ---
 
 
-def rules_post(settings: Settings) -> str:
-    """The Wisp FAQ's rules post with the guild's own food values."""
-    return rules_text(meal_points(settings))
+def rules_post(settings: Settings, feeding_roles: Collection[int]) -> str:
+    """The Wisp FAQ's rules post with the guild's own food values and roles."""
+    return rules_text(meal_points(settings), feeding_roles)
 
 
 @dataclass(frozen=True)
@@ -325,7 +330,7 @@ async def _create_thread(
     created = await forum.create_thread(
         name=spec.name,
         content=spec.content,
-        auto_archive_duration=_ARCHIVE_AFTER_MINUTES,
+        auto_archive_duration=rules.STUDIO_THREAD_ARCHIVE_MINUTES,
         **art,
     )
     values = {spec.attr: created.thread.id}
@@ -434,7 +439,9 @@ async def _build_faq(
     bot: "WispBot", guild: discord.Guild, thread: discord.Thread
 ) -> None:
     """Fill the Wisp FAQ thread; a failure is posted in it."""
-    rules = rules_post(await bot.settings.get(guild.id))
+    rules = rules_post(
+        await bot.settings.get(guild.id), await bot.settings.roles(guild.id)
+    )
     try:
         await fill_faq(bot, guild.id, thread, rules)
     except (discord.HTTPException, OSError) as error:
@@ -734,7 +741,9 @@ async def rebuild(bot: "WispBot", guild_id: int) -> str:
     except StudioError as error:
         return str(error)
     async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
-        rules = rules_post(await bot.settings.get(guild_id))
+        rules = rules_post(
+            await bot.settings.get(guild_id), await bot.settings.roles(guild_id)
+        )
         await fill_faq(bot, guild_id, thread, rules)
     return "♪ The Wisp FAQ is rebuilt."
 
@@ -801,43 +810,6 @@ async def setup_studio(
     await reply(ctx, answer)
 
 
-@commands.group(
-    name="roles",
-    invoke_without_command=True,
-    case_insensitive=True,
-    usage="add @role | remove @role | list",
-)
-async def roles(ctx: StaffContext) -> None:
-    """Explain the feeding role commands when no known one was typed."""
-    await reply(ctx, usage_line(roles))
-
-
-@roles.command(name="add", usage="@role")
-async def roles_add(ctx: StaffContext, role: discord.Role) -> None:
-    """Add a qualifying role."""
-    await ctx.bot.settings.add_role(guild_of(ctx).id, role.id)
-    await reply(ctx, f"♪ {role.mention} can now feed Wisp.")
-
-
-@roles.command(name="remove", usage="@role")
-async def roles_remove(ctx: StaffContext, role: discord.Role) -> None:
-    """Remove a qualifying role."""
-    await ctx.bot.settings.remove_role(guild_of(ctx).id, role.id)
-    await reply(ctx, f"♪ {role.mention} no longer feeds Wisp.")
-
-
-@roles.command(name="list")
-async def roles_list(ctx: StaffContext) -> None:
-    """List the qualifying roles."""
-    role_ids = await ctx.bot.settings.roles(guild_of(ctx).id)
-    if role_ids:
-        mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
-        text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
-    else:
-        text = "♪ No qualifying roles yet. Add one with !wisp roles add @role."
-    await reply(ctx, text)
-
-
 @commands.command(name="faq")
 async def rebuild_faq(ctx: StaffContext) -> None:
     """Rebuild the Wisp FAQ after its pictures change."""
@@ -846,18 +818,19 @@ async def rebuild_faq(ctx: StaffContext) -> None:
 
 @commands.command(name="freeze")
 async def freeze(ctx: StaffContext) -> None:
-    """Freeze Wisp so his meters and chores pause."""
+    """Freeze Wisp so his meters, chores and age pause."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=True)
     await reply(
-        ctx, "♪ Wisp is frozen. His meters and chores pause until you unfreeze him."
+        ctx,
+        "♪ Wisp is frozen. His meters, chores and age pause until you unfreeze him.",
     )
 
 
 @commands.command(name="unfreeze")
 async def unfreeze(ctx: StaffContext) -> None:
-    """Unfreeze Wisp so his meters and chores run again."""
+    """Unfreeze Wisp so his meters, chores and age run again."""
     await ctx.bot.settings.update(guild_of(ctx).id, frozen=False)
-    await reply(ctx, "♪ Wisp is unfrozen. His meters and chores run again.")
+    await reply(ctx, "♪ Wisp is unfrozen. His meters, chores and age run again.")
 
 
 def _http_link(argument: str) -> str:
@@ -877,13 +850,23 @@ async def song(
 ) -> None:
     """Post staff's words and a song link in Jam Space as if Wisp wrote them.
 
-    Nothing is added to the post, and the link is left to show its player. The
-    command message is deleted afterwards; a failed delete is only logged. A
-    Jam Space that cannot be reached raises, so the error is reported where
-    the command was used and nothing is posted.
+    Nothing is added to the post, and the link is left to show its player. A
+    post that would not fit in one message is refused with the usage and the
+    limit, and the command message is kept so its words can be shortened.
+    Otherwise the command message is deleted afterwards; a failed delete is
+    only logged. A Jam Space that cannot be reached raises, so the error is
+    reported where the command was used and nothing is posted.
     """
+    post = f"{words}\n{link}"
+    if text_length(post) > MESSAGE_LIMIT:
+        await reply(
+            ctx,
+            f"{usage_line(song)} ・ the words and the link together fit in "
+            f"{MESSAGE_LIMIT:,} characters",
+        )
+        return
     thread = await studio_thread(ctx.bot, guild_of(ctx).id, "jam_thread_id")
-    await thread.send(f"{words}\n{link}", allowed_mentions=_NO_PING)
+    await thread.send(post, allowed_mentions=_NO_PING)
     try:
         await ctx.message.delete()
     except discord.HTTPException:
@@ -892,5 +875,5 @@ async def song(
 
 async def setup(bot: "WispBot") -> None:
     """Load the Studio staff commands."""
-    for command in (setup_studio, roles, rebuild_faq, freeze, unfreeze, song):
+    for command in (setup_studio, rebuild_faq, freeze, unfreeze, song):
         bot.add_command(command)

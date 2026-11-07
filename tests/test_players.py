@@ -358,7 +358,7 @@ async def test_a_credit_past_the_daily_limit_names_the_limit(bot: app.WispBot) -
 @pytest.mark.parametrize(
     ("roles", "activated", "reason"),
     [
-        ((), True, "you don't have a role that can feed Wisp."),
+        ((), True, f"you don't have a role that can feed Wisp: <@&{QUALIFYING_ROLE}>."),
         ((QUALIFYING_ROLE,), False, "you haven't opened /wisp board yet."),
     ],
     ids=["no-role", "board-not-opened"],
@@ -374,6 +374,34 @@ async def test_a_credit_for_a_non_feeder_names_why(
     given = await players.credit_poke(bot, GUILD_ID, make_member(roles=roles), NOW)
 
     assert (given.credited, given.reason) == (False, reason)
+
+
+@pytest.mark.parametrize(
+    ("feeding_roles", "reason"),
+    [
+        ((), "you don't have a role that can feed Wisp."),
+        (
+            (QUALIFYING_ROLE,),
+            f"you don't have a role that can feed Wisp: <@&{QUALIFYING_ROLE}>.",
+        ),
+        ((9, 8), "you don't have a role that can feed Wisp: <@&8> or <@&9>."),
+        (
+            (9, 8, 7),
+            "you don't have a role that can feed Wisp: <@&7>, <@&8> or 1 more.",
+        ),
+    ],
+)
+async def test_a_missing_role_is_named_from_the_servers_feeding_roles(
+    bot: app.WispBot, feeding_roles: tuple[int, ...], reason: str
+) -> None:
+    for role_id in feeding_roles:
+        await bot.settings.add_role(GUILD_ID, role_id)
+
+    assert await players.blocker_reason(bot, GUILD_ID, players.Blocker.NO_ROLE) == (
+        reason
+    )
+    banned = await players.blocker_reason(bot, GUILD_ID, players.Blocker.BANNED)
+    assert banned == players.BLOCKER_REASONS[players.Blocker.BANNED]
 
 
 async def test_a_credit_while_frozen_says_he_is_frozen(bot: app.WispBot) -> None:

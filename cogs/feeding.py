@@ -15,8 +15,14 @@ from discord.ext import commands
 
 from cogs.announce import post_events, post_in_house, say_in_mealtime, show_in_thread
 from cogs.channels import in_channel
-from cogs.players import BLOCKER_REASONS, Blocker, feeder_blocker, maybe_meet
-from cogs.staff import StaffContext, guild_of, is_command, reply
+from cogs.players import (
+    BLOCKER_REASONS,
+    Blocker,
+    blocker_reason,
+    feeder_blocker,
+    maybe_meet,
+)
+from cogs.staff import StaffContext, guild_of, is_command, reply, usage_line
 from cogs.studio import TRACK_LABELS, rules_post
 from db.activity import InteractionKind
 from db.settings import meal_points
@@ -90,7 +96,8 @@ class Feeding(commands.Cog):
         player = await self.bot.players.get(guild.id, author.id)
         blocker = await feeder_blocker(self.bot, guild.id, author, now)
         if blocker is not None:
-            await self._refuse(guild, author, BLOCKER_REASONS[blocker])
+            reason = await blocker_reason(self.bot, guild.id, blocker)
+            await self._refuse(guild, author, reason)
             return
         track = (
             await self._resolve(guild, author, found)
@@ -233,20 +240,63 @@ class Feeding(commands.Cog):
 
 
 # ---
-# Food values
+# Feeding roles and food values
 # ---
 
 
 async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
-    """Bring the Wisp FAQ's rules post up to date with the guild's food values."""
+    """Bring the Wisp FAQ's rules post up to date with the food values and roles."""
     await show_in_thread(
         bot,
         guild_id,
         "rules_thread_id",
         "rules_message_id",
-        rules_post(await bot.settings.get(guild_id)),
+        rules_post(
+            await bot.settings.get(guild_id), await bot.settings.roles(guild_id)
+        ),
         "Wisp FAQ rules post",
     )
+
+
+@commands.group(
+    name="roles",
+    invoke_without_command=True,
+    case_insensitive=True,
+    usage="add @role | remove @role | list",
+)
+async def roles(ctx: StaffContext) -> None:
+    """Explain the feeding role commands when no known one was typed."""
+    await reply(ctx, usage_line(roles))
+
+
+@roles.command(name="add", usage="@role")
+async def roles_add(ctx: StaffContext, role: discord.Role) -> None:
+    """Add a qualifying role; the rules post names the roles, so it follows."""
+    guild_id = guild_of(ctx).id
+    await ctx.bot.settings.add_role(guild_id, role.id)
+    await refresh_rules(ctx.bot, guild_id)
+    await reply(ctx, f"♪ {role.mention} can now feed Wisp.")
+
+
+@roles.command(name="remove", usage="@role")
+async def roles_remove(ctx: StaffContext, role: discord.Role) -> None:
+    """Remove a qualifying role; the rules post follows."""
+    guild_id = guild_of(ctx).id
+    await ctx.bot.settings.remove_role(guild_id, role.id)
+    await refresh_rules(ctx.bot, guild_id)
+    await reply(ctx, f"♪ {role.mention} no longer feeds Wisp.")
+
+
+@roles.command(name="list")
+async def roles_list(ctx: StaffContext) -> None:
+    """List the qualifying roles."""
+    role_ids = await ctx.bot.settings.roles(guild_of(ctx).id)
+    if role_ids:
+        mentions = (f"・<@&{role_id}>" for role_id in sorted(role_ids))
+        text = "\n".join(["♪ Roles that can feed Wisp", *mentions])
+    else:
+        text = "♪ No qualifying roles yet. Add one with !wisp roles add @role."
+    await reply(ctx, text)
 
 
 @commands.command(
@@ -272,6 +322,7 @@ async def set_food(
 
 
 async def setup(bot: "WispBot") -> None:
-    """Load the feeding cog and the food command."""
+    """Load the feeding cog and the feeding role and food commands."""
     await bot.add_cog(Feeding(bot))
+    bot.add_command(roles)
     bot.add_command(set_food)

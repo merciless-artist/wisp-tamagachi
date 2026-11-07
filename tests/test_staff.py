@@ -39,7 +39,7 @@ STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
 COMMANDS = (
-    "setup, roles, faq, freeze, unfreeze, song, food, punish, unban, strip, "
+    "setup, faq, freeze, unfreeze, song, roles, food, punish, unban, strip, "
     "resetname, staff"
 )
 SONG_USAGE = "♪ Usage: !wisp song <link> <words...>"
@@ -676,7 +676,14 @@ async def test_setup_with_the_wrong_channels_gets_the_usage_line(
     assert (await bot.settings.get(GUILD_ID)).studio_forum_id is None
 
 
-async def test_roles(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> None:
+async def test_roles(
+    bot: app.WispBot,
+    server: FakeServer,
+    boss: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh = AsyncMock()
+    monkeypatch.setattr(feeding, "refresh_rules", refresh)
     for content in (
         "!wisp roles list",
         f"!wisp roles add <@&{OTHER_ROLE_ID}>",
@@ -698,6 +705,8 @@ async def test_roles(bot: app.WispBot, server: FakeServer, boss: MagicMock) -> N
         "♪ Usage: !wisp roles add @role | remove @role | list",
     ]
     assert await bot.settings.roles(GUILD_ID) == {OTHER_ROLE_ID}
+    assert refresh.await_count == 3
+    refresh.assert_awaited_with(bot, GUILD_ID)
     assert await bot.settings.staff_roles(GUILD_ID) == set()
 
 
@@ -744,8 +753,8 @@ async def test_freeze_and_unfreeze(
     assert (await bot.settings.get(GUILD_ID)).frozen is False
 
     assert sent(server.here) == [
-        "♪ Wisp is frozen. His meters and chores pause until you unfreeze him.",
-        "♪ Wisp is unfrozen. His meters and chores run again.",
+        "♪ Wisp is frozen. His meters, chores and age pause until you unfreeze him.",
+        "♪ Wisp is unfrozen. His meters, chores and age run again.",
     ]
 
 
@@ -828,6 +837,35 @@ async def test_song_without_a_link_or_words_gets_the_usage_line(
     jam_space.assert_not_awaited()
     message.delete.assert_not_awaited()
     bot.report_error.assert_not_awaited()
+
+
+async def test_song_too_long_for_one_message_gets_the_usage_and_the_limit(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    words = "𝄚" * 1000
+    message = server.message(f"!wisp song {SONG_LINK} {words}", boss)
+
+    await say(bot, message)
+
+    assert sent(server.here) == [
+        f"{SONG_USAGE} ・ the words and the link together fit in 2,000 characters"
+    ]
+    jam_space.assert_not_awaited()
+    message.delete.assert_not_awaited()
+
+
+async def test_song_that_just_fits_one_message_is_posted(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock, jam_space: AsyncMock
+) -> None:
+    words = "w" * (2000 - len(SONG_LINK) - 1)
+    message = server.message(f"!wisp song {SONG_LINK} {words}", boss)
+
+    await say(bot, message)
+
+    jam_space.return_value.send.assert_awaited_once_with(
+        f"{words}\n{SONG_LINK}", allowed_mentions=ANY
+    )
+    message.delete.assert_awaited_once_with()
 
 
 async def test_song_without_a_jam_space_is_reported_where_it_was_used(

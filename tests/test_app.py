@@ -14,7 +14,7 @@ from discord.ext import commands
 import app
 from cogs import groups
 from db.settings import Settings
-from wisp.text import USER_ERROR
+from wisp.text import MESSAGE_LIMIT, USER_ERROR, text_length
 
 
 @pytest.fixture
@@ -253,6 +253,21 @@ async def test_report_error_truncates_to_discord_limit(bot: app.WispBot) -> None
     (sent,) = posted(channel)
     assert len(sent) == 2000
     assert sent.startswith("Error in tick: RuntimeError: xxx")
+
+
+async def test_report_error_is_cut_by_utf16_units(bot: app.WispBot) -> None:
+    channel = make_sender()
+    configured(bot)
+
+    await bot.report_error(
+        make_guild(make_house()), "tick", RuntimeError("𝄚" * 1500), where=channel
+    )
+
+    (sent,) = posted(channel)
+    assert text_length(sent) <= MESSAGE_LIMIT
+    assert text_length(sent) >= MESSAGE_LIMIT - 1
+    assert sent.startswith("Error in tick: RuntimeError: 𝄚")
+    assert sent.endswith("𝄚")
 
 
 async def test_report_error_falls_back_to_the_house_when_where_fails(

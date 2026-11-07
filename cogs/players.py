@@ -23,13 +23,14 @@ from wisp.lines import Moment
 from wisp.rules import (
     CHAT_CREDITS_PER_DAY,
     CHAT_POINTS,
+    FEEDING_ROLES_SHOWN,
     GROWTH_PER_BOND_MOMENT,
     NAME_MAX,
     POKE_CREDITS_PER_DAY,
     WELLBEING_PER_CHAT,
     WELLBEING_PER_POKE,
 )
-from wisp.text import USER_ERROR, count, with_emoji
+from wisp.text import USER_ERROR, any_role, count, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -163,7 +164,7 @@ async def _credit(
             return Credit(False, FROZEN_REASON)
         blocker = await member_blocker(bot, guild_id, member, now)
         if blocker is not None:
-            return Credit(False, BLOCKER_REASONS[blocker])
+            return Credit(False, await blocker_reason(bot, guild_id, blocker))
         log = bot.activity_log
         chats = await log.chats_today(guild_id, member.id, now)
         pokes = await log.pokes_today(guild_id, member.id, now)
@@ -197,6 +198,7 @@ BLOCKER_REASONS: Final = {
     Blocker.NO_ROLE: "you don't have a role that can feed Wisp.",
     Blocker.NOT_OPENED: "you haven't opened /wisp board yet.",
 }
+"""Why not, as the end of a sentence; see `blocker_reason` for the roles."""
 NOT_ALIVE_REASON: Final = "Wisp isn't alive right now."
 FROZEN_REASON: Final = (
     "Wisp is frozen right now, so nothing can change until staff unfreeze him."
@@ -239,21 +241,38 @@ async def member_blocker(
     return await feeder_blocker(bot, guild_id, member, now)
 
 
+async def blocker_reason(bot: "WispBot", guild_id: int, blocker: Blocker) -> str:
+    """Why the member may not feed Wisp, as the end of a sentence.
+
+    A missing role names the server's feeding roles as mentions, which ping
+    nobody since every send turns pings off; with none set it says "a role
+    that can feed Wisp".
+    """
+    roles = await bot.settings.roles(guild_id)
+    if blocker is Blocker.NO_ROLE and roles:
+        named = any_role(roles, FEEDING_ROLES_SHOWN)
+        return f"you don't have a role that can feed Wisp: {named}."
+    return BLOCKER_REASONS[blocker]
+
+
 async def is_frozen(bot: "WispBot", guild_id: int) -> bool:
     """Whether staff have frozen Wisp's time in this guild."""
     return (await bot.settings.get(guild_id)).frozen
 
 
-def chore_refusal_text(blocker: Blocker) -> str:
+async def chore_refusal_text(bot: "WispBot", guild_id: int, blocker: Blocker) -> str:
     """What a member who may not feed Wisp is told when they try to do a chore."""
-    return f"♪ You can't take care of Wisp: {BLOCKER_REASONS[blocker]}"
+    return (
+        f"♪ You can't take care of Wisp: {await blocker_reason(bot, guild_id, blocker)}"
+    )
 
 
-def refusal_text(blocker: Blocker) -> str:
+async def refusal_text(bot: "WispBot", guild_id: int, blocker: Blocker) -> str:
     """What a member who may not feed Wisp is told when they try to give him things."""
     if blocker is Blocker.BANNED:
         return NOT_TAKING
-    return f"♪ Wisp can't take that from you: {BLOCKER_REASONS[blocker]}"
+    reason = await blocker_reason(bot, guild_id, blocker)
+    return f"♪ Wisp can't take that from you: {reason}"
 
 
 def no_wisp_text(life: Life | None, things: str) -> str:
@@ -299,7 +318,7 @@ async def check_member(
     """
     blocker = await member_blocker(bot, guild_id, member, now)
     if blocker is not None:
-        raise Refusal(refusal_text(blocker))
+        raise Refusal(await refusal_text(bot, guild_id, blocker))
     return await bot.players.get(guild_id, member.id)
 
 

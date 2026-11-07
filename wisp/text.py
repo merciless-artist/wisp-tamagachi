@@ -6,7 +6,7 @@ an item, `>` the break between sections and `>>>` the end of the box.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Final
 
 MESSAGE_LIMIT: Final = 2000
@@ -375,6 +375,22 @@ def richest(plain: Sequence[str], rich: Sequence[str], room: int) -> list[str]:
 def count(amount: int, noun: str) -> str:
     """`amount` with `noun`, pluralised with an "s" unless the amount is one."""
     return f"{amount} {noun}" if amount == 1 else f"{amount} {noun}s"
+
+
+def any_role(role_ids: Collection[int], shown: int) -> str:
+    """The roles as mentions, any one of which will do: "<@&1>, <@&2> or <@&3>".
+
+    At most `shown` are named, lowest id first, then how many more there are,
+    as in "<@&1>, <@&2> or 3 more". Empty when there are none. A mention only
+    pings when the send allows it.
+    """
+    mentions = [f"<@&{role_id}>" for role_id in sorted(role_ids)]
+    if len(mentions) > shown:
+        named = mentions[:shown]
+        return f"{', '.join(named)} or {len(mentions) - shown} more"
+    if len(mentions) < 2:
+        return "".join(mentions)
+    return f"{', '.join(mentions[:-1])} or {mentions[-1]}"
 
 
 def round_half_up(value: float) -> int:

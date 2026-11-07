@@ -13,11 +13,10 @@ import discord
 
 from cogs.groups import play, require_guild
 from cogs.players import (
-    BLOCKER_REASONS,
     EXPECTED_FAILURES,
     FROZEN_REASON,
     NOT_ALIVE_REASON,
-    Blocker,
+    blocker_reason,
     bot_of,
     is_frozen,
     maybe_meet,
@@ -206,18 +205,21 @@ def _verdict(
     points: int,
     life: Life | None,
     frozen: bool,
-    blocker: Blocker | None,
+    blocked: str | None,
     plays: int,
 ) -> tuple[Life, int] | str:
-    """The living life and its id when the duel counts as play, else why not."""
+    """The living life and its id when the duel counts as play, else why not.
+
+    `blocked` is why the player may not feed Wisp, or None when they may.
+    """
     if points <= 0:
         return _NO_RHYME
     if life is None or life.id is None or life.phase is not Phase.ALIVE:
         return NOT_ALIVE_REASON
     if frozen:
         return FROZEN_REASON
-    if blocker is not None:
-        return BLOCKER_REASONS[blocker]
+    if blocked is not None:
+        return blocked
     if plays >= PLAYS_PER_DAY:
         played = count(PLAYS_PER_DAY, "counted game")
         return f"you've already played {played} today (resets at 00:00 UTC)."
@@ -267,11 +269,12 @@ async def _record_play(
     user_id = member.id
     async with bot.guild_lock(guild_id):
         plays = await bot.activity_log.plays_today(guild_id, user_id, now)
+        blocker = await member_blocker(bot, guild_id, member, now)
         verdict = _verdict(
             points,
             await bot.lives.current(guild_id),
             await is_frozen(bot, guild_id),
-            await member_blocker(bot, guild_id, member, now),
+            None if blocker is None else await blocker_reason(bot, guild_id, blocker),
             plays,
         )
         if isinstance(verdict, str):

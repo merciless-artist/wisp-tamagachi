@@ -286,6 +286,10 @@ BOND_TIERS: tuple[tuple[str, int], ...] = (
 # ---
 
 NAME_MAX = 24
+# How many feeding roles a refusal and the rules post name before "or N more".
+FEEDING_ROLES_SHOWN = 2
+# The longest reason staff can give with !wisp punish.
+PUNISH_REASON_MAX = 500
 
 # Ban lengths by offence count; None is permanent.
 BAN_LADDER: tuple[timedelta | None, ...] = (
@@ -298,7 +302,8 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 # Rhyme Duel
 # ---
 
-# Discord only allows 60, 1440, 4320 or 10080 minutes.
+# Discord only allows 60, 1440, 4320 or 10080 minutes, here and for
+# STUDIO_THREAD_ARCHIVE_MINUTES.
 RHYME_THREAD_ARCHIVE_MINUTES: Final = 60
 RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
@@ -329,6 +334,13 @@ RHYME_SKILL: dict[Stage, float] = {
 RHYME_TIRING = 0.1
 
 # ---
+# Studio
+# ---
+
+# How long a Studio thread waits with no activity before Discord archives it.
+STUDIO_THREAD_ARCHIVE_MINUTES: Final = 10080
+
+# ---
 # The Leaderboard card
 # ---
 
@@ -345,6 +357,14 @@ QUIET_AFTER = timedelta(hours=9)
 
 # The stages that have nap art, and so show it when he is woken or goes quiet.
 NAP_STAGES: Final = frozenset({Stage.BABY, Stage.CHILD})
+
+# ---
+# The ViiBR Vault
+# ---
+
+# The Vault's box width: wide enough for the widest badge row, from its name
+# and padding to its price.
+VAULT_WIDTH: Final = 24
 
 # ---
 # Snacks

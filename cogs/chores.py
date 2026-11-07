@@ -290,7 +290,8 @@ async def _press(interaction: discord.Interaction, chore: Chore, life_id: int) -
     player = await bot.players.get(guild_id, user.id)
     blocker = await member_blocker(bot, guild_id, user, discord.utils.utcnow())
     if blocker is not None:
-        await say_privately(interaction, chore_refusal_text(blocker))
+        refusal = await chore_refusal_text(bot, guild_id, blocker)
+        await say_privately(interaction, refusal)
         return
     post = interaction.message
     if post is None:

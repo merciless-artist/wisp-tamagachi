@@ -498,13 +498,13 @@ _FADING = (
 
 _LONELY = (
     "nobody's rhymed with me in forever. I tried the mic stand. it never rhymes back",
-    "feeling kind of left out over here. not that anybody asked",
+    "feeling kind of left out over here. a snack and a little chat would fix it",
     "playing rhyme duel against myself. I'm winning. it's lonely at the top",
     "I'm not sulking. I'm just in the corner with my headphones on. facing the wall",
     "I miss you guys. there, I said it. now somebody come hang out",
     "my flame's doing the sad little flicker. a duel or a gift would help it out",
     "*grumpy crackle* I'm not mad. I'm just a little flame with nobody to play with",
-    "the studio feels real big when nobody's hanging out with me",
+    "the studio feels real big when nobody's talking to me. say hi? poke me? anything",
     "somebody challenge me to a rhyme. I'll even let you win. probably",
 )
 
