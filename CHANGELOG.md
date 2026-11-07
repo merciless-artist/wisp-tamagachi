@@ -25,19 +25,34 @@
 - FAQ pictures that show old rules. The words in `DOCS/wisp_faq.html` are
   fixed; these pictures in `ASSETS/faq/` need re-rendering from it:
   - `01_basics_1.png`: names The ViiBR Vault as the shop and leaderboard post.
-  - `01_basics_2.png`: the status card with a Mood bar and the `/wisp snackpack`
-    and Vault hint lines.
-  - `01_basics_3.png`: explains three meters, with Mood.
-  - `02_feeding_1.png`: says Wisp never reacts to a track.
-  - `02_feeding_4.png`: says he stays quiet when a track does not feed him.
+  - `01_basics_2.png`: `/wisp status` and a card with Care, Happy and Hunger
+    bars and the old snackpack and Vault hints; the card now has two bars, a
+    right now block and six buttons.
+  - `01_basics_3.png`: explains Hunger, Happy and Care, with snacks filling
+    Hunger; now it is Health and Wellbeing, and snacks fill Wellbeing.
+  - `02_feeding_1.png`: says Wisp never posts or reacts in the track drop.
+  - `02_feeding_4.png`: says he stays quiet when a post does not feed him; he
+    now posts the reason in his House.
   - `03_vault_1.png`: the Vault and the leaderboard as one thing, `/wisp vault`,
     `/wisp snackpack` and the "Shop the Vault" button.
-  - `06_growing_2.png`: Rockstar needs Mood at 80.
-  - `06_growing_4.png`: Monster Pox for a "Baby, Child or Teen" (Pox in the
-    teens).
-  - `07_talking_3.png`: pokes fill his Mood.
-  - `08_games_2.png`: a duel fills his Mood.
-  - `08_games_1.png`: only worth a touch, it does not mention the Play button.
+  - `03_vault_2.png`: the snack table has a Hunger column; snacks now give
+    Wellbeing and never fill Health.
+  - `04_lunchbox_2.png`: gifts fill his Care and he keeps about one in three;
+    now it is Wellbeing and a different keep rule.
+  - `06_growing_2.png`: the old stage table (Child day 3, Teen day 7, Adult
+    day 14, Rockstar Happy 80 for 7 days, Old Fogey day 45).
+  - `06_growing_3.png`: hangry below 30 Hunger and lonely below 30 Care; now
+    Health and Wellbeing.
+  - `06_growing_4.png`: Monster Pox for a "Baby, Child or Teen" and Hunger
+    draining faster; a Teen never gets it, and Health drops faster instead.
+  - `07_talking_1.png` (tone only): a Rockstar talks with maximum energy; he
+    now tries very hard to be zen.
+  - `07_talking_3.png`: a poke counts toward Happy; now chats and pokes fill
+    Wellbeing.
+  - `08_games_2.png`: a duel gives Care; now it is Wellbeing.
+  - `09_ending_1.png`: he dies if Hunger hits zero; now it is Health.
+  - `09_ending_2.png`: Old Fogey at day 45 and goodbye at day 60; now day 24
+    and day 30.
   - The Chores section has no pictures, so nothing shows the new nap times. The
     two new questions (he sees pictures, he draws) and the staff commands have
     no pictures either.
