@@ -16,6 +16,7 @@ import pytest
 
 import app
 from ai.chain import AllProvidersFailed, ProviderError
+from ai.images import ImageMaker
 from ai.prompt import Prompt
 from cogs import drawings
 from cogs.drawings import DailyDrawings, DrawResult, draw_for
@@ -129,6 +130,7 @@ def bot(
     wisp_bot.drawings = DrawingRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot.ai, "complete", AsyncMock(return_value=SCENE))
+    wisp_bot.images = ImageMaker("image-worker")
     monkeypatch.setattr(wisp_bot.images, "draw", AsyncMock(return_value=JPEG))
     yield wisp_bot
 
@@ -433,6 +435,20 @@ async def test_a_worker_failure_is_posted_and_nothing_is_recorded(
     drawn.return_value = JPEG
     assert await draw(bot, server) is DrawResult.MADE
     assert await bot.drawings.count_for(GUILD_ID, USER_ID) == 1
+
+
+async def test_no_worker_address_skips_quietly_before_any_ai_call(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    complete = bot.ai.complete
+    assert isinstance(complete, AsyncMock)
+    bot.images = ImageMaker(None)
+
+    assert await draw(bot, server) is DrawResult.SKIPPED
+
+    complete.assert_not_awaited()
+    assert server.posts() == []
+    assert await bot.drawings.count_today(GUILD_ID, NOW) == 0
 
 
 async def test_an_ai_failure_is_posted_the_same_way(

@@ -78,6 +78,10 @@ _CONFIRM: Final = (
 _NOTHING_TO_CONFIRM: Final = "♪ Nothing to confirm. Type !wisp testlife first."
 _NOT_RUNNING: Final = "♪ No test life is running."
 _STOPPING: Final = "♪ Stopping the test life."
+_NO_WORKER: Final = (
+    "Wisp made no drawing: the picture worker address (CF_IMAGE_WORKER_URL) "
+    "is not set."
+)
 _ONE_TICK: Final = TICK_EVERY.total_seconds()
 _PHASES: Final = {
     Phase.EGG: "an egg",
@@ -529,6 +533,8 @@ class _TestLife:
             raise StepFailed(f"Wisp did not grow into his {stage.label} stage.")
 
     async def _drawing(self) -> None:
+        if not self._bot.images.configured:
+            raise StepFailed(_NO_WORKER)
         name = self._run.runner_name
         result = await draw_for(
             self._bot,

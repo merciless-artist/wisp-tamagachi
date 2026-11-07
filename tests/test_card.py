@@ -128,10 +128,13 @@ def tail(poke: str, stage: str) -> list[str]:
 
 
 def right_now(card: str) -> list[str]:
-    """The card's Right now items, from under its line to the next nap."""
+    """The card's Right now items, from under its line to the nap line."""
     lines = card.split("\n")
     start = lines.index(RIGHT_NOW) + 1
-    return lines[start : lines.index(NEXT_NAP, start)]
+    end = next(
+        index for index in range(start, len(lines)) if lines[index].startswith("> 𝄡𝄚𝄂 ")
+    )
+    return lines[start:end]
 
 
 def meters(card: str) -> list[str]:
@@ -542,6 +545,23 @@ def test_the_card_says_when_his_next_nap_is(now: datetime, nap: str) -> None:
     card = render_status(alive_life(hatched_at=now), now, FACTS, emoji)
 
     assert f"> 𝄡𝄚𝄂 next nap {nap} Pacific" in card.split("\n")
+
+
+@pytest.mark.parametrize(
+    ("nap_left", "until"),
+    [(NAP_FOR.total_seconds(), "6am"), (90.0, "5:02am")],
+)
+def test_while_he_naps_the_card_says_when_he_wakes(nap_left: float, until: str) -> None:
+    card = render_status(alive_life(nap_left=nap_left), NOW, FACTS, emoji)
+
+    lines = card.split("\n")
+    start = lines.index(RIGHT_NOW)
+    assert lines[start : start + 3] == [
+        RIGHT_NOW,
+        HAPPY,
+        f"> 𝄡𝄚𝄂 napping until {until} Pacific",
+    ]
+    assert not any("next nap" in line for line in lines)
 
 
 def test_eggs_have_no_right_now_or_next_nap() -> None:

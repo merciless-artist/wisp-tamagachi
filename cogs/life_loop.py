@@ -29,6 +29,7 @@ from cogs.badges import sweep_badges
 from cogs.channels import where_of
 from cogs.chores import post_chores
 from cogs.drawings import DailyDrawings
+from cogs.feeding import refresh_rules
 from cogs.groups import require_guild
 from cogs.pictures import life_image
 from cogs.players import (
@@ -85,6 +86,7 @@ class LifeLoop(commands.Cog):
         self.drawings = DailyDrawings(bot, self.rng)
         self._quiet_announced: set[int] = set()
         self._watching_since: dict[int, datetime] = {}
+        self._rules_refreshed: set[int] = set()
 
     async def cog_load(self) -> None:
         """Start ticking."""
@@ -161,6 +163,7 @@ class LifeLoop(commands.Cog):
             await post_events(bot, guild_id, events)
             await post_chores(bot, guild_id, ticked, chores)
         await sweep_badges(bot, guild_id, now)
+        await self._refresh_rules_once(guild_id, settings.rules_message_id)
         current = await bot.lives.current(guild_id)
         if current is None:
             return
@@ -171,6 +174,29 @@ class LifeLoop(commands.Cog):
         if not is_over(current):
             await pick_favorite_song(bot, guild, current, self.rng, now)
         await self.drawings.run(guild_id, now)
+
+    async def _refresh_rules_once(
+        self, guild_id: int, rules_message_id: int | None
+    ) -> None:
+        """Bring the Wisp FAQ's rules post up to date on the guild's first tick.
+
+        A new build can change the rules, and otherwise only the role and food
+        commands touch the post, so each guild's is refreshed once per run, if
+        it has one. Called outside the guild lock, like every display. A
+        failure is posted and never stops the tick; it is not retried until
+        the next run.
+        """
+        if guild_id in self._rules_refreshed:
+            return
+        self._rules_refreshed.add(guild_id)
+        if rules_message_id is None:
+            return
+        try:
+            await refresh_rules(self.bot, guild_id)
+        except pymysql.err.Error as error:
+            await self.bot.report_error(
+                self.bot.get_guild(guild_id), "updating the Wisp FAQ rules post", error
+            )
 
     async def _advance(
         self, guild_id: int, life: Life, now: datetime, frozen: bool

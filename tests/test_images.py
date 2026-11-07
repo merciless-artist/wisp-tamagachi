@@ -137,6 +137,13 @@ async def test_without_a_worker_address_it_asks_nothing() -> None:
         await ImageMaker(None).draw("a doodle")
 
 
+@pytest.mark.parametrize(("url", "configured"), [(None, False), ("worker", True)])
+def test_it_is_configured_only_with_a_worker_address(
+    url: str | None, configured: bool
+) -> None:
+    assert ImageMaker(url).configured is configured
+
+
 @pytest.mark.filterwarnings(
     "error::ResourceWarning", "error::pytest.PytestUnraisableExceptionWarning"
 )

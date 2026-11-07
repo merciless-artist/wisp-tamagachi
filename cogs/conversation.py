@@ -47,7 +47,7 @@ from wisp.rules import (
     VISION_EMBED_WAIT,
     VISION_TYPES,
 )
-from wisp.text import count, meter_receipt, strip_emoji
+from wisp.text import channel_or, count, meter_receipt, strip_emoji
 from wisp.voice import (
     EGG_EXPRESSION,
     EMOJI_NAME_PATTERN,
@@ -310,8 +310,8 @@ async def _track_drop(bot: "WispBot", guild: discord.Guild | None) -> str | None
     if guild is None:
         return None
     channel_id = (await bot.settings.get(guild.id)).tracks_channel_id
-    channel = None if channel_id is None else guild.get_channel(channel_id)
-    return None if channel is None else channel.mention
+    seen = channel_id is not None and guild.get_channel(channel_id) is not None
+    return channel_or(None, channel_id if seen else None)
 
 
 async def _prompt(

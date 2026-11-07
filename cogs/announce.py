@@ -34,7 +34,7 @@ from wisp.rules import (
     WELLBEING_STRETCH,
     Stage,
 )
-from wisp.text import count
+from wisp.text import channel_or, count, round_half_up
 from wisp.voice import goodbye_prompt
 
 if TYPE_CHECKING:
@@ -350,12 +350,12 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
     Each new stage is also shared in the server's general chat when staff
-    set one. A death, a cold egg or a farewell gives any Last Embers and then
-    asks staff whether to begin again; no egg is laid until they press the button. An
-    ending is skipped when the current life is not over, which means it is
-    stale. Hatching, each stage up and growing old give a keepsake to the
-    member who was there. A missing House channel is reported once; the
-    embers are still given.
+    set one, but never during a staff test life. A death, a cold egg or a
+    farewell gives any Last Embers and then asks staff whether to begin again;
+    no egg is laid until they press the button. An ending is skipped when the
+    current life is not over, which means it is stale. Hatching, each stage up
+    and growing old give a keepsake to the member who was there. A missing
+    House channel is reported once; the embers are still given.
     """
     if not events:
         return
@@ -372,7 +372,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
             continue
         moment = Moment(event.kind.value)
         await house.say(_line(bot, moment, life, event), _image_for(event))
-        if event.kind in _NEW_STAGE:
+        if event.kind in _NEW_STAGE and guild_id not in bot.test_runs:
             await _tell_general(bot, guild_id, event)
         if (kind := _milestone(event)) is not None:
             await _give_milestone(bot, guild_id, house, life, kind)
@@ -407,15 +407,12 @@ def meter_drops_text(
     """One House post naming every meter that dropped in a tick, and why.
 
     The track drop and the Status post are channel links when staff set them
-    and plain words when not.
+    and plain words when not. The numbers are whole, rounded as the card's
+    bars round them, and the loss is the difference of the shown numbers.
     """
     where = {
-        "drop": (
-            "the track drop" if tracks_channel_id is None else f"<#{tracks_channel_id}>"
-        ),
-        "status": (
-            "the Status post" if status_thread_id is None else f"<#{status_thread_id}>"
-        ),
+        "drop": channel_or("the track drop", tracks_channel_id),
+        "status": channel_or("the Status post", status_thread_id),
     }
     lengths = {Meter.HEALTH: HEALTH_STRETCH, Meter.WELLBEING: WELLBEING_STRETCH}
     lines = [_DROPS_TITLE]
@@ -424,9 +421,10 @@ def meter_drops_text(
             continue
         span = _span(lengths[drop.meter])
         reason = _DROP_REASONS[drop.meter].format(span=span, **where)
+        shown = round_half_up(drop.value)
+        lost = round_half_up(drop.value + drop.lost) - shown
         lines.append(
-            f"・{drop.meter.value.capitalize()} -{drop.lost:g} "
-            f"(now {drop.value:g}): {reason}"
+            f"・{drop.meter.value.capitalize()} -{lost} (now {shown}): {reason}"
         )
     return "\n".join(lines)
 

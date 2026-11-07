@@ -17,6 +17,7 @@ import pytest
 from discord.ext import commands
 
 import app
+from ai.images import ImageMaker
 from cogs import life_loop, lifetest_runs, lifetester
 from cogs.chores import ChoreButton
 from cogs.life_loop import BeginButton, LifeLoop
@@ -253,6 +254,7 @@ async def configured(bot: app.WispBot) -> None:
 def drawn(bot: app.WispBot, monkeypatch: pytest.MonkeyPatch) -> None:
     """Give Wisp an AI voice and an image worker that always answer."""
     monkeypatch.setattr(bot.ai, "complete", AsyncMock(return_value="a sunny day"))
+    monkeypatch.setattr(bot, "images", ImageMaker("image-worker"))
     monkeypatch.setattr(bot.images, "draw", AsyncMock(return_value=b"picture"))
 
 
@@ -439,6 +441,7 @@ async def test_a_full_run_plays_every_step_in_order_on_the_real_wisp(
 async def test_a_failing_step_is_reported_and_the_run_goes_on(
     cog: LifeTest, bot: app.WispBot, server: FakeServer
 ) -> None:
+    bot.images = ImageMaker("image-worker")
     run = asyncio.create_task(type_testlife(cog, server))
 
     await press_through_a_full_run(bot, server, run)
@@ -455,6 +458,25 @@ async def test_a_failing_step_is_reported_and_the_run_goes_on(
         "♪ Test life done: 16 steps passed, 1 failed (step 14)."
     )
     assert (await current_life(bot)).from_coal
+
+
+async def test_the_drawing_step_says_when_no_worker_address_is_set(
+    cog: LifeTest, bot: app.WispBot, server: FakeServer
+) -> None:
+    run = asyncio.create_task(type_testlife(cog, server))
+
+    await press_through_a_full_run(bot, server, run)
+
+    step_reports = [
+        report for report in server.reports() if report.startswith("Error in test")
+    ]
+    assert step_reports == [
+        "Error in test life step 14: StepFailed: Wisp made no drawing: the picture "
+        "worker address (CF_IMAGE_WORKER_URL) is not set."
+    ]
+    assert server.texts()[-1] == (
+        "♪ Test life done: 16 steps passed, 1 failed (step 14)."
+    )
 
 
 async def test_starve_ends_with_the_wisp_dead_and_then_a_new_egg(

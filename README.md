@@ -21,8 +21,9 @@ then a **right now** heading: what he needs, worst first, one line each.
   need turning off, each pointing at his House
 
 When there is nothing to do it says `happy`. The last line is his next nap in
-Pacific time, such as `next nap 2pm Pacific`. A line under the card points at
-the buttons. There are six, three to a row, and every answer is private:
+Pacific time, such as `next nap 2pm Pacific`, or, while he naps, when he wakes,
+such as `napping until 2pm Pacific`. A line under the card points at the
+buttons. There are six, three to a row, and every answer is private:
 
 - **Feed Wisp** opens the snack menu.
 - **Poke Wisp** pokes him, as everywhere else.
@@ -292,7 +293,9 @@ where the command was used.
 - `!wisp food <viibr> <suno>` sets how many meal points a viibrmusic.com
   track and a Suno track feed Wisp (0 to 50 each; leaderboard points match),
   and updates the quick rules post at the end of the Wisp FAQ. Until staff
-  set them, the starting values in `wisp/rules.py` apply.
+  set them, the starting values in `wisp/rules.py` apply. The rules post is
+  also brought up to date on each server's first tick after a restart, so a
+  new release's rules show without a command.
 - `!wisp faq` (or `/wispadmin faq`) rebuilds the Wisp FAQ in place: it deletes
   Wisp's own FAQ pictures (one per question, or one per section from before)
   and rules post, posts them fresh and updates the table of contents. Run it
@@ -318,7 +321,11 @@ where the command was used.
     Every other step holds 8 seconds so its posts can be read.
   - It is real: you get the feed, the points, the keepsakes and the drawing,
     and the life joins the history. The feed is lifted past the daily meal
-    limit and the medicine is free, for the test only.
+    limit and the medicine is free, for the test only. General chat is not
+    told: his hatching and new stages are announced in his House only.
+  - Without `CF_IMAGE_WORKER_URL` the drawing step fails with
+    `Wisp made no drawing: the picture worker address (CF_IMAGE_WORKER_URL)
+    is not set.`
   - While it runs, Wisp's own five-minute tick leaves the server alone, so
     nothing runs out or drains behind the test's back.
   - A step that fails, for any reason, posts
@@ -491,7 +498,8 @@ At most 1 per member and 6 per server each UTC day, only while he is alive and
 not frozen, for members who can feed him and are not banned. He posts it in the
 House with a line to the member (pinging them). A drawing that fails is posted
 as `Error in making a drawing for <name>: ...` and does not use up the day's
-limit. A member's Snack Pack shows how many he has made them. `!wisp testlife`
+limit. Without `CF_IMAGE_WORKER_URL` he makes none: nothing is asked of his AI
+and nothing is posted. A member's Snack Pack shows how many he has made them. `!wisp testlife`
 makes one too.
 
 ## Wisp's Studio

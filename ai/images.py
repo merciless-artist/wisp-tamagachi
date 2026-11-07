@@ -25,6 +25,11 @@ class ImageMaker(SessionOwner):
         super().__init__(timeout)
         self._url = url
 
+    @property
+    def configured(self) -> bool:
+        """Whether it has a worker address to ask."""
+        return self._url is not None
+
     async def draw(self, prompt: str) -> bytes:
         """Return the worker's JPEG for `prompt`.
 

@@ -58,6 +58,8 @@ MEALTIME_ID = 62
 CARD_ID = 777
 VAULT_POSTED_ID = 9000
 VAULT_MESSAGE_ID = 778
+RULES_ID = 63
+RULES_MESSAGE_ID = 779
 REPOSTED_CARD_ID = 888
 TITLE_ID = 889
 PANEL_ID = 999
@@ -470,6 +472,64 @@ async def test_tick_edits_status_message(
     )
     server.status.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
+
+
+async def configure_rules_post(bot: app.WispBot) -> None:
+    await configure(bot)
+    await bot.settings.update(
+        GUILD_ID, rules_thread_id=RULES_ID, rules_message_id=RULES_MESSAGE_ID
+    )
+
+
+async def test_the_first_tick_after_boot_refreshes_the_rules_post_once(
+    cog: LifeLoop, bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure_rules_post(bot)
+    await lay(bot)
+    refresh = AsyncMock()
+    monkeypatch.setattr(life_loop, "refresh_rules", refresh)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+
+    refresh.assert_awaited_once_with(bot, GUILD_ID)
+
+
+async def test_a_server_with_no_rules_post_gets_no_refresh(
+    cog: LifeLoop, bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    refresh = AsyncMock()
+    monkeypatch.setattr(life_loop, "refresh_rules", refresh)
+
+    await cog.run_tick(NOW)
+
+    refresh.assert_not_awaited()
+
+
+async def test_a_failed_rules_refresh_is_posted_and_the_tick_goes_on(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await configure_rules_post(bot)
+    await lay(bot)
+    refresh = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr(life_loop, "refresh_rules", refresh)
+
+    await cog.run_tick(NOW)
+
+    (report,) = house_reports(server)
+    assert report.startswith(
+        "Error in updating the Wisp FAQ rules post: OperationalError"
+    )
+    server.card_edit.assert_awaited_once()
+
+    await cog.run_tick(NOW + rules.TICK_EVERY)
+
+    refresh.assert_awaited_once()
 
 
 async def test_fed_today_counts_only_the_current_utc_day(

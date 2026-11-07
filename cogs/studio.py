@@ -196,7 +196,9 @@ class StudioThread:
     edited to it, picture included, when the Studio is ensured. `image` is
     the first post's picture, which the forum shows as the post's thumbnail,
     relative to the ASSETS folder. A `pinned_post` stays at the top
-    of the forum; Discord pins one post per forum.
+    of the forum; Discord pins one post per forum. The card in `message_attr`
+    is pinned in its thread unless `pin_card` is False, as for the
+    Leaderboard, whose card must stay the thread's last post.
     """
 
     attr: str
@@ -208,6 +210,7 @@ class StudioThread:
     image: str | None = None
     current_content: bool = False
     pinned_post: bool = False
+    pin_card: bool = True
 
 
 STUDIO_THREADS: tuple[StudioThread, ...] = (
@@ -233,6 +236,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "The Leaderboard is opening.",
         message_attr="vault_message_id",
         image="vault.png",
+        pin_card=False,
     ),
     StudioThread(
         "jam_thread_id",
@@ -355,7 +359,7 @@ async def _finish_thread(
     message_id: int | None,
 ) -> None:
     """Name the thread, lock or unlock it as its spec says, pin the post if it
-    should be, add the thumbnail, pin the card.
+    should be, add the thumbnail, pin the card if it should be.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is
@@ -382,7 +386,7 @@ async def _finish_thread(
     await _add_thumbnail(bot, guild, thread, spec)
     if spec.current_content:
         await _update_starter(bot, guild, thread, spec)
-    if spec.message_attr is None or message_id is None:
+    if spec.message_attr is None or message_id is None or not spec.pin_card:
         return
     try:
         message = await thread.fetch_message(message_id)

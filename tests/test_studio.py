@@ -541,9 +541,8 @@ async def test_setup_creates_six_threads_with_the_vault(
     rules_thread = server.thread_named(FAQ)
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
-    for thread in (status, vault):
-        server.messages[thread.id].pin.assert_awaited_once()
-    for name in (MEALTIME, JAM, FAQ, BURRITO):
+    server.messages[status.id].pin.assert_awaited_once()
+    for name in (VAULT, MEALTIME, JAM, FAQ, BURRITO):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -882,14 +881,28 @@ async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
 ) -> None:
     await run_setup(bot, server)
     before = await bot.settings.get(GUILD_ID)
+    del server.threads[before.status_thread_id or 0]
+
+    settings = await ensure_studio(bot, GUILD_ID)
+
+    assert settings.status_thread_id != before.status_thread_id
+    assert settings.status_message_id != before.status_message_id
+    new_thread = server.thread_named(STATUS)
+    server.messages[new_thread.id].pin.assert_awaited_once()
+
+
+async def test_a_recreated_leaderboard_gets_a_new_card_left_unpinned(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    before = await bot.settings.get(GUILD_ID)
     del server.threads[before.vault_thread_id or 0]
 
     settings = await ensure_studio(bot, GUILD_ID)
 
-    assert settings.vault_thread_id != before.vault_thread_id
     assert settings.vault_message_id != before.vault_message_id
     new_thread = server.thread_named(VAULT)
-    server.messages[new_thread.id].pin.assert_awaited_once()
+    server.messages[new_thread.id].pin.assert_not_awaited()
 
 
 async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
@@ -909,10 +922,10 @@ async def test_pin_failure_is_posted_in_its_thread_and_setup_carries_on(
     await run_setup(bot, server)
 
     assert server.created_names == list(THREAD_NAMES)
-    for name, title in ((STATUS, "Status"), (VAULT, "Leaderboard")):
-        (line,) = server.thread_named(name).send.await_args.args
-        assert line.startswith(f"Error in pinning the card in {title}: Forbidden")
-    server.thread_named(MEALTIME).send.assert_not_awaited()
+    (line,) = server.thread_named(STATUS).send.await_args.args
+    assert line.startswith("Error in pinning the card in Status: Forbidden")
+    for name in (VAULT, MEALTIME):
+        server.thread_named(name).send.assert_not_awaited()
     assert house_posts(server) == []
 
 
@@ -1036,7 +1049,7 @@ async def test_rerun_pins_an_existing_unpinned_card(
     assert status_message.pinned is True
     assert status_message.pin.await_count == 2
     vault_message = server.messages[server.thread_named(VAULT).id]
-    vault_message.pin.assert_awaited_once()
+    vault_message.pin.assert_not_awaited()
 
 
 async def test_rerun_skips_a_card_whose_message_is_gone(

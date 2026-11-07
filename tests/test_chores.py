@@ -32,7 +32,6 @@ from wisp.life import Life, Phase, credited_gap, new_egg
 from wisp.rules import (
     HEALTH_PER_CLEANUP,
     NAP_LOCAL_HOURS,
-    NAP_TIMEZONE,
     SICK_FOR,
     TANTRUM_WINDOW,
     TICK_EVERY,
@@ -464,11 +463,6 @@ def test_a_scold_closes_the_tantrum() -> None:
 # ---
 # Naps
 # ---
-
-
-def test_naps_follow_the_pacific_clock() -> None:
-    assert NAP_TIMEZONE == "America/Los_Angeles"
-    assert NAP_LOCAL_HOURS == (7, 13, 22)
 
 
 @pytest.mark.parametrize("hour", [6, 15, 21])

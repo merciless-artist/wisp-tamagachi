@@ -15,6 +15,7 @@ from wisp.text import (
     box_bottom,
     box_room,
     box_top,
+    channel_or,
     clip,
     count,
     fit,
@@ -43,6 +44,23 @@ SPEC_LINES = frozenset(SPEC.read_bytes().decode("utf-8").splitlines())
 )
 def test_count_pluralises_unless_one(amount: int, expected: str) -> None:
     assert count(amount, "point") == expected
+
+
+@pytest.mark.parametrize(
+    ("words", "channel_id", "expected"),
+    [
+        ("the track drop", 1563693152882262027, "<#1563693152882262027>"),
+        ("the track drop", None, "the track drop"),
+        ("the Status post", 60, "<#60>"),
+        ("the Status post", None, "the Status post"),
+        (None, 60, "<#60>"),
+        (None, None, None),
+    ],
+)
+def test_channel_or_links_a_set_channel_and_names_one_not_set(
+    words: str | None, channel_id: int | None, expected: str | None
+) -> None:
+    assert channel_or(words, channel_id) == expected
 
 
 @pytest.mark.parametrize(

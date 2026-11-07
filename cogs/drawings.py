@@ -74,11 +74,13 @@ async def _may_draw_for(
 ) -> bool:
     """Whether the member can be given one now.
 
-    They must be in the server, may feed him and not be banned, and neither
-    they nor the server may be at the day's cap.
+    There must be an image worker to draw it. They must be in the server, may
+    feed him and not be banned, and neither they nor the server may be at the
+    day's cap.
     """
     if (
-        not isinstance(member, discord.Member)
+        not bot.images.configured
+        or not isinstance(member, discord.Member)
         or await feeder_blocker(bot, guild_id, member, now) is not None
     ):
         return False
@@ -119,12 +121,13 @@ async def draw_for(
 ) -> DrawResult:
     """Make the member a drawing and post it in Wisp's House, if he may.
 
-    SKIPPED when he is not alive or is frozen, the member may not feed him, is
-    banned or is not in the server, or a daily cap is reached. A failure of
-    the AI, the worker or the post is reported where members see it, as
-    `Error in making a drawing for <name>`, and nothing is recorded, so the
-    next trigger can try again. Call this outside the guild lock: it waits for
-    the worker.
+    SKIPPED, quietly and before any AI call, when no image worker address is
+    set. SKIPPED too when he is not alive or is frozen, the member may not feed
+    him, is banned or is not in the server, or a daily cap is reached. A
+    failure of the AI, the worker or the post is reported where members see
+    it, as `Error in making a drawing for <name>`, and nothing is recorded, so
+    the next trigger can try again. Call this outside the guild lock: it waits
+    for the worker.
     """
     async with bot.drawing_lock(guild_id):
         life = await _living(bot, guild_id)

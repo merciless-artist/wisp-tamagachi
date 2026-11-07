@@ -89,6 +89,17 @@
   `/wisp board`; the drawing step needs that day's drawing caps free.
 - Menus sent before this update fail once ("This interaction failed") on their
   first press after the deploy.
+- Right after the update goes live, run `!wisp setup`, so the old Vault thread
+  gets its new Leaderboard name and first post. Then run `!wisp faq`, so the FAQ
+  text matches. The rules post refreshes itself.
+- The picture worker address must be in the server's own environment on fps.ms
+  (`CF_IMAGE_WORKER_URL`). Without it he quietly makes no drawings.
+- A test life's feed uses up the runner's daily meal limit that day. It can make
+  the runner tomorrow's top feeder and can trigger a bond drawing.
+- A Wisp ended by a test life shows on the Leaderboard like any Wisp that went
+  out.
+- The host must install `requirements.txt` on start (new: `tzdata`, `aiohttp`,
+  `yarl`).
 
 ## 2026-11-06 (`!wisp testlife` plays a whole life)
 
@@ -105,6 +116,8 @@
   history and the leaderboard. The feed is lifted past the daily meal limit and
   the medicine is free, for the test only. Wisp's own five-minute tick leaves
   the server alone while it runs.
+- General chat is never told about a test life's hatching or new stages; they
+  are announced in the House only.
 - `!wisp testlife starve` plays the egg and the hatching, then lets his Health
   run out. `!wisp testlife confirm` goes on when the server has a living Wisp
   past the egg (it first asks, and does nothing else). `!wisp testlife stop`
@@ -188,6 +201,8 @@
   feeds him once, for leaderboard points", "Old Fogey at day 24. At day 30
   he passes on; his coal is a new egg, 5 of 20 fed", and the intro without
   "Neglected, he fades.").
+- The rules post at the end of the Wisp FAQ is brought up to date on each
+  server's first tick after a restart, so new rules show without a command.
 - Lonely lines and the lonely AI layer ask for what fills Wellbeing: chat,
   play (duels), pokes, snacks and gifts, never cleanups.
 - `!wisp freeze` and `!wisp unfreeze` say his age pauses too.
@@ -225,6 +240,8 @@
   tantrum, the lights left on while he naps), or `happy`, then `next nap
   7am Pacific`. One line pointing at the buttons replaces the two hints about
   `/wisp snackpack` and the ViiBR Vault.
+- While he naps, the Right now block's last line says when he wakes, such as
+  `napping until 2pm Pacific`, in place of the next nap.
 - `status_view` moved from `cogs/snacks.py` to `cogs/status_card.py` (snacks
   importing the duel cog would be an import cycle), and the shared button
   error wrapper is `press` in `cogs/players.py`.
@@ -296,6 +313,9 @@
   picture as `wisp_drawing.jpg`. A failed try is posted as
   `Error in making a drawing for <name>: ...` and not recorded, so the next
   trigger can try again.
+- With no `CF_IMAGE_WORKER_URL` he makes no drawings, quietly: nothing is asked
+  of his AI and nothing is posted. The test life's drawing step says the address
+  is not set.
 - New `drawings` table (additive). The caps read it, so a restart keeps them.
   The Snack Pack gets a "Drawings from Wisp" line with the member's count.
 - The AI chain, the vision model and the picture client now share one session
@@ -392,6 +412,8 @@
   thread.
 - The Leaderboard post's notice says it is just for the leaderboard; the Status
   post keeps "just for buttons".
+- `!wisp setup` no longer pins the Leaderboard card, so the card stays the
+  thread's last post.
 
 ### For Myra
 

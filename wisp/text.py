@@ -7,11 +7,13 @@ an item, `>` the break between sections and `>>>` the end of the box.
 
 import re
 from collections.abc import Collection, Sequence
-from typing import Final
+from typing import Final, TypeVar
 
 MESSAGE_LIMIT: Final = 2000
 LAYOUT_TEXT_LIMIT: Final = 4000
 USER_ERROR: Final = "That didn't work. The error is posted in this channel."
+
+_Words = TypeVar("_Words", bound=str | None)
 
 # Pictographs, the technical, arrow and symbol blocks emoji come from (minus the
 # music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and
@@ -391,6 +393,11 @@ def any_role(role_ids: Collection[int], shown: int) -> str:
     if len(mentions) < 2:
         return "".join(mentions)
     return f"{', '.join(mentions[:-1])} or {mentions[-1]}"
+
+
+def channel_or(words: _Words, channel_id: int | None) -> str | _Words:
+    """The channel's link, `<#id>`, or `words` when no channel is given."""
+    return words if channel_id is None else f"<#{channel_id}>"
 
 
 def round_half_up(value: float) -> int:

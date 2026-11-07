@@ -280,7 +280,14 @@ async def credit_feed(
 
 
 async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
-    """Bring the Wisp FAQ's rules post up to date with the food values and roles."""
+    """Bring the Wisp FAQ's rules post up to date with the food values and roles.
+
+    Takes no guild lock. A Discord failure is posted by `show_in_thread`, never
+    raised.
+
+    Raises:
+        pymysql.err.Error: The database failed.
+    """
     await show_in_thread(
         bot,
         guild_id,

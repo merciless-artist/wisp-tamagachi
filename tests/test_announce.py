@@ -33,6 +33,7 @@ from cogs.announce import (
     post_in_house,
     show_in_thread,
 )
+from cogs.lifetest_runs import LifeTestRun
 from cogs.pictures import life_image
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
@@ -1682,6 +1683,21 @@ async def test_a_stage_up_is_shared_in_general_chat_with_its_picture(
     )
 
 
+async def test_a_test_life_tells_only_the_house_never_general_chat(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, general_channel_id=GENERAL_ID)
+    await growing_life(bot)
+    bot.test_runs[GUILD_ID] = LifeTestRun(GUILD_ID, MEMBER, "Runner")
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    server.general.send.assert_not_awaited()
+    assert said(
+        server.house.send.await_args_list[0].args[0], Moment.STAGE_UP, stage="teen"
+    )
+
+
 async def test_without_a_general_chat_the_news_stays_in_the_house(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -1834,6 +1850,24 @@ async def test_the_sick_multiplier_shows_in_the_post(
     await post_events(bot, GUILD_ID, [health_drop(lost=12.0, value=38.0)])
 
     assert "・Health -12 (now 38):" in server.house.send.await_args.args[0]
+
+
+@pytest.mark.parametrize(
+    ("lost", "value", "shown"),
+    [
+        (7.6, 42.5, "・Health -7 (now 43):"),
+        (0.4, 49.6, "・Health -0 (now 50):"),
+        (12.0, 38.0, "・Health -12 (now 38):"),
+    ],
+)
+async def test_the_drop_post_rounds_like_the_card(
+    bot: app.WispBot, server: FakeServer, lost: float, value: float, shown: str
+) -> None:
+    await growing_life(bot)
+
+    await post_events(bot, GUILD_ID, [health_drop(lost=lost, value=value)])
+
+    assert shown in server.house.send.await_args.args[0]
 
 
 async def test_no_drop_means_no_drop_post(bot: app.WispBot, server: FakeServer) -> None:

@@ -17,6 +17,7 @@ from wisp.text import (
     BLANK,
     box_bottom,
     box_top,
+    channel_or,
     count,
     fit,
     heading,
@@ -53,7 +54,7 @@ def _intro(status_thread_id: int | None, private: bool) -> tuple[str, ...]:
     The posted card says where to shop the Vault; the private one answering
     `/wisp board` has the buttons under it.
     """
-    where = "the Status post" if status_thread_id is None else f"<#{status_thread_id}>"
+    where = channel_or("the Status post", status_thread_id)
     shop = (
         "Shop or open your Snack Pack with the buttons below."
         if private
