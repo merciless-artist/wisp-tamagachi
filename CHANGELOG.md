@@ -34,6 +34,10 @@
 - Snacks, gifts and medicine still work while he naps, but his House line
   comes from new sleepy sets: eating, getting a gift and taking medicine in
   his sleep, five lines each.
+- Freezing pauses his age. A frozen living Wisp adds the frozen time to the
+  new `frozen_seconds` column (additive, default 0), and `age_days` and the
+  Monster Pox due time leave it out (`own_time`), so stage days, Old Fogey,
+  farewell and Pox all wait out a freeze. A staff stage jump forgets it.
 
 ## 2026-11-06 (The Status post is the control panel)
 

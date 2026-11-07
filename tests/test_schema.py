@@ -405,6 +405,36 @@ def test_the_meters_and_chores_columns_are_defined_and_added_to_live_tables() ->
         assert f"{column} {column_type}," in definition
 
 
+def test_the_frozen_seconds_column_is_defined_and_added_to_live_tables() -> None:
+    column_type = "DOUBLE NOT NULL DEFAULT 0"
+    assert schema._ADDED_COLUMNS["lives"]["frozen_seconds"] == column_type
+    assert f"frozen_seconds {column_type}," in schema._DEFINITIONS["lives"]
+
+
+async def test_create_tables_adds_frozen_seconds_to_a_live_lives_table(
+    db: Database,
+) -> None:
+    lives = db.t("lives")
+    await LifeRepo(db).insert(1, new_egg(1, datetime(2026, 11, 2, tzinfo=UTC)))
+    await db.execute(f"ALTER TABLE {lives} DROP COLUMN frozen_seconds")
+    try:
+        await create_tables(db)
+
+        life = await LifeRepo(db).current(1)
+        assert life is not None
+        assert life.frozen_seconds == 0.0
+    finally:
+        present = {
+            column["Field"]
+            for column in await db.fetchall(f"SHOW COLUMNS FROM {lives}")
+        }
+        if "frozen_seconds" not in present:
+            await db.execute(
+                f"ALTER TABLE {lives} ADD COLUMN frozen_seconds "
+                "DOUBLE NOT NULL DEFAULT 0"
+            )
+
+
 async def test_create_tables_adds_meters_and_chores_to_a_live_lives_table(
     db: Database,
 ) -> None:

@@ -137,6 +137,10 @@ class Life:
     `cold_left` is the credited seconds of it still to go, and `had_cold`
     whether he has caught it, so he never catches it twice.
 
+    `frozen_seconds` is how long he has been frozen since he hatched. His age
+    leaves it out, so his stage days, old age, farewell and Monster Pox all
+    wait out a freeze (see `own_time`).
+
     `health_stretch` and `wellbeing_stretch` are the counted seconds each meter
     has spent in its current stretch, and `sniffles_left` the counted seconds
     of his cold still to go.
@@ -194,6 +198,7 @@ class Life:
     lights_left: float = 0.0
     nap_message_id: int | None = None
     cranky_until: datetime | None = None
+    frozen_seconds: float = 0.0
 
 
 # ---
@@ -270,11 +275,16 @@ def hours_left(seconds: float) -> int:
     return math.ceil(seconds / timedelta(hours=1).total_seconds())
 
 
+def own_time(life: Life, now: datetime) -> datetime:
+    """`now` on his own clock, which stands still while he is frozen."""
+    return now - timedelta(seconds=life.frozen_seconds)
+
+
 def age_days(life: Life, now: datetime) -> int:
-    """Whole days since hatching; zero for a Wisp that has not hatched."""
+    """Whole days since hatching, frozen time left out; zero before hatching."""
     if life.hatched_at is None:
         return 0
-    return (now - life.hatched_at).days
+    return (own_time(life, now) - life.hatched_at).days
 
 
 # ---
@@ -383,7 +393,11 @@ def _catch_due_cold(life: Life, now: datetime) -> list[Event]:
     """
     if life.cold_due_at is not None and life.stage not in _COLD_STAGES:
         life.cold_due_at = None
-    if life.had_cold or life.cold_due_at is None or now < life.cold_due_at:
+    if (
+        life.had_cold
+        or life.cold_due_at is None
+        or own_time(life, now) < life.cold_due_at
+    ):
         return []
     life.had_cold = True
     life.cold_left = SICK_FOR.total_seconds()
@@ -445,12 +459,16 @@ def tick(
     """Advance a life to `now`, counting only its `credited_gap`.
 
     `caretakers` cared for him this stage; `people` is how many he saw in the
-    last PEOPLE_WINDOW, which sets how many caretakers growing up takes.
+    last PEOPLE_WINDOW, which sets how many caretakers growing up takes. A
+    hatched Wisp who is frozen adds the time to `frozen_seconds`, so his age
+    waits.
     """
     if is_over(life):
         return []
     gap = now - life.last_tick_at
     elapsed = credited_gap(life, now, frozen=frozen)
+    if frozen and life.phase is Phase.ALIVE:
+        life.frozen_seconds += max(gap, timedelta(0)).total_seconds()
     if life.high_mood_since is not None:
         life.high_mood_since += max(gap - elapsed, timedelta(0))
     life.last_tick_at = now
@@ -663,12 +681,14 @@ def _jump_age(stage: Stage) -> int:
 def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
     """Put a living Wisp straight into `stage`, for staff testing it.
 
-    His age is set to match, so he stays in the stage until he grows out of
-    it on his own, and a Monster Pox not caught yet is rolled again from his
-    new hatch time. An Old Fogey jumped to from a young stage is counted as
-    having been an Adult. Returns the event to announce; a Baby has none.
+    His age is set to match, frozen time forgotten, so he stays in the stage
+    until he grows out of it on his own, and a Monster Pox not caught yet is
+    rolled again from his new hatch time. An Old Fogey jumped to from a young
+    stage is counted as having been an Adult. Returns the event to announce;
+    a Baby has none.
     """
     life.hatched_at = now - timedelta(days=_jump_age(stage))
+    life.frozen_seconds = 0.0
     life.cold_due_at = None
     life.high_mood_since = None
     keep_peak = stage is Stage.OLD_FOGEY

@@ -29,6 +29,7 @@ from wisp.life import (
     jump_to,
     mood,
     new_egg,
+    own_time,
     ready_to_pass_on,
     schedule_cold,
     starve,
@@ -1176,6 +1177,62 @@ def test_a_cold_never_kills_him() -> None:
 
 
 # ---
+# Freezing pauses his age
+# ---
+
+
+def test_frozen_days_do_not_age_him() -> None:
+    life = alive(health=HEALTH_MAX, at=T0 - timedelta(days=5), last_tick_at=T0)
+    run(life, timedelta(days=7), step=timedelta(hours=1), frozen=True)
+    end = T0 + timedelta(days=7)
+    assert life.frozen_seconds == timedelta(days=7).total_seconds()
+    assert age_days(life, end) == 5
+    assert own_time(life, end) == T0
+
+
+def test_an_old_fogey_frozen_over_his_farewell_day_waits_it_out() -> None:
+    life = old(Stage.OLD_FOGEY, FAREWELL_AT_DAY - 5, last_tick_at=T0)
+    assert run(life, timedelta(days=7), step=timedelta(hours=1), frozen=True) == []
+    after_freeze = run(life, timedelta(days=1), fed=True, cared=True)
+    assert EventKind.FAREWELL not in kinds(after_freeze)
+    assert life.phase is Phase.ALIVE
+    later = life.last_tick_at + timedelta(days=4)
+    assert tick(life, later, frozen=False, caretakers=0, people=0) == [
+        Event(EventKind.FAREWELL)
+    ]
+
+
+def test_a_frozen_baby_does_not_grow_up_by_his_day() -> None:
+    by_day = STAGE_RULES[Stage.CHILD].by_day
+    life = alive(health=HEALTH_MAX, at=T0 - timedelta(days=by_day - 1), last_tick_at=T0)
+    run(life, timedelta(days=3), step=timedelta(hours=1), frozen=True)
+    run(life, timedelta(hours=1), fed=True, cared=True)
+    assert life.stage is Stage.BABY
+
+
+def test_monster_pox_waits_out_a_freeze() -> None:
+    life = alive(health=HEALTH_MAX, cold_due_at=T0 + timedelta(days=1), last_tick_at=T0)
+    run(life, timedelta(days=3), step=timedelta(hours=1), frozen=True)
+    assert EventKind.SICK not in kinds(run(life, timedelta(hours=12)))
+    assert not is_sick(life)
+    assert EventKind.SICK in kinds(run(life, timedelta(hours=13)))
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
+def test_freezing_an_egg_adds_no_frozen_time(phase: Phase) -> None:
+    egg = new_egg(1, T0)
+    egg.phase = phase
+    tick(egg, T0 + timedelta(days=2), frozen=True, caretakers=0, people=0)
+    assert egg.frozen_seconds == 0.0
+
+
+def test_an_unfrozen_tick_adds_no_frozen_time() -> None:
+    life = alive(health=HEALTH_MAX, last_tick_at=T0)
+    run(life, timedelta(days=1), fed=True, cared=True)
+    assert life.frozen_seconds == 0.0
+
+
+# ---
 # Staff tests
 # ---
 
@@ -1196,6 +1253,13 @@ def test_a_jumped_wisp_stays_in_his_stage(stage: Stage, kind: EventKind) -> None
     assert (life.stage, life.stage_started_at) == (stage, T0)
     assert run(life, timedelta(days=2), fed=True, cared=True, people=1) == []
     assert life.stage is stage
+
+
+def test_a_jump_forgets_frozen_time() -> None:
+    life = alive(health=HEALTH_MAX, frozen_seconds=timedelta(days=3).total_seconds())
+    jump_to(life, Stage.TEEN, T0)
+    assert life.frozen_seconds == 0.0
+    assert age_days(life, T0) == STAGE_RULES[Stage.TEEN].by_day
 
 
 def test_a_jump_back_to_baby_is_not_announced() -> None:

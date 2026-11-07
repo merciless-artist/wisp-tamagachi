@@ -1211,6 +1211,7 @@ async def test_meters_and_chores_round_trip(db: Database) -> None:
     life.lights_left = 7200.5
     life.nap_message_id = 1234567890125
     life.cranky_until = datetime(2026, 11, 4, 6, 0, tzinfo=UTC)
+    life.frozen_seconds = 3600.5
     await repo.save(GUILD, life)
 
     loaded = await repo.current(GUILD)
