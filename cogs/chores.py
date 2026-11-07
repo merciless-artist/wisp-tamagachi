@@ -333,7 +333,10 @@ async def _take(
     Returns the life it was done for and his Health before the chore.
 
     A press that comes before the post's id is stored stores it: the button
-    is on the post, so the post is this chore's.
+    is on the post, so the post is taken to be this chore's. A chore does not
+    remember when it opened, so an older post of the same kind whose button
+    a failed edit left in place could claim the new chore in that moment; the
+    chore is then done and paid as usual, and the new post loses its button.
 
     Raises:
         Refusal: Wisp is frozen, someone already did it, the post is an older

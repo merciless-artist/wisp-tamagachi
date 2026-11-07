@@ -987,20 +987,37 @@ def test_a_due_time_found_after_childhood_is_cleared_never_caught(
 @pytest.mark.parametrize("stage", [Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR])
 def test_a_jump_past_childhood_clears_the_pox_due_time(stage: Stage) -> None:
     life = alive(health=HEALTH_MAX, cold_due_at=T0 + timedelta(days=3))
-    jump_to(life, stage, T0)
+    jump_to(life, stage, T0, EdgeRng(high=False))
     assert life.cold_due_at is None
     run(life, timedelta(days=5), fed=True, cared=True, people=1)
     assert not life.had_cold
     assert not is_sick(life)
 
 
-def test_a_jump_rolls_the_pox_again_from_the_new_hatch_time() -> None:
-    life = alive(health=HEALTH_MAX, cold_due_at=T0 + timedelta(days=4))
-    jump_to(life, Stage.CHILD, T0)
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD])
+@pytest.mark.parametrize(
+    ("high", "after"), [(False, COLD_EARLIEST), (True, COLD_LATEST)]
+)
+def test_a_young_jump_rolls_the_pox_from_now_never_at_once(
+    stage: Stage, high: bool, after: timedelta
+) -> None:
+    life = alive(
+        health=HEALTH_MAX,
+        cold_due_at=T0 - timedelta(days=1),
+        last_tick_at=T0,
+        frozen_seconds=timedelta(days=2).total_seconds(),
+    )
+    jump_to(life, stage, T0, EdgeRng(high=high))
+    assert life.cold_due_at == T0 + after
+    events = tick(life, T0 + TICK_EVERY, frozen=False, caretakers=0, people=0)
+    assert EventKind.SICK not in kinds(events)
+    assert not is_sick(life)
+
+
+def test_a_young_jump_after_the_pox_rolls_nothing() -> None:
+    life = alive(health=HEALTH_MAX, had_cold=True)
+    jump_to(life, Stage.CHILD, T0, EdgeRng(high=False))
     assert life.cold_due_at is None
-    schedule_cold(life, EdgeRng(high=False))
-    assert life.hatched_at is not None
-    assert life.cold_due_at == life.hatched_at + COLD_EARLIEST
 
 
 def test_an_egg_gets_no_cold_until_he_hatches() -> None:
@@ -1248,8 +1265,8 @@ def test_an_unfrozen_tick_adds_no_frozen_time() -> None:
     ],
 )
 def test_a_jumped_wisp_stays_in_his_stage(stage: Stage, kind: EventKind) -> None:
-    life = alive(health=HEALTH_MAX, last_tick_at=T0)
-    assert jump_to(life, stage, T0) == Event(kind, stage)
+    life = alive(health=HEALTH_MAX, last_tick_at=T0, had_cold=True)
+    assert jump_to(life, stage, T0, random.Random(1)) == Event(kind, stage)
     assert (life.stage, life.stage_started_at) == (stage, T0)
     assert run(life, timedelta(days=2), fed=True, cared=True, people=1) == []
     assert life.stage is stage
@@ -1257,14 +1274,14 @@ def test_a_jumped_wisp_stays_in_his_stage(stage: Stage, kind: EventKind) -> None
 
 def test_a_jump_forgets_frozen_time() -> None:
     life = alive(health=HEALTH_MAX, frozen_seconds=timedelta(days=3).total_seconds())
-    jump_to(life, Stage.TEEN, T0)
+    jump_to(life, Stage.TEEN, T0, random.Random(1))
     assert life.frozen_seconds == 0.0
     assert age_days(life, T0) == STAGE_RULES[Stage.TEEN].by_day
 
 
 def test_a_jump_back_to_baby_is_not_announced() -> None:
     life = alive(health=HEALTH_MAX, stage=Stage.TEEN, last_tick_at=T0)
-    assert jump_to(life, Stage.BABY, T0) is None
+    assert jump_to(life, Stage.BABY, T0, random.Random(1)) is None
     assert (life.stage, life.peak_stage, life.hatched_at) == (
         Stage.BABY,
         Stage.BABY,
@@ -1274,16 +1291,16 @@ def test_a_jump_back_to_baby_is_not_announced() -> None:
 
 def test_an_old_fogey_jumped_to_counts_as_a_grown_up() -> None:
     young = alive(health=HEALTH_MAX, stage=Stage.CHILD)
-    jump_to(young, Stage.OLD_FOGEY, T0)
+    jump_to(young, Stage.OLD_FOGEY, T0, random.Random(1))
     assert young.peak_stage is Stage.ADULT
     star = alive(health=HEALTH_MAX, stage=Stage.ROCKSTAR)
-    jump_to(star, Stage.OLD_FOGEY, T0)
+    jump_to(star, Stage.OLD_FOGEY, T0, random.Random(1))
     assert star.peak_stage is Stage.ROCKSTAR
 
 
 def test_ready_to_pass_on_says_farewell_on_the_next_tick() -> None:
     life = alive(health=HEALTH_MAX, stage=Stage.CHILD, last_tick_at=T0)
-    ready_to_pass_on(life, T0)
+    ready_to_pass_on(life, T0, random.Random(1))
     assert tick(life, T0, frozen=False, caretakers=0, people=0) == [
         Event(EventKind.FAREWELL)
     ]

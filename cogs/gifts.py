@@ -351,13 +351,16 @@ async def announce_gift(
 ) -> None:
     """Tell Wisp's House about a gift, with its picture when he kept it.
 
-    The post tags and pings the giver, so they see how Wisp took it. Given
-    while he naps, his line is a sleepy one.
+    The post tags and pings the giver, so they see how Wisp took it. A gift
+    he keeps while he naps gets a sleepy line; one he passes on keeps its own
+    line, so the post never says he hugged a gift that went back.
     """
     feeling = mood(given.life)
     title = given.gift.title
     giver = given.player.user_id
-    moment = Moment.GIFT_ASLEEP if is_napping(given.life) else _MOMENTS[given.outcome]
+    kept = given.outcome is Outcome.KEPT
+    asleep = kept and is_napping(given.life)
+    moment = Moment.GIFT_ASLEEP if asleep else _MOMENTS[given.outcome]
     lines = [
         f"♪ <@{giver}> gave Wisp {with_article(title)}",
         bot.lines.pick(moment, feeling, name=name, gift=title),
@@ -369,7 +372,6 @@ async def announce_gift(
                 Moment.COLLECTION_DONE, feeling, name=name, collection=collection
             )
         )
-    kept = given.outcome is Outcome.KEPT
     if not kept:
         lines.append(_BACK_IN_VAULT)
     await post_in_house(

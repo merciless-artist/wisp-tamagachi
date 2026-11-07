@@ -663,10 +663,13 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
     assert await bot.activity_log.people_since(GUILD_ID, now - timedelta(hours=1))
 
 
-@pytest.mark.parametrize("roll", [KEEP, PASS])
-async def test_a_gift_while_he_naps_gets_a_sleepy_line(
-    bot: app.WispBot, server: FakeServer, cog: Gifts, roll: float
+@pytest.mark.parametrize(
+    ("roll", "moment"), [(KEEP, Moment.GIFT_ASLEEP), (PASS, Moment.GIFT_PASSED)]
+)
+async def test_a_gift_kept_while_he_naps_gets_a_sleepy_line(
+    bot: app.WispBot, server: FakeServer, cog: Gifts, roll: float, moment: Moment
 ) -> None:
+    """A passed-on gift keeps its own line, which says it went back."""
     life = await lay(bot)
     life.nap_left = 1800.0
     await bot.lives.save(GUILD_ID, life)
@@ -676,9 +679,9 @@ async def test_a_gift_while_he_naps_gets_a_sleepy_line(
     await give(bot, "alien_blue")
 
     text, _kwargs = house_post(server)
-    assert text.startswith(f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll\n[gift_asleep]")
+    assert text.startswith(f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll\n[{moment}]")
     pick.assert_called_once_with(
-        Moment.GIFT_ASLEEP, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
+        moment, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
     )
 
 

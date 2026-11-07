@@ -248,11 +248,13 @@ async def blocker_reason(bot: "WispBot", guild_id: int, blocker: Blocker) -> str
     nobody since every send turns pings off; with none set it says "a role
     that can feed Wisp".
     """
+    if blocker is not Blocker.NO_ROLE:
+        return BLOCKER_REASONS[blocker]
     roles = await bot.settings.roles(guild_id)
-    if blocker is Blocker.NO_ROLE and roles:
-        named = any_role(roles, FEEDING_ROLES_SHOWN)
-        return f"you don't have a role that can feed Wisp: {named}."
-    return BLOCKER_REASONS[blocker]
+    if not roles:
+        return BLOCKER_REASONS[blocker]
+    named = any_role(roles, FEEDING_ROLES_SHOWN)
+    return f"you don't have a role that can feed Wisp: {named}."
 
 
 async def is_frozen(bot: "WispBot", guild_id: int) -> bool:

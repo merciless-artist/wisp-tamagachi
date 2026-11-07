@@ -404,6 +404,21 @@ async def test_a_missing_role_is_named_from_the_servers_feeding_roles(
     assert banned == players.BLOCKER_REASONS[players.Blocker.BANNED]
 
 
+@pytest.mark.parametrize(
+    "blocker", [players.Blocker.BANNED, players.Blocker.NOT_OPENED]
+)
+async def test_only_a_missing_role_reads_the_feeding_roles(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch, blocker: players.Blocker
+) -> None:
+    roles = AsyncMock(return_value=frozenset({QUALIFYING_ROLE}))
+    monkeypatch.setattr(bot.settings, "roles", roles)
+
+    reason = await players.blocker_reason(bot, GUILD_ID, blocker)
+
+    assert reason == players.BLOCKER_REASONS[blocker]
+    roles.assert_not_awaited()
+
+
 async def test_a_credit_while_frozen_says_he_is_frozen(bot: app.WispBot) -> None:
     await lay(bot)
     await enroll(bot)

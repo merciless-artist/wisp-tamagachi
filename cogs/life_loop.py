@@ -356,11 +356,11 @@ class LifeLoop(commands.Cog):
             life = await bot.lives.current(guild_id)
             if life is not None and life.phase is Phase.ALIVE:
                 if step == _FAREWELL:
-                    ready_to_pass_on(life, now)
+                    ready_to_pass_on(life, now, self.rng)
                 elif step == _STARVE:
                     starve(life)
                 else:
-                    event = jump_to(life, _TEST_STAGES[step], now)
+                    event = jump_to(life, _TEST_STAGES[step], now, self.rng)
                     events = [] if event is None else [event]
                 await bot.lives.save(guild_id, life)
         if life is None or life.phase is not Phase.ALIVE:

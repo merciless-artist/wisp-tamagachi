@@ -382,8 +382,13 @@ def schedule_cold(life: Life, rng: random.Random) -> None:
         or life.hatched_at is None
     ):
         return
+    life.cold_due_at = life.hatched_at + _cold_offset(rng)
+
+
+def _cold_offset(rng: random.Random) -> timedelta:
+    """How long after its start Monster Pox is due: COLD_EARLIEST to COLD_LATEST."""
     offset = rng.uniform(COLD_EARLIEST.total_seconds(), COLD_LATEST.total_seconds())
-    life.cold_due_at = life.hatched_at + timedelta(seconds=offset)
+    return timedelta(seconds=offset)
 
 
 def _catch_due_cold(life: Life, now: datetime) -> list[Event]:
@@ -678,18 +683,24 @@ def _jump_age(stage: Stage) -> int:
     return STAGE_RULES[stage].by_day
 
 
-def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
+def jump_to(
+    life: Life, stage: Stage, now: datetime, rng: random.Random
+) -> Event | None:
     """Put a living Wisp straight into `stage`, for staff testing it.
 
     His age is set to match, frozen time forgotten, so he stays in the stage
-    until he grows out of it on his own, and a Monster Pox not caught yet is
-    rolled again from his new hatch time. An Old Fogey jumped to from a young
-    stage is counted as having been an Adult. Returns the event to announce;
-    a Baby has none.
+    until he grows out of it on his own. A Baby or Child who has not had
+    Monster Pox has it rolled again from now (never from his new, earlier
+    hatch time, which would start it at once); any other stage has no Pox
+    due. An Old Fogey jumped to from a young stage is counted as having been
+    an Adult. Returns the event to announce; a Baby has none.
     """
     life.hatched_at = now - timedelta(days=_jump_age(stage))
     life.frozen_seconds = 0.0
     life.cold_due_at = None
+    if stage in _COLD_STAGES and not life.had_cold:
+        start = max(life.hatched_at, own_time(life, now))
+        life.cold_due_at = start + _cold_offset(rng)
     life.high_mood_since = None
     keep_peak = stage is Stage.OLD_FOGEY
     if keep_peak and life.peak_stage not in (Stage.ADULT, Stage.ROCKSTAR):
@@ -698,9 +709,9 @@ def jump_to(life: Life, stage: Stage, now: datetime) -> Event | None:
     return None if stage is Stage.BABY else event
 
 
-def ready_to_pass_on(life: Life, now: datetime) -> None:
+def ready_to_pass_on(life: Life, now: datetime, rng: random.Random) -> None:
     """Make a living Wisp an Old Fogey on his farewell day; his next tick ends it."""
-    jump_to(life, Stage.OLD_FOGEY, now)
+    jump_to(life, Stage.OLD_FOGEY, now, rng)
     life.hatched_at = now - timedelta(days=FAREWELL_AT_DAY)
 
 

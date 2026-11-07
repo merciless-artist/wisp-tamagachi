@@ -2,8 +2,11 @@
 
 ## 2026-11-06 (Audit fixes)
 
-- Private menus never go quiet. The Vault, the snack menu and the Snack Pack
-  never time out, and every menu select carries this run's token in its
+- Private menus never go quiet. The Vault and the snack menu never time out:
+  their `timeout` is pinned to None (`Lasting` in `cogs/menus.py`), since
+  discord.py otherwise gives a private follow-up's view 15 minutes. The
+  Snack Pack's one button is persistent, so it works whatever its view's
+  timeout. Every menu select carries this run's token in its
   custom id (`wisp:menu:<run>:<slot>`). A press on a menu sent before a
   restart gets `♪ This menu closed when Wisp restarted. Open it again from
   the Status post.` from the new `ClosedMenu` dynamic item, which leaves this
@@ -15,8 +18,9 @@
 - `/wisp lunchbox` used in a Studio thread answers privately instead of
   posting between the cards.
 - Monster Pox is only ever caught as a Baby or Child: a due time found at a
-  later stage is cleared, and `!wisp test_lifestage` clears the due time so
-  it is rolled again from the new hatch time.
+  later stage is cleared. `!wisp test_lifestage` to Baby or Child rolls a
+  Pox not had yet afresh from now (one to five days on his own clock), so a
+  staff jump never starts it at once; any other stage clears it.
 - Chores: the first press on a chore whose post id is not stored yet does
   the chore (and stores the id) instead of hearing "already taken"; a chore
   whose post failed is dropped at no cost, and a dropped mess does not hold
@@ -33,7 +37,8 @@
   runs out, rounded up to the minute.
 - Snacks, gifts and medicine still work while he naps, but his House line
   comes from new sleepy sets: eating, getting a gift and taking medicine in
-  his sleep, five lines each.
+  his sleep, five lines each. A gift he passes on keeps its usual line,
+  which says it went back.
 - Freezing pauses his age. A frozen living Wisp adds the frozen time to the
   new `frozen_seconds` column (additive, default 0), and `age_days` and the
   Monster Pox due time leave it out (`own_time`), so stage days, Old Fogey,
