@@ -1,6 +1,7 @@
 """Environment configuration, loaded from ``.env`` at import time."""
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -28,8 +29,14 @@ GOOGLE_API_KEY: str | None = _optional("GOOGLE_API_KEY")
 GOOGLE_CHAT_MODEL: str | None = _optional("GOOGLE_CHAT_MODEL")
 GOOGLE_FALLBACK_MODEL: str | None = _optional("GOOGLE_FALLBACK_MODEL")
 GOOGLE_VISION_MODEL: str = _optional("GOOGLE_VISION_MODEL") or "gemini-3.6-flash"
+GOOGLE_EMBEDDING_MODEL: str = (
+    _optional("GOOGLE_EMBEDDING_MODEL") or "gemini-embedding-2"
+)
 GROQ_API_KEY: str | None = _optional("GROQ_API_KEY")
 GROQ_MODEL: str | None = _optional("GROQ_MODEL")
 OPENROUTER_API_KEY: str | None = _optional("OPENROUTER_API_KEY")
 OPENROUTER_MODEL: str | None = _optional("OPENROUTER_MODEL")
 CF_IMAGE_WORKER_URL: str | None = _optional("CF_IMAGE_WORKER_URL")
+MEMORY_PATH: str = _optional("WISP_MEMORY_PATH") or str(
+    Path(__file__).parent / "data" / "memory"
+)

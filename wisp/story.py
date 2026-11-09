@@ -81,8 +81,15 @@ def member_ids(life: Life, entries: Iterable[Entry]) -> set[int]:
 
 
 def past_lives(history: Iterable[Life]) -> list[Life]:
-    """The newest lives that hatched and are over, from newest-first `history`."""
-    hatched = [life for life in history if is_over(life) and life.hatched_at]
+    """The newest real lives that hatched and are over, from newest-first `history`.
+
+    Staff test lives are not remembered.
+    """
+    hatched = [
+        life
+        for life in history
+        if is_over(life) and life.hatched_at and not life.is_test
+    ]
     return hatched[:PAST_LIVES_REMEMBERED]
 
 
@@ -128,7 +135,7 @@ def life_story(
     return f"{told}\n\n" + "\n".join([_PAST_HEADING, *map(_past_line, past)])
 
 
-def _when(at: datetime, now: datetime) -> str:
+def how_long_ago(at: datetime, now: datetime) -> str:
     """How long ago `at` was, in UTC calendar days."""
     days = (now.date() - at.date()).days
     if days <= 0:
@@ -139,7 +146,7 @@ def _when(at: datetime, now: datetime) -> str:
 def _hatching(life: Life, names: Mapping[int, str], now: datetime) -> list[str]:
     if life.hatched_at is None:
         return []
-    line = f"- You hatched {_when(life.hatched_at, now)}."
+    line = f"- You hatched {how_long_ago(life.hatched_at, now)}."
     if life.hatched_by is not None and life.hatched_by in names:
         line += f" {names[life.hatched_by]} fed you the meal that hatched you."
     return [line]
@@ -160,7 +167,7 @@ def _stages_behind(life: Life, entries: Sequence[Entry]) -> list[str]:
 
 
 def _entry_line(entry: Entry, names: Mapping[int, str], now: datetime) -> str:
-    when = _when(entry.at, now)
+    when = how_long_ago(entry.at, now)
     stage = with_article(entry.stage.label)
     member = entry.member_id
     who = "Someone" if member is None else names.get(member, "Someone")

@@ -53,6 +53,7 @@ _COLUMNS = (
     "nap_message_id",
     "cranky_until",
     "frozen_seconds",
+    "is_test",
 )
 _SELECT = f"SELECT id, {', '.join(_COLUMNS)} FROM"
 
@@ -101,6 +102,7 @@ def _from_row(row: Row) -> Life:
         nap_message_id=row["nap_message_id"],
         cranky_until=from_db_time(row["cranky_until"]),
         frozen_seconds=row["frozen_seconds"],
+        is_test=bool(row["is_test"]),
     )
 
 
@@ -148,6 +150,7 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.nap_message_id,
         to_db_time(life.cranky_until),
         life.frozen_seconds,
+        life.is_test,
     )
 
 

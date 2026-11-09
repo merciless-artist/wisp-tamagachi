@@ -1,13 +1,17 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 
 import app
 from ai.chain import AIChain
+from ai.embedding import Embedder
 from ai.images import ImageMaker
 from ai.vision import Vision
 from db.database import Database
+from db.memories import MemoryStore
 from db.schema import TABLES, create_tables
 
 TEST_PREFIX = "wisptest_"
@@ -47,3 +51,30 @@ async def db(_database: Database) -> Database:
     for name in TABLES:
         await _database.execute(f"TRUNCATE TABLE {_database.t(name)}")
     return _database
+
+
+def _meaning(text: str) -> list[float]:
+    """A stand-in embedding: one direction per topic, so topics are far apart."""
+    lowered = text.lower()
+    topics = [float(topic in lowered) for topic in ("dog", "album", "pickle")]
+    return [*topics, 0.01]
+
+
+@pytest.fixture
+def embedder() -> AsyncMock:
+    """A stand-in for Gemini's embeddings that tells topics apart."""
+    fake = AsyncMock(spec=Embedder)
+    fake.for_search.side_effect = _meaning
+    fake.for_saving.side_effect = _meaning
+    return fake
+
+
+@pytest_asyncio.fixture
+async def long_memory(tmp_path: Path) -> AsyncIterator[MemoryStore]:
+    """A real ChromaDB memory in a folder of its own."""
+    store = MemoryStore(str(tmp_path / "memory"))
+    await store.open()
+    try:
+        yield store
+    finally:
+        await store.close()

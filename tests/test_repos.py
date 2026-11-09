@@ -1257,3 +1257,14 @@ async def test_a_live_row_with_a_mood_value_loads_and_saves_keeping_wellbeing(
     saved = await repo.current(GUILD)
     assert saved is not None
     assert saved.wellbeing == 80.0
+
+
+async def test_a_test_life_is_stored_as_one(db: Database) -> None:
+    repo = LifeRepo(db)
+    life = new_egg(1, NOW)
+    life.is_test = True
+    await repo.insert(GUILD, life)
+
+    stored = await repo.current(GUILD)
+
+    assert stored is not None and stored.is_test

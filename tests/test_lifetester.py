@@ -422,6 +422,8 @@ async def test_a_full_run_plays_every_step_in_order_on_the_real_wisp(
         (1, Phase.PASSED),
     ]
     assert egg.from_coal
+    assert not egg.is_test
+    assert ended[1].is_test
     kinds = {keepsake.kind for keepsake in await bot.keepsakes.of(GUILD_ID, RUNNER_ID)}
     assert kinds == {
         KeepsakeKind.EGGSHELL,

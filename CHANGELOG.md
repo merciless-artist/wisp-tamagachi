@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-09 (Wisp's long memory)
+
+- Wisp now remembers what people say to him in his House and what he said
+  back, in a ChromaDB folder on his server, searched by meaning with Gemini
+  embeddings. From Baby on, each answer pulls up the few closest moments.
+- Memories are tagged by Discord ID. He looks through what that member told
+  him first, then the rest of the House.
+- Memories fade unless they come up, and coming up makes them last longer.
+  Nothing is deleted, and memories from every life stay.
+- Staff test lives are not remembered: they are not saved to his memory and
+  are left out of the past lives he knows about, along with a Wisp ended to
+  start a test.
+- If his memory cannot open or a search fails, the error is posted once and
+  he keeps talking without it.
+
 ## 2026-11-08 (Wisp remembers his life, and the game plays out in public)
 
 - Wisp now gets his life story every time he talks: when he hatched and who

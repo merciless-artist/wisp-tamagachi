@@ -22,6 +22,7 @@ from cogs.assets import nap_image
 from cogs.channels import where_of
 from cogs.chores import wake_by_poke
 from cogs.groups import require_guild
+from cogs.house_memory import keep, recall
 from cogs.pictures import art_kwargs, sick_talk_image
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -375,6 +376,7 @@ async def _prompt(
         track_drop=track_drop,
         sight=sight,
         story=await _story(bot, guild_id, life, now),
+        memories=await recall(bot, guild_id, life, text or "", player.user_id, now),
     )
 
 
@@ -515,9 +517,10 @@ class Conversation(commands.Cog):
     ) -> None:
         """Answer in Wisp's AI voice for `level`, or with its canned line on failure.
 
-        The egg's answers keep nothing. From Baby on, a pickle stance in the
-        answer is saved and the expressions it used count toward his favorite
-        emoji; a note is saved only from Adult on.
+        The egg's answers keep nothing. From Baby on, the exchange goes into
+        his long memory, a pickle stance in the answer is saved and the
+        expressions it used count toward his favorite emoji; a note is saved
+        only from Adult on.
         """
         bot = self.bot
         emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
@@ -546,6 +549,16 @@ class Conversation(commands.Cog):
         await _reply(bot, message, link_track_drop(reply.text, track_drop), picture)
         if level is Talk.EGG:
             return
+        await keep(
+            bot,
+            guild.id,
+            life,
+            str(message.id),
+            player.user_id,
+            text,
+            _CUSTOM_EMOJI.sub(r":\1:", reply.text),
+            now,
+        )
         await bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
         if reply.pickle_stance is not None:
             await bot.players.set_pickle_stance(
@@ -600,6 +613,9 @@ class Conversation(commands.Cog):
             sickness_hours=sick_hours(life),
             track_drop=track_drop is not None,
             story=await _story(self.bot, guild.id, life, now),
+            memories=await recall(
+                self.bot, guild.id, life, chat[-1].text if chat else "", None, now
+            ),
         )
         reply = await ai_reply(self.bot, guild, prompt)
         if reply is None:

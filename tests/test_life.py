@@ -1426,3 +1426,11 @@ def test_a_meter_with_nothing_left_to_lose_reports_no_drop() -> None:
 
 def test_frozen_time_reports_no_drop() -> None:
     assert run(alive(), SIX_HOURS, frozen=True) == []
+
+
+def test_a_life_cut_short_counts_as_testing() -> None:
+    life = new_egg(1, T0)
+
+    cut_short(life, T0 + SIX_HOURS)
+
+    assert life.is_test

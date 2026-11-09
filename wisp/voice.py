@@ -887,6 +887,7 @@ def build_prompt(
     track_drop: bool = False,
     sight: Sight | None = None,
     story: str = "",
+    memories: str = "",
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -902,7 +903,8 @@ def build_prompt(
     `sick_hours`). With `track_drop`, from Child on he sends people to the
     track drop for food (see `link_track_drop`). `sight` is the picture that
     came with `message`. `story` is what has really happened to him, from
-    `wisp.story.life_story`.
+    `wisp.story.life_story`. `memories` is what he recalls of past talk, from
+    `wisp.memories.memories_text`.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -932,6 +934,8 @@ def build_prompt(
         system.append(_TRACK_DROP_NOTE)
     if story:
         system.append(story)
+    if memories:
+        system.append(memories)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))

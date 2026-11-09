@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import sys
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import aiohttp
 import discord
@@ -13,6 +13,7 @@ from discord.ext import commands
 
 import config
 from ai.chain import chain_from_config
+from ai.embedding import embedder_from_config
 from ai.images import images_from_config
 from ai.vision import vision_from_config
 from cogs.channels import in_channel, may_post_in, where_of
@@ -44,7 +45,11 @@ from db.schema import create_tables
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from wisp.lines import LinePicker
+from wisp.memories import MemoryStoreError
 from wisp.text import MESSAGE_LIMIT, USER_ERROR, clip
+
+if TYPE_CHECKING:
+    from db.memories import MemoryStore
 
 log = logging.getLogger("wisp")
 
@@ -196,6 +201,8 @@ class WispBot(commands.Bot):
         self.drawings = DrawingRepo(self.db)
         self.ai = chain_from_config()
         self.vision = vision_from_config()
+        self.embedder = embedder_from_config()
+        self.memory: MemoryStore | None = None
         self.images = images_from_config()
         self.share_links = ShareLinkResolver()
         self.lines = LinePicker()
@@ -222,6 +229,7 @@ class WispBot(commands.Bot):
         await self.db.connect()
         await create_tables(self.db)
         log.info("Database ready")
+        await self._open_memory()
         self.emojis_by_name = {
             emoji.name: emoji for emoji in await self.fetch_application_emojis()
         }
@@ -236,6 +244,29 @@ class WispBot(commands.Bot):
         self.tree.add_command(wispadmin)
         synced = await self.tree.sync()
         log.info("Synced %d commands", len(synced))
+
+    async def _open_memory(self) -> None:
+        """Open his long memory; if it cannot open, he talks on without it.
+
+        The store is imported here so a broken ChromaDB install cannot stop
+        Wisp from starting. A failure is logged now and posted once ready.
+        """
+        if config.GOOGLE_API_KEY is None:
+            log.warning("Long memory is off: there is no Google key")
+            return
+        try:
+            from db.memories import MemoryStore
+
+            store = MemoryStore(config.MEMORY_PATH)
+            await store.open()
+            found = await store.count()
+        except (ImportError, OSError, MemoryStoreError) as error:
+            context = "opening Wisp's long memory"
+            log.error("Error in %s", context, exc_info=error)
+            self._startup_reports.append((context, _report_line(context, error)))
+            return
+        self.memory = store
+        log.info("Long memory ready with %d memories", found)
 
     async def on_ready(self) -> None:
         """Post the errors from startup in every Wisp's House, the first time only."""
@@ -317,7 +348,14 @@ class WispBot(commands.Bot):
                         try:
                             await self.share_links.close()
                         finally:
-                            await self.db.close()
+                            try:
+                                await self.embedder.close()
+                            finally:
+                                try:
+                                    if self.memory is not None:
+                                        await self.memory.close()
+                                finally:
+                                    await self.db.close()
 
     def app_emoji(self, name: str) -> discord.Emoji | None:
         """Return an application emoji, or None if it has not been uploaded."""

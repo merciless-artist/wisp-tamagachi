@@ -443,6 +443,10 @@ class _TestLife:
                 await self._bot.lives.save(self._guild_id, life)
         if await begin_again(self._bot, self._guild_id, now) is None:
             raise StepFailed("no egg was laid: a Wisp who goes on came first.")
+        async with self._bot.guild_lock(self._guild_id):
+            egg = await self._living(Phase.EGG)
+            egg.is_test = True
+            await self._bot.lives.save(self._guild_id, egg)
         await self._loop.tick_guild(self._guild_id, now)
 
     async def _hatch(self) -> None:

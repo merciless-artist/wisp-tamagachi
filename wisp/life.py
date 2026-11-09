@@ -202,6 +202,7 @@ class Life:
     nap_message_id: int | None = None
     cranky_until: datetime | None = None
     frozen_seconds: float = 0.0
+    is_test: bool = False
 
 
 # ---
@@ -738,9 +739,11 @@ def cut_short(life: Life, now: datetime) -> None:
     """End a life at once, for a staff test life that starts over.
 
     An egg, hatching or not, goes cold and a living Wisp dies, so no keepsake
-    is given for it. A life already over is left as it is.
+    is given for it, and it counts as testing, so he does not remember it as
+    a past life. A life already over is left as it is.
     """
     if is_over(life):
         return
+    life.is_test = True
     _enter(life, Phase.DEAD if life.phase is Phase.ALIVE else Phase.COLD)
     life.ended_at = now

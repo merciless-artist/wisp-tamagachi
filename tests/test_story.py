@@ -342,3 +342,11 @@ async def test_moments_in_the_same_second_keep_their_order(db: Database) -> None
     await repo.add(GUILD_ID, LIFE_ID, [first, second])
 
     assert await repo.recent(GUILD_ID, LIFE_ID) == [first, second]
+
+
+def test_a_staff_test_life_is_not_a_past_life() -> None:
+    tested = ended(2, Phase.PASSED, Stage.OLD_FOGEY, 1)
+    tested.is_test = True
+    real = ended(1, Phase.DEAD, Stage.BABY, 2)
+
+    assert past_lives([tested, real]) == [real]

@@ -1386,3 +1386,18 @@ def test_his_story_is_in_the_system_prompt_when_he_has_one() -> None:
 
     assert "**Your life so far.**" in told.system
     assert "**Your life so far.**" not in prompt_for().system
+
+
+def test_what_he_recalls_is_in_the_system_prompt_when_he_has_any() -> None:
+    told = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "how is my dog?",
+        expressions=EXPRESSIONS,
+        memories="**Things you remember from your House.**",
+    )
+
+    assert "**Things you remember from your House.**" in told.system
+    assert "Things you remember" not in prompt_for().system

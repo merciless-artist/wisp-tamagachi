@@ -21,6 +21,7 @@ __all__ = [
     "Provider",
     "ProviderError",
     "chain_from_config",
+    "post_json",
 ]
 
 log = logging.getLogger("wisp")
@@ -82,14 +83,13 @@ class Provider(Protocol):
         ...
 
 
-async def post_for_text(
+async def post_json(
     session: aiohttp.ClientSession,
     url: str,
     headers: dict[str, str],
     body: dict[str, Any],
-    extract: Callable[[Any], str],
-) -> str:
-    """POST a JSON body and pull the answer out of the reply.
+) -> Any:
+    """POST a JSON body and return the decoded reply.
 
     Every way this can go wrong is raised as a ProviderError. Keys travel in
     headers, never the URL, so a reason cannot leak one.
@@ -103,13 +103,24 @@ async def post_for_text(
             if response.status != 200:
                 text = await response.text()
                 raise ProviderError(f"HTTP {response.status} {text[:ERROR_BODY_CHARS]}")
-            data = await response.json(content_type=None)
+            return await response.json(content_type=None)
     except aiohttp.ClientError as error:
         raise ProviderError(f"{type(error).__name__}: {error}") from error
     except TimeoutError as error:
         raise ProviderError("timed out") from error
     except ValueError as error:
         raise ProviderError(f"reply was not JSON: {error}") from error
+
+
+async def post_for_text(
+    session: aiohttp.ClientSession,
+    url: str,
+    headers: dict[str, str],
+    body: dict[str, Any],
+    extract: Callable[[Any], str],
+) -> str:
+    """POST a JSON body and pull the answer out of the reply, or ProviderError."""
+    data = await post_json(session, url, headers, body)
     try:
         answer = extract(data).strip()
     except (KeyError, IndexError, TypeError, ValueError, AttributeError) as error:

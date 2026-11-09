@@ -90,6 +90,7 @@ _DEFINITIONS: dict[str, str] = {
         nap_message_id BIGINT NULL,
         cranky_until DATETIME NULL,
         frozen_seconds DOUBLE NOT NULL DEFAULT 0,
+        is_test BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (id),
         UNIQUE KEY uq_guild_version (guild_id, version)
     """,
@@ -283,6 +284,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "nap_message_id": "BIGINT NULL",
         "cranky_until": "DATETIME NULL",
         "frozen_seconds": "DOUBLE NOT NULL DEFAULT 0",
+        "is_test": "BOOL NOT NULL DEFAULT 0",
     },
 }
 

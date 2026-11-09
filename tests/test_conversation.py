@@ -27,6 +27,7 @@ from db.activity import ActivityRepo
 from db.database import Database
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
+from db.memories import MemoryStore
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -44,6 +45,7 @@ from wisp.rules import (
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
     CRANKY_FOR,
+    MEMORY_RECENT_SKIP,
     POKE_CREDITS_PER_DAY,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
@@ -2860,3 +2862,111 @@ async def test_his_prompt_names_who_helped_him_and_the_wisps_before_him(
     (prompt,) = prompts(ai)
     assert "Aria gave you medicine and cured your cold." in prompt.system
     assert "- Wisp v1 faded away as a Child after 3 days." in prompt.system
+
+
+# ---
+# Long memory
+# ---
+
+
+@pytest.fixture
+def remembering(
+    bot: app.WispBot, long_memory: MemoryStore, embedder: AsyncMock
+) -> MemoryStore:
+    bot.memory = long_memory
+    bot.embedder = embedder
+    return long_memory
+
+
+async def test_what_was_said_to_him_comes_back_in_a_later_prompt(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    clock: Clock,
+    message: MessageFactory,
+    remembering: MemoryStore,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    await bot.players.set_name(GUILD_ID, FIRST, "Aria")
+    ai.return_value = "poor pup"
+    await cog.on_message(message.to_wisp("my dog is sick", author=MEMBERS[FIRST]))
+    clock.advance(MEMORY_RECENT_SKIP + timedelta(seconds=1))
+    ai.return_value = "hi"
+
+    await cog.on_message(message.to_wisp("how is my dog", author=MEMBERS[FIRST]))
+
+    assert 'Aria said: "my dog is sick" You said: "poor pup"' in prompts(ai)[-1].system
+
+
+async def test_a_canned_fallback_is_not_kept(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    remembering: MemoryStore,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    ai.side_effect = AllProvidersFailed([("groq", "down")])
+
+    await cog.on_message(message.to_wisp("my dog", author=MEMBERS[FIRST]))
+
+    assert await remembering.count() == 0
+
+
+async def test_the_egg_keeps_nothing_and_looks_nothing_up(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    embedder: AsyncMock,
+    message: MessageFactory,
+    remembering: MemoryStore,
+) -> None:
+    await lay(bot, phase=Phase.EGG)
+    await enroll(bot, FIRST)
+    ai.return_value = "crackle"
+
+    await cog.on_message(message.to_wisp("my dog", author=MEMBERS[FIRST]))
+
+    assert await remembering.count() == 0
+    embedder.for_search.assert_not_awaited()
+
+
+async def test_a_poke_looks_nothing_up(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    embedder: AsyncMock,
+    poke: Press,
+    remembering: MemoryStore,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    ai.return_value = "hey"
+
+    await poke()
+
+    embedder.for_search.assert_not_awaited()
+    assert await remembering.count() == 0
+
+
+async def test_his_custom_emojis_are_kept_by_name(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    clock: Clock,
+    message: MessageFactory,
+    remembering: MemoryStore,
+) -> None:
+    await lay(bot)
+    await enroll(bot, FIRST)
+    give_emojis(bot, "wisp_love")
+    ai.return_value = "poor pup :wisp_love:"
+
+    await cog.on_message(message.to_wisp("my dog", author=MEMBERS[FIRST]))
+
+    (hit,) = await remembering.from_member(
+        GUILD_ID, FIRST, [1.0, 0.0, 0.0, 0.01], clock.now + timedelta(hours=1)
+    )
+    assert ":wisp_love:" in hit.memory.reply
+    assert "<" not in hit.memory.reply

@@ -228,6 +228,7 @@ picture.
    - `WISP_TABLE_PREFIX` (optional, defaults to `wisp_`)
    - Optional, for his talking, sight and drawings: `GOOGLE_API_KEY`,
      `GOOGLE_CHAT_MODEL`, `GOOGLE_FALLBACK_MODEL`, `GOOGLE_VISION_MODEL`,
+     `GOOGLE_EMBEDDING_MODEL`,
      `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
      and `CF_IMAGE_WORKER_URL` (the picture worker, whose source is
      `tools/cloudflare_wispimages_worker.js`; it has no sign-in, so keep its
@@ -434,7 +435,18 @@ Adult on he sometimes chimes in on his own and remembers things people
 tell him. At every stage from Baby on he is told his life so far (`wisp/story.py`):
 when he hatched, each stage, Monster Pox and colds and who helped, whether he is
 sick now, and how the last few Wisps before him ended, since fire sprites remember
-their past lives. Talking earns no bond. A member's first mention or poke of the UTC
+their past lives. Staff test lives are left out.
+
+From Baby on he also has a long memory of his House (`db/memories.py`, a ChromaDB
+folder at `data/memory`, searched with Gemini embeddings). When someone talks to
+him, what they said and what he answered are saved, tagged with their Discord ID
+and the life he was living. Each answer he recalls the few closest moments: that
+member's own first, then the rest of the House. Memories fade unless they come
+up, and coming up makes them last longer; none are deleted and every life's
+stay. Test lives are not saved. If the memory cannot open or a search fails, the
+error is posted once and he keeps talking without it.
+
+Talking earns no bond. A member's first mention or poke of the UTC
 day also earns 1 Vault point, and the first 3 chats of the day fill his Wellbeing
 (see His two meters).
 
