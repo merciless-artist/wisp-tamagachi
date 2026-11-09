@@ -229,7 +229,8 @@ picture.
    - Optional, for his talking, sight and drawings: `GOOGLE_API_KEY`,
      `GOOGLE_CHAT_MODEL`, `GOOGLE_FALLBACK_MODEL`, `GOOGLE_VISION_MODEL`,
      `GOOGLE_EMBEDDING_MODEL`,
-     `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
+     `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`,
+     `ELECTRONHUB_API_KEY`, `ELECTRONHUB_MODEL`
      and `CF_IMAGE_WORKER_URL` (the picture worker, whose source is
      `tools/cloudflare_wispimages_worker.js`; it has no sign-in, so keep its
      address in `.env` only)

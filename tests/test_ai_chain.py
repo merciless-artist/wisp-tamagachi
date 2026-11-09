@@ -614,6 +614,8 @@ def test_chain_from_config_skips_providers_without_keys(
         "GOOGLE_FALLBACK_MODEL",
         "OPENROUTER_API_KEY",
         "OPENROUTER_MODEL",
+        "ELECTRONHUB_API_KEY",
+        "ELECTRONHUB_MODEL",
     ):
         monkeypatch.setattr(config, name, None)
     monkeypatch.setattr(config, "GROQ_API_KEY", KEY)
@@ -633,12 +635,20 @@ def test_chain_from_config_orders_every_provider(
         "GROQ_MODEL": "big",
         "OPENROUTER_API_KEY": KEY,
         "OPENROUTER_MODEL": "free",
+        "ELECTRONHUB_API_KEY": KEY,
+        "ELECTRONHUB_MODEL": "last",
     }
     for name, value in values.items():
         monkeypatch.setattr(config, name, value)
 
     names = [p.name for p in chain.chain_from_config().providers]
-    assert names == ["groq", "gemini backup", "gemini primary", "openrouter"]
+    assert names == [
+        "groq",
+        "gemini backup",
+        "gemini primary",
+        "openrouter",
+        "electronhub",
+    ]
 
 
 def test_chain_from_config_needs_a_model_as_well_as_a_key(
@@ -647,15 +657,21 @@ def test_chain_from_config_needs_a_model_as_well_as_a_key(
     monkeypatch.setattr(config, "GOOGLE_API_KEY", KEY)
     monkeypatch.setattr(config, "GOOGLE_CHAT_MODEL", "primary")
     monkeypatch.setattr(config, "GOOGLE_FALLBACK_MODEL", None)
-    for name in ("GROQ_API_KEY", "GROQ_MODEL", "OPENROUTER_API_KEY"):
+    for name in (
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+        "OPENROUTER_API_KEY",
+        "ELECTRONHUB_API_KEY",
+    ):
         monkeypatch.setattr(config, name, None)
     monkeypatch.setattr(config, "OPENROUTER_MODEL", "free")
+    monkeypatch.setattr(config, "ELECTRONHUB_MODEL", "last")
 
     names = [p.name for p in chain.chain_from_config().providers]
     assert names == ["gemini primary"]
 
 
-async def test_chain_from_config_asks_groq_and_openrouter_not_to_think(
+async def test_chain_from_config_asks_every_chat_provider_not_to_think(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bodies: list[dict[str, Any]] = []
@@ -667,11 +683,14 @@ async def test_chain_from_config_asks_groq_and_openrouter_not_to_think(
     async with serve(chat=handler) as url:
         monkeypatch.setattr(chain, "GROQ_URL", f"{url}/chat/completions")
         monkeypatch.setattr(chain, "OPENROUTER_URL", f"{url}/chat/completions")
+        monkeypatch.setattr(chain, "ELECTRONHUB_URL", f"{url}/chat/completions")
         for name, value in {
             "GROQ_API_KEY": KEY,
             "GROQ_MODEL": "big",
             "OPENROUTER_API_KEY": KEY,
             "OPENROUTER_MODEL": "free",
+            "ELECTRONHUB_API_KEY": KEY,
+            "ELECTRONHUB_MODEL": "last",
             "GOOGLE_API_KEY": None,
         }.items():
             monkeypatch.setattr(config, name, value)
@@ -684,3 +703,4 @@ async def test_chain_from_config_asks_groq_and_openrouter_not_to_think(
 
     assert bodies[0]["reasoning_effort"] == "none"
     assert bodies[1]["reasoning"] == {"enabled": False}
+    assert bodies[2]["reasoning_effort"] == "none"

@@ -1,4 +1,4 @@
-"""Wisp's AI provider chain: Groq, the Gemini models, then OpenRouter."""
+"""Wisp's AI provider chain: Groq, Gemini, OpenRouter, then ElectronHub."""
 
 import logging
 import time
@@ -29,6 +29,7 @@ log = logging.getLogger("wisp")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+ELECTRONHUB_URL = "https://api.electronhub.ai/v1/chat/completions"
 
 # Groq sits behind Cloudflare, which refuses requests that have no User-Agent.
 USER_AGENT = "WispBot/1.0"
@@ -42,6 +43,7 @@ AUTH_FAILURE_STATUSES = frozenset({401, 403})
 GEMINI_NO_THINKING: Mapping[str, Any] = {"thinkingBudget": 0}
 GROQ_OPTIONS: Mapping[str, Any] = {"reasoning_effort": "none"}
 OPENROUTER_OPTIONS: Mapping[str, Any] = {"reasoning": {"enabled": False}}
+ELECTRONHUB_OPTIONS: Mapping[str, Any] = {"reasoning_effort": "none"}
 # How each API says an answer stopped at the output limit.
 GEMINI_CUT_OFF = "MAX_TOKENS"
 CHAT_CUT_OFF = "length"
@@ -294,7 +296,8 @@ def chain_from_config() -> AIChain:
     """Build the chain from the environment, skipping providers that lack settings.
 
     Groq goes first, as the fastest, then the Gemini fallback model, the Gemini
-    chat model and OpenRouter.
+    chat model and OpenRouter. ElectronHub is last, since it is the one that
+    costs money and is a different company from the rest.
     """
     providers: list[Provider] = []
     if config.GROQ_API_KEY and config.GROQ_MODEL:
@@ -321,6 +324,16 @@ def chain_from_config() -> AIChain:
                 config.OPENROUTER_MODEL,
                 config.OPENROUTER_API_KEY,
                 OPENROUTER_OPTIONS,
+            )
+        )
+    if config.ELECTRONHUB_API_KEY and config.ELECTRONHUB_MODEL:
+        providers.append(
+            ChatProvider(
+                "electronhub",
+                ELECTRONHUB_URL,
+                config.ELECTRONHUB_MODEL,
+                config.ELECTRONHUB_API_KEY,
+                ELECTRONHUB_OPTIONS,
             )
         )
     return AIChain(providers)

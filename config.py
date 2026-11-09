@@ -36,6 +36,8 @@ GROQ_API_KEY: str | None = _optional("GROQ_API_KEY")
 GROQ_MODEL: str | None = _optional("GROQ_MODEL")
 OPENROUTER_API_KEY: str | None = _optional("OPENROUTER_API_KEY")
 OPENROUTER_MODEL: str | None = _optional("OPENROUTER_MODEL")
+ELECTRONHUB_API_KEY: str | None = _optional("ELECTRONHUB_API_KEY")
+ELECTRONHUB_MODEL: str | None = _optional("ELECTRONHUB_MODEL")
 CF_IMAGE_WORKER_URL: str | None = _optional("CF_IMAGE_WORKER_URL")
 MEMORY_PATH: str = _optional("WISP_MEMORY_PATH") or str(
     Path(__file__).parent / "data" / "memory"

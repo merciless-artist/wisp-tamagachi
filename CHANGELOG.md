@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 (ElectronHub is his last backup AI)
+
+- ElectronHub joins the AI chain last, after OpenRouter, so a whole company
+  having a bad moment can't leave him with nothing. It needs
+  `ELECTRONHUB_API_KEY` and `ELECTRONHUB_MODEL` in `.env`; without them it is
+  skipped.
+
 ## 2026-11-09 (A failed AI provider sits out for 1 minute)
 
 - An AI provider that fails or times out now sits out for 1 minute instead of 5,
