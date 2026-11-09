@@ -1371,3 +1371,18 @@ def test_sick_hours_round_up_like_the_status_card() -> None:
     life.cold_left = 3601.0
     life.sniffles_left = 1.0
     assert sick_hours(life) == {Feeling.MONSTER_POX: 2, Feeling.SNIFFLES: 1}
+
+
+def test_his_story_is_in_the_system_prompt_when_he_has_one() -> None:
+    told = build_prompt(
+        Stage.TEEN,
+        Mood.HAPPY,
+        speaker(),
+        CONTEXT,
+        "are you better?",
+        expressions=EXPRESSIONS,
+        story="**Your life so far.**",
+    )
+
+    assert "**Your life so far.**" in told.system
+    assert "**Your life so far.**" not in prompt_for().system

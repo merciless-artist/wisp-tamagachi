@@ -25,6 +25,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import (
@@ -143,6 +144,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
@@ -205,6 +207,7 @@ def make_interaction(
     roles: tuple[int, ...] = (QUALIFYING_ROLE,),
 ) -> MagicMock:
     interaction = MagicMock(spec=discord.Interaction)
+    interaction.duel_server = server
     interaction.client = bot
     interaction.guild = server.guild
     interaction.guild_id = GUILD_ID
@@ -224,12 +227,9 @@ def make_interaction(
 
 
 def receipt(interaction: MagicMock) -> str:
-    """The receipt added under the first private answer, which pings nobody."""
-    call = interaction.edit_original_response.await_args
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    started, text = call.kwargs["content"].split("\n", 1)
-    assert started == f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
-    return str(text)
+    """The receipt, the last thing the duel posts in its thread."""
+    interaction.edit_original_response.assert_not_awaited()
+    return interaction.duel_server.posts()[-1]
 
 
 def replies(interaction: MagicMock) -> list[str]:
@@ -291,7 +291,7 @@ async def test_duel_scores_perfect_and_slant(
         type=discord.ChannelType.public_thread,
         auto_archive_duration=60,
     )
-    start, wisp_turn, summary = server.posts()
+    start, wisp_turn, summary, _receipt = server.posts()
     assert start in lines_for(Moment.RHYME_START, word="fire")
     assert wisp_turn == "♪ higher"
     ending, separator, chain, points = summary.splitlines()
@@ -322,7 +322,7 @@ async def test_timeout_ends_duel(bot: app.WispBot, server: FakeServer) -> None:
 
     await duel(bot, server)
 
-    start, summary = server.posts()
+    start, summary, _receipt = server.posts()
     assert start in lines_for(Moment.RHYME_START, word="fire")
     ending, *rest = summary.splitlines()
     assert ending in lines_for(Moment.RHYME_PLAYER_STUCK)
@@ -351,7 +351,7 @@ async def test_a_wrong_answer_ends_duel(
 
     await duel(bot, server, said(answer), said("choir"))
 
-    _start, summary = server.posts()
+    _start, summary, _receipt = server.posts()
     lines = summary.splitlines()
     assert lines[0] in lines_for(Moment.RHYME_PLAYER_STUCK)
     assert lines[2:] == [reason, "・fire", "・Score: 0 points"]
@@ -366,7 +366,7 @@ async def test_a_repeat_later_in_the_chain_ends_duel(
 
     await duel(bot, server, said("choir"), said("choir"))
 
-    lines = server.posts()[-1].splitlines()
+    lines = server.posts()[-2].splitlines()
     assert lines[2:] == [
         "・choir was already used",
         "・fire ・ choir ・ higher",
@@ -388,7 +388,7 @@ async def test_only_the_player_counts(
         said("choir"),
     )
 
-    lines = server.posts()[-1].splitlines()
+    lines = server.posts()[-2].splitlines()
     assert lines[0] in lines_for(Moment.RHYME_WISP_STUCK)
     assert lines[2:] == ["・fire ・ choir", "・Score: 2 points"]
 
@@ -400,7 +400,7 @@ async def test_wisp_answers_in_his_mood(bot: app.WispBot, server: FakeServer) ->
 
     await duel(bot, server)
 
-    start, summary = server.posts()
+    start, summary, _receipt = server.posts()
     assert start in lines_for(Moment.RHYME_START, Mood.HANGRY, word="fire")
     assert summary.splitlines()[0] in lines_for(Moment.RHYME_PLAYER_STUCK, Mood.HANGRY)
 
@@ -412,7 +412,7 @@ async def test_a_huge_answer_ends_the_duel_cleanly(
 
     await duel(bot, server, said("a" * 2000))
 
-    summary = server.posts()[-1]
+    summary = server.posts()[-2]
     assert len(summary) <= 2000
     assert summary.splitlines()[2:] == [
         "・That wasn't one word",
@@ -836,7 +836,7 @@ async def test_a_thread_that_cannot_close_still_finishes_the_duel(
     meeting.assert_awaited_once()
     report = server.posts()[-1]
     assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
-    server.house.send.assert_not_awaited()
+    assert len(server.house.send.await_args_list) == 1
 
 
 # ---
@@ -1000,21 +1000,6 @@ async def test_a_duel_while_frozen_says_he_is_frozen(
     assert current is not None and current.wellbeing == life.wellbeing
 
 
-async def test_an_expired_interaction_gets_the_receipt_in_the_thread(
-    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
-) -> None:
-    await lay(bot)
-    wisp_says(None)
-    cast(Turns, bot.wait_for).load(said("choir"))
-    interaction = make_interaction(bot, server)
-    interaction.is_expired.return_value = True
-
-    await start(interaction)
-
-    interaction.edit_original_response.assert_not_awaited()
-    assert server.posts()[-1].startswith("♪ Your duel counted.")
-
-
 async def test_a_receipt_that_cannot_be_sent_is_reported_in_the_thread(
     bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
 ) -> None:
@@ -1022,9 +1007,13 @@ async def test_a_receipt_that_cannot_be_sent_is_reported_in_the_thread(
     wisp_says(None)
     cast(Turns, bot.wait_for).load(said("choir"))
     interaction = make_interaction(bot, server)
-    interaction.edit_original_response.side_effect = discord.NotFound(
-        MagicMock(status=404, reason="Not Found"), "Unknown Webhook"
-    )
+    gone = discord.NotFound(MagicMock(status=404, reason="Not Found"), "Unknown")
+
+    async def refuse_receipts(text: str, **_kwargs: Any) -> None:
+        if text.startswith(("♪ Your duel", "♪ This duel")):
+            raise gone
+
+    server.thread.send.side_effect = refuse_receipts
 
     await start(interaction)
 
@@ -1097,7 +1086,7 @@ async def test_the_rhyme_duel_button_plays_a_duel_like_the_command(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
     assert receipt(interaction).startswith("♪ Your duel counted.")
-    _, wisp_turn, summary = server.posts()
+    _, wisp_turn, summary, _receipt = server.posts()
     assert wisp_turn == "♪ higher"
     assert summary.splitlines()[-1] == "・Score: 3 points"
     server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
@@ -1275,3 +1264,16 @@ def test_rhyme_hangs_off_the_play_group() -> None:
 
 def test_rhyme_duel_is_a_loaded_extension() -> None:
     assert "cogs.rhyme_duel" in app.EXTENSIONS
+
+
+async def test_the_house_is_told_who_started_a_duel(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    wisp_says(None)
+
+    await duel(bot, server, said("choir"))
+
+    call = server.house.send.await_args
+    assert call.args[0] == f"♪ <@{USER_ID}> started a Rhyme Duel in <#{THREAD_ID}>"
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING

@@ -20,6 +20,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
@@ -125,6 +126,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot
@@ -490,8 +492,7 @@ async def test_the_first_press_before_the_post_is_stored_does_the_chore(
     await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.MESS)])
 
     (interaction,) = pressed
-    (receipt,) = private_replies(interaction)
-    assert receipt.startswith("♪ You cleaned up.")
+    assert private_replies(interaction) == []
     after = await current_life(bot)
     assert not is_open(after, Chore.MESS)
     assert after.mess_message_id == FIRST_POST_ID
@@ -539,6 +540,13 @@ async def test_a_mess_left_too_long_edits_its_post_and_posts_the_cold(
     assert sent.args[0] in lines(Moment.SNIFFLES)
     assert filename(sent.kwargs) == "wispsick.gif"
     assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert life.id is not None
+    (caught,) = await bot.story.recent(GUILD_ID, life.id)
+    assert (caught.kind, caught.stage, caught.member_id) == (
+        "cold_caught",
+        life.stage,
+        None,
+    )
     assert "view" not in sent.kwargs
 
 
@@ -622,14 +630,14 @@ async def test_the_first_eligible_press_cleans_up_and_pays(
     edit = post.edit.await_args.kwargs
     head, done, line = edit["content"].split("\n")
     assert head == POST_TEXT
-    assert done == f"♪ <@{USER_ID}> cleaned up the mess ・ +2 WC"
+    assert done == (
+        f"♪ <@{USER_ID}> cleaned up the mess ・ +2 WC ・ "
+        f"Health +{HEALTH_PER_CLEANUP} (now 55)"
+    )
     assert line in lines(Moment.MESS_CLEANED, name=f"Member{USER_ID}")
     assert edit["view"] is None
     assert edit["allowed_mentions"].to_dict() == NO_PING
-    assert private_replies(pressed) == [
-        f"♪ You cleaned up. +{CHORE_POINTS[Chore.MESS]} WC. "
-        f"Health +{HEALTH_PER_CLEANUP} (now 55)."
-    ]
+    assert private_replies(pressed) == []
 
 
 @pytest.mark.parametrize(
@@ -642,9 +650,12 @@ async def test_the_other_chores_say_what_they_did(
     life = await open_chore(bot, chore)
     assert life.id is not None
 
-    pressed = await press(bot, chore, life.id, make_post(FIRST_POST_ID))
+    post = make_post(FIRST_POST_ID)
+    pressed = await press(bot, chore, life.id, post)
 
-    assert private_replies(pressed) == [f"♪ You {did}. +{CHORE_POINTS[chore]} WC."]
+    assert private_replies(pressed) == []
+    done = f"♪ <@{USER_ID}> {did} ・ +{CHORE_POINTS[chore]} WC"
+    assert done in post.edit.await_args.kwargs["content"].split("\n")
 
 
 async def test_the_done_line_calls_the_member_by_the_name_wisp_knows(
@@ -753,13 +764,7 @@ async def test_two_presses_at_once_have_one_winner(bot: app.WispBot) -> None:
         2,
     ]
     replies = private_replies(first) + private_replies(second)
-    assert sorted(replies) == sorted(
-        [
-            ALREADY_DONE,
-            f"♪ You cleaned up. +{CHORE_POINTS[Chore.MESS]} WC. "
-            f"Health +{HEALTH_PER_CLEANUP} (now 55).",
-        ]
-    )
+    assert replies == [ALREADY_DONE]
     post.edit.assert_awaited_once()
     assert (await current_life(bot)).health == 55.0
 

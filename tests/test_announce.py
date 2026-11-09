@@ -43,11 +43,13 @@ from db.lives import LifeRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp import rules
 from wisp.life import Event, EventKind, Life, Meter, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
+from wisp.story import EntryKind
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -125,6 +127,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
@@ -1892,3 +1895,36 @@ async def test_drops_come_after_the_other_events_of_the_tick(
     first, second = server.house.send.await_args_list
     assert said(first.args[0], Moment.HUNGRY)
     assert second.args[0].startswith("♪ Wisp's meters dropped\n")
+
+
+async def test_a_moment_worth_keeping_is_saved_to_his_story(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    event = Event(EventKind.RECOVERED, Stage.CHILD, member_id=55)
+
+    await event_post(bot, server, event)
+
+    life = await bot.lives.current(GUILD_ID)
+    assert life is not None and life.id is not None
+    (saved,) = await bot.story.recent(GUILD_ID, life.id)
+    assert (saved.kind, saved.stage, saved.member_id) == (
+        EntryKind.POX_OVER,
+        Stage.CHILD,
+        55,
+    )
+
+
+async def test_a_moment_that_cannot_be_saved_is_reported_and_still_announced(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    life = await growing_life(bot)
+    life.stage = life.peak_stage = Stage.CHILD
+    await bot.lives.save(GUILD_ID, life)
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2006, "gone"))
+    monkeypatch.setattr(bot.story, "add", broken)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.RECOVERED, Stage.CHILD)])
+
+    report, post = [call.args[0] for call in server.house.send.await_args_list]
+    assert report.startswith("Error in saving a moment of Wisp's life")
+    assert said(post, Moment.RECOVERED)

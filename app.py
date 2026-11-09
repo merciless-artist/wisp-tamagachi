@@ -42,6 +42,7 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.lines import LinePicker
 from wisp.text import MESSAGE_LIMIT, USER_ERROR, clip
 
@@ -187,6 +188,7 @@ class WispBot(commands.Bot):
         self.activity_log = ActivityRepo(self.db)
         self.keepsakes = KeepsakeRepo(self.db)
         self.notes = NoteRepo(self.db)
+        self.story = LifeStoryRepo(self.db)
         self.wisp_lunchbox = WispLunchboxRepo(self.db)
         self.gifts = GiftRepo(self.db)
         self.badges = BadgeRepo(self.db)

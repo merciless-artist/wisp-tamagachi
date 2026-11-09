@@ -1,5 +1,6 @@
 """The ViiBR Vault, Snack Packs and the Feed button: snacks and gifts for Wisp."""
 
+import contextlib
 import functools
 import re
 from collections.abc import Awaitable, Callable, Sequence
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Final
 import aiohttp
 import discord
 
-from cogs.announce import post_in_house, say_in_house
+from cogs.announce import post_in_house, remember, say_in_house
 from cogs.assets import ASSETS_DIR, moment_image
 from cogs.badges import (
     Offer,
@@ -111,6 +112,7 @@ from wisp.rules import (
     Magazine,
     Snack,
 )
+from wisp.story import Entry, EntryKind
 from wisp.text import (
     BLANK,
     LAYOUT_TEXT_LIMIT,
@@ -939,6 +941,8 @@ async def _give_medicine(interaction: discord.Interaction) -> None:
         f"♪ You gave Wisp his medicine ・ +{MEDICINE_POINTS} WC",
         "confirming medicine (the medicine went through)",
     )
+    given = Entry(EntryKind.MEDICINE, life.stage, user.id, discord.utils.utcnow())
+    await remember(bot, guild_id, life.id, [given])
     await announce_medicine(bot, guild_id, life, player.name or user.display_name)
 
 
@@ -1291,15 +1295,8 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
             content=str(refusal), view=None, allowed_mentions=_NO_PING
         )
         return
-    await interaction.edit_original_response(
-        content=(
-            f"♪ Wisp ate your {snack.name}. "
-            f"{meter_receipt('Wellbeing', meal.wellbeing_before, meal.life.wellbeing)}."
-        ),
-        view=None,
-        allowed_mentions=_NO_PING,
-    )
     emoji = bot.emoji(snack.emoji_name)
+    wellbeing = meter_receipt("Wellbeing", meal.wellbeing_before, meal.life.wellbeing)
     moment, gif_name = _reaction(
         snack, meal.player.pickle_stance, meal.life.favorite_snack
     )
@@ -1311,9 +1308,14 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
         moment,
         meal.life,
         name=meal.player.name or user.display_name,
-        prefix=f"{emoji} " if emoji else "",
+        prefix=(
+            f"♪ <@{user.id}> fed Wisp {snack.name} ・ {wellbeing}\n"
+            f"{f'{emoji} ' if emoji else ''}"
+        ),
         image=_eating_gif(gif_name),
     )
+    with contextlib.suppress(discord.HTTPException):
+        await interaction.delete_original_response()
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
 
 

@@ -1,6 +1,7 @@
 """Talking in Wisp's House: answers, chiming in and the Poke Wisp button."""
 
 import asyncio
+import contextlib
 import logging
 import random
 import re
@@ -16,7 +17,7 @@ from discord.ext import commands
 
 from ai.chain import ProviderError
 from ai.prompt import Prompt
-from cogs.announce import post_in_house
+from cogs.announce import display_name, post_in_house
 from cogs.assets import nap_image
 from cogs.channels import where_of
 from cogs.chores import wake_by_poke
@@ -47,6 +48,7 @@ from wisp.rules import (
     VISION_EMBED_WAIT,
     VISION_TYPES,
 )
+from wisp.story import life_story, member_ids, past_lives
 from wisp.text import channel_or, count, meter_receipt, strip_emoji
 from wisp.voice import (
     EGG_EXPRESSION,
@@ -372,7 +374,22 @@ async def _prompt(
         sickness_hours=sick_hours(life),
         track_drop=track_drop,
         sight=sight,
+        story=await _story(bot, guild_id, life, now),
     )
+
+
+async def _story(bot: "WispBot", guild_id: int, life: Life, now: datetime) -> str:
+    """What has really happened to `life` and the Wisps before him, for a prompt."""
+    if life.id is None:
+        return ""
+    entries = await bot.story.recent(guild_id, life.id)
+    guild = bot.get_guild(guild_id)
+    names = {
+        member_id: display_name(guild, await bot.players.get(guild_id, member_id))
+        for member_id in member_ids(life, entries)
+    }
+    past = past_lives(await bot.lives.history(guild_id))
+    return life_story(life, entries, past, names, now)
 
 
 # ---
@@ -582,6 +599,7 @@ class Conversation(commands.Cog):
             feelings=feelings_of(life, now),
             sickness_hours=sick_hours(life),
             track_drop=track_drop is not None,
+            story=await _story(self.bot, guild.id, life, now),
         )
         reply = await ai_reply(self.bot, guild, prompt)
         if reply is None:
@@ -606,8 +624,10 @@ async def _poke(interaction: discord.Interaction) -> None:
 
     Banned members, a poke with nobody alive to take it and a member still
     within TALK_COOLDOWN of their last answer are told privately instead. A
-    poke on a napping Wisp wakes him cranky: it earns no credit and he answers
-    waking up. The time from the press to the House post is logged.
+    poke that counts says what it did on its post; one that does not is told
+    why privately. A poke on a napping Wisp wakes him cranky: it earns no
+    credit and he answers waking up. The time from the press to the House
+    post is logged.
     """
     received = time.monotonic()
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -657,28 +677,44 @@ async def _poke(interaction: discord.Interaction) -> None:
         if flavor is PokeFlavor.WOKE_UP
         else sick_talk_image(life, talk.rng)
     )
+    counted = _poke_counted(credit, level)
+    tally = _poke_tally(credit) if counted else ""
     await post_in_house(
-        bot, guild_id, f"♪ <@{user.id}> poked {poked}\n{reaction}", image, ping=user.id
+        bot,
+        guild_id,
+        f"♪ <@{user.id}> poked {poked}{tally}\n{reaction}",
+        image,
+        ping=user.id,
     )
     log.info(
         "Answered a poke in guild %d in %.1f s", guild_id, time.monotonic() - received
     )
-    await say_privately(interaction, _poke_receipt(credit, level))
+    if counted:
+        with contextlib.suppress(discord.HTTPException):
+            await interaction.delete_original_response()
+    else:
+        await say_privately(interaction, _poke_not_raised(credit, level))
     if credit.credited:
         await _meet_after_chat(
             bot, guild_id, interaction.guild, user, _POKE_CONTEXT, where_of(interaction)
         )
 
 
-def _poke_receipt(credit: Credit, level: Talk) -> str:
-    """What the poke did for the poker, or exactly why it raised nothing."""
-    if not credit.credited:
-        return f"{_POKE_NOT_RAISED}{credit.reason}"
-    if level is Talk.EGG:
-        return f"{_POKE_NOT_RAISED}{_POKE_EGG}"
+def _poke_counted(credit: Credit, level: Talk) -> bool:
+    """Whether the poke raised his Wellbeing."""
+    return credit.credited and level is not Talk.EGG
+
+
+def _poke_tally(credit: Credit) -> str:
+    """What a counted poke did, for the end of its post in his House."""
     wellbeing = meter_receipt("Wellbeing", credit.before, credit.after)
-    left = count(credit.left, "poke")
-    return f"♪ Poke counted. {wellbeing}. {left} left today that raise it."
+    return f" ・ {wellbeing} ・ {count(credit.left, 'poke')} left today"
+
+
+def _poke_not_raised(credit: Credit, level: Talk) -> str:
+    """Exactly why a poke that did not count raised nothing."""
+    reason = _POKE_EGG if credit.credited else credit.reason
+    return f"{_POKE_NOT_RAISED}{reason}"
 
 
 async def _meet_after_chat(

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from cogs.announce import post_in_house
 from cogs.groups import play, require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -314,6 +315,9 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     )
     started = f"♪ Your Rhyme Duel is on in {thread.mention}."
     await say_privately(interaction, started)
+    await post_in_house(
+        bot, guild_id, f"♪ <@{user.id}> started a Rhyme Duel in {thread.mention}"
+    )
     outcome = await _duel(bot, thread, user.id, life, random.Random())
     line = bot.lines.pick(outcome.ending, mood(life))
     await thread.send(
@@ -322,12 +326,7 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     )
     played = await _record_play(bot, guild_id, user, outcome.points)
     try:
-        if interaction.is_expired():
-            await thread.send(played.receipt, allowed_mentions=_NO_PING)
-        else:
-            await interaction.edit_original_response(
-                content=f"{started}\n{played.receipt}", allowed_mentions=_NO_PING
-            )
+        await thread.send(played.receipt, allowed_mentions=_NO_PING)
     except discord.HTTPException as error:
         await bot.report_error(
             interaction.guild, "sending a Rhyme Duel receipt", error, where=thread

@@ -34,6 +34,7 @@ from db.magazines import MagazineRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.chores import is_open
 from wisp.life import Life, Phase, new_egg
 from wisp.rules import Chore, Stage
@@ -207,6 +208,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)

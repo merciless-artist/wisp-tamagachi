@@ -886,6 +886,7 @@ def build_prompt(
     sickness_hours: Mapping[Feeling, int] | None = None,
     track_drop: bool = False,
     sight: Sight | None = None,
+    story: str = "",
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -900,7 +901,8 @@ def build_prompt(
     `sickness_hours` is how many whole hours each sickness still lasts (see
     `sick_hours`). With `track_drop`, from Child on he sends people to the
     track drop for food (see `link_track_drop`). `sight` is the picture that
-    came with `message`.
+    came with `message`. `story` is what has really happened to him, from
+    `wisp.story.life_story`.
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -928,6 +930,8 @@ def build_prompt(
             system.append(layer)
     if track_drop and not baby:
         system.append(_TRACK_DROP_NOTE)
+    if story:
+        system.append(story)
     rules = [_output(_BABY_LENGTH if baby else _CHAT_LENGTH)]
     if speaker is not None:
         system.append(_speaker(stage, speaker))

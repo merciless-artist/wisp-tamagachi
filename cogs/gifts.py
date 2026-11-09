@@ -351,7 +351,8 @@ async def announce_gift(
 ) -> None:
     """Tell Wisp's House about a gift, with its picture when he kept it.
 
-    The post tags and pings the giver, so they see how Wisp took it. A gift
+    The post tags and pings the giver, so they see how Wisp took it, and says
+    what the gift did for the whole House to see. A gift
     he keeps while he naps gets a sleepy line; one he passes on keeps its own
     line, so the post never says he hugged a gift that went back.
     """
@@ -361,8 +362,10 @@ async def announce_gift(
     kept = given.outcome is Outcome.KEPT
     asleep = kept and is_napping(given.life)
     moment = Moment.GIFT_ASLEEP if asleep else _MOMENTS[given.outcome]
+    wellbeing = meter_receipt("Wellbeing", given.wellbeing_before, given.life.wellbeing)
+    bond = f" ・ bond +{given.bond}" if kept else ""
     lines = [
-        f"♪ <@{giver}> gave Wisp {with_article(title)}",
+        f"♪ <@{giver}> gave Wisp {with_article(title)} ・ {wellbeing}{bond}",
         bot.lines.pick(moment, feeling, name=name, gift=title),
     ]
     if given.completed:

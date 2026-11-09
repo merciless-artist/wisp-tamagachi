@@ -28,6 +28,7 @@ from db.lunchbox import WispLunchboxRepo
 from db.magazines import MagazineRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from tests.layout import assert_fits_its_box, entries, layout_selects, layout_text
 from wisp import rules
 from wisp.gifts import GiftState, Outcome, decide, like_chance, with_article
@@ -120,6 +121,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.gifts = GiftRepo(db)
@@ -214,6 +216,16 @@ def gave(gift: str, earlier_gifts: int = 0) -> str:
     return (
         f"♪ You gave Wisp {gift}. "
         f"Wellbeing +{rules.WELLBEING_PER_GIFT} (now {now:.0f})."
+    )
+
+
+def posted(user_id: int, gift: str, bond: int = 0, earlier_gifts: int = 0) -> str:
+    """The head of a gift's post in the House."""
+    now = rules.WELLBEING_START + (earlier_gifts + 1) * rules.WELLBEING_PER_GIFT
+    kept = f" ・ bond +{bond}" if bond else ""
+    return (
+        f"♪ <@{user_id}> gave Wisp {gift} ・ "
+        f"Wellbeing +{rules.WELLBEING_PER_GIFT} (now {now:.0f}){kept}"
     )
 
 
@@ -602,7 +614,9 @@ async def test_a_kept_gift_leaves_the_vault_and_gives_bond_and_growth(
         {"kind": "gift", "bond": rules.BOND_PER_KEPT_GIFT, "meal_points": 0}
     ]
     text, kwargs = house_post(server)
-    assert text == f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll\n[gift_kept]"
+    bond_gained = rules.BOND_PER_KEPT_GIFT
+    head = posted(USER_ID, "a Blue Alien Doll", bond_gained)
+    assert text == f"{head}\n[gift_kept]"
     assert "file" not in kwargs
     pick.assert_called_once_with(
         Moment.GIFT_KEPT, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
@@ -630,7 +644,8 @@ async def test_a_kept_gift_brings_its_art_when_it_exists(
     await give(bot, "book_orange")
 
     text, kwargs = house_post(server)
-    assert text.startswith(f"♪ <@{USER_ID}> gave Wisp an Orange Book\n")
+    head = posted(USER_ID, "an Orange Book", rules.BOND_PER_KEPT_GIFT)
+    assert text.startswith(f"{head}\n")
     attached = kwargs["file"]
     assert isinstance(attached, discord.File)
     assert attached.filename == "book_orange.png"
@@ -650,10 +665,8 @@ async def test_a_passed_gift_stays_in_stock_and_still_costs(
     assert (await current_life(bot)).growth == 0
     assert await kept_keys(bot) == []
     text, kwargs = house_post(server)
-    assert text == (
-        f"♪ <@{USER_ID}> gave Wisp a Keep Calm Affirmation Card\n[gift_passed]\n"
-        "♪ It's back in the ViiBR Vault."
-    )
+    head = posted(USER_ID, "a Keep Calm Affirmation Card")
+    assert text == f"{head}\n[gift_passed]\n♪ It's back in the ViiBR Vault."
     assert "file" not in kwargs
     assert edited(interaction).startswith(
         f"{gave('a Keep Calm Affirmation Card')}\n"
@@ -679,7 +692,9 @@ async def test_a_gift_kept_while_he_naps_gets_a_sleepy_line(
     await give(bot, "alien_blue")
 
     text, _kwargs = house_post(server)
-    assert text.startswith(f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll\n[{moment}]")
+    head, said = text.split("\n")[:2]
+    assert head.startswith(f"♪ <@{USER_ID}> gave Wisp a Blue Alien Doll ・ Wellbeing")
+    assert said == f"[{moment}]"
     pick.assert_called_once_with(
         moment, Mood.HAPPY, name="Member1", gift="Blue Alien Doll"
     )
@@ -752,10 +767,8 @@ async def test_after_one_kept_gift_he_is_full_for_the_day(
     assert await bond(bot, OTHER_USER_ID) == 0
     assert await kept_keys(bot) == ["alien_blue"]
     call = server.house.send.await_args
-    assert call.args[0] == (
-        f"♪ <@{OTHER_USER_ID}> gave Wisp a Red Book\n[gift_full]\n"
-        "♪ It's back in the ViiBR Vault."
-    )
+    head = posted(OTHER_USER_ID, "a Red Book", earlier_gifts=1)
+    assert call.args[0] == f"{head}\n[gift_full]\n♪ It's back in the ViiBR Vault."
     assert call.kwargs["allowed_mentions"].to_dict() == {
         "parse": [],
         "users": [OTHER_USER_ID],
@@ -792,9 +805,9 @@ async def test_the_fourth_item_completes_the_collection_with_a_bonus(
 
     assert await bond(bot) == rules.BOND_PER_KEPT_GIFT + rules.COLLECTION_BOND_BONUS
     text, _ = house_post(server)
-    assert text == (
-        f"♪ <@{USER_ID}> gave Wisp a Red Book\n[gift_kept]\n[collection_done]"
-    )
+    gained = rules.BOND_PER_KEPT_GIFT + rules.COLLECTION_BOND_BONUS
+    head = posted(USER_ID, "a Red Book", gained)
+    assert text == f"{head}\n[gift_kept]\n[collection_done]"
     pick.assert_any_call(
         Moment.COLLECTION_DONE, Mood.HAPPY, name="Member1", collection="Books"
     )
@@ -1350,7 +1363,8 @@ async def test_the_sixth_tetris_piece_completes_its_collection(
         f"♪ Wisp kept your Z Block ・ bond +{bonus} ・ Tetris complete"
     )
     text, kwargs = house_post(server)
-    assert text == f"♪ <@{USER_ID}> gave Wisp a Z Block\n[gift_kept]\n[collection_done]"
+    head = posted(USER_ID, "a Z Block", bonus)
+    assert text == f"{head}\n[gift_kept]\n[collection_done]"
     assert kwargs["file"].filename == "tetris_z.gif"
     vault_text, _ = await open_vault(bot)
     assert "║𝄡 Tetris: all kept this life" in vault_text

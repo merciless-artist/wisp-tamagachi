@@ -21,6 +21,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp import rules
 from wisp.card import bar
 from wisp.life import Life, Mood, Phase, new_egg
@@ -67,6 +68,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     monkeypatch.setattr(app.WispBot, "user", WISP)

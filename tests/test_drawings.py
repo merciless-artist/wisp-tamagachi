@@ -27,6 +27,7 @@ from db.lives import LifeRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp import rules
 from wisp.life import Mood, Phase, new_egg
 from wisp.lines import FIELDS, LINES, Moment
@@ -124,6 +125,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.notes = NoteRepo(db)

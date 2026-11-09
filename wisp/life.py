@@ -114,7 +114,8 @@ class Event:
 
     A METER_DROP names the `meter` that paid for a filled stretch, how much it
     `lost` (what really came off, after Monster Pox, a cold and the sick
-    floor) and its new `value`.
+    floor) and its new `value`. A RECOVERED that a meal brought on names
+    the `member_id` who fed it.
     """
 
     kind: EventKind
@@ -122,6 +123,7 @@ class Event:
     meter: Meter | None = None
     lost: float = 0.0
     value: float = 0.0
+    member_id: int | None = None
 
 
 @dataclass
@@ -304,17 +306,17 @@ def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Ev
     if life.phase is not Phase.ALIVE:
         return []
     change_meter(life, Meter.HEALTH, meal_points, ends_stretch=True)
-    return _heal_pox(life, meal_points)
+    return _heal_pox(life, meal_points, feeder_id)
 
 
-def _heal_pox(life: Life, meal_points: int) -> list[Event]:
+def _heal_pox(life: Life, meal_points: int, feeder_id: int) -> list[Event]:
     if not is_sick(life) or meal_points <= 0:
         return []
     healed = meal_points * POX_HEALED_PER_MEAL_POINT.total_seconds()
     life.cold_left = max(life.cold_left - healed, 0.0)
     if is_sick(life):
         return []
-    return [Event(EventKind.RECOVERED, stage=life.stage)]
+    return [Event(EventKind.RECOVERED, stage=life.stage, member_id=feeder_id)]
 
 
 def add_growth(life: Life, points: int) -> None:

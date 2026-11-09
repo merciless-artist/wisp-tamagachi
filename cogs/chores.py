@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.announce import edit_in_house, say_in_house
+from cogs.announce import edit_in_house, remember, say_in_house
 from cogs.assets import moment_image, nap_image
 from cogs.groups import require_guild
 from cogs.players import (
@@ -48,8 +48,8 @@ from wisp.rules import (
     Chore,
     Stage,
 )
-from wisp.text import meter_receipt, with_emoji
-from wisp.voice import MINI_COIN_EMOJI
+from wisp.story import Entry, EntryKind
+from wisp.text import meter_receipt
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -74,11 +74,6 @@ _ENDED: Final = frozenset(
         ChoreEventKind.LIGHTS_MISSED,
     }
 )
-_YOU_DID: Final = {
-    Chore.MESS: "cleaned up",
-    Chore.TANTRUM: "scolded Wisp",
-    Chore.NAP: "turned off the lights",
-}
 _DONE: Final = {
     Chore.MESS: ("cleaned up the mess", Moment.MESS_CLEANED),
     Chore.TANTRUM: ("scolded Wisp", Moment.SCOLDED),
@@ -179,7 +174,7 @@ async def post_chores(
     stage. A chore whose post failed is dropped, so it never waits where
     nobody can press it. A mess left too long, a missed tantrum and missed
     lights edit their own post with his line and take its button away.
-    Catching a cold is posted with his sick picture.
+    Catching a cold is posted with his sick picture and saved to his story.
     """
     if life.id is None:
         return
@@ -204,6 +199,10 @@ async def post_chores(
             line = bot.lines.pick(moment, mood(life))
             await edit_in_house(bot, guild_id, event.message_id, line)
         elif event.kind is ChoreEventKind.SNIFFLES:
+            caught = Entry(
+                EntryKind.COLD_CAUGHT, life.stage, None, discord.utils.utcnow()
+            )
+            await remember(bot, guild_id, life.id, [caught])
             await say_in_house(
                 bot, guild_id, moment, life, image=moment_image(SNIFFLES_PICTURE)
             )
@@ -295,8 +294,9 @@ async def _do_chore(
     """Do the chore for the first eligible presser and pay them its points.
 
     A member who cannot earn, or who comes too late, is told why privately and
-    nothing changes. The winner is told what it did privately; their post says
-    who did it and loses its button, edited after the guild lock is released.
+    nothing changes. The winner's post says who did it and what it earned, for
+    the whole House to see, and loses its button, edited after the guild lock
+    is released.
     """
     bot = bot_of(interaction)
     user = interaction.user
@@ -317,20 +317,14 @@ async def _do_chore(
         return
     done, moment = _DONE[chore]
     line = bot.lines.pick(moment, mood(life), name=player.name or user.display_name)
+    earned = f"+{CHORE_POINTS[chore]} WC"
+    if chore is Chore.MESS:
+        earned += f" ・ {meter_receipt('Health', health_before, life.health)}"
     await post.edit(
-        content=(
-            f"{post.content}\n♪ <@{user.id}> {done} ・ +{CHORE_POINTS[chore]} WC\n"
-            f"{line}"
-        ),
+        content=f"{post.content}\n♪ <@{user.id}> {done} ・ {earned}\n{line}",
         view=None,
         allowed_mentions=_NO_PING,
     )
-    coins = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"+{CHORE_POINTS[chore]} WC")
-    receipt = f"♪ You {_YOU_DID[chore]}. {coins}."
-    if chore is Chore.MESS:
-        health = meter_receipt("Health", health_before, life.health)
-        receipt = f"{receipt} {health}."
-    await say_privately(interaction, receipt)
 
 
 async def _take(

@@ -40,6 +40,7 @@ from db.lives import LifeRepo
 from db.magazines import MagazineRepo
 from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from tests.layout import (
     assert_fits_its_box,
     layout_order,
@@ -130,6 +131,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
@@ -315,8 +317,8 @@ def ate(name: str, meals: int = 1) -> str:
     """The receipt for the `meals`th snack a fresh Wisp has eaten."""
     now = rules.WELLBEING_START + meals * rules.WELLBEING_PER_SNACK
     return (
-        f"♪ Wisp ate your {name}. "
-        f"Wellbeing +{rules.WELLBEING_PER_SNACK} (now {now:.0f})."
+        f"♪ <@{USER_ID}> fed Wisp {name} ・ "
+        f"Wellbeing +{rules.WELLBEING_PER_SNACK} (now {now:.0f})"
     )
 
 
@@ -345,6 +347,11 @@ def reply_text(interaction: MagicMock) -> str:
 
 def house_text(server: FakeServer) -> str:
     return cast(str, server.house.send.await_args.args[0])
+
+
+def house_line(server: FakeServer) -> str:
+    """What Wisp said, under the line saying who fed him."""
+    return house_text(server).splitlines()[-1]
 
 
 def say(bot: app.WispBot, line: str = "yum") -> MagicMock:
@@ -1199,9 +1206,9 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 1
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     interaction.response.defer.assert_awaited_once_with()
-    assert reply_text(interaction) == ate("Spicy Wave")
-    assert interaction.edit_original_response.await_args.kwargs["view"] is None
+    interaction.delete_original_response.assert_awaited_once_with()
     server.house.send.assert_awaited_once()
+    assert house_text(server).startswith(f"{ate('Spicy Wave')}\n")
 
 
 @pytest.mark.parametrize("key", ["sinewave", "cheese"])
@@ -1254,26 +1261,28 @@ async def test_snacks_still_count_against_the_daily_meal_cap(
     assert (await current_life(bot)).wellbeing == 50.0
 
 
-async def test_the_snack_confirmation_says_wellbeing(bot: app.WispBot) -> None:
+async def test_the_snack_post_says_wellbeing(
+    bot: app.WispBot, server: FakeServer
+) -> None:
     await lay(bot)
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "spicywave")
 
-    reply = await eat(bot, "spicywave")
+    await eat(bot, "spicywave")
 
-    assert reply_text(reply) == ate("Spicy Wave")
+    assert house_text(server).startswith(f"{ate('Spicy Wave')}\n")
 
 
-async def test_free_sine_once_a_day(bot: app.WispBot) -> None:
+async def test_free_sine_once_a_day(bot: app.WispBot, server: FakeServer) -> None:
     await lay(bot, health=50.0)
 
-    first = await eat(bot, "sinewave")
+    await eat(bot, "sinewave")
 
     now = discord.utils.utcnow()
     assert await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
     life = await current_life(bot)
     assert (life.health, life.growth) == (50.0, 1)
-    assert reply_text(first) == ate("Sine Wave")
+    assert house_text(server).startswith(f"{ate('Sine Wave')}\n")
 
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave")
     _, select = await open_feeding(bot)
@@ -1341,7 +1350,9 @@ async def test_the_last_bond_point_of_the_day_still_lands(bot: app.WispBot) -> N
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 1
 
 
-async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
+async def test_snack_counts_toward_daily_meal_cap(
+    bot: app.WispBot, server: FakeServer
+) -> None:
     life = await lay(bot, health=40.0)
     assert life.id is not None
     await bot.activity_log.record_interaction(
@@ -1354,16 +1365,18 @@ async def test_snack_counts_toward_daily_meal_cap(bot: app.WispBot) -> None:
         discord.utils.utcnow(),
     )
 
-    capped = await eat(bot, "cloudwave")
+    await eat(bot, "cloudwave")
 
     life = await current_life(bot)
     assert (life.health, life.growth) == (40.0, 1)
-    assert reply_text(capped) == ate("Cloud Wave")
+    assert house_text(server).startswith(f"{ate('Cloud Wave')}\n")
     now = discord.utils.utcnow()
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
 
 
-async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
+async def test_the_meal_cap_doubles_while_sick(
+    bot: app.WispBot, server: FakeServer
+) -> None:
     life = await lay(bot, health=40.0)
     assert life.id is not None
     life.cold_left = rules.SICK_FOR.total_seconds()
@@ -1374,14 +1387,12 @@ async def test_the_meal_cap_doubles_while_sick(bot: app.WispBot) -> None:
         GUILD_ID, life.id, USER_ID, InteractionKind.FEED, 0, rules.DAILY_MEAL_CAP, now
     )
 
-    replies = [reply_text(await eat(bot, "cloudwave")) for _ in range(4)]
+    for meals in (1, 2, 3):
+        await eat(bot, "cloudwave")
+        assert house_text(server).startswith(f"{ate('Cloud Wave', meals)}\n")
+    full = await eat(bot, "cloudwave")
 
-    assert replies == [
-        ate("Cloud Wave", 1),
-        ate("Cloud Wave", 2),
-        ate("Cloud Wave", 3),
-        "♪ Wisp is full from you today. Save it for tomorrow.",
-    ]
+    assert reply_text(full) == "♪ Wisp is full from you today. Save it for tomorrow."
     assert (await current_life(bot)).health == 40.0
     cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == cap
@@ -1584,6 +1595,10 @@ async def test_buying_medicine_cures_him_and_pays_three(
     post = server.house.send.await_args
     assert post.kwargs["file"].filename == "medicine.png"
     assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
+    life = await current_life(bot)
+    assert life.id is not None
+    (given,) = await bot.story.recent(GUILD_ID, life.id)
+    assert (given.kind, given.member_id) == ("medicine", USER_ID)
 
 
 async def test_medicine_while_he_naps_gets_a_sleepy_line(
@@ -1744,7 +1759,7 @@ async def test_his_favorite_snack_gets_its_own_line(
     await eat(bot, key)
 
     pick.assert_called_once_with(Moment.SNACK_FAVORITE, Mood.HAPPY, name="Member1")
-    assert house_text(server) == "my favorite"
+    assert house_line(server) == "my favorite"
 
 
 @pytest.mark.parametrize("key", ["cheese", "pickles", "spicywave", "sinewave"])
@@ -1757,11 +1772,11 @@ async def test_a_snack_while_he_naps_is_eaten_in_his_sleep(
     await bot.lives.save(GUILD_ID, life)
     pick = say(bot, "*munch* zzz")
 
-    interaction = await eat(bot, key)
+    await eat(bot, key)
 
     pick.assert_called_once_with(Moment.SNACK_ASLEEP, Mood.HAPPY, name="Member1")
     assert house_text(server).endswith("*munch* zzz")
-    assert reply_text(interaction).startswith("♪ Wisp ate your ")
+    assert house_text(server).startswith(f"♪ <@{USER_ID}> fed Wisp ")
 
 
 async def test_a_snack_that_is_not_his_favorite_gets_the_usual_line(
@@ -1805,7 +1820,7 @@ async def test_house_post_has_the_snack_emoji_and_line(
     await eat(bot, "cloudwave")
 
     server.house.send.assert_awaited_once()
-    assert house_text(server) == f"{emoji_text('snack_cloudwave')} yum"
+    assert house_line(server) == f"{emoji_text('snack_cloudwave')} yum"
     kwargs = server.house.send.await_args.kwargs
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
     assert "file" not in kwargs
@@ -1819,7 +1834,7 @@ async def test_house_post_without_the_emoji_is_just_the_line(
 
     await eat(bot, "cloudwave")
 
-    assert house_text(server) == "yum"
+    assert house_line(server) == "yum"
 
 
 async def test_his_mood_after_the_snack_picks_the_line(bot: app.WispBot) -> None:
@@ -1892,7 +1907,7 @@ async def test_pickles_follow_the_members_stance(
     await eat(bot, "pickles")
 
     pick.assert_called_once_with(moment, Mood.HAPPY, name="Member1")
-    assert house_text(server) == "a pickle take"
+    assert house_line(server) == "a pickle take"
     attached = server.house.send.await_args.kwargs["file"]
     assert isinstance(attached, discord.File)
     assert attached.filename == gif
@@ -1960,7 +1975,7 @@ async def test_a_missing_house_is_logged_and_the_snack_still_counts(
         interaction = await eat(bot, "cloudwave")
 
     assert (await current_life(bot)).growth == 1
-    assert reply_text(interaction).startswith("♪ Wisp ate your Cloud Wave")
+    interaction.delete_original_response.assert_awaited_once_with()
     server.house.send.assert_not_awaited()
     assert "Error in posting to Wisp's House" in caplog.text
 

@@ -157,6 +157,17 @@ _DEFINITIONS: dict[str, str] = {
         PRIMARY KEY (id),
         INDEX idx_guild_user_at (guild_id, user_id, at)
     """,
+    "life_story": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        life_id BIGINT NOT NULL,
+        kind VARCHAR(20) NOT NULL,
+        stage VARCHAR(10) NOT NULL,
+        member_id BIGINT NULL,
+        at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_life_at (guild_id, life_id, at)
+    """,
     "favorites": """
         guild_id BIGINT NOT NULL,
         day DATE NOT NULL,

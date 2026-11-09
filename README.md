@@ -23,7 +23,8 @@ then a **right now** heading: what he needs, worst first, one line each.
 When there is nothing to do it says `happy`. The last line is his next nap in
 Pacific time, such as `next nap 2pm Pacific`, or, while he naps, when he wakes,
 such as `napping until 2pm Pacific`. A line under the card points at the
-buttons. There are six, three to a row, and every answer is private:
+buttons. There are six, three to a row. Menus and refusals are private; what
+you do to him shows in his House:
 
 - **Feed Wisp** opens the snack menu.
 - **Poke Wisp** pokes him, as everywhere else.
@@ -182,11 +183,12 @@ picture.
   to do about it and links the track drop or the Status post. The number is
   what was really lost (never below Health 1 while he is sick). Nobody is
   pinged. A drop that kills him posts only the death.
-- **Receipts.** Everything you do to him answers privately with what it did:
-  a snack (`Wellbeing +8 (now 66)`), a gift (that line, then what he did with
-  it), a counted poke (and how many pokes are left today that raise it), a
-  counted Rhyme Duel (Wellbeing, the Vault point and games left today) and a
-  chore (its wisp coins, and Health for a cleanup).
+- **Receipts.** What you do to him says what it did where everyone can see:
+  on his House post for a snack (`Wellbeing +8 (now 66)`), a gift (that, and
+  the bond if he kept it), a counted poke (and how many pokes are left today)
+  and a chore (its wisp coins, and Health for a cleanup), and in its thread
+  for a Rhyme Duel (Wellbeing, the Vault point and games left today). His
+  House is told who started a duel.
 - **Reasons.** When you press a button or use a command and it cannot work,
   you are told the exact reason in a private message: banned, no feeding role
   (naming the server's feeding roles), the board not opened with `/wisp board`,
@@ -429,7 +431,10 @@ reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
 Adult on he sometimes chimes in on his own and remembers things people
-tell him. Talking earns no bond. A member's first mention or poke of the UTC
+tell him. At every stage from Baby on he is told his life so far (`wisp/story.py`):
+when he hatched, each stage, Monster Pox and colds and who helped, whether he is
+sick now, and how the last few Wisps before him ended, since fire sprites remember
+their past lives. Talking earns no bond. A member's first mention or poke of the UTC
 day also earns 1 Vault point, and the first 3 chats of the day fill his Wellbeing
 (see His two meters).
 

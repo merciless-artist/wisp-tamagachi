@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-08 (Wisp remembers his life, and the game plays out in public)
+
+- Wisp now gets his life story every time he talks: when he hatched and who
+  hatched him, each stage, catching and getting over Monster Pox and how it
+  ended, colds, and who gave him medicine. He is told plainly when he is not
+  sick, so "are you better?" has a true answer, and told not to make up
+  anything else about his past.
+- Fire sprites remember past lives, so he also knows how the last few Wisps
+  before him ended.
+- A Wisp alive before today knows his stages and whether he had Monster Pox,
+  but not when; everything from now on is saved with its date.
+- Game results now show for everyone, on posts that were already public:
+  chores (with the Health change for a mess), counted pokes, snacks and
+  gifts. A Rhyme Duel's result posts in its thread and his House is told who
+  started one. Refusals, errors, menus, Vault purchases and name changes stay
+  private.
+
 ## 2026-11-07 (Feeding cures Monster Pox faster)
 
 - Every meal point fed while he has Monster Pox takes 15 minutes off it, so a

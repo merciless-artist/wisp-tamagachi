@@ -29,6 +29,7 @@ from db.badges import BadgeRepo
 from db.database import Database
 from db.lives import LifeRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp import rules
 from wisp.life import new_egg
 from wisp.links import TrackKind
@@ -458,6 +459,7 @@ def bot(
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot

@@ -21,6 +21,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.rules import MEAL_POINTS_MAX
 
 WISP_ID = 900000000000000001
@@ -157,6 +158,7 @@ async def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.owner_id = OWNER_ID
     wisp = server.member(WISP_ID, bot=True)

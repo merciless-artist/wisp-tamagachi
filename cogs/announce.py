@@ -1,5 +1,6 @@
 """Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -34,6 +35,7 @@ from wisp.rules import (
     WELLBEING_STRETCH,
     Stage,
 )
+from wisp.story import Entry, entries_from
 from wisp.text import channel_or, count, round_half_up
 from wisp.voice import goodbye_prompt
 
@@ -345,8 +347,22 @@ async def edit_in_house(
     await house.edit(message_id, text)
 
 
+async def remember(
+    bot: "WispBot", guild_id: int, life_id: int | None, entries: Sequence[Entry]
+) -> None:
+    """Save moments of his life to his story; a failure is reported, not raised."""
+    if life_id is None or not entries:
+        return
+    try:
+        await bot.story.add(guild_id, life_id, entries)
+    except (pymysql.err.Error, OSError) as error:
+        await bot.report_error(
+            bot.get_guild(guild_id), "saving a moment of Wisp's life", error
+        )
+
+
 async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> None:
-    """Announce life events in Wisp's House.
+    """Announce life events in Wisp's House and save them to his story.
 
     Each event is spoken in Wisp's voice with the image for it when one exists.
     Each new stage is also shared in the server's general chat when staff
@@ -362,6 +378,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     life = await bot.lives.current(guild_id)
     if life is None:
         return
+    await remember(bot, guild_id, life.id, entries_from(events, discord.utils.utcnow()))
     house = _House(bot, guild_id)
     await house.open()
     drops = [event for event in events if event.kind is EventKind.METER_DROP]

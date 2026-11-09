@@ -30,6 +30,7 @@ from db.lunchbox import WispLunchboxRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
+from db.story import LifeStoryRepo
 from wisp.bond import PickleStance
 from wisp.chores import start_nap
 from wisp.life import Life, Mood, Phase, new_egg
@@ -53,6 +54,7 @@ from wisp.rules import (
     WELLBEING_PER_POKE,
     Stage,
 )
+from wisp.story import Entry, EntryKind
 from wisp.text import count
 from wisp.voice import STAGE_FACES, PokeFlavor
 
@@ -226,6 +228,7 @@ def bot(
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
+    wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.notes = NoteRepo(db)
@@ -1292,6 +1295,7 @@ def make_interaction(
     interaction.response.send_message = AsyncMock(side_effect=answer)
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
+    interaction.delete_original_response = AsyncMock()
     return interaction
 
 
@@ -1315,10 +1319,15 @@ NOT_RAISED = "♪ Poke sent, but it didn't raise his Wellbeing: "
 
 
 COUNTED = (
-    f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
-    f"(now {50 + WELLBEING_PER_POKE}). "
-    f"{count(POKE_CREDITS_PER_DAY - 1, 'poke')} left today that raise it."
+    f" ・ Wellbeing +{WELLBEING_PER_POKE} (now {50 + WELLBEING_PER_POKE}) ・ "
+    f"{count(POKE_CREDITS_PER_DAY - 1, 'poke')} left today"
 )
+
+
+def no_private_reply(interaction: MagicMock) -> None:
+    """A poke that counted closes its private thinking message and says nothing."""
+    interaction.followup.send.assert_not_awaited()
+    interaction.delete_original_response.assert_awaited_once_with()
 
 
 def house_posts(server: FakeServer) -> list[str]:
@@ -1379,8 +1388,10 @@ async def test_poke_posts_who_poked_and_his_reaction_in_the_house(
 
     pressed = await poke()
 
-    assert house_posts(server) == [f"♪ <@{FIRST}> poked Wisp\nhehe stop that tickles"]
-    assert private_reply(pressed) == COUNTED
+    assert house_posts(server) == [
+        f"♪ <@{FIRST}> poked Wisp{COUNTED}\nhehe stop that tickles"
+    ]
+    no_private_reply(pressed)
     (prompt,) = prompts(ai)
     assert "You're a Teen" in prompt.system
     assert "Aria just poked you." in prompt.user
@@ -1587,9 +1598,10 @@ async def test_poke_falls_back_to_a_canned_line_when_the_ai_fails(
         line in {text.format(name="Member1") for text in LINES[(moment, feeling)]}
         for feeling in Mood
     )
-    assert private_reply(pressed) == (
-        NOT_RAISED + "he hasn't hatched yet." if phase is Phase.EGG else COUNTED
-    )
+    if phase is Phase.EGG:
+        assert private_reply(pressed) == NOT_RAISED + "he hasn't hatched yet."
+    else:
+        no_private_reply(pressed)
 
 
 async def test_banned_members_cannot_poke(
@@ -1697,7 +1709,7 @@ async def test_a_failed_house_post_is_reported_and_the_poke_still_answered(
 
     report = server.house.send.await_args_list[1].args[0]
     assert report.startswith("Error in posting to Wisp's House: Forbidden")
-    assert private_reply(pressed) == COUNTED
+    no_private_reply(pressed)
 
 
 async def test_a_database_failure_is_reported_where_the_button_was_pressed(
@@ -1804,7 +1816,7 @@ async def test_the_first_three_pokes_a_day_add_five_wellbeing_each(
 
 
 async def test_a_counted_poke_says_what_it_did_and_what_is_left(
-    bot: app.WispBot, clock: Clock, poke: Press
+    bot: app.WispBot, server: FakeServer, clock: Clock, poke: Press
 ) -> None:
     await lay(bot)
     await enroll(bot, FIRST)
@@ -1814,16 +1826,15 @@ async def test_a_counted_poke_says_what_it_did_and_what_is_left(
     second = await poke()
 
     left = POKE_CREDITS_PER_DAY - 1
-    assert private_reply(first) == (
-        f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
-        f"(now {50 + WELLBEING_PER_POKE}). "
-        f"{count(left, 'poke')} left today that raise it."
-    )
-    assert private_reply(second) == (
-        f"♪ Poke counted. Wellbeing +{WELLBEING_PER_POKE} "
-        f"(now {50 + 2 * WELLBEING_PER_POKE}). "
-        f"{count(left - 1, 'poke')} left today that raise it."
-    )
+    no_private_reply(first)
+    no_private_reply(second)
+    heads = [post.split("\n")[0] for post in house_posts(server)]
+    assert heads == [
+        f"♪ <@{FIRST}> poked Wisp ・ Wellbeing +{WELLBEING_PER_POKE} "
+        f"(now {50 + WELLBEING_PER_POKE}) ・ {count(left, 'poke')} left today",
+        f"♪ <@{FIRST}> poked Wisp ・ Wellbeing +{WELLBEING_PER_POKE} "
+        f"(now {50 + 2 * WELLBEING_PER_POKE}) ・ {count(left - 1, 'poke')} left today",
+    ]
 
 
 async def test_a_poke_past_the_daily_limit_says_so(
@@ -2805,3 +2816,47 @@ async def test_no_second_look_when_the_picture_is_already_there(
     )
     server.house.fetch_message.assert_not_awaited()
     vision.assert_awaited_once_with("https://tenor/now.gif")
+
+
+async def test_his_prompt_says_he_got_over_his_monster_pox(
+    bot: app.WispBot, ai: AsyncMock, poke: Press
+) -> None:
+    life = await lay(bot, Stage.TEEN)
+    life.had_cold = True
+    await bot.lives.save(GUILD_ID, life)
+    await enroll(bot, FIRST)
+    ai.return_value = "all better"
+
+    await poke()
+
+    (prompt,) = prompts(ai)
+    assert "Earlier in this life you had Monster Pox" in prompt.system
+    assert "If anyone asks, you're all better." in prompt.system
+
+
+async def test_his_prompt_names_who_helped_him_and_the_wisps_before_him(
+    bot: app.WispBot, ai: AsyncMock, poke: Press
+) -> None:
+    gone = new_egg(1, START - timedelta(days=40))
+    gone.phase = Phase.DEAD
+    gone.stage = gone.peak_stage = Stage.CHILD
+    gone.hatched_at = START - timedelta(days=39)
+    gone.ended_at = START - timedelta(days=36)
+    await bot.lives.insert(GUILD_ID, gone)
+    life = new_egg(2, START - timedelta(days=20))
+    life.phase = Phase.ALIVE
+    life.stage = life.peak_stage = Stage.TEEN
+    life.hatched_at = life.stage_started_at = START - timedelta(days=19)
+    life = await bot.lives.insert(GUILD_ID, life)
+    assert life.id is not None
+    await enroll(bot, FIRST)
+    await bot.players.set_name(GUILD_ID, FIRST, "Aria")
+    entry = Entry(EntryKind.MEDICINE, Stage.CHILD, FIRST, START)
+    await bot.story.add(GUILD_ID, life.id, [entry])
+    ai.return_value = "hi"
+
+    await poke()
+
+    (prompt,) = prompts(ai)
+    assert "Aria gave you medicine and cured your cold." in prompt.system
+    assert "- Wisp v1 faded away as a Child after 3 days." in prompt.system
