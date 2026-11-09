@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-09 (A failed AI provider sits out for 1 minute)
+
+- An AI provider that fails or times out now sits out for 1 minute instead of 5,
+  so one slow answer from Groq can't leave him with nothing to answer through.
+
 ## 2026-11-09 (Wisp's long memory)
 
 - Wisp now remembers what people say to him in his House and what he said
