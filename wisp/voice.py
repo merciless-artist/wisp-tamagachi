@@ -17,6 +17,7 @@ from wisp.life import Life, Mood, Phase, has_sniffles, hours_left, is_over, is_s
 from wisp.rules import (
     AI_MAX_CHARS,
     BOND_TIERS,
+    DRAWING_SCENE_MAX_CHARS,
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
     EGG_WARMTH,
@@ -1014,25 +1015,60 @@ _DRAWING_FEELINGS: Final = {
     Mood.LONELY: "lonely and wishing for company",
 }
 _DRAWING_SYSTEM: Final = (
-    "You write the prompt for an image model. The picture is a drawing that "
-    "Wisp, the little fire sprite mascot of the ViiBR Discord server, made by "
-    "hand for one of its members.\n"
+    "You write the scene for an image model. The picture is a drawing that "
+    "Wisp, the fire sprite mascot of the ViiBR Discord server, made for one of "
+    "its members.\n"
     "How to write it:\n"
-    "- Reply with the prompt only: one plain paragraph under "
-    f"{IMAGE_PROMPT_MAX_CHARS} characters, with no quotes, no label and no "
+    "- Reply with the scene only: one plain paragraph under "
+    f"{DRAWING_SCENE_MAX_CHARS} characters, with no quotes, no label and no "
     "explanation.\n"
-    "- Describe one simple scene a child could draw in crayon: what is in it, "
-    "its colors and its mood. Wisp can be in it: a small dark purple fire "
-    "sprite with flaming orange hair and headphones.\n"
-    "- It is always a hand-drawn crayon doodle. Never ask for anything else.\n"
+    "- Describe one clear scene: what is in it, where, its colors, its light "
+    "and its mood.\n"
+    "- Wisp can be in it. Call him Wisp and say what he is doing, but never "
+    "describe how he looks: his look is added for you.\n"
+    "- Never name an art style, a medium or an artist: the style is added for "
+    "you.\n"
     "- No words, no letters, no text, no numbers and no names anywhere in the "
     "picture. Never ask for any, not even on signs, shirts or speech bubbles.\n"
     "- Make it personal to the member from what you know about them. Nothing "
     "mean, scary or grown-up."
 )
+_WISP_NAME: Final = re.compile(r"\bwisp\b", re.IGNORECASE)
+_WISP_IN_PICTURE: Final = "the fire sprite"
+_WISP_HEAD: Final = (
+    "The fire sprite is a small spirit made of shadow and fire: a round dark "
+    "purple head with two tall glowing orange oval eyes and no mouth, "
+    "orange-to-magenta flame hair, and big black headphones."
+)
+_WISP_BODY: Final = {
+    Stage.EGG: "He is curled up asleep inside a dark purple egg.",
+    Stage.BABY: "His body is a round squishy purple blob with no arms or legs.",
+    Stage.CHILD: (
+        "He has a small chubby body with stubby arms and legs and a glowing "
+        "orange sound wave on his tummy."
+    ),
+    Stage.TEEN: (
+        "He wears a spiked choker and an eyebrow ring, and his body trails off "
+        "into wisps of flame."
+    ),
+    Stage.ADULT: (
+        "He has a glowing pink heartbeat line on his chest, and his body trails "
+        "off into long wisps of purple smoke and flame."
+    ),
+    Stage.ROCKSTAR: (
+        "He wears heartbeat sunglasses, has a glowing heartbeat line on his "
+        "chest, and his body trails off into long wisps of smoke and flame."
+    ),
+    Stage.OLD_FOGEY: (
+        "He wears small round glasses and has a long wavy grey beard, and his "
+        "body trails off into long wisps of purple smoke and flame."
+    ),
+}
 _PICTURE_STYLE: Final = (
-    "A hand-drawn crayon doodle in a childlike scribbly style, bright waxy "
-    "colors on paper. No words, no letters, no text anywhere in the picture."
+    "Style: a polished hand-drawn illustration by a skilled artist, clean "
+    "confident linework, rich color with glowing neon orange, magenta and "
+    "purple light, soft shading and depth. No words, no letters, no text "
+    "anywhere in the picture."
 )
 
 
@@ -1059,17 +1095,25 @@ def drawing_prompt(
     return Prompt(_DRAWING_SYSTEM, "\n\n".join(user))
 
 
-def picture_prompt(scene: str) -> str:
-    """The image prompt for a scene the AI wrote.
+def picture_prompt(scene: str, stage: Stage) -> str:
+    """The image prompt for a scene the AI wrote, with Wisp as he looks at `stage`.
 
-    The scene's whitespace is tidied and it is cut at a word to leave room for
-    the style, which is always added last: a crayon doodle with no words in it.
+    The image model doesn't know Wisp, and a name invites it to write letters,
+    so when the scene names him each "Wisp" becomes "the fire sprite" and his
+    look is added after the scene. The style always comes last: a skilled
+    illustration with no words in it. The scene's whitespace is tidied and it
+    is cut at a word to leave room for the rest.
     """
     words = " ".join(scene.split())
-    room = IMAGE_PROMPT_MAX_CHARS - len(_PICTURE_STYLE) - 1
+    tail = [_PICTURE_STYLE]
+    if _WISP_NAME.search(words):
+        words = _WISP_NAME.sub(_WISP_IN_PICTURE, words)
+        tail.insert(0, f"{_WISP_HEAD} {_WISP_BODY[stage]}")
+    after = " ".join(tail)
+    room = IMAGE_PROMPT_MAX_CHARS - len(after) - 1
     if len(words) > room:
         words = words[:room].rsplit(" ", 1)[0]
-    return f"{words} {_PICTURE_STYLE}"
+    return f"{words} {after}"
 
 
 # ---

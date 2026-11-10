@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.announce import post_in_house
 from cogs.groups import play, require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -86,6 +85,10 @@ class _Outcome:
     points: int
 
 
+def _bold(word: str) -> str:
+    return f"**{word}**"
+
+
 async def _duel(
     bot: "WispBot",
     thread: discord.Thread,
@@ -100,8 +103,9 @@ async def _duel(
     """
     chain = [opening_word(rng)]
     points = 0
+    opener = bot.lines.pick(Moment.RHYME_START, mood(life), word=_bold(chain[0]))
     await thread.send(
-        bot.lines.pick(Moment.RHYME_START, mood(life), word=chain[0]),
+        f"{opener}\n・The word to rhyme is: {_bold(chain[0])}",
         allowed_mentions=_NO_PING,
     )
 
@@ -315,9 +319,6 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     )
     started = f"♪ Your Rhyme Duel is on in {thread.mention}."
     await say_privately(interaction, started)
-    await post_in_house(
-        bot, guild_id, f"♪ <@{user.id}> started a Rhyme Duel in {thread.mention}"
-    )
     outcome = await _duel(bot, thread, user.id, life, random.Random())
     line = bot.lines.pick(outcome.ending, mood(life))
     await thread.send(

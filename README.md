@@ -510,8 +510,7 @@ Nobody gets one when nobody was there or the member is banned.
 
 ## His drawings
 
-Wisp draws members pictures as presents. Nobody asks for one and there is no
-command. He makes one when a member gives him a gift he loves, when a member's
+Wisp draws members pictures as presents. Members never ask for one. He makes one when a member gives him a gift he loves, when a member's
 bond reaches a new tier, for the member who fed the most tracks the day before
 (at the first tick of the UTC day), and, once a UTC day at a random time, for a
 member who fed him, chatted with him or played with him in the last 24 hours.
@@ -522,6 +521,18 @@ as `Error in making a drawing for <name>: ...` and does not use up the day's
 limit. Without `CF_IMAGE_WORKER_URL` he makes none: nothing is asked of his AI
 and nothing is posted. A member's Snack Pack shows how many he has made them. `!wisp testlife`
 makes one too.
+
+His AI writes the scene. When Wisp is in it, his name is swapped for "the fire
+sprite" (a name invites the image model to write letters) and his look at his
+current stage is added, from his stage art. The style is always a polished
+hand-drawn illustration with neon orange, magenta and purple light, never a
+child's crayon doodle, and never any words in the picture.
+
+- `!wisp testdrawing [@member] [stage]` (staff) draws one right where it is
+  typed, for the member (you, when left out) with Wisp as he looks at the stage
+  (his stage now, when left out; one must be named when he has no life). The
+  image prompt comes with the picture. It skips the daily limits, is not posted
+  in the House, is not counted and pings nobody.
 
 ## Wisp's Studio
 

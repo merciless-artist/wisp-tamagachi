@@ -118,8 +118,10 @@ def guild_of(ctx: StaffContext) -> discord.Guild:
     return ctx.guild
 
 
-async def reply(ctx: StaffContext, text: str) -> None:
-    """Answer a staff command in its channel, pinging nobody.
+async def reply(
+    ctx: StaffContext, text: str, picture: discord.File | None = None
+) -> None:
+    """Answer a staff command in its channel, pinging nobody, with any picture.
 
     Where Wisp may not post, such as the track drop, the answer goes to his
     House instead; with no House it is only logged.
@@ -134,7 +136,10 @@ async def reply(ctx: StaffContext, text: str) -> None:
             log.warning("No House to answer %s in", command_context(ctx))
             return
         channel = house
-    await channel.send(text, allowed_mentions=_NO_PING)
+    if picture is None:
+        await channel.send(text, allowed_mentions=_NO_PING)
+    else:
+        await channel.send(text, file=picture, allowed_mentions=_NO_PING)
 
 
 def usage_line(command: commands.Command[Any, ..., Any]) -> str:

@@ -232,6 +232,14 @@ def receipt(interaction: MagicMock) -> str:
     return interaction.duel_server.posts()[-1]
 
 
+def openers(feeling: Mood = Mood.HAPPY) -> list[str]:
+    """What Wisp may open a duel on "fire" with: his line, then the word in bold."""
+    return [
+        f"{line}\n・The word to rhyme is: **fire**"
+        for line in lines_for(Moment.RHYME_START, feeling, word="**fire**")
+    ]
+
+
 def replies(interaction: MagicMock) -> list[str]:
     """The private replies the member got, none of them able to ping."""
     sent = []
@@ -292,7 +300,7 @@ async def test_duel_scores_perfect_and_slant(
         auto_archive_duration=60,
     )
     start, wisp_turn, summary, _receipt = server.posts()
-    assert start in lines_for(Moment.RHYME_START, word="fire")
+    assert start in openers()
     assert wisp_turn == "♪ higher"
     ending, separator, chain, points = summary.splitlines()
     assert ending in lines_for(Moment.RHYME_WISP_STUCK)
@@ -323,7 +331,7 @@ async def test_timeout_ends_duel(bot: app.WispBot, server: FakeServer) -> None:
     await duel(bot, server)
 
     start, summary, _receipt = server.posts()
-    assert start in lines_for(Moment.RHYME_START, word="fire")
+    assert start in openers()
     ending, *rest = summary.splitlines()
     assert ending in lines_for(Moment.RHYME_PLAYER_STUCK)
     assert rest == [SEPARATOR, "・Time ran out", "・fire", "・Score: 0 points"]
@@ -401,7 +409,7 @@ async def test_wisp_answers_in_his_mood(bot: app.WispBot, server: FakeServer) ->
     await duel(bot, server)
 
     start, summary, _receipt = server.posts()
-    assert start in lines_for(Moment.RHYME_START, Mood.HANGRY, word="fire")
+    assert start in openers(Mood.HANGRY)
     assert summary.splitlines()[0] in lines_for(Moment.RHYME_PLAYER_STUCK, Mood.HANGRY)
 
 
@@ -836,7 +844,7 @@ async def test_a_thread_that_cannot_close_still_finishes_the_duel(
     meeting.assert_awaited_once()
     report = server.posts()[-1]
     assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
-    assert len(server.house.send.await_args_list) == 1
+    server.house.send.assert_not_awaited()
 
 
 # ---
@@ -1266,7 +1274,7 @@ def test_rhyme_duel_is_a_loaded_extension() -> None:
     assert "cogs.rhyme_duel" in app.EXTENSIONS
 
 
-async def test_the_house_is_told_who_started_a_duel(
+async def test_wisp_posts_nothing_in_the_house_when_a_duel_starts(
     bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
 ) -> None:
     await lay(bot)
@@ -1274,6 +1282,5 @@ async def test_the_house_is_told_who_started_a_duel(
 
     await duel(bot, server, said("choir"))
 
-    call = server.house.send.await_args
-    assert call.args[0] == f"♪ <@{USER_ID}> started a Rhyme Duel in <#{THREAD_ID}>"
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    server.house.create_thread.assert_awaited_once()
+    server.house.send.assert_not_awaited()

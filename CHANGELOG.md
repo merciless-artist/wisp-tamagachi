@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-09 (Wisp draws himself right, and a staff test for drawings)
+
+- His drawings know what he looks like at each stage, from his stage art: a
+  shadowy dark purple fire sprite with glowing orange oval eyes and no mouth,
+  orange-to-magenta flame hair and big black headphones, plus each stage's
+  body (the Baby's blob, the Teen's choker, the Rockstar's heartbeat shades,
+  the Old Fogey's beard). His AI just says "Wisp"; the look is added for it and
+  his name never reaches the image model.
+- The crayon style is gone: drawings are a polished hand-drawn illustration
+  with neon orange, magenta and purple light. His drawing lines no longer
+  mention crayons.
+- The image prompt may be 1,000 characters (was 500); his AI's scene stays
+  under 400 so his look and the style always fit.
+- New staff command `!wisp testdrawing [@member] [stage]`: one drawing right
+  away, with the prompt it used, outside the daily limits and not counted.
+- Rhyme Duel: his opening line shows the word in bold, with
+  "The word to rhyme is: **word**" under it, so it is clear which word to
+  rhyme with.
+- Rhyme Duel: Wisp no longer posts "started a Rhyme Duel" in his House;
+  Discord's own "started a thread" line already shows it.
+
 ## 2026-11-09 (ElectronHub is his last backup AI)
 
 - ElectronHub joins the AI chain last, after OpenRouter, so a whole company

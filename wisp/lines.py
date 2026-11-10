@@ -1094,20 +1094,20 @@ _BADGE_BOUGHT_HANGRY = (
 # ---
 
 _DRAWING_GIFT = (
-    "{name}, thank you for the present. I drew you something back. crayons",
-    "you gave me a gift and I got feelings, so here's a doodle for you, {name}",
-    "this is for {name}. a thank you, in crayon, because words aren't my strong suit",
-    "you spoiled me, {name}, so I made you a picture. wobbly, but from the heart",
+    "{name}, thank you for the present. I drew you something back",
+    "you gave me a gift and I got feelings, so here's a drawing for you, {name}",
+    "this is for {name}. a thank you in ink, because words aren't my strong suit",
+    "you spoiled me, {name}, so I made you a picture. straight from the heart",
     "I drew this to say thanks for the gift, {name}. frame it. or don't. but frame it",
     "one present deserves one doodle. {name}, this one's yours",
 )
 
 _DRAWING_BOND = (
-    "{name}, we're closer now, so I made you a picture. crayon. wobbly. yours",
+    "{name}, we're closer now, so I made you a picture. it's yours",
     "I just realized we're better friends than before, {name}. so I drew this for you",
     "new kind of friendship unlocked, {name}. here's a doodle to make it official",
     "{name}, you've been around so much I made you a drawing. don't tell the others",
-    "we got closer, {name}, and I celebrated with crayons. this is the result",
+    "we got closer, {name}, and I celebrated with my sketchbook. this is the result",
     "this one's for you, {name}. a friend this good needs a doodle",
 )
 
@@ -1115,8 +1115,8 @@ _DRAWING_TOP_FEEDER = (
     "{name} fed me the most music yesterday, so I drew you something. you earned it",
     "most tracks yesterday goes to {name}. I'm still full of beats. have a doodle",
     "{name}, you fed me more songs than anybody yesterday. have a doodle",
-    "my belly is happy because of {name}. I drew you a thank you, crayon style",
-    "top feeder of yesterday: {name}. prize: one doodle, handmade, slightly smudged",
+    "my belly is happy because of {name}. I drew you a thank you",
+    "top feeder of yesterday: {name}. prize: one drawing, handmade by me",
     "{name} kept the music coming yesterday. here, I made you this",
 )
 
@@ -1124,7 +1124,7 @@ _DRAWING_LIKE = (
     "I just felt like drawing something for you, {name}. no reason. I like you",
     "{name}, I like you, so I made you a picture. that's the whole story",
     "random doodle alert, {name}. it's for you because you're a favorite of mine",
-    "I was sitting here thinking about you, {name}, so I grabbed my crayons",
+    "I was sitting here thinking about you, {name}, so I grabbed my pens",
     "no occasion, {name}. I just like you. here's a drawing",
     "psst, {name}. I made this for you. it means I like you",
 )

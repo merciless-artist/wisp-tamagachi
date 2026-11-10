@@ -9,26 +9,35 @@ day and the server a few.
 import random
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum, auto
+from io import BytesIO
 from typing import TYPE_CHECKING, Final
 
 import discord
+from discord.ext import commands
 
 from ai.chain import AllProvidersFailed, ProviderError
 from cogs.announce import Upload, post_in_house
 from cogs.players import feeder_blocker
+from cogs.staff import StaffContext, guild_of, reply
 from db.activity import InteractionKind
-from wisp.life import Life, Phase, mood
+from wisp.life import Life, Mood, Phase, is_over, mood
 from wisp.lines import Moment
 from wisp.rules import (
     DRAWING_FILE_NAME,
     DRAWING_LIKE_WINDOW,
     DRAWINGS_PER_DAY,
     DRAWINGS_PER_MEMBER_PER_DAY,
+    Stage,
 )
 from wisp.voice import DrawReason, drawing_prompt, picture_prompt
 
 if TYPE_CHECKING:
     from app import WispBot
+
+NO_WORKER: Final = (
+    "Wisp made no drawing: the picture worker address (CF_IMAGE_WORKER_URL) "
+    "is not set."
+)
 
 _MOMENTS: Final = {
     DrawReason.GIFT: Moment.DRAWING_GIFT,
@@ -94,22 +103,24 @@ async def _may_draw_for(
 async def _make_picture(
     bot: "WispBot",
     guild_id: int,
-    life: Life,
     member_id: int,
     name: str,
     reason: DrawReason,
-) -> bytes:
-    """Have his AI write the picture prompt, then have the worker draw it.
+    stage: Stage,
+    feeling: Mood,
+) -> tuple[str, bytes]:
+    """Have his AI write the scene, then have the worker draw it.
+
+    Returns the image prompt the worker got and its picture.
 
     Raises:
         AllProvidersFailed: Every AI provider failed.
         ProviderError: The image worker failed.
     """
     notes = await bot.notes.recent(guild_id, member_id)
-    scene = await bot.ai.complete(
-        drawing_prompt(reason, name, notes, life.stage, mood(life))
-    )
-    return await bot.images.draw(picture_prompt(scene))
+    scene = await bot.ai.complete(drawing_prompt(reason, name, notes, stage, feeling))
+    prompt = picture_prompt(scene, stage)
+    return prompt, await bot.images.draw(prompt)
 
 
 async def draw_for(
@@ -138,7 +149,9 @@ async def draw_for(
         player = await bot.players.get(guild_id, member.id)
         name = player.name or member.display_name
         try:
-            picture = await _make_picture(bot, guild_id, life, member.id, name, reason)
+            _, picture = await _make_picture(
+                bot, guild_id, member.id, name, reason, life.stage, mood(life)
+            )
         except (AllProvidersFailed, ProviderError) as error:
             await bot.report_error(
                 bot.get_guild(guild_id), f"making a drawing for {name}", error
@@ -257,3 +270,70 @@ class DailyDrawings:
         if member is None:
             return DrawResult.SKIPPED
         return await draw_for(self._bot, guild_id, member, reason, now)
+
+
+# ---
+# The staff test
+# ---
+
+_TEST_USAGE: Final = f"[@member] [{' | '.join(Stage)}]"
+
+
+def _stage_word(argument: str) -> Stage:
+    """Read a stage in any case, with or without its underscore: old_fogey, OldFogey."""
+    word = argument.lower().replace("_", "")
+    for stage in Stage:
+        if stage.value.replace("_", "") == word:
+            return stage
+    raise commands.BadArgument(f"Not a stage: {argument}")
+
+
+@commands.command(name="testdrawing", usage=_TEST_USAGE)
+async def testdrawing(
+    ctx: StaffContext,
+    member: discord.Member | None = None,
+    stage: Stage | None = commands.parameter(converter=_stage_word, default=None),
+) -> None:
+    """Have Wisp draw one picture right here, so staff can see how he draws.
+
+    It is for `member` (whoever typed it when left out), with Wisp as he looks
+    at `stage` (his stage now when left out). It skips the daily caps and is
+    neither posted in his House nor counted, and it pings nobody. The image
+    prompt the worker got comes with it. With no Wisp alive or as an egg, a
+    stage must be named. An AI or worker failure is reported as
+    `Error in making a test drawing`.
+    """
+    bot = ctx.bot
+    guild = guild_of(ctx)
+    if not bot.images.configured:
+        await reply(ctx, f"♪ {NO_WORKER}")
+        return
+    life = await bot.lives.current(guild.id)
+    living = None if life is None or is_over(life) else life
+    if stage is None:
+        if living is None:
+            await reply(ctx, f"♪ Wisp has no life now, so name a stage: {_TEST_USAGE}")
+            return
+        stage = living.stage
+    target = member or ctx.author
+    player = await bot.players.get(guild.id, target.id)
+    name = player.name or target.display_name
+    feeling = Mood.HAPPY if living is None else mood(living)
+    try:
+        prompt, picture = await _make_picture(
+            bot, guild.id, target.id, name, DrawReason.LIKE, stage, feeling
+        )
+    except (AllProvidersFailed, ProviderError) as error:
+        await bot.report_error(guild, "making a test drawing", error)
+        return
+    await reply(
+        ctx,
+        f"♪ Test drawing for {target.mention}, with Wisp as a {stage.label}. "
+        f"It isn't counted.\n・Prompt: {prompt}",
+        picture=discord.File(BytesIO(picture), filename=DRAWING_FILE_NAME),
+    )
+
+
+async def setup(bot: "WispBot") -> None:
+    """Load `!wisp testdrawing`."""
+    bot.add_command(testdrawing)

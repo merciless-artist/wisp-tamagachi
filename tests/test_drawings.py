@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
+from discord.ext import commands
 
 import app
 from ai.chain import AllProvidersFailed, ProviderError
@@ -35,6 +36,7 @@ from wisp.links import Track, TrackKind
 from wisp.rules import (
     DRAWING_FILE_NAME,
     DRAWING_LIKE_WINDOW,
+    DRAWING_SCENE_MAX_CHARS,
     DRAWINGS_PER_DAY,
     DRAWINGS_PER_MEMBER_PER_DAY,
     IMAGE_PROMPT_MAX_CHARS,
@@ -52,8 +54,11 @@ MESSAGE_ID = 555
 NOW = datetime(2026, 11, 6, 12, 0, tzinfo=UTC)
 MIDNIGHT = datetime(2026, 11, 6, tzinfo=UTC)
 JPEG = b"\xff\xd8\xff-doodle"
-SCENE = "A smiling fire sprite in purple headphones holding a paper star"
+SCENE = "Wisp smiles on a stage, holding up a paper star for Wisp's friend"
 NO_WORDS = "No words, no letters, no text"
+STYLE = "a polished hand-drawn illustration by a skilled artist"
+LOOK = "glowing orange oval eyes and no mouth"
+NO_PING = discord.AllowedMentions.none().to_dict()
 ERROR = re.compile(r"Error in making a drawing for Member\d+: \w+: .+")
 MOMENTS = {
     DrawReason.GIFT: Moment.DRAWING_GIFT,
@@ -218,7 +223,7 @@ async def test_a_drawing_is_posted_with_a_ping_and_the_picture(
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
 
 
-async def test_the_picture_prompt_always_asks_for_a_crayon_doodle_with_no_words(
+async def test_the_picture_prompt_draws_him_as_he_looks_now_with_no_words(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await draw(bot, server)
@@ -226,8 +231,14 @@ async def test_the_picture_prompt_always_asks_for_a_crayon_doodle_with_no_words(
     drawn = bot.images.draw
     assert isinstance(drawn, AsyncMock)
     (text,) = drawn.await_args.args
-    assert text.startswith(SCENE)
-    assert "crayon" in text and NO_WORDS in text
+    assert text.startswith(
+        "the fire sprite smiles on a stage, holding up a paper star for "
+        "the fire sprite's friend"
+    )
+    assert not re.search(r"\bwisp\b", text, re.IGNORECASE)
+    assert LOOK in text and "spiked choker" in text
+    assert STYLE in text and NO_WORDS in text
+    assert "crayon" not in text
     assert len(text) <= IMAGE_PROMPT_MAX_CHARS
 
 
@@ -261,7 +272,8 @@ async def test_the_ai_is_told_why_who_and_what_he_remembers(
     assert "Teen" in prompt.user and "happy" in prompt.user
     assert "closer" in prompt.user
     assert NO_WORDS.lower() in prompt.system.lower()
-    assert "crayon" in prompt.system
+    assert "never describe how he looks" in prompt.system
+    assert "crayon" not in prompt.system
 
 
 async def test_the_member_is_called_by_the_name_wisp_knows(
@@ -491,28 +503,234 @@ async def test_a_post_that_fails_is_not_recorded(
 
 
 # ---
+# The staff test
+# ---
+
+
+def typed_by(server: FakeServer, user_id: int = OTHER_ID) -> MagicMock:
+    """A staff command typed in Wisp's House by a member."""
+    author = member_of(server, user_id)
+    author.mention = f"<@{user_id}>"
+    ctx = MagicMock(spec=commands.Context)
+    ctx.guild = server.guild
+    ctx.channel = server.house
+    ctx.author = author
+    return ctx
+
+
+async def type_testdrawing(
+    bot: app.WispBot,
+    server: FakeServer,
+    member: MagicMock | None = None,
+    stage: Stage | None = None,
+) -> MagicMock:
+    """Type `!wisp testdrawing` as staff; the context it ran in."""
+    ctx = typed_by(server)
+    ctx.bot = bot
+    command: Any = drawings.testdrawing
+    await command.callback(ctx, member, stage)
+    return ctx
+
+
+def answer(server: FakeServer) -> tuple[str, discord.File | None]:
+    """The one post the test made, and its picture."""
+    (call,) = server.house.send.await_args_list
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    return call.args[0], call.kwargs.get("file")
+
+
+def ai_prompt(bot: app.WispBot) -> Prompt:
+    """The prompt his AI got last."""
+    complete = bot.ai.complete
+    assert isinstance(complete, AsyncMock) and complete.await_args is not None
+    (prompt,) = complete.await_args.args
+    assert isinstance(prompt, Prompt)
+    return prompt
+
+
+async def test_testdrawing_draws_here_for_the_member_as_he_looks_now(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    target = member_of(server)
+    target.mention = f"<@{USER_ID}>"
+
+    await type_testdrawing(bot, server, target)
+
+    text, art = answer(server)
+    assert text.startswith(
+        f"♪ Test drawing for <@{USER_ID}>, with Wisp as a Teen. It isn't counted."
+    )
+    assert "\n・Prompt: the fire sprite smiles" in text
+    assert LOOK in text and "spiked choker" in text and STYLE in text
+    assert len(text) < 2000
+    assert art is not None and art.filename == DRAWING_FILE_NAME
+    assert art.fp.read() == JPEG
+    assert "Member1" in ai_prompt(bot).user
+    assert await bot.drawings.count_today(GUILD_ID, NOW) == 0
+
+
+async def test_testdrawing_draws_him_at_a_named_stage_for_whoever_typed_it(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await type_testdrawing(bot, server, stage=Stage.ROCKSTAR)
+
+    text, _ = answer(server)
+    assert f"for <@{OTHER_ID}>, with Wisp as a Rockstar." in text
+    assert "heartbeat sunglasses" in text and "spiked choker" not in text
+    prompt = ai_prompt(bot)
+    assert "Member2" in prompt.user and "Rockstar" in prompt.user
+
+
+async def test_testdrawing_skips_the_daily_caps(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    assert await draw(bot, server, user_id=OTHER_ID) is DrawResult.MADE
+    assert await draw(bot, server, user_id=OTHER_ID) is DrawResult.SKIPPED
+    server.house.send.reset_mock()
+
+    await type_testdrawing(bot, server)
+
+    _, art = answer(server)
+    assert art is not None
+    assert await bot.drawings.count_today(GUILD_ID, NOW) == 1
+
+
+async def test_testdrawing_with_no_life_needs_a_stage(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    gone = new_egg(2, NOW)
+    gone.phase = Phase.DEAD
+    await bot.lives.insert(GUILD_ID, gone)
+
+    await type_testdrawing(bot, server)
+
+    text, art = answer(server)
+    assert text == (
+        "♪ Wisp has no life now, so name a stage: [@member] "
+        "[egg | baby | child | teen | adult | rockstar | old_fogey]"
+    )
+    assert art is None
+    server.house.send.reset_mock()
+
+    await type_testdrawing(bot, server, stage=Stage.BABY)
+
+    text, art = answer(server)
+    assert "as a Baby" in text and "no arms or legs" in text
+    assert "happy" in ai_prompt(bot).user
+
+
+async def test_testdrawing_without_a_worker_says_so_and_asks_nothing(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    bot.images = ImageMaker(None)
+
+    await type_testdrawing(bot, server)
+
+    text, art = answer(server)
+    assert text == f"♪ {drawings.NO_WORKER}"
+    assert art is None
+    complete = bot.ai.complete
+    assert isinstance(complete, AsyncMock)
+    complete.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "failure", [AllProvidersFailed([("groq", "down")]), ProviderError("HTTP 502")]
+)
+async def test_a_failed_testdrawing_is_reported(
+    bot: app.WispBot, server: FakeServer, failure: Exception
+) -> None:
+    failing = (
+        bot.ai.complete
+        if isinstance(failure, AllProvidersFailed)
+        else (bot.images.draw)
+    )
+    assert isinstance(failing, AsyncMock)
+    failing.side_effect = failure
+
+    await type_testdrawing(bot, server)
+
+    (text,) = server.posts()
+    assert text.startswith(
+        f"Error in making a test drawing: {type(failure).__name__}: "
+    )
+
+
+@pytest.mark.parametrize(
+    ("word", "stage"),
+    [
+        ("teen", Stage.TEEN),
+        ("ROCKSTAR", Stage.ROCKSTAR),
+        ("old_fogey", Stage.OLD_FOGEY),
+        ("OldFogey", Stage.OLD_FOGEY),
+    ],
+)
+def test_testdrawing_reads_a_stage_in_any_case(word: str, stage: Stage) -> None:
+    assert drawings._stage_word(word) is stage
+
+
+def test_testdrawing_turns_down_a_word_that_is_not_a_stage() -> None:
+    with pytest.raises(commands.BadArgument, match="Not a stage: dragon"):
+        drawings._stage_word("dragon")
+
+
+async def test_testdrawing_is_a_staff_command(bot: app.WispBot) -> None:
+    await drawings.setup(bot)
+
+    command = bot.get_command("testdrawing")
+
+    assert command is drawings.testdrawing
+    assert command.usage == (
+        "[@member] [egg | baby | child | teen | adult | rockstar | old_fogey]"
+    )
+
+
+# ---
 # The picture prompt
 # ---
 
 
-def test_the_picture_prompt_is_cut_to_fit_with_the_style_kept() -> None:
-    long = "a very long scene " * 80
-
-    text = picture_prompt(long)
+@pytest.mark.parametrize("scene", ["a very long scene ", "Wisp in a long scene "])
+def test_the_picture_prompt_is_cut_to_fit_with_the_look_and_style_kept(
+    scene: str,
+) -> None:
+    text = picture_prompt(scene * 80, Stage.OLD_FOGEY)
 
     assert len(text) <= IMAGE_PROMPT_MAX_CHARS
     assert text.endswith("No words, no letters, no text anywhere in the picture.")
-    assert "crayon" in text
-    assert text.startswith("a very long scene")
+    assert STYLE in text
+    assert ("grey beard" in text) is scene.startswith("Wisp")
 
 
 def test_the_picture_prompt_collapses_whitespace_and_keeps_a_short_scene_whole() -> (
     None
 ):
-    text = picture_prompt("  A star\n\n  and a moon  ")
+    text = picture_prompt("  A star\n\n  and a moon  ", Stage.ADULT)
 
-    assert text.startswith("A star and a moon ")
+    assert text.startswith("A star and a moon Style: ")
     assert "\n" not in text
+
+
+def test_a_scene_without_him_gets_no_look() -> None:
+    text = picture_prompt("A cello under a full moon", Stage.ADULT)
+
+    assert LOOK not in text and "fire sprite" not in text
+
+
+def test_his_name_is_swapped_whatever_its_case_but_not_inside_other_words() -> None:
+    text = picture_prompt("WISP and wisp dance near wispy clouds", Stage.BABY)
+
+    assert text.startswith("the fire sprite and the fire sprite dance near wispy")
+    assert "no arms or legs" in text
+
+
+@pytest.mark.parametrize("stage", list(Stage))
+def test_every_stage_has_a_look_that_fits_with_a_full_scene(stage: Stage) -> None:
+    text = picture_prompt("Wisp " + "x" * (DRAWING_SCENE_MAX_CHARS - 5), stage)
+
+    assert LOOK in text
+    assert text.startswith("the fire sprite " + "x" * 10)
+    assert len(text) <= IMAGE_PROMPT_MAX_CHARS
 
 
 @pytest.mark.parametrize("reason", list(DrawReason))
@@ -523,7 +741,7 @@ def test_the_ai_prompt_asks_for_a_prompt_with_no_words_in_the_picture(
 
     assert "hangry" in prompt.user
     assert "Myra" in prompt.user
-    assert str(IMAGE_PROMPT_MAX_CHARS) in prompt.system
+    assert str(DRAWING_SCENE_MAX_CHARS) in prompt.system
     assert "no words" in prompt.system.lower()
     assert "remember" not in prompt.user
 
