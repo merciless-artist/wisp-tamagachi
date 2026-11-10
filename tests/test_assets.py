@@ -2,12 +2,16 @@
 
 from pathlib import Path
 
-from cogs.assets import ASSETS_DIR, asset_image
+import pytest
+
+from cogs import assets
+from cogs.assets import ASSETS_DIR, asset_image, stage_art
 from wisp.rules import (
     MEDICINE_PICTURE,
     MESSES,
     SNIFFLES_PICTURE,
     TANTRUM_PICTURES,
+    Stage,
 )
 
 
@@ -33,6 +37,18 @@ def test_a_folder_of_that_name_is_not_art(tmp_path: Path) -> None:
     (tmp_path / "odd.gif").mkdir()
 
     assert asset_image(tmp_path, "odd") is None
+
+
+def test_stage_art_is_the_stages_png_or_none_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+    (tmp_path / "stages").mkdir()
+    (tmp_path / "stages" / "old_fogey.png").write_bytes(b"PNG")
+    (tmp_path / "stages" / "teen.gif").write_bytes(b"GIF")
+
+    assert stage_art(Stage.OLD_FOGEY) == tmp_path / "stages" / "old_fogey.png"
+    assert stage_art(Stage.TEEN) is None
 
 
 def test_every_chore_picture_is_in_the_moments_folder() -> None:

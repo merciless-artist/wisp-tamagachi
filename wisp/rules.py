@@ -698,9 +698,10 @@ VISION_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
 # IMAGE_MAX_BYTES is more than Discord takes in an upload.
 IMAGE_TIMEOUT = timedelta(seconds=60)
 IMAGE_MAX_BYTES = 8 * 1024 * 1024
-# The worker's Flux model takes 2,048 characters but reads about 1,000 well.
-# His AI writes a scene of at most DRAWING_SCENE_MAX_CHARS; his look and the
-# style are added to it.
+# The worker's FLUX.2 klein model draws him from his stage's picture. His AI
+# writes a scene of at most DRAWING_SCENE_MAX_CHARS; a line saying he is the
+# character in that picture and the style are added, up to
+# IMAGE_PROMPT_MAX_CHARS in all.
 IMAGE_PROMPT_MAX_CHARS = 1000
 DRAWING_SCENE_MAX_CHARS = 400
 # What he gives a member for a gift he loves, a new bond tier, the day's most

@@ -17,6 +17,7 @@ from discord.ext import commands
 
 from ai.chain import AllProvidersFailed, ProviderError
 from cogs.announce import Upload, post_in_house
+from cogs.assets import stage_art
 from cogs.players import feeder_blocker
 from cogs.staff import StaffContext, guild_of, reply
 from db.activity import InteractionKind
@@ -111,16 +112,21 @@ async def _make_picture(
 ) -> tuple[str, bytes]:
     """Have his AI write the scene, then have the worker draw it.
 
-    Returns the image prompt the worker got and its picture.
+    The worker gets his picture for `stage` from ASSETS/stages to draw him
+    from. Returns the image prompt the worker got and its picture.
 
     Raises:
         AllProvidersFailed: Every AI provider failed.
-        ProviderError: The image worker failed.
+        ProviderError: His picture for the stage is missing, before any AI
+            call, or the image worker failed.
     """
+    art = stage_art(stage)
+    if art is None:
+        raise ProviderError(f"no picture of Wisp as a {stage.label} in ASSETS/stages")
     notes = await bot.notes.recent(guild_id, member_id)
     scene = await bot.ai.complete(drawing_prompt(reason, name, notes, stage, feeling))
-    prompt = picture_prompt(scene, stage)
-    return prompt, await bot.images.draw(prompt)
+    prompt = picture_prompt(scene)
+    return prompt, await bot.images.draw(prompt, art.read_bytes())
 
 
 async def draw_for(

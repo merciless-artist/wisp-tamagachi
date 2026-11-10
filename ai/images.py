@@ -12,13 +12,16 @@ from wisp.rules import IMAGE_MAX_BYTES, IMAGE_TIMEOUT
 __all__ = ["ImageMaker", "images_from_config"]
 
 PICTURE_TYPE = "image/jpeg"
+REFERENCE_TYPE = "image/png"
 
 
 class ImageMaker(SessionOwner):
-    """Asks the image worker for a picture of a prompt.
+    """Asks the image worker for a picture of a prompt and a reference picture.
 
-    Every way it can fail is a ProviderError. Without an address it asks
-    nothing. Once closed, it opens no other HTTP session.
+    The worker's FLUX.2 model draws the character in the reference picture
+    into the scene the prompt describes. Every way it can fail is a
+    ProviderError. Without an address it asks nothing. Once closed, it opens
+    no other HTTP session.
     """
 
     def __init__(self, url: str | None, timeout: timedelta = IMAGE_TIMEOUT) -> None:
@@ -30,8 +33,11 @@ class ImageMaker(SessionOwner):
         """Whether it has a worker address to ask."""
         return self._url is not None
 
-    async def draw(self, prompt: str) -> bytes:
-        """Return the worker's JPEG for `prompt`.
+    async def draw(self, prompt: str, reference: bytes) -> bytes:
+        """Return the worker's JPEG for `prompt`, drawn from `reference`.
+
+        Both go as multipart form fields: `prompt`, and `reference` as a PNG
+        under 512 x 512.
 
         Raises:
             ProviderError: It has no address or is closed, the worker refused
@@ -43,9 +49,17 @@ class ImageMaker(SessionOwner):
         if self._closed:
             raise ProviderError("closed for shutdown")
         session = self._open_session()
+        form = aiohttp.FormData()
+        form.add_field("prompt", prompt)
+        form.add_field(
+            "reference",
+            reference,
+            filename="reference.png",
+            content_type=REFERENCE_TYPE,
+        )
         try:
             async with session.post(
-                self._url, headers={"User-Agent": USER_AGENT}, json={"prompt": prompt}
+                self._url, headers={"User-Agent": USER_AGENT}, data=form
             ) as response:
                 if response.status != 200:
                     reason = (await response.text())[:ERROR_BODY_CHARS]

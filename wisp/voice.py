@@ -1024,51 +1024,27 @@ _DRAWING_SYSTEM: Final = (
     "explanation.\n"
     "- Describe one clear scene: what is in it, where, its colors, its light "
     "and its mood.\n"
-    "- Wisp can be in it. Call him Wisp and say what he is doing, but never "
-    "describe how he looks: his look is added for you.\n"
+    "- Wisp is in it, and he is the only character: no people and no other "
+    "characters. Call him Wisp and say what he is doing, but never describe "
+    "how he looks: the image model gets a picture of him.\n"
     "- Never name an art style, a medium or an artist: the style is added for "
     "you.\n"
     "- No words, no letters, no text, no numbers and no names anywhere in the "
     "picture. Never ask for any, not even on signs, shirts or speech bubbles.\n"
-    "- Make it personal to the member from what you know about them. Nothing "
-    "mean, scary or grown-up."
+    "- Make it personal to the member from what you know about them, through "
+    "what Wisp does and the things and places around him. Nothing mean, scary "
+    "or grown-up."
 )
 _WISP_NAME: Final = re.compile(r"\bwisp\b", re.IGNORECASE)
 _WISP_IN_PICTURE: Final = "the fire sprite"
-_WISP_HEAD: Final = (
-    "The fire sprite is a small spirit made of shadow and fire: a round dark "
-    "purple head with two tall glowing orange oval eyes and no mouth, "
-    "orange-to-magenta flame hair, and big black headphones."
+_FROM_REFERENCE: Final = (
+    "The fire sprite is the character in the reference picture: draw him "
+    "exactly as he looks there, as the only character in the picture."
 )
-_WISP_BODY: Final = {
-    Stage.EGG: "He is curled up asleep inside a dark purple egg.",
-    Stage.BABY: "His body is a round squishy purple blob with no arms or legs.",
-    Stage.CHILD: (
-        "He has a small chubby body with stubby arms and legs and a glowing "
-        "orange sound wave on his tummy."
-    ),
-    Stage.TEEN: (
-        "He wears a spiked choker and an eyebrow ring, and his body trails off "
-        "into wisps of flame."
-    ),
-    Stage.ADULT: (
-        "He has a glowing pink heartbeat line on his chest, and his body trails "
-        "off into long wisps of purple smoke and flame."
-    ),
-    Stage.ROCKSTAR: (
-        "He wears heartbeat sunglasses, has a glowing heartbeat line on his "
-        "chest, and his body trails off into long wisps of smoke and flame."
-    ),
-    Stage.OLD_FOGEY: (
-        "He wears small round glasses and has a long wavy grey beard, and his "
-        "body trails off into long wisps of purple smoke and flame."
-    ),
-}
 _PICTURE_STYLE: Final = (
-    "Style: a polished hand-drawn illustration by a skilled artist, clean "
-    "confident linework, rich color with glowing neon orange, magenta and "
-    "purple light, soft shading and depth. No words, no letters, no text "
-    "anywhere in the picture."
+    "Style: polished 2D digital illustration, bold clean outlines, soft cel "
+    "shading, glowing neon orange, magenta and purple light. No words, no "
+    "letters, no text and no signature anywhere in the picture."
 )
 
 
@@ -1095,25 +1071,21 @@ def drawing_prompt(
     return Prompt(_DRAWING_SYSTEM, "\n\n".join(user))
 
 
-def picture_prompt(scene: str, stage: Stage) -> str:
-    """The image prompt for a scene the AI wrote, with Wisp as he looks at `stage`.
+def picture_prompt(scene: str) -> str:
+    """The image prompt for a scene the AI wrote, to go with his stage's picture.
 
-    The image model doesn't know Wisp, and a name invites it to write letters,
-    so when the scene names him each "Wisp" becomes "the fire sprite" and his
-    look is added after the scene. The style always comes last: a skilled
-    illustration with no words in it. The scene's whitespace is tidied and it
-    is cut at a word to leave room for the rest.
+    The image model draws Wisp from the reference picture it gets alongside,
+    so the prompt opens by saying he is that character and the only one. A
+    name invites it to write letters, so each "Wisp" in the scene becomes
+    "the fire sprite". The style comes last: a polished illustration with no
+    words or signature in it. The scene's whitespace is tidied and it is cut
+    at a word to leave room for the rest.
     """
-    words = " ".join(scene.split())
-    tail = [_PICTURE_STYLE]
-    if _WISP_NAME.search(words):
-        words = _WISP_NAME.sub(_WISP_IN_PICTURE, words)
-        tail.insert(0, f"{_WISP_HEAD} {_WISP_BODY[stage]}")
-    after = " ".join(tail)
-    room = IMAGE_PROMPT_MAX_CHARS - len(after) - 1
+    words = _WISP_NAME.sub(_WISP_IN_PICTURE, " ".join(scene.split()))
+    room = IMAGE_PROMPT_MAX_CHARS - len(_FROM_REFERENCE) - len(_PICTURE_STYLE) - 2
     if len(words) > room:
         words = words[:room].rsplit(" ", 1)[0]
-    return f"{words} {after}"
+    return f"{_FROM_REFERENCE} {words} {_PICTURE_STYLE}"
 
 
 # ---

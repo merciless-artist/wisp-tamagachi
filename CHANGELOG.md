@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-11-10 (Wisp draws himself from his own picture)
+
+- Drawings now come from FLUX.2 klein 4B. Wisp sends his picture for his
+  current stage (`ASSETS/stages`) with every drawing, and the model draws him
+  from it, so the choker, the heartbeat shades and the beard all show up. The
+  written description of his look is gone.
+- He is the only character in his drawings: his AI is told no people and no
+  other characters. With people in the scene, the old model gave a person his
+  flame hair and headphones.
+- The style is a polished 2D illustration with bold outlines and cel shading,
+  and the prompt asks for no signature, since a fake artist's signature showed
+  up in tests.
+- A missing stage picture is posted as
+  `Error in making a drawing for <name>: ProviderError: no picture of Wisp as a
+  <Stage> in ASSETS/stages`, before his AI is asked anything.
+- The image worker (`tools/cloudflare_wispimages_worker.js`) takes a multipart
+  form with `prompt` and `reference` for FLUX.2 klein 4B. Plain words (GET or
+  JSON) still go to FLUX.1 schnell. Myra pasted it into Cloudflare on
+  2026-11-10. About 90 drawings a day fit in Cloudflare's free 10,000 neurons.
+
 ## 2026-11-09 (Wisp draws himself right, and a staff test for drawings)
 
 - His drawings know what he looks like at each stage, from his stage art: a

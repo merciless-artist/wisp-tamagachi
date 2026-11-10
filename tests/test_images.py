@@ -15,6 +15,7 @@ from ai.images import ImageMaker, images_from_config
 from wisp.rules import IMAGE_MAX_BYTES, IMAGE_TIMEOUT
 
 JPEG = b"\xff\xd8\xff-not-really-a-picture"
+PNG = b"\x89PNG-wisp-as-a-teen"
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
 # ---
@@ -44,21 +45,33 @@ async def picture(request: web.Request) -> web.Response:
 # ---
 
 
-async def test_the_prompt_is_posted_as_json_and_the_picture_comes_back() -> None:
-    seen: list[tuple[object, str]] = []
+async def test_the_prompt_and_reference_go_as_a_form_and_the_picture_comes_back() -> (
+    None
+):
+    seen: list[tuple[object, ...]] = []
 
     async def worker(request: web.Request) -> web.Response:
-        seen.append((await request.json(), request.headers["User-Agent"]))
+        form = await request.post()
+        reference = form["reference"]
+        assert isinstance(reference, web.FileField)
+        seen.append(
+            (
+                form["prompt"],
+                reference.file.read(),
+                reference.content_type,
+                request.headers["User-Agent"],
+            )
+        )
         return await picture(request)
 
     async with serve(worker) as url:
         maker = ImageMaker(url)
         try:
-            assert await maker.draw("a doodle") == JPEG
+            assert await maker.draw("a doodle", PNG) == JPEG
         finally:
             await maker.close()
 
-    assert seen == [({"prompt": "a doodle"}, USER_AGENT)]
+    assert seen == [("a doodle", PNG, "image/png", USER_AGENT)]
 
 
 @pytest.mark.parametrize(
@@ -75,7 +88,7 @@ async def test_a_refusal_is_a_provider_error_with_the_workers_reason(
         maker = ImageMaker(url)
         try:
             with pytest.raises(ProviderError, match=f"HTTP {status} {reason}"):
-                await maker.draw("a doodle")
+                await maker.draw("a doodle", PNG)
         finally:
             await maker.close()
 
@@ -88,7 +101,7 @@ async def test_an_answer_that_is_not_a_picture_is_refused() -> None:
         maker = ImageMaker(url)
         try:
             with pytest.raises(ProviderError, match="text/plain, not a picture"):
-                await maker.draw("a doodle")
+                await maker.draw("a doodle", PNG)
         finally:
             await maker.close()
 
@@ -104,7 +117,7 @@ async def test_an_empty_or_huge_picture_is_refused(body: bytes) -> None:
         maker = ImageMaker(url)
         try:
             with pytest.raises(ProviderError, match="empty|too big"):
-                await maker.draw("a doodle")
+                await maker.draw("a doodle", PNG)
         finally:
             await maker.close()
 
@@ -118,7 +131,7 @@ async def test_a_slow_worker_times_out() -> None:
         maker = ImageMaker(url, timeout=timedelta(seconds=0.2))
         try:
             with pytest.raises(ProviderError, match="timed out"):
-                await maker.draw("a doodle")
+                await maker.draw("a doodle", PNG)
         finally:
             await maker.close()
 
@@ -127,14 +140,14 @@ async def test_a_worker_that_cannot_be_reached_is_a_provider_error() -> None:
     maker = ImageMaker("http://127.0.0.1:1/")
     try:
         with pytest.raises(ProviderError, match="ClientConnectorError"):
-            await maker.draw("a doodle")
+            await maker.draw("a doodle", PNG)
     finally:
         await maker.close()
 
 
 async def test_without_a_worker_address_it_asks_nothing() -> None:
     with pytest.raises(ProviderError, match="no image worker"):
-        await ImageMaker(None).draw("a doodle")
+        await ImageMaker(None).draw("a doodle", PNG)
 
 
 @pytest.mark.parametrize(("url", "configured"), [(None, False), ("worker", True)])
@@ -157,12 +170,12 @@ async def test_a_closed_maker_opens_no_new_session() -> None:
 
     async with serve(worker) as url:
         maker = ImageMaker(url)
-        assert await maker.draw("a doodle") == JPEG
+        assert await maker.draw("a doodle", PNG) == JPEG
         await maker.close()
         await maker.close()
 
         with pytest.raises(ProviderError, match="closed"):
-            await maker.draw("a doodle")
+            await maker.draw("a doodle", PNG)
         gc.collect()
 
     assert requests == 1

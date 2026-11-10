@@ -522,11 +522,16 @@ limit. Without `CF_IMAGE_WORKER_URL` he makes none: nothing is asked of his AI
 and nothing is posted. A member's Snack Pack shows how many he has made them. `!wisp testlife`
 makes one too.
 
-His AI writes the scene. When Wisp is in it, his name is swapped for "the fire
-sprite" (a name invites the image model to write letters) and his look at his
-current stage is added, from his stage art. The style is always a polished
-hand-drawn illustration with neon orange, magenta and purple light, never a
-child's crayon doodle, and never any words in the picture.
+His AI writes the scene, with Wisp as the only character: no people. The image
+worker (FLUX.2 klein 4B on Cloudflare) gets his picture for his current stage
+from `ASSETS/stages` as a reference and draws him from it, so he looks like
+himself at every stage. In the prompt his name is swapped for "the fire
+sprite" (a name invites the image model to write letters). The style is always
+a polished 2D illustration with neon orange, magenta and purple light, never a
+child's crayon doodle, and never any words or signature in the picture. A
+missing stage picture is reported as an error before his AI is asked anything.
+The worker's code is `tools/cloudflare_wispimages_worker.js`, pasted by hand
+into the Cloudflare dashboard.
 
 - `!wisp testdrawing [@member] [stage]` (staff) draws one right where it is
   typed, for the member (you, when left out) with Wisp as he looks at the stage

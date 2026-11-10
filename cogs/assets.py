@@ -21,6 +21,12 @@ def asset_image(folder: Path, name: str) -> Path | None:
     )
 
 
+def stage_art(stage: Stage) -> Path | None:
+    """The PNG of Wisp at `stage` in ASSETS/stages when it exists, else None."""
+    path = ASSETS_DIR / "stages" / f"{stage.value}.png"
+    return path if path.is_file() else None
+
+
 def moment_image(name: str) -> Path | None:
     """The picture called `name` in ASSETS/moments when it exists, else None."""
     path = ASSETS_DIR / "moments" / name
