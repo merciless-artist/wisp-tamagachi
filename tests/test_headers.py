@@ -8,7 +8,8 @@ import discord
 import pytest
 
 from cogs import headers
-from cogs.headers import FOOTER, gallery_files, send_headed
+from cogs.headers import FOOTER, frame_of, gallery_files, send_framed, send_headed
+from wisp.text import FRAME_EMOJIS, UNICODE_FRAME, emoji_frame
 
 HEADER = "title.png"
 
@@ -105,3 +106,70 @@ def test_gallery_files_leave_out_a_missing_picture(pictures: Path) -> None:
 
     with gallery_files(HEADER, FOOTER) as files:
         assert [file.filename for file in files] == [HEADER]
+
+
+# ---
+# The emoji frame (house style v3)
+# ---
+
+
+def emoji_bot(*uploaded: str) -> MagicMock:
+    """A bot whose `emoji` gives `<:name:1>` for the uploaded names, else ""."""
+    bot = MagicMock()
+    bot.emoji.side_effect = lambda name: f"<:{name}:1>" if name in uploaded else ""
+    return bot
+
+
+def test_the_frame_is_myras_emojis_when_all_are_uploaded() -> None:
+    frame = frame_of(emoji_bot(*FRAME_EMOJIS))
+
+    assert frame == emoji_frame(*(f"<:{name}:1>" for name in FRAME_EMOJIS))
+
+
+@pytest.mark.parametrize("missing", FRAME_EMOJIS)
+def test_one_missing_frame_emoji_falls_back_to_the_unicode_frame(missing: str) -> None:
+    uploaded = [name for name in FRAME_EMOJIS if name != missing]
+
+    assert frame_of(emoji_bot(*uploaded)) is UNICODE_FRAME
+
+
+async def test_send_framed_sends_one_layout_of_the_header_and_the_text() -> None:
+    send = AsyncMock()
+
+    await send_framed(send, HEADER, "the text", allowed_mentions=None)
+
+    call = send.await_args
+    assert call is not None and call.args == ()
+    (picture,) = call.kwargs["files"]
+    assert picture.filename == HEADER and is_closed(picture)
+    assert call.kwargs["allowed_mentions"] is None
+    view = call.kwargs["view"]
+    assert isinstance(view, discord.ui.LayoutView)
+    gallery, text = view.children
+    assert isinstance(gallery, discord.ui.MediaGallery)
+    assert gallery.items[0].media.url == f"attachment://{HEADER}"
+    assert isinstance(text, discord.ui.TextDisplay) and text.content == "the text"
+    assert view.timeout is None
+
+
+async def test_send_framed_closes_the_picture_when_the_send_fails() -> None:
+    send = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom"))
+
+    with pytest.raises(discord.HTTPException):
+        await send_framed(send, HEADER, "the text")
+
+    call = send.await_args
+    assert call is not None
+    assert all(is_closed(picture) for picture in call.kwargs["files"])
+
+
+async def test_send_framed_leaves_out_a_missing_header(pictures: Path) -> None:
+    (pictures / HEADER).unlink()
+    send = AsyncMock()
+
+    await send_framed(send, HEADER, "the text")
+
+    call = send.await_args
+    assert call is not None and call.kwargs["files"] == []
+    (text,) = call.kwargs["view"].children
+    assert isinstance(text, discord.ui.TextDisplay)

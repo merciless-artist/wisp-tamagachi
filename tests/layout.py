@@ -4,7 +4,7 @@ from typing import Any
 
 import discord
 
-from wisp.text import CONTINUATION, box_room, visual_width
+from wisp.text import CONTINUATION, Frame, box_room, visual_width
 
 
 def assert_fits_its_box(text: str) -> None:
@@ -18,6 +18,17 @@ def assert_fits_its_box(text: str) -> None:
     assert lines[bottom] == "╚" + "═" * width + "╝"
     for line in lines[top + 1 : bottom]:
         assert visual_width(line) <= box_room(width), line
+
+
+def assert_fits_its_frame(text: str, frame: Frame) -> None:
+    """Myra's v3 frame holds: every line is a section break or opens with the
+    frame's edge, the box closes with the frame's bottom line, and nothing
+    looks wider than it."""
+    lines = text.split("\n")
+    assert lines[-1] == frame.bottom
+    for line in lines[:-1]:
+        assert line == frame.section_break or line.startswith(frame.blank), line
+        assert visual_width(line) <= frame.room, line
 
 
 def entries(lines: list[str]) -> list[str]:

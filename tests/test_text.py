@@ -6,9 +6,12 @@ from wisp.card import bar
 from wisp.text import (
     BLANK,
     BOX_WIDTH,
+    FRAME_EMOJIS,
+    HEADING_MARK,
     MESSAGE_LIMIT,
     SECTION_BREAK,
     SEPARATOR,
+    UNICODE_FRAME,
     USER_ERROR,
     WIDTHS,
     any_role,
@@ -18,6 +21,7 @@ from wisp.text import (
     channel_or,
     clip,
     count,
+    emoji_frame,
     fit,
     heading,
     item,
@@ -385,3 +389,65 @@ def test_any_role_names_the_roles_lowest_id_first(
     role_ids: tuple[int, ...], named: str
 ) -> None:
     assert any_role(role_ids, 3) == named
+
+
+# ---
+# The emoji frame (house style v3)
+# ---
+
+EMOJI_PIECES = tuple(f"<:{name}:{index}>" for index, name in enumerate(FRAME_EMOJIS))
+EDGE, HEADER, HEADER2, HEADER3, REST, CLEF = EMOJI_PIECES
+FRAME = emoji_frame(*EMOJI_PIECES)
+
+
+def test_the_emoji_frame_pieces_are_myras() -> None:
+    assert FRAME.heading("Favorite songs") == f"{EDGE}{HEADER2}{HEADER} FAVORITE SONGS"
+    assert FRAME.sub("Nov 9") == f"{EDGE}{HEADER} Nov 9"
+    assert FRAME.item("Cloud Wave") == f"{EDGE}{HEADER3} Cloud Wave"
+    assert FRAME.note("hi") == f"{EDGE} hi"
+    assert FRAME.blank == EDGE
+    assert FRAME.section_break == f"{EDGE}{REST}{REST}"
+    assert FRAME.group_break == f"{EDGE}{REST}"
+    assert FRAME.bottom == f"{EDGE} {CLEF}{HEADER2 * 16}{HEADER}"
+    assert FRAME.divider == f"{CLEF}{HEADER2 * 16}{HEADER}"
+    assert FRAME.sections(["a"], ["b"]) == ["a", FRAME.section_break, "b"]
+
+
+def test_the_emoji_frame_is_as_wide_as_its_bottom_line() -> None:
+    assert FRAME.room == visual_width(FRAME.bottom)
+    assert FRAME.room == pytest.approx(19 * WIDTHS["emoji"] + WIDTHS["space"])
+
+
+def test_a_long_line_wraps_onto_edge_rows_in_the_emoji_frame() -> None:
+    line = FRAME.item("word " * 40 + "end")
+
+    rows = FRAME.wrap(line).split("\n")
+
+    assert len(rows) > 1
+    assert rows[0].startswith(f"{EDGE}{HEADER3} word")
+    assert all(row.startswith(f"{EDGE} word") for row in rows[1:-1])
+    assert rows[-1].endswith(" end")
+    assert all(visual_width(row) <= FRAME.room for row in rows)
+
+
+def test_a_short_line_and_a_line_outside_the_frame_are_left_alone() -> None:
+    assert FRAME.wrap(FRAME.sub("short")) == FRAME.sub("short")
+    outside = "x " * 80
+    assert FRAME.wrap(outside) == outside
+
+
+def test_the_unicode_frame_keeps_the_old_pieces() -> None:
+    assert UNICODE_FRAME.heading("Favorite songs") == f"{HEADING_MARK} FAVORITE SONGS"
+    assert UNICODE_FRAME.sub("x") == sub("x")
+    assert UNICODE_FRAME.item("x") == item("x")
+    assert UNICODE_FRAME.section_break == SECTION_BREAK
+    assert UNICODE_FRAME.blank == BLANK
+    assert UNICODE_FRAME.bottom == box_bottom()
+    assert UNICODE_FRAME.divider == SEPARATOR
+    assert UNICODE_FRAME.room == box_room()
+
+
+def test_fit_takes_a_limit() -> None:
+    text = fit(["head"], ["x" * 2500, "y"], ["tail"], 4000)
+
+    assert text == "\n".join(["head", "x" * 2500, "y", "tail"])

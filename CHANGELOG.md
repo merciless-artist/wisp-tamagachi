@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-11 (The lunchbox in Myra's emoji frame)
+
+- The lunchbox uses Myra's emoji frame instead of the Unicode one, since
+  some phones and PCs do not show those characters: `header_edge`,
+  `header2`/`header`/`header3` for headings, sub-lines and items,
+  `rest_bar` breaks, and a `clef` line at the bottom. Headings are in
+  capitals. The rules are in
+  `DOCS/specs/2026-11-11-house-style-v3-emoji-frame.md`.
+- It is one Components V2 message (4,000 characters of text): Myra's header
+  picture, then the text. The footer picture is gone; the `clef` line closes
+  it.
+- Each favorite song's link reads `#1 LISTEN HERE`, `#2 LISTEN HERE` and so
+  on, since the sharer is already tagged. The artist lookup on
+  viibrmusic.com is gone with it (the database column stays, unused).
+- His favorite emoji shows its name in code after it, as `:wisp_happy:`.
+- Collections are in capitals (`BOOKS 1/4`), with one `rest_bar` line
+  between collections.
+- If any of the six frame emojis is not uploaded, the lunchbox falls back
+  to the whole Unicode frame rather than a half-emoji box.
+- The other menus (Snack Pack, Vault, status card, Leaderboard) and the
+  plain divider move to the emoji frame next.
+
 ## 2026-11-10 (Wisp draws himself from his own picture)
 
 - Drawings now come from FLUX.2 klein 4B. Wisp sends his picture for his

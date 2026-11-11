@@ -417,8 +417,11 @@ the purchase is undone and the points come back.
   Wisp's lunchbox: his favorite song of each day (picked
   at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
   favorite snack he picked when he hatched, the expression he uses most and
-  the gift collections of this life. It is posted publicly where it was asked
-  for, pinging nobody and with no link previews; asked for in the track drop,
+  the gift collections of this life. Each song is its day and sharer, then a
+  numbered `#1 LISTEN HERE` link, and his favorite emoji shows its name in
+  code. It is one Components V2 message in Myra's emoji frame: her header
+  picture, then the text, closed by the `clef` line. It is posted publicly
+  where it was asked for, pinging nobody; asked for in the track drop,
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
 - `/wisp play rhyme` (also Play, then **Rhyme Duel**, on the Status post)
@@ -624,8 +627,9 @@ posts text only.
 - `stats_title.png`, `leaderboard_title.png`, `lunchbox_title.png`,
   `snack_pack_title.png` and `vault_title.png`, Myra's header pictures above
   the status card, the Leaderboard, Wisp's Lunchbox, the Snack Pack and the
-  Vault, and `box_footer.png`, the footer under all but the status card
-  (which closes with its own header).
+  Vault, and `box_footer.png`, the footer under the menus still in the old
+  frame (not the status card, which closes with its own header, or the
+  lunchbox, which closes with the emoji frame's `clef` line).
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
   `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,
@@ -646,8 +650,11 @@ App emojis (uploaded to the application in the Developer Portal):
 medicine option), `viibr_logo` (the Vault's title), the status card's meters
 `full_full` / `full_left` (Health) and `care_full` / `care_left` (Wellbeing),
 `happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars),
-`wisp_happy`, `wisp_hangry`, `wisp_sad`. The layouts are Myra's house style,
-`DOCS/specs/2026-10-27-house-style.md`.
+`wisp_happy`, `wisp_hangry`, `wisp_sad`, and the emoji frame's
+`header_edge`, `header`, `header2`, `header3`, `rest_bar` and `clef` (with
+any of the six missing, a menu falls back to the old Unicode frame). The
+layouts are Myra's house style, `DOCS/specs/2026-10-27-house-style.md`, with
+the v3 emoji frame in `DOCS/specs/2026-11-11-house-style-v3-emoji-frame.md`.
 
 ## Testing
 

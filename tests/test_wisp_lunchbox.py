@@ -3,31 +3,20 @@
 Discord objects are fakes; the repositories are the real ones.
 """
 
-import json
 import random
-from collections.abc import AsyncIterator, Iterator
-from dataclasses import dataclass, field
+from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pymysql
 import pytest
-from aiohttp import web
-from aiohttp.test_utils import TestServer
 from discord import app_commands
 
 import app
 from cogs import groups, wisp_lunchbox
-from cogs.share_links import ShareLinkResolver
-from cogs.wisp_lunchbox import (
-    LunchboxButton,
-    lunchbox_text,
-    pick_favorite_song,
-    song_link,
-)
+from cogs.wisp_lunchbox import LunchboxButton, lunchbox_text, pick_favorite_song
 from db.activity import ActivityRepo
 from db.database import Database
 from db.gifts import GiftRepo
@@ -36,19 +25,19 @@ from db.lunchbox import WispLunchboxRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
-from tests.layout import assert_fits_its_box
+from tests.layout import assert_fits_its_frame, layout_text
 from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
 from wisp.text import (
-    MESSAGE_LIMIT,
-    SECTION_BREAK,
+    FRAME_EMOJIS,
+    LAYOUT_TEXT_LIMIT,
+    UNICODE_FRAME,
     USER_ERROR,
-    box_room,
+    emoji_frame,
     text_length,
-    visual_width,
 )
 
 GUILD_ID = 100
@@ -63,19 +52,16 @@ SECOND = 2
 NOW = datetime(2026, 10, 23, 0, 5, tzinfo=UTC)
 YESTERDAY = date(2026, 10, 22)
 NO_PING = discord.AllowedMentions.none().to_dict()
-BOX_TOP = "╔══════════════════════╗"
-BOX_BOTTOM = "╚══════════════════════╝"
-NONE_YET = "║𝄡 none yet"
-SONGS = "║𝄡𝄚𝄂𝄆 **Favorite songs**"
-SNACK = "║𝄡𝄚𝄂𝄆 **Favorite snack**"
-EMOJI = "║𝄡𝄚𝄂𝄆 **Favorite emoji**"
-COLLECTIONS = "║𝄡𝄚𝄂𝄆 **Collections**"
-SPEC_LINES = frozenset(
-    (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
-    .read_bytes()
-    .decode("utf-8")
-    .splitlines()
+EDGE, HEADER, HEADER2, HEADER3, REST, CLEF = (
+    f"<:{name}:{index}>" for index, name in enumerate(FRAME_EMOJIS, start=1)
 )
+FRAME = emoji_frame(EDGE, HEADER, HEADER2, HEADER3, REST, CLEF)
+NONE_YET = f"{EDGE}{HEADER3} none yet"
+SONGS = f"{EDGE}{HEADER2}{HEADER} FAVORITE SONGS"
+SNACK = f"{EDGE}{HEADER2}{HEADER} FAVORITE SNACK"
+EMOJI = f"{EDGE}{HEADER2}{HEADER} FAVORITE EMOJI"
+COLLECTIONS = f"{EDGE}{HEADER2}{HEADER} COLLECTIONS"
+BOTTOM = f"{EDGE} {CLEF}{HEADER2 * 16}{HEADER}"
 
 # ---
 # Fakes
@@ -138,50 +124,9 @@ def repo(db: Database) -> WispLunchboxRepo:
     return WispLunchboxRepo(db)
 
 
-@dataclass
-class SongSite:
-    """A stand-in for viibrmusic.com's song pages that records what it was asked."""
-
-    artists: dict[str, str] = field(default_factory=dict)
-    asked: list[str] = field(default_factory=list)
-    busy: set[str] = field(default_factory=set)
-
-    async def page(self, request: web.Request) -> web.Response:
-        uuid = request.match_info["uuid"]
-        self.asked.append(uuid)
-        if uuid in self.busy:
-            return web.Response(status=503)
-        if uuid not in self.artists:
-            return web.Response(status=404)
-        data = json.dumps(
-            {"@type": "MusicRecording", "byArtist": {"name": self.artists[uuid]}}
-        )
-        return web.Response(
-            text=f'<html><script type="application/ld+json">{data}</script></html>',
-            content_type="text/html",
-        )
-
-
-@pytest.fixture(autouse=True)
-async def songs(bot: app.WispBot) -> AsyncIterator[SongSite]:
-    """viibrmusic.com's song pages, served locally for the bot's resolver."""
-    site = SongSite()
-    application = web.Application()
-    application.router.add_get("/songs/{uuid}", site.page)
-    server = TestServer(application)
-    await server.start_server()
-    bot.share_links = ShareLinkResolver(
-        origins={"viibrmusic.com": str(server.make_url("/"))}
-    )
-    try:
-        yield site
-    finally:
-        await bot.share_links.close()
-        await server.close()
-
-
 @pytest.fixture(autouse=True)
 async def configured(bot: app.WispBot) -> None:
+    give_emojis(bot)
     await bot.settings.update(
         GUILD_ID,
         house_channel_id=HOUSE_ID,
@@ -196,10 +141,6 @@ def viibr(ident: int) -> Track:
     return Track(
         TrackKind.VIIBR, f"viibr:{uuid}", f"https://viibrmusic.com/songs/{uuid}"
     )
-
-
-def uuid_of(track: Track) -> str:
-    return track.key.removeprefix("viibr:")
 
 
 def suno(ident: int) -> Track:
@@ -230,15 +171,13 @@ async def lay(bot: app.WispBot, health: float = 50.0) -> Life:
     return await bot.lives.insert(GUILD_ID, life)
 
 
-def give_emojis(bot: app.WispBot, *names: str) -> None:
+def give_emojis(bot: app.WispBot, *names: str, frame: bool = True) -> None:
+    """Upload the frame's emojis (ids 1 to 6) unless `frame` is off, then `names`."""
+    uploaded = [*(FRAME_EMOJIS if frame else ()), *names]
     bot.emojis_by_name = {
         name: cast(discord.Emoji, discord.PartialEmoji(name=name, id=index))
-        for index, name in enumerate(names, start=1)
+        for index, name in enumerate(uploaded, start=1)
     }
-
-
-def emoji_text(name: str, index: int) -> str:
-    return f"<:{name}:{index}>"
 
 
 def say(bot: app.WispBot, line: str = "mine now") -> MagicMock:
@@ -278,13 +217,33 @@ async def open_lunchbox(
 
 
 def sections(text: str) -> list[list[str]]:
-    """The lunchbox's sections inside its frame."""
+    """The lunchbox's sections inside its frame.
+
+    The songs end with a blank edge line and the box with a blank edge line
+    and the bottom line, as Myra drew it; those are checked and left out.
+    """
     lines = text.splitlines()
-    assert lines[0] == BOX_TOP
-    assert lines[-1] == BOX_BOTTOM
-    return [
-        part.splitlines() for part in "\n".join(lines[1:-1]).split(SECTION_BREAK + "\n")
+    assert lines[-2:] == [EDGE, BOTTOM]
+    parts = [
+        part.splitlines()
+        for part in "\n".join(lines[:-2]).split("\n" + FRAME.section_break + "\n")
     ]
+    assert parts[0][-1] == EDGE
+    return [parts[0][:-1], *parts[1:]]
+
+
+def posted(call: Any) -> str:
+    """The lunchbox one send posted: one layout of its header picture and text."""
+    assert "content" not in call.kwargs and call.args == ()
+    (picture,) = call.kwargs["files"]
+    assert picture.filename == "lunchbox_title.png"
+    view = call.kwargs["view"]
+    assert isinstance(view, discord.ui.LayoutView)
+    gallery, _text = view.children
+    assert isinstance(gallery, discord.ui.MediaGallery)
+    assert gallery.items[0].media.url == "attachment://lunchbox_title.png"
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    return layout_text(view)
 
 
 # ---
@@ -554,13 +513,8 @@ async def test_the_lunchbox_is_posted_publicly_where_it_was_asked_for(
     interaction = await open_lunchbox(bot, server)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-    header, post = interaction.channel.send.await_args_list
-    assert header.args == ()
-    assert header.kwargs["file"].filename == "lunchbox_title.png"
-    assert post.args == (await lunchbox_text(bot, GUILD_ID),)
-    assert post.kwargs["file"].filename == "box_footer.png"
-    assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert post.kwargs["suppress_embeds"] is True
+    (post,) = interaction.channel.send.await_args_list
+    assert posted(post) == await lunchbox_text(bot, GUILD_ID)
     interaction.delete_original_response.assert_awaited_once_with()
     interaction.followup.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
@@ -575,7 +529,7 @@ async def test_a_failed_delete_of_the_private_answer_is_ignored(
 
     await open_lunchbox(bot, server, interaction)
 
-    assert interaction.channel.send.await_count == 2
+    interaction.channel.send.assert_awaited_once()
     interaction.delete_original_response.assert_awaited_once_with()
     interaction.followup.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
@@ -612,11 +566,8 @@ async def test_asked_for_in_the_track_drop_it_goes_to_the_house(
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     interaction.channel.send.assert_not_awaited()
-    header, post = server.house.send.await_args_list
-    assert header.kwargs["file"].filename == "lunchbox_title.png"
-    assert post.args == (await lunchbox_text(bot, GUILD_ID),)
-    assert post.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert post.kwargs["suppress_embeds"] is True
+    (post,) = server.house.send.await_args_list
+    assert posted(post) == await lunchbox_text(bot, GUILD_ID)
     told = interaction.followup.send.await_args
     assert told.args == (f"♪ Wisp's lunchbox is open in <#{HOUSE_ID}>.",)
     assert told.kwargs["ephemeral"] is True
@@ -634,13 +585,9 @@ async def test_in_the_track_drop_with_no_house_it_is_shown_privately(
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     server.house.send.assert_not_awaited()
-    header, call = interaction.followup.send.await_args_list
-    assert header.kwargs["ephemeral"] is True
-    assert header.kwargs["file"].filename == "lunchbox_title.png"
-    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    (call,) = interaction.followup.send.await_args_list
     assert call.kwargs["ephemeral"] is True
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert call.kwargs["suppress_embeds"] is True
+    assert posted(call) == await lunchbox_text(bot, GUILD_ID)
 
 
 async def test_a_channel_that_cannot_be_placed_counts_as_the_track_drop(
@@ -651,7 +598,7 @@ async def test_a_channel_that_cannot_be_placed_counts_as_the_track_drop(
 
     await open_lunchbox(bot, server, interaction)
 
-    assert server.house.send.await_count == 2
+    server.house.send.assert_awaited_once()
     interaction.response.defer.assert_awaited_once_with(ephemeral=True)
 
 
@@ -668,12 +615,9 @@ async def test_asked_for_in_a_studio_thread_it_is_shown_privately(
 
     interaction.channel.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
-    header, call = interaction.followup.send.await_args_list
-    assert header.kwargs["ephemeral"] is True
-    assert header.kwargs["file"].filename == "lunchbox_title.png"
-    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    (call,) = interaction.followup.send.await_args_list
     assert call.kwargs["ephemeral"] is True
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert posted(call) == await lunchbox_text(bot, GUILD_ID)
     interaction.delete_original_response.assert_not_awaited()
 
 
@@ -686,14 +630,12 @@ async def test_an_empty_lunchbox_says_none_yet(bot: app.WispBot) -> None:
         [EMOJI, NONE_YET],
         [COLLECTIONS, NONE_YET],
     ]
-    for line in (BOX_TOP, SONGS, SNACK, EMOJI, COLLECTIONS, BOX_BOTTOM):
-        assert line in SPEC_LINES, line
+    assert_fits_its_frame(text, FRAME)
 
 
 async def test_the_lunchbox_shows_songs_snack_and_emoji(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
+    bot: app.WispBot, repo: WispLunchboxRepo
 ) -> None:
-    songs.artists[uuid_of(viibr(2))] = "Foggy X Music"
     for ident, day in enumerate([date(2026, 10, 2), date(2026, 10, 22)], start=1):
         await fed(bot, viibr(ident), on(day), user_id=ident)
         await repo.pick_favorite(GUILD_ID, day, random.Random(), NOW)
@@ -708,15 +650,56 @@ async def test_the_lunchbox_shows_songs_snack_and_emoji(
     assert sections(text) == [
         [
             SONGS,
-            f"║𝄡𝄚𝄂 Oct 22 ・ <@{SECOND}>",
-            f"║𝄡 [Foggy X Music]({viibr(2).url})",
-            f"║𝄡𝄚𝄂 Oct 2 ・ <@{FIRST}>",
-            f"║𝄡 [listen ♪]({viibr(1).url})",
+            f"{EDGE}{HEADER} Oct 22 ・ <@{SECOND}>",
+            f"{EDGE}{HEADER3} [#1 LISTEN HERE]({viibr(2).url})",
+            f"{EDGE}{HEADER} Oct 2 ・ <@{FIRST}>",
+            f"{EDGE}{HEADER3} [#2 LISTEN HERE]({viibr(1).url})",
         ],
-        [SNACK, f"║𝄡 {emoji_text('snack_cheese', 1)} Cheese"],
-        [EMOJI, f"║𝄡 {emoji_text('wisp_wink', 2)}"],
+        [SNACK, f"{EDGE}{HEADER3} {bot.emoji('snack_cheese')} Cheese"],
+        [EMOJI, f"{EDGE}{HEADER3} {bot.emoji('wisp_wink')} `:wisp_wink:`"],
         [COLLECTIONS, NONE_YET],
     ]
+    assert_fits_its_frame(text, FRAME)
+
+
+async def test_the_whole_lunchbox_matches_myras_design(
+    bot: app.WispBot, repo: WispLunchboxRepo
+) -> None:
+    await fed(bot, viibr(1), on(YESTERDAY), user_id=FIRST)
+    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert text.splitlines() == [
+        SONGS,
+        f"{EDGE}{HEADER} Oct 22 ・ <@{FIRST}>",
+        f"{EDGE}{HEADER3} [#1 LISTEN HERE]({viibr(1).url})",
+        EDGE,
+        f"{EDGE}{REST}{REST}",
+        SNACK,
+        NONE_YET,
+        f"{EDGE}{REST}{REST}",
+        EMOJI,
+        NONE_YET,
+        f"{EDGE}{REST}{REST}",
+        COLLECTIONS,
+        NONE_YET,
+        EDGE,
+        BOTTOM,
+    ]
+
+
+async def test_a_missing_frame_emoji_falls_back_to_the_whole_unicode_frame(
+    bot: app.WispBot,
+) -> None:
+    give_emojis(bot, *FRAME_EMOJIS[:-1], frame=False)
+
+    text = await lunchbox_text(bot, GUILD_ID)
+
+    assert "<:" not in text
+    assert text.splitlines()[0] == UNICODE_FRAME.heading("Favorite songs")
+    assert text.splitlines()[-1] == UNICODE_FRAME.bottom
+    assert_fits_its_frame(text, UNICODE_FRAME)
 
 
 async def test_the_favorite_snack_reads_without_its_emoji(bot: app.WispBot) -> None:
@@ -726,7 +709,7 @@ async def test_the_favorite_snack_reads_without_its_emoji(bot: app.WispBot) -> N
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert [SNACK, "║𝄡 ViiBR Wave"] in sections(text)
+    assert [SNACK, f"{EDGE}{HEADER3} ViiBR Wave"] in sections(text)
 
 
 async def test_an_egg_has_no_favorite_snack_yet(bot: app.WispBot) -> None:
@@ -745,7 +728,8 @@ async def test_an_emoji_no_longer_uploaded_gives_way_to_the_next(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert [EMOJI, f"║𝄡 {emoji_text('wisp_happy', 1)}"] in sections(text)
+    happy = f"{EDGE}{HEADER3} {bot.emoji('wisp_happy')} `:wisp_happy:`"
+    assert [EMOJI, happy] in sections(text)
 
 
 async def test_no_uploaded_emoji_shows_none_yet(
@@ -769,8 +753,10 @@ async def test_the_lunchbox_shows_the_newest_songs_only(
     songs = sections(await lunchbox_text(bot, GUILD_ID))[0][1:]
 
     assert len(songs) == 2 * rules.FAVORITE_SONGS_SHOWN
-    assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
-    assert songs[1].startswith("║𝄡 [listen ♪](https://viibrmusic.com/")
+    assert songs[0].startswith(f"{EDGE}{HEADER} Oct 22 ・")
+    assert songs[1] == f"{EDGE}{HEADER3} [#1 LISTEN HERE]({viibr(1).url})"
+    last = rules.FAVORITE_SONGS_SHOWN
+    assert songs[-1].startswith(f"{EDGE}{HEADER3} [#{last} LISTEN HERE](")
     assert len(await repo.favorites(GUILD_ID, 100)) == 12
 
 
@@ -795,158 +781,28 @@ async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert text_length(text) <= MESSAGE_LIMIT
+    assert text_length(text) <= LAYOUT_TEXT_LIMIT
     songs = sections(text)[0][1:]
     assert 0 < len(songs) < 2 * rules.FAVORITE_SONGS_SHOWN
     assert len(songs) % 2 == 0
-    assert songs[0].startswith("║𝄡𝄚𝄂 Oct 22 ・")
-    assert songs[-1] == f"║𝄡 [listen ♪]({long_url})"
+    assert songs[0].startswith(f"{EDGE}{HEADER} Oct 22 ・")
+    assert songs[-1].endswith(f" LISTEN HERE]({long_url})")
     assert [EMOJI, NONE_YET] in sections(text)
-    assert_fits_its_box(text)
+    assert_fits_its_frame(text, FRAME)
 
 
-# ---
-# Song links
-# ---
-
-
-async def test_a_songs_artist_is_asked_once_and_kept(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
-) -> None:
-    track = viibr(7)
-    songs.artists[uuid_of(track)] = "Foggy X Music"
-    await fed(bot, track, on(YESTERDAY))
-    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
-
-    first = await lunchbox_text(bot, GUILD_ID)
-    second = await lunchbox_text(bot, GUILD_ID)
-
-    assert first == second
-    assert f"║𝄡 [Foggy X Music]({track.url})" in first.splitlines()
-    assert songs.asked == [uuid_of(track)]
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist == "Foggy X Music"
-
-
-async def test_a_song_page_with_no_artist_is_kept_as_none_known(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
-) -> None:
-    track = viibr(8)
-    await fed(bot, track, on(YESTERDAY))
-    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
-
-    await lunchbox_text(bot, GUILD_ID)
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert f"║𝄡 [listen ♪]({track.url})" in text.splitlines()
-    assert songs.asked == [uuid_of(track)]
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist == ""
-
-
-async def test_an_unreachable_site_reads_listen_and_is_asked_again(
+async def test_the_fullest_lunchbox_stays_in_its_frame(
     bot: app.WispBot, repo: WispLunchboxRepo
-) -> None:
-    gone = TestServer(web.Application())
-    await gone.start_server()
-    origin = str(gone.make_url("/"))
-    await gone.close()
-    await bot.share_links.close()
-    bot.share_links = ShareLinkResolver(origins={"viibrmusic.com": origin})
-    track = viibr(9)
-    await fed(bot, track, on(YESTERDAY))
-    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert f"║𝄡 [listen ♪]({track.url})" in text.splitlines()
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist is None
-
-
-async def test_a_busy_site_reads_listen_and_the_artist_is_asked_again(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
-) -> None:
-    track = viibr(10)
-    songs.artists[uuid_of(track)] = "Foggy X Music"
-    songs.busy.add(uuid_of(track))
-    await fed(bot, track, on(YESTERDAY))
-    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
-
-    busy = await lunchbox_text(bot, GUILD_ID)
-
-    assert f"║𝄡 [listen ♪]({track.url})" in busy.splitlines()
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist is None
-
-    songs.busy.clear()
-    back = await lunchbox_text(bot, GUILD_ID)
-
-    assert f"║𝄡 [Foggy X Music]({track.url})" in back.splitlines()
-    assert songs.asked == [uuid_of(track), uuid_of(track)]
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist == "Foggy X Music"
-
-
-async def test_an_artist_with_line_breaks_is_kept_and_shown_on_one_line(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
-) -> None:
-    track = viibr(11)
-    songs.artists[uuid_of(track)] = "Foggy" + chr(10) + "  X" + chr(9) + "Music"
-    await fed(bot, track, on(YESTERDAY))
-    await repo.pick_favorite(GUILD_ID, YESTERDAY, random.Random(), NOW)
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert f"║𝄡 [Foggy X Music]({track.url})" in text.splitlines()
-    (favorite,) = await repo.favorites(GUILD_ID, 10)
-    assert favorite.artist == "Foggy X Music"
-    assert_fits_its_box(text)
-
-
-def test_a_stored_artist_with_line_breaks_is_shown_on_one_line() -> None:
-    url = viibr(1).url
-
-    line = song_link("Foggy" + chr(10) + chr(10) + "X  Music", url)
-
-    assert line == f"║𝄡 [Foggy X Music]({url})"
-    assert song_link(chr(10) + " ", url) == f"║𝄡 [listen ♪]({url})"
-
-
-def test_a_long_artist_is_shortened_to_fit_the_box() -> None:
-    url = viibr(1).url
-
-    line = song_link("The Extraordinarily Long Named Artist Collective", url)
-
-    assert line.startswith("║𝄡 [The Extraordinarily")
-    assert line.endswith(f"…]({url})")
-    assert visual_width(line) <= box_room()
-    assert "\n" not in line
-
-
-def test_an_artists_markdown_is_escaped() -> None:
-    url = viibr(1).url
-
-    assert song_link("a_b*c [x]", url) == f"║𝄡 [a\\_b\\*c (x)]({url})"
-
-
-def test_no_artist_reads_listen() -> None:
-    assert song_link("", viibr(1).url) == f"║𝄡 [listen ♪]({viibr(1).url})"
-
-
-async def test_the_fullest_lunchbox_stays_in_its_box(
-    bot: app.WispBot, repo: WispLunchboxRepo, songs: SongSite
 ) -> None:
     days = [YESTERDAY - timedelta(days=offset) for offset in range(12)]
     for ident, day in enumerate(days, start=1):
-        songs.artists[uuid_of(viibr(ident))] = "W" * 40
         await fed(bot, viibr(ident), on(day), user_id=10**17 + ident)
         await repo.pick_favorite(GUILD_ID, day, random.Random(), NOW)
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    assert text_length(text) <= MESSAGE_LIMIT
-    assert_fits_its_box(text)
+    assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_frame(text, FRAME)
 
 
 async def test_a_banned_member_can_still_look(
@@ -956,8 +812,7 @@ async def test_a_banned_member_can_still_look(
 
     interaction = await open_lunchbox(bot, server)
 
-    (text,) = interaction.channel.send.await_args.args
-    assert text.startswith(BOX_TOP)
+    assert posted(interaction.channel.send.await_args).startswith(SONGS)
 
 
 # ---
@@ -973,14 +828,9 @@ async def test_the_lunchbox_button_shows_the_lunchbox_privately(
     await LunchboxButton().callback(interaction)
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
-    header, call = interaction.followup.send.await_args_list
-    assert header.kwargs["ephemeral"] is True
-    assert header.kwargs["file"].filename == "lunchbox_title.png"
-    assert call.args == (await lunchbox_text(bot, GUILD_ID),)
+    (call,) = interaction.followup.send.await_args_list
     assert call.kwargs["ephemeral"] is True
-    assert call.kwargs["file"].filename == "box_footer.png"
-    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert call.kwargs["suppress_embeds"] is True
+    assert posted(call) == await lunchbox_text(bot, GUILD_ID)
     interaction.channel.send.assert_not_awaited()
     server.house.send.assert_not_awaited()
 
@@ -993,8 +843,7 @@ async def test_a_banned_member_can_still_look_with_the_button(
 
     await LunchboxButton().callback(interaction)
 
-    (text,) = interaction.followup.send.await_args.args
-    assert text.startswith(BOX_TOP)
+    assert posted(interaction.followup.send.await_args).startswith(SONGS)
 
 
 async def test_a_failing_lunchbox_button_is_reported_where_it_was_pressed(

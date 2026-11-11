@@ -43,12 +43,12 @@ from wisp.rules import (
 )
 from wisp.text import (
     BOX_WIDTH,
+    Frame,
     heading,
     item,
     meter_receipt,
     note,
     richest,
-    sub,
     text_length,
     with_emoji,
     wrap,
@@ -392,13 +392,15 @@ async def announce_gift(
 
 
 def collection_lines(
-    bot: "WispBot", kept: Sequence[GiftAttempt], room: int
+    bot: "WispBot", frame: Frame, kept: Sequence[GiftAttempt], room: int
 ) -> list[str]:
     """The lunchbox lines of each collection this life kept gifts from, in order.
 
-    Each collection is one entry of the list, its lines joined. The entries
-    take at most `room`, counted by `text_length`: an unfinished collection
-    lists its gifts and givers while there is room, else only its progress.
+    Each collection is one entry of the list, its lines joined, and every
+    entry after the first opens with the frame's group break. A collection's
+    line is in capitals, as `BOOKS 1/4`. The entries take at most `room`,
+    counted by `text_length`: an unfinished collection lists its gifts and
+    givers while there is room, else only its progress.
     """
     plain: list[str] = []
     rich: list[str] = []
@@ -411,21 +413,24 @@ def collection_lines(
         ]
         if not got:
             continue
-        progress = f"{collection.name} {len(got)}/{len(collection.gifts)}"
+        opening = [frame.group_break] if plain else []
+        progress = f"{collection.name.upper()} {len(got)}/{len(collection.gifts)}"
         if len(got) == len(collection.gifts):
-            done = wrap(sub(f"{progress} complete ・ finished by <@{got[-1][1]}>"))
-            plain.append(done)
-            rich.append(done)
+            done = frame.wrap(
+                frame.sub(f"{progress} COMPLETE ・ finished by <@{got[-1][1]}>")
+            )
+            plain.append("\n".join([*opening, done]))
+            rich.append(plain[-1])
             continue
         items = (
-            item(
+            frame.item(
                 f"{with_emoji(bot.emoji(gift.emoji_name), gift.name)} ・ "
                 f"from <@{user_id}>"
             )
             for gift, user_id in got
         )
-        plain.append(wrap(sub(progress)))
-        rich.append(wrap("\n".join([sub(progress), *items])))
+        plain.append(frame.wrap("\n".join([*opening, frame.sub(progress)])))
+        rich.append(frame.wrap("\n".join([*opening, frame.sub(progress), *items])))
     return richest(plain, rich, room)
 
 

@@ -7,6 +7,7 @@ an item, `>` the break between sections and `>>>` the end of the box.
 
 import re
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from typing import Final, TypeVar
 
 MESSAGE_LIMIT: Final = 2000
@@ -259,18 +260,24 @@ def _joined(start: str, pieces: Sequence[tuple[str, str]]) -> str:
     return start + first + "".join(gap + word for gap, word in rest)
 
 
-def _wrap_line(line: str, room: float) -> list[str]:
+def _wrap_line(
+    line: str,
+    room: float,
+    marks: Sequence[str] = _MARKS,
+    continuation: str = CONTINUATION,
+) -> list[str]:
     """One box line broken at word boundaries so each row fits `room`.
 
-    Rows after the first start with `║ `. A row that runs out of room breaks
+    `marks` are the frame's line starts, longest first, and rows after the
+    first start with `continuation`. A row that runs out of room breaks
     before its last `・` part, so each `・` part keeps together, unless that
     would leave the first row less than half full; otherwise it breaks before
     the word that did not fit. A word that alone is too wide stays whole on its
     row. A line that is not inside a box is left as it is.
     """
-    if visual_width(line) <= room or not line.startswith(RAIL):
+    mark = next((mark for mark in marks if line.startswith(mark)), None)
+    if visual_width(line) <= room or mark is None:
         return [line]
-    mark = next(mark for mark in _MARKS if line.startswith(mark))
     first, *rest = _pieces(line[len(mark) :])
     rows: list[str] = []
     start, row = mark, [first]
@@ -285,14 +292,14 @@ def _wrap_line(line: str, room: float) -> list[str]:
                 if row[index][1].startswith(_DOT)
                 and not piece[1].startswith(_DOT)
                 and (
-                    start == CONTINUATION
+                    start == continuation
                     or visual_width(_joined(start, row[:index])) >= room / 2
                 )
             ),
             len(row),
         )
         rows.append(_joined(start, row[:cut]))
-        start, row = CONTINUATION, [*row[cut:], piece]
+        start, row = continuation, [*row[cut:], piece]
         if len(row) > 1 and visual_width(_joined(start, row)) > room:
             rows.append(_joined(start, row[:-1]))
             row = [piece]
@@ -309,6 +316,114 @@ def wrapped(lines: Sequence[str], width: int = BOX_WIDTH) -> list[str]:
     """`lines`, each wrapped to a box `width` wide; a wrapped entry keeps its rows
     together as one entry, so a list cut short drops whole entries."""
     return [wrap(line, width) for line in lines]
+
+
+# ---
+# The emoji frame (house style v3)
+# ---
+
+# Wisp's app emojis the v3 frame is made of, in the order `emoji_frame` takes.
+FRAME_EMOJIS: Final = (
+    "header_edge",
+    "header",
+    "header2",
+    "header3",
+    "rest_bar",
+    "clef",
+)
+_BOTTOM_BARS: Final = 16
+
+
+@dataclass(frozen=True)
+class Frame:
+    """The pieces of a house-style box: Myra's emoji frame, or the old Unicode one.
+
+    The house style is `DOCS/specs/2026-11-11-house-style-v3-emoji-frame.md`.
+    Headings are in capitals. Nothing in the box may look wider than its
+    bottom line; `wrap` breaks longer lines onto rows that start with the
+    blank edge and a space.
+    """
+
+    heading_mark: str
+    sub_mark: str
+    item_mark: str
+    blank: str
+    section_break: str
+    group_break: str
+    bottom: str
+    divider: str
+
+    @property
+    def continuation(self) -> str:
+        """The start of a wrapped line's later rows."""
+        return f"{self.blank} "
+
+    @property
+    def room(self) -> float:
+        """How wide, in em, a line inside the box may look: as wide as its bottom."""
+        return visual_width(self.bottom)
+
+    def heading(self, name: str) -> str:
+        """A `#` line: a section heading, in capitals."""
+        return f"{self.heading_mark} {name.upper()}"
+
+    def sub(self, text: str) -> str:
+        """A `##` line: a sub-heading or an information line."""
+        return f"{self.sub_mark} {text}"
+
+    def item(self, text: str) -> str:
+        """A `###` line: one item."""
+        return f"{self.item_mark} {text}"
+
+    def note(self, text: str) -> str:
+        """A plain line inside the box."""
+        return f"{self.blank} {text}"
+
+    def sections(self, *parts: Sequence[str]) -> list[str]:
+        """The lines of each part, with a section break between parts."""
+        lines: list[str] = []
+        for index, part in enumerate(parts):
+            if index:
+                lines.append(self.section_break)
+            lines.extend(part)
+        return lines
+
+    def wrap(self, text: str) -> str:
+        """Each line of `text` broken so nothing looks wider than the box."""
+        marks = (self.heading_mark, self.sub_mark, self.item_mark, self.blank)
+        return "\n".join(
+            row
+            for line in text.split("\n")
+            for row in _wrap_line(line, self.room, marks, self.continuation)
+        )
+
+
+def emoji_frame(
+    edge: str, header: str, header2: str, header3: str, rest_bar: str, clef: str
+) -> Frame:
+    """Myra's emoji frame, from the text of each of its `FRAME_EMOJIS`."""
+    return Frame(
+        heading_mark=f"{edge}{header2}{header}",
+        sub_mark=f"{edge}{header}",
+        item_mark=f"{edge}{header3}",
+        blank=edge,
+        section_break=f"{edge}{rest_bar}{rest_bar}",
+        group_break=f"{edge}{rest_bar}",
+        bottom=f"{edge} {clef}{header2 * _BOTTOM_BARS}{header}",
+        divider=f"{clef}{header2 * _BOTTOM_BARS}{header}",
+    )
+
+
+UNICODE_FRAME: Final = Frame(
+    heading_mark=HEADING_MARK,
+    sub_mark=SUB_MARK,
+    item_mark=ITEM_MARK,
+    blank=RAIL,
+    section_break=SECTION_BREAK,
+    group_break=RAIL,
+    bottom=box_bottom(),
+    divider=SEPARATOR,
+)
 
 
 # ---
@@ -345,15 +460,20 @@ def clip(text: str, room: int) -> str:
     return text
 
 
-def fit(head: list[str], optional: list[str], tail: Sequence[str] = ()) -> str:
-    """Join `head`, as many whole `optional` lines as fit in one message, and `tail`.
+def fit(
+    head: list[str],
+    optional: list[str],
+    tail: Sequence[str] = (),
+    limit: int = MESSAGE_LIMIT,
+) -> str:
+    """Join `head`, as many whole `optional` lines as fit in `limit`, and `tail`.
 
     Optional lines are taken in order, so the ones to drop first go last. The
-    message is measured by `text_length`.
+    text is measured by `text_length`.
     """
     lines = head
     for line in optional:
-        if text_length("\n".join([*lines, line, *tail])) > MESSAGE_LIMIT:
+        if text_length("\n".join([*lines, line, *tail])) > limit:
             break
         lines = [*lines, line]
     return "\n".join([*lines, *tail])

@@ -3,8 +3,11 @@
 A plain message can only show a picture under its text, so a headed message
 is two: the header picture on its own, then the text with the footer
 attached. The Vault, a Components V2 message, holds both in one message as
-media galleries. A pinned card in a Studio thread keeps its header message
-beside it in the settings, so both are posted again together.
+media galleries. A menu in the v3 emoji frame (`send_framed`) is one
+Components V2 message too: its header picture, then its text, closed by the
+frame's bottom line instead of a footer. A pinned card in a Studio thread
+keeps its header message beside it in the settings, so both are posted again
+together.
 
 The Leaderboard is not edited: when its text changes, a new header and card
 are posted at the bottom of the thread and the old pair is deleted.
@@ -21,6 +24,7 @@ import discord
 
 from cogs.assets import ASSETS_DIR
 from cogs.studio import StudioError, studio_thread
+from wisp.text import FRAME_EMOJIS, UNICODE_FRAME, Frame, emoji_frame
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -87,6 +91,47 @@ def gallery_files(*names: str) -> Iterator[list[discord.File]]:
         yield files
     finally:
         _close(*files)
+
+
+# ---
+# The emoji frame (house style v3)
+# ---
+
+
+def frame_of(bot: "WispBot") -> Frame:
+    """Myra's emoji frame from Wisp's app emojis, or the Unicode frame.
+
+    The frame is all or nothing: with any of its emojis not uploaded, the
+    whole box falls back to the Unicode pieces, so a half-emoji box never
+    shows. The missing emoji is logged by `bot.emoji`.
+    """
+    pieces = [bot.emoji(name) for name in FRAME_EMOJIS]
+    return emoji_frame(*pieces) if all(pieces) else UNICODE_FRAME
+
+
+def framed_layout(header: str, text: str) -> discord.ui.LayoutView:
+    """A menu as one Components V2 message: its header picture, then its text.
+
+    A missing header picture is left out. There is no container and no footer
+    picture: the frame's bottom line closes the box.
+    """
+    layout = discord.ui.LayoutView(timeout=None)
+    if (top := gallery(header)) is not None:
+        layout.add_item(top)
+    layout.add_item(discord.ui.TextDisplay(text))
+    return layout
+
+
+async def send_framed(
+    send: Callable[..., Awaitable[Any]], header: str, text: str, **kwargs: Any
+) -> None:
+    """Send `text` under the `header` picture as one Components V2 message.
+
+    `kwargs` go with the send. The picture is closed once sent, or once the
+    send failed.
+    """
+    with gallery_files(header) as pictures:
+        await send(view=framed_layout(header, text), files=pictures, **kwargs)
 
 
 # ---

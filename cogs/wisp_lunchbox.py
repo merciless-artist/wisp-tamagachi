@@ -1,52 +1,31 @@
 """Wisp's own lunchbox: favorite songs, snack and emoji, and gift collections."""
 
-import asyncio
 import contextlib
 import functools
-import logging
 import random
 import re
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
-import aiohttp
 import discord
 
 from cogs.announce import display_name, say_in_mealtime
 from cogs.channels import in_channel, may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
-from cogs.headers import send_headed
+from cogs.headers import frame_of, send_framed
 from cogs.players import bot_of, press
-from cogs.share_links import one_line
 from db.lunchbox import Favorite
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
-from wisp.text import (
-    MESSAGE_LIMIT,
-    SECTION_BREAK,
-    box_bottom,
-    box_room,
-    box_top,
-    fit,
-    heading,
-    item,
-    sub,
-    text_length,
-    visual_width,
-    with_emoji,
-    wrap,
-)
+from wisp.text import LAYOUT_TEXT_LIMIT, Frame, fit, text_length, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
 
-log = logging.getLogger("wisp")
 _NO_PING: Final = discord.AllowedMentions.none()
-_NO_ARTIST: Final = "listen ♪"
-_CUT: Final = "…"
-_NOTHING_YET: Final = item("none yet")
+_NOTHING_YET: Final = "none yet"
 _HEADER: Final = "lunchbox_title.png"
 _LUNCHBOX_ID: Final = "wisp:lunchbox"
 
@@ -95,120 +74,82 @@ def _short_day(day: date) -> str:
     return f"{day:%b} {day.day}"
 
 
-async def _artist(bot: "WispBot", guild_id: int, favorite: Favorite) -> str:
-    """The favorite song's artist, or "" when none is known.
-
-    An artist not looked up yet is asked of viibrmusic.com once and kept, ""
-    included. When the site cannot be reached it is asked again next time.
-    """
-    if favorite.artist is not None:
-        return favorite.artist
-    try:
-        artist = await bot.share_links.artist(favorite.track_key) or ""
-    except (aiohttp.ClientError, TimeoutError) as error:
-        log.warning(
-            "Could not look up the artist of %s: %s: %s",
-            favorite.url,
-            type(error).__name__,
-            error,
-        )
-        return ""
-    await bot.wisp_lunchbox.set_artist(guild_id, favorite.day, artist)
-    return artist
+def _song(frame: Frame, number: int, favorite: Favorite) -> str:
+    """A favorite song: its day and sharer, then its link, `#1 LISTEN HERE`."""
+    shared = frame.wrap(
+        frame.sub(f"{_short_day(favorite.day)} ・ <@{favorite.user_id}>")
+    )
+    return f"{shared}\n{frame.item(f'[#{number} LISTEN HERE]({favorite.url})')}"
 
 
-def song_link(artist: str, url: str) -> str:
-    """The song's line: a link named for its artist, or "listen ♪" with none.
-
-    The link is never broken across lines: the name is put on one line, and
-    a name too wide for the box is shortened with "…" until the line fits.
-    """
-    name = one_line(artist).replace("[", "(").replace("]", ")")
-    if not name:
-        return item(f"[{_NO_ARTIST}]({url})")
-    shown = name
-    while True:
-        line = item(f"[{discord.utils.escape_markdown(shown)}]({url})")
-        if visual_width(line) <= box_room() or len(name) <= 1:
-            return line
-        name = name[:-1].rstrip()
-        shown = name + _CUT
-
-
-def _favorite_snack(bot: "WispBot", life: Life | None) -> str:
+def _favorite_snack(bot: "WispBot", frame: Frame, life: Life | None) -> str:
     snack = None if life is None else SNACK_BY_KEY.get(life.favorite_snack or "")
     if snack is None:
-        return _NOTHING_YET
-    return item(with_emoji(bot.emoji(snack.emoji_name), snack.name))
+        return frame.item(_NOTHING_YET)
+    return frame.item(with_emoji(bot.emoji(snack.emoji_name), snack.name))
 
 
-async def _favorite_emoji(bot: "WispBot", guild_id: int) -> str:
-    """His most used expression that is still uploaded."""
+async def _favorite_emoji(bot: "WispBot", frame: Frame, guild_id: int) -> str:
+    """His most used expression that is still uploaded, then its name in code."""
     for name in await bot.wisp_lunchbox.favorite_expressions(guild_id):
         if name in bot.emojis_by_name:
-            return item(bot.emoji(name))
-    return _NOTHING_YET
+            return frame.item(f"{bot.emoji(name)} `:{name}:`")
+    return frame.item(_NOTHING_YET)
 
 
 async def _collections(
-    bot: "WispBot", guild_id: int, life: Life | None, room: int
+    bot: "WispBot", frame: Frame, guild_id: int, life: Life | None, room: int
 ) -> list[str]:
     """The gift collections of the current life, `life`, within `room`."""
+    nothing = [frame.item(_NOTHING_YET)]
     if life is None or life.id is None:
-        return [_NOTHING_YET]
+        return nothing
     kept = await bot.gifts.kept(guild_id, life.id)
-    return collection_lines(bot, kept, room) or [_NOTHING_YET]
+    return collection_lines(bot, frame, kept, room) or nothing
 
 
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
-    """Wisp's lunchbox in its frame, trimmed so it fits one message.
+    """Wisp's lunchbox in Myra's emoji frame, trimmed to fit one layout message.
 
-    Each song is its day and sharer, then a link named for its artist. The
+    Each song is its day and sharer, then a numbered `LISTEN HERE` link. The
     collections list their gifts in whatever room the songs leave, and the
     oldest songs go when even the collections' short lines do not fit. The
     box always closes, and every line is wrapped to fit it.
     """
+    frame = frame_of(bot)
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
     life = await bot.lives.current(guild_id)
-    artists = await asyncio.gather(
-        *(_artist(bot, guild_id, favorite) for favorite in favorites)
-    )
     songs = [
-        "\n".join(
-            [
-                wrap(sub(f"{_short_day(favorite.day)} ・ <@{favorite.user_id}>")),
-                song_link(artist, favorite.url),
-            ]
-        )
-        for favorite, artist in zip(favorites, artists, strict=True)
+        _song(frame, number, favorite)
+        for number, favorite in enumerate(favorites, start=1)
     ]
-    head = [box_top(), heading("Favorite songs")]
+    head = [frame.heading("Favorite songs")]
     middle = [
-        *([] if songs else [_NOTHING_YET]),
-        SECTION_BREAK,
-        heading("Favorite snack"),
-        _favorite_snack(bot, life),
-        SECTION_BREAK,
-        heading("Favorite emoji"),
-        await _favorite_emoji(bot, guild_id),
-        SECTION_BREAK,
-        heading("Collections"),
+        *([] if songs else [frame.item(_NOTHING_YET)]),
+        frame.blank,
+        frame.section_break,
+        frame.heading("Favorite snack"),
+        _favorite_snack(bot, frame, life),
+        frame.section_break,
+        frame.heading("Favorite emoji"),
+        await _favorite_emoji(bot, frame, guild_id),
+        frame.section_break,
+        frame.heading("Collections"),
     ]
-    close = [box_bottom()]
+    close = [frame.blank, frame.bottom]
     framing = "\n".join([*head, *songs, *middle, *close])
-    room = MESSAGE_LIMIT - text_length(framing) - 1
-    collections = await _collections(bot, guild_id, life, room)
-    return fit(head, songs, [*middle, *collections, *close])
+    room = LAYOUT_TEXT_LIMIT - text_length(framing) - 1
+    collections = await _collections(bot, frame, guild_id, life, room)
+    return fit(head, songs, [*middle, *collections, *close], LAYOUT_TEXT_LIMIT)
 
 
 async def _send_privately(interaction: discord.Interaction, text: str) -> None:
     """Answer a deferred interaction with the lunchbox, only to the member."""
-    await send_headed(
+    await send_framed(
         functools.partial(interaction.followup.send, ephemeral=True),
         _HEADER,
         text,
         allowed_mentions=_NO_PING,
-        suppress_embeds=True,
     )
 
 
@@ -216,14 +157,15 @@ async def _send_privately(interaction: discord.Interaction, text: str) -> None:
 async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     """Show Wisp's lunchbox in the channel where it was asked for. Anyone may look.
 
-    It pings nobody and its song links show no previews. The interaction is
-    acknowledged privately and the lunchbox posted as a message of its own, so
-    a failure tells only the member; the private acknowledgement is then
-    removed; failing to remove it is ignored, since the lunchbox is already
-    out. Asked for in a Studio thread, which keeps to its own cards, it is
-    shown only to the member. Asked for where Wisp never posts, such as the
-    track drop, it goes to his House instead and the member is told so
-    privately; with no House it is shown only to them.
+    It is one Components V2 message, its header picture over its text, and it
+    pings nobody. The interaction is acknowledged privately and the lunchbox
+    posted as a message of its own, so a failure tells only the member; the
+    private acknowledgement is then removed; failing to remove it is ignored,
+    since the lunchbox is already out. Asked for in a Studio thread, which
+    keeps to its own cards, it is shown only to the member. Asked for where
+    Wisp never posts, such as the track drop, it goes to his House instead
+    and the member is told so privately; with no House it is shown only to
+    them.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
@@ -235,13 +177,7 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
         await _send_privately(interaction, text)
         return
     if channel is not None and may_post_in(channel, settings.tracks_channel_id):
-        await send_headed(
-            channel.send,
-            _HEADER,
-            text,
-            allowed_mentions=_NO_PING,
-            suppress_embeds=True,
-        )
+        await send_framed(channel.send, _HEADER, text, allowed_mentions=_NO_PING)
         with contextlib.suppress(discord.HTTPException):
             await interaction.delete_original_response()
         return
@@ -249,13 +185,7 @@ async def wisp_lunchbox(interaction: discord.Interaction["WispBot"]) -> None:
     if house is None:
         await _send_privately(interaction, text)
         return
-    await send_headed(
-        house.send,
-        _HEADER,
-        text,
-        allowed_mentions=_NO_PING,
-        suppress_embeds=True,
-    )
+    await send_framed(house.send, _HEADER, text, allowed_mentions=_NO_PING)
     await interaction.followup.send(
         f"♪ Wisp's lunchbox is open in <#{settings.house_channel_id}>.",
         ephemeral=True,
