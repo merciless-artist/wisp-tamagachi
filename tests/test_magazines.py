@@ -27,22 +27,21 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from tests.layout import (
-    assert_fits_its_box,
+    assert_fits_its_frame,
     entries,
     layout_order,
     layout_selects,
     layout_text,
+    vault_opened,
+    vault_parts,
 )
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import BADGES, GIFT_BY_KEY, MAGAZINE_COST, MAGAZINES, SNACKS, Stage
-from wisp.text import (
-    BLANK,
-    LAYOUT_TEXT_LIMIT,
-    MESSAGE_LIMIT,
-    SECTION_BREAK,
-    text_length,
-)
+from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, text_length
+
+# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+FRAME = UNICODE_FRAME
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -140,12 +139,14 @@ async def lay(
 
 async def open_vault(
     bot: app.WispBot, guild: MagicMock
-) -> tuple[discord.ui.LayoutView, str, list[discord.ui.Select[Any]]]:
+) -> tuple[list[discord.ui.LayoutView], str, list[discord.ui.Select[Any]]]:
+    """Open the Vault: its two parts, their text and every select."""
     interaction = make_interaction(bot, guild)
     command: Any = snacks.wisp_vault
     await command.callback(interaction)
-    view = interaction.followup.send.await_args.kwargs["view"]
-    return view, layout_text(view), layout_selects(view)
+    return vault_parts(interaction.followup.send), *vault_opened(
+        interaction.followup.send
+    )
 
 
 def magazine_select(
@@ -188,11 +189,11 @@ def section(text: str, heading: str) -> list[str]:
     """The entries under a `#` heading, up to the next break, each wrapped
     entry's rows joined."""
     lines = text.splitlines()
-    start = lines.index(f"║𝄡𝄚𝄂𝄆 **{heading}**") + 1
+    start = lines.index(FRAME.heading(heading)) + 1
     end = next(
         index
         for index in range(start, len(lines))
-        if lines[index] in (SECTION_BREAK, BLANK) or lines[index].startswith("╚")
+        if lines[index] in (FRAME.section_break, FRAME.blank, FRAME.bottom)
     )
     return entries(lines[start:end])
 
@@ -261,26 +262,24 @@ async def test_a_rockstar_vault_sells_both_covers_with_a_select_under_them(
     give_emojis(bot, "wisp_coin_mini")
     await lay(bot)
 
-    view, text, selects = await open_vault(bot, guild)
+    parts, text, selects = await open_vault(bot, guild)
 
-    assert section(text, "Magazines") == [
-        "║𝄡 VIIBRATIONS cover・<:wisp_coin_mini:1> 100 WC",
-        "║𝄡 Music & Science cover\n║ ・<:wisp_coin_mini:1> 100 WC",
-    ]
-    lines = text.splitlines()
-    assert lines.index("║𝄡𝄚𝄂𝄆 **Badges**") < lines.index("║𝄡𝄚𝄂𝄆 **Magazines**")
-    assert lines.index("║𝄡𝄚𝄂𝄆 **Magazines**") < lines.index(
-        next(line for line in lines if line.startswith("║𝄡𝄚𝄂𝄆 **Gifts**"))
+    assert entries(section(text, "Magazines")) == FRAME.wrapped(
+        [
+            FRAME.item("VIIBRATIONS cover ・ <:wisp_coin_mini:1> 100 WC"),
+            FRAME.item("Music & Science cover ・ <:wisp_coin_mini:1> 100 WC"),
+        ]
     )
-    assert layout_order(view) == [
-        "text",
-        "Buy a snack",
-        "text",
-        "text",
-        "Get a magazine",
-        "text",
-        "Pick a collection",
-        "text",
+    lines = text.splitlines()
+    assert lines.index(FRAME.heading("Badges")) < lines.index(
+        FRAME.heading("Magazines")
+    )
+    assert lines.index(FRAME.heading("Magazines")) < lines.index(
+        next(line for line in lines if line.startswith(FRAME.heading("Gifts")))
+    )
+    assert [layout_order(part) for part in parts] == [
+        ["text", "Buy a snack"],
+        ["text", "text", "Get a magazine", "text", "Pick a collection", "text"],
     ]
     select = magazine_select(selects)
     assert select is not None
@@ -318,11 +317,11 @@ async def test_the_fullest_rockstar_vault_stays_within_the_layout_text_limit(
     }
     await rich(bot, points=10**9)
 
-    view, text, selects = await open_vault(bot, guild)
+    parts, text, selects = await open_vault(bot, guild)
 
-    assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_box(text)
-    assert "Get a badge" in layout_order(view)
+    assert all(text_length(layout_text(part)) <= LAYOUT_TEXT_LIMIT for part in parts)
+    assert_fits_its_frame(text, FRAME)
+    assert "Get a badge" in layout_order(parts[1])
     assert magazine_select(selects) is not None
     for gift in GIFT_BY_KEY.values():
         assert f"<a:{gift.emoji_name}:" in text, gift.key
@@ -346,10 +345,12 @@ async def test_buying_a_cover_spends_records_and_sends_the_picture_privately(
     assert await bot.magazines.owned(GUILD_ID, USER_ID, life.id) == {"viibrations"}
     text = shown(interaction)
     assert text.splitlines()[0] == "♪ You got the VIIBRATIONS cover."
-    assert section(text, "Magazines") == [
-        "║𝄡 VIIBRATIONS cover・100 WC\n║ ・owned",
-        "║𝄡 Music & Science cover・100 WC",
-    ]
+    assert entries(section(text, "Magazines")) == FRAME.wrapped(
+        [
+            FRAME.item("VIIBRATIONS cover ・ 100 WC ・ owned"),
+            FRAME.item("Music & Science cover ・ 100 WC"),
+        ]
+    )
     (call,) = interaction.followup.send.await_args_list
     assert call.kwargs["ephemeral"] is True
     (picture,) = sent_files(interaction)
@@ -371,11 +372,16 @@ async def test_owning_both_covers_leaves_the_section_without_a_select(
         for picture in sent_files(await buy(bot, guild, magazine.key)):
             picture.close()
 
-    view, text, selects = await open_vault(bot, guild)
+    parts, text, selects = await open_vault(bot, guild)
 
-    assert all(line.endswith("・owned") for line in section(text, "Magazines"))
+    assert section(text, "Magazines") == FRAME.wrapped(
+        [
+            FRAME.item(f"{magazine.name} ・ {MAGAZINE_COST} WC ・ owned")
+            for magazine in MAGAZINES
+        ]
+    )
     assert magazine_select(selects) is None
-    assert "Get a magazine" not in layout_order(view)
+    assert "Get a magazine" not in layout_order(parts[1])
     assert await balance(bot) == 800
 
 
@@ -570,7 +576,7 @@ async def snack_pack(bot: app.WispBot, guild: MagicMock) -> str:
     interaction = make_interaction(bot, guild)
     command: Any = snacks.wisp_snackpack
     await command.callback(interaction)
-    return str(interaction.followup.send.await_args.args[0])
+    return layout_text(interaction.followup.send.await_args.kwargs["view"])
 
 
 async def test_the_snack_pack_keeps_every_cover_from_every_life_newest_first(
@@ -586,13 +592,15 @@ async def test_the_snack_pack_keeps_every_cover_from_every_life_newest_first(
     text = await snack_pack(bot, guild)
 
     assert section(text, "Magazines") == [
-        "║𝄡 Wisp v3's VIIBRATIONS cover",
-        "║𝄡 Wisp v3's Music & Science cover",
-        "║𝄡 Wisp v1's VIIBRATIONS cover",
+        FRAME.item("Wisp v3's VIIBRATIONS cover"),
+        FRAME.item("Wisp v3's Music & Science cover"),
+        FRAME.item("Wisp v1's VIIBRATIONS cover"),
     ]
     lines = text.splitlines()
-    assert lines.index("║𝄡𝄚𝄂𝄆 **Badges**") < lines.index("║𝄡𝄚𝄂𝄆 **Magazines**")
-    assert lines[-1].startswith("╚")
+    assert lines.index(FRAME.heading("Badges")) < lines.index(
+        FRAME.heading("Magazines")
+    )
+    assert lines[-1] == FRAME.bottom
 
 
 async def test_a_snack_pack_without_magazines_has_no_magazines_section(
@@ -600,7 +608,7 @@ async def test_a_snack_pack_without_magazines_has_no_magazines_section(
 ) -> None:
     text = await snack_pack(bot, guild)
 
-    assert "**Magazines**" not in text
+    assert FRAME.heading("Magazines") not in text
 
 
 async def test_the_fullest_snack_pack_with_magazines_still_fits_one_message(
@@ -628,11 +636,12 @@ async def test_the_fullest_snack_pack_with_magazines_still_fits_one_message(
 
     text = await snack_pack(bot, guild)
 
-    assert text_length(text) <= MESSAGE_LIMIT
-    assert_fits_its_box(text)
-    assert text.splitlines()[-1].startswith("╚")
+    assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_frame(text, FRAME)
     for heading in ("Keepsakes", "Badges", "Magazines"):
         lines = section(text, heading)
         assert len(lines) > 2, heading
-        assert lines[-1].startswith("║𝄡 and ") and lines[-1].endswith(" more")
-    assert section(text, "Magazines")[0] == ("║𝄡 Wisp v1029's Music & Science\n║ cover")
+        assert lines[-1].startswith(FRAME.item("and ")) and lines[-1].endswith(" more")
+    assert entries(section(text, "Magazines"))[0] == FRAME.wrap(
+        FRAME.item("Wisp v1029's Music & Science cover")
+    )

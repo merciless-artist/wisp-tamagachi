@@ -369,14 +369,6 @@ TEST_STEP_PAUSE = timedelta(seconds=8)
 NAP_STAGES: Final = frozenset({Stage.BABY, Stage.CHILD})
 
 # ---
-# The ViiBR Vault
-# ---
-
-# The Vault's box width: wide enough for the widest badge row, from its name
-# and padding to its price.
-VAULT_WIDTH: Final = 24
-
-# ---
 # Snacks
 # ---
 

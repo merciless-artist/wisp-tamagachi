@@ -46,6 +46,7 @@ from wisp.text import (
     SEPARATOR,
     clip,
     count,
+    frame_of,
     meter_receipt,
     text_length,
     with_emoji,
@@ -138,8 +139,16 @@ async def _duel(
         await thread.send(f"♪ {reply}", allowed_mentions=_NO_PING)
 
 
-def summary_text(line: str, reason: str | None, chain: list[str], points: int) -> str:
-    """The end of a duel: Wisp's line, why it ended, the chain and the score.
+def summary_text(
+    line: str,
+    reason: str | None,
+    chain: list[str],
+    points: int,
+    *,
+    divider: str = SEPARATOR,
+) -> str:
+    """The end of a duel: Wisp's line, `divider`, why it ended, the chain and
+    the score.
 
     The oldest words are left out of the chain when it would not fit one message.
     If it still does not fit, the reason is cut short, and as a last resort the
@@ -152,7 +161,7 @@ def summary_text(line: str, reason: str | None, chain: list[str], points: int) -
     while True:
         trimmed = "... " if len(shown) < len(chain) else ""
         chain_line = f"・{trimmed}{' ・ '.join(shown)}"
-        text = "\n".join([line, SEPARATOR, *reasons, chain_line, score_line])
+        text = "\n".join([line, divider, *reasons, chain_line, score_line])
         overflow = text_length(text) - MESSAGE_LIMIT
         if overflow <= 0:
             return text
@@ -322,7 +331,13 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     outcome = await _duel(bot, thread, user.id, life, random.Random())
     line = bot.lines.pick(outcome.ending, mood(life))
     await thread.send(
-        summary_text(line, outcome.reason, outcome.chain, outcome.points),
+        summary_text(
+            line,
+            outcome.reason,
+            outcome.chain,
+            outcome.points,
+            divider=frame_of(bot.emoji).divider,
+        ),
         allowed_mentions=_NO_PING,
     )
     played = await _record_play(bot, guild_id, user, outcome.points)

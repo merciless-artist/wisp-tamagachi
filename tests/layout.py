@@ -4,20 +4,7 @@ from typing import Any
 
 import discord
 
-from wisp.text import CONTINUATION, Frame, box_room, visual_width
-
-
-def assert_fits_its_box(text: str) -> None:
-    """The house style frame holds: nothing passes the box and the box lines
-    have the same number of `═`."""
-    lines = text.split("\n")
-    top = next(index for index, line in enumerate(lines) if line.startswith("╔"))
-    bottom = next(index for index, line in enumerate(lines) if line.startswith("╚"))
-    width = lines[top].count("═")
-    assert lines[top] == "╔" + "═" * width + "╗"
-    assert lines[bottom] == "╚" + "═" * width + "╝"
-    for line in lines[top + 1 : bottom]:
-        assert visual_width(line) <= box_room(width), line
+from wisp.text import UNICODE_FRAME, Frame, visual_width
 
 
 def assert_fits_its_frame(text: str, frame: Frame) -> None:
@@ -31,11 +18,16 @@ def assert_fits_its_frame(text: str, frame: Frame) -> None:
         assert visual_width(line) <= frame.room, line
 
 
-def entries(lines: list[str]) -> list[str]:
+def rows(frame: Frame, *lines: str) -> list[str]:
+    """`lines` as a menu shows them: each wrapped to fit `frame`."""
+    return "\n".join(frame.wrapped(lines)).split("\n")
+
+
+def entries(lines: list[str], frame: Frame = UNICODE_FRAME) -> list[str]:
     """`lines` with each wrapped line's rows joined back into one entry."""
     joined: list[str] = []
     for line in lines:
-        if line.startswith(CONTINUATION) and joined:
+        if line.startswith(frame.continuation) and joined:
             joined[-1] += "\n" + line
         else:
             joined.append(line)
@@ -56,6 +48,21 @@ def layout_selects(view: discord.ui.LayoutView) -> list[discord.ui.Select[Any]]:
     return [
         child for child in view.walk_children() if isinstance(child, discord.ui.Select)
     ]
+
+
+def vault_parts(send: Any) -> list[discord.ui.LayoutView]:
+    """The two parts of the Vault `send`, a mocked follow-up send, sent last."""
+    calls = send.await_args_list[-2:]
+    assert len(calls) == 2
+    return [call.kwargs["view"] for call in calls]
+
+
+def vault_opened(send: Any) -> tuple[str, list[discord.ui.Select[Any]]]:
+    """The Vault `send` sent last: both parts' text, one line apart, and every
+    select in order."""
+    parts = vault_parts(send)
+    text = "\n".join(layout_text(part) for part in parts)
+    return text, [select for part in parts for select in layout_selects(part)]
 
 
 def layout_order(view: discord.ui.LayoutView) -> list[str]:

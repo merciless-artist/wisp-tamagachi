@@ -40,13 +40,14 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
+from tests.layout import layout_text
 from wisp import rules
-from wisp.card import WAITING, CardFacts, render_status
+from wisp.card import CardFacts, render_status, waiting
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import PAID_SNACKS, SNACKS, Stage
-from wisp.text import USER_ERROR
+from wisp.text import UNICODE_FRAME, USER_ERROR
 
 GUILD_ID = 100
 BADGE_ROLE_ID = 4242
@@ -76,6 +77,9 @@ FULL_GAP = rules.MAX_CREDITED_GAP
 NAP_TIME = datetime(2026, 10, 22, 5, 0, tzinfo=UTC)
 # Every tick in these tests comes before it, so no tantrum interrupts them.
 LATE_TANTRUM = datetime(2026, 10, 22, 23, 59, tzinfo=UTC)
+# Without the frame emojis uploaded, the card is in the Unicode frame.
+FRAME = UNICODE_FRAME
+WAITING = waiting(FRAME)
 
 # ---
 # Fakes
@@ -101,7 +105,9 @@ class FakeServer:
         self.status.parent_id = FORUM_ID
         self.status.archived = False
         self.status.send = AsyncMock(
-            side_effect=lambda *args, **_: self.card if args else self.title
+            side_effect=lambda *args, **kwargs: (
+                self.card if args or "view" in kwargs else self.title
+            )
         )
         self.partial = MagicMock(spec=discord.PartialMessage)
         self.partial.edit = self.card_edit
@@ -119,7 +125,7 @@ class FakeServer:
             side_effect=lambda *_, **__: MagicMock(id=VAULT_POSTED_ID, pin=AsyncMock())
         )
         self.vault_card = MagicMock(spec=discord.Message)
-        self.vault_card.content = ""
+        self.vault_card.components = []
         self.vault.fetch_message = AsyncMock(return_value=self.vault_card)
         self.vault.get_partial_message.return_value = MagicMock(
             spec=discord.PartialMessage, delete=AsyncMock()
@@ -261,7 +267,7 @@ STATUS_BUTTON_IDS = [
 ]
 
 
-def posted_title_and_card(server: FakeServer) -> list[Any]:
+def posted_cards(server: FakeServer) -> list[Any]:
     """The Status post's sends other than error reports, in order.
 
     Each attached file is closed and shown by its name.
@@ -271,11 +277,26 @@ def posted_title_and_card(server: FakeServer) -> list[Any]:
         if sent.args and str(sent.args[0]).startswith("Error in "):
             continue
         kwargs = dict(sent.kwargs)
-        if "file" in kwargs:
-            kwargs["file"].close()
-            kwargs["file"] = kwargs["file"].filename
+        for file in kwargs.get("files", []):
+            file.close()
+        kwargs["files"] = [file.filename for file in kwargs.get("files", [])]
         posted.append(sent_call(*sent.args, **kwargs))
     return posted
+
+
+def card_text(kwargs: dict[str, Any]) -> str:
+    """The text of a card sent or edited as one layout."""
+    assert "content" not in kwargs
+    return layout_text(kwargs["view"])
+
+
+def card_buttons(kwargs: dict[str, Any]) -> list[Any]:
+    """The buttons in a card layout's rows, in order."""
+    return [
+        child
+        for child in kwargs["view"].walk_children()
+        if isinstance(child, (discord.ui.DynamicItem, discord.ui.Button))
+    ]
 
 
 def house_texts(server: FakeServer) -> list[str]:
@@ -306,8 +327,7 @@ async def test_first_run_lays_egg_v1(
         discord.AllowedMentions.none().to_dict()
     )
     assert button_ids(server.house.send.await_args.kwargs["view"]) == ["wisp:poke"]
-    content = server.card_edit.await_args.kwargs["content"]
-    assert "**life stage**・𝐄𝐆𝐆・" in content
+    assert "LIFE STAGE ・ EGG" in card_text(server.card_edit.await_args.kwargs)
 
 
 async def test_unconfigured_guilds_are_skipped_silently(
@@ -464,11 +484,11 @@ async def test_tick_edits_status_message(
     server.status.get_partial_message.assert_any_call(CARD_ID)
     server.card_edit.assert_awaited_once()
     kwargs = server.card_edit.await_args.kwargs
-    assert kwargs["content"] == render_status(
-        after, NOW, card_facts(1, viibr=2, suno=1), bot.emoji
+    assert card_text(kwargs) == render_status(
+        after, NOW, card_facts(1, viibr=2, suno=1), bot.emoji, FRAME
     )
-    assert f"<@{WISP_ID}>" in kwargs["content"]
-    assert f"<#{HOUSE_ID}>" in kwargs["content"]
+    assert f"<@{WISP_ID}>" in card_text(kwargs)
+    assert f"<#{HOUSE_ID}>" in card_text(kwargs)
     assert kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
@@ -548,8 +568,8 @@ async def test_fed_today_counts_only_the_current_utc_day(
     await cog.run_tick(NOW)
 
     after = await current_life(bot)
-    assert server.card_edit.await_args.kwargs["content"] == render_status(
-        after, NOW, card_facts(1), bot.emoji
+    assert card_text(server.card_edit.await_args.kwargs) == render_status(
+        after, NOW, card_facts(1), bot.emoji, FRAME
     )
 
 
@@ -564,39 +584,44 @@ async def test_missing_status_message_is_reposted(
 
     await cog.run_tick(NOW)
 
-    title, card = posted_title_and_card(server)
-    assert title.kwargs == {"file": "stats_title.png"}
-    (text,) = card.args
-    assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
-    assert card.kwargs["file"] == "stats_title.png"
+    (card,) = posted_cards(server)
+    assert card.args == ()
+    assert card.kwargs["files"] == ["stats_title.png"]
+    header = card.kwargs["view"].children[0]
+    assert isinstance(header, discord.ui.MediaGallery)
+    assert "LIFE STAGE ・ BABY" in card_text(card.kwargs)
     assert card.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
     server.card.pin.assert_awaited_once()
     settings = await bot.settings.get(GUILD_ID)
-    assert settings.status_title_message_id == TITLE_ID
+    assert settings.status_title_message_id is None
     assert settings.status_message_id == REPOSTED_CARD_ID
-    server.title_delete.assert_not_awaited()
     assert house_reports(server) == []
 
 
-async def test_a_reposted_card_takes_its_old_title_away(
+async def test_a_card_from_before_v3_is_replaced_and_its_title_taken_away(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await bot.settings.update(GUILD_ID, status_title_message_id=TITLE_ID - 1)
     await lay(bot)
-    server.card_edit.side_effect = discord.NotFound(
-        MagicMock(status=404), "Unknown Message"
-    )
 
     await cog.run_tick(NOW)
 
+    server.card_edit.assert_not_awaited()
     server.status.get_partial_message.assert_any_call(TITLE_ID - 1)
-    server.title_delete.assert_awaited_once()
-    assert len(posted_title_and_card(server)) == 2
+    server.status.get_partial_message.assert_any_call(CARD_ID)
+    assert server.title_delete.await_count == 2
+    assert len(posted_cards(server)) == 1
     settings = await bot.settings.get(GUILD_ID)
-    assert settings.status_title_message_id == TITLE_ID
+    assert settings.status_title_message_id is None
+    assert settings.status_message_id == REPOSTED_CARD_ID
+
+    await cog.run_tick(NOW + FULL_GAP)
+
+    server.card_edit.assert_awaited_once()
+    assert len(posted_cards(server)) == 1
 
 
 async def test_an_old_title_already_gone_is_skipped(
@@ -605,13 +630,13 @@ async def test_an_old_title_already_gone_is_skipped(
     await configure(bot)
     await bot.settings.update(GUILD_ID, status_title_message_id=TITLE_ID - 1)
     await lay(bot)
-    gone = discord.NotFound(MagicMock(status=404), "Unknown Message")
-    server.card_edit.side_effect = gone
-    server.title_delete.side_effect = gone
+    server.title_delete.side_effect = discord.NotFound(
+        MagicMock(status=404), "Unknown Message"
+    )
 
     await cog.run_tick(NOW)
 
-    assert len(posted_title_and_card(server)) == 2
+    assert len(posted_cards(server)) == 1
     assert house_reports(server) == []
 
 
@@ -629,11 +654,11 @@ async def test_a_card_from_before_the_title_is_brought_over(
     assert first.kwargs["content"] is None
     assert first.kwargs["view"] is None
     assert post_pictures(server) == [["baby.png"]]
-    assert len(posted_title_and_card(server)) == 2
+    assert len(posted_cards(server)) == 1
     settings = await bot.settings.get(GUILD_ID)
     assert settings.status_message_id == REPOSTED_CARD_ID
     server.card_edit.assert_awaited_once()
-    assert "**life stage**・𝐁𝐀𝐁𝐘・" in server.card_edit.await_args.kwargs["content"]
+    assert "LIFE STAGE ・ BABY" in card_text(server.card_edit.await_args.kwargs)
 
 
 async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
@@ -652,7 +677,7 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
 
     starter = server.starter_edit.await_args.kwargs
     assert (starter["content"], starter["attachments"]) == ("♪ Wisp's status", [])
-    assert len(posted_title_and_card(server)) == 2
+    assert len(posted_cards(server)) == 1
 
 
 async def test_edited_status_keeps_its_buttons(
@@ -663,12 +688,12 @@ async def test_edited_status_keeps_its_buttons(
 
     await cog.run_tick(NOW)
 
-    view = server.card_edit.await_args.kwargs["view"]
-    feed, poke, *_ = view.children
+    kwargs = server.card_edit.await_args.kwargs
+    feed, poke, *_ = card_buttons(kwargs)
     assert isinstance(feed, FeedButton)
     assert isinstance(poke, PokeButton)
-    assert button_ids(view) == STATUS_BUTTON_IDS
-    assert view.timeout is None
+    assert button_ids(kwargs["view"]) == STATUS_BUTTON_IDS
+    assert kwargs["view"].timeout is None
 
 
 async def test_reposted_status_keeps_its_buttons(
@@ -682,12 +707,12 @@ async def test_reposted_status_keeps_its_buttons(
 
     await cog.run_tick(NOW)
 
-    view = server.status.send.await_args.kwargs["view"]
-    feed, poke, *_ = view.children
+    kwargs = server.status.send.await_args.kwargs
+    feed, poke, *_ = card_buttons(kwargs)
     assert isinstance(feed, FeedButton)
     assert isinstance(poke, PokeButton)
-    assert button_ids(view) == STATUS_BUTTON_IDS
-    assert view.timeout is None
+    assert button_ids(kwargs["view"]) == STATUS_BUTTON_IDS
+    assert kwargs["view"].timeout is None
 
 
 async def test_card_is_posted_when_none_is_stored(
@@ -700,7 +725,7 @@ async def test_card_is_posted_when_none_is_stored(
     await cog.run_tick(NOW)
 
     server.card_edit.assert_not_awaited()
-    assert len(posted_title_and_card(server)) == 2
+    assert len(posted_cards(server)) == 1
     assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_CARD_ID
 
 
@@ -719,7 +744,7 @@ async def test_pin_failure_is_posted_in_the_status_thread_and_the_card_kept(
     await cog.run_tick(NOW)
 
     assert (await bot.settings.get(GUILD_ID)).status_message_id == REPOSTED_CARD_ID
-    assert server.status.send.await_count == 3
+    assert server.status.send.await_count == 2
     (report,) = server.status.send.await_args.args
     assert report.startswith("Error in pinning the status card: Forbidden")
     assert house_reports(server) == []
@@ -964,8 +989,8 @@ async def test_missing_art_never_breaks_the_card(
     await cog.run_tick(NOW)
 
     assert post_pictures(server) == []
-    content = server.card_edit.await_args.kwargs["content"]
-    assert "**life stage**・𝐓𝐄𝐄𝐍・" in content
+    content = card_text(server.card_edit.await_args.kwargs)
+    assert "LIFE STAGE ・ TEEN" in content
     assert house_reports(server) == []
     server.status.send.assert_not_awaited()
 
@@ -987,7 +1012,7 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
     vault_send = server.vault.send.side_effect
 
     def record(*args: Any, **kwargs: Any) -> MagicMock:
-        if args:
+        if "view" in kwargs:
             order.append("vault")
         return vault_send(*args, **kwargs)
 
@@ -996,9 +1021,9 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
     await cog.run_tick(NOW)
 
     assert order == ["card", "vault"]
-    content = server.vault.send.await_args.args[0]
-    assert content.startswith("╔")
-    assert f"<@{USER_ID}>" in content
+    board = card_text(server.vault.send.await_args.kwargs)
+    assert board.splitlines()[-1] == FRAME.bottom
+    assert f"<@{USER_ID}>" in board
 
 
 async def test_vault_failure_is_reported_without_losing_the_card(
@@ -1038,7 +1063,7 @@ async def test_death_posts_died_then_asks_and_lays_no_egg(
     assert mentions_version(died, 1)
     assert question == BEGIN_AGAIN
     card = server.card_edit.await_args.kwargs
-    assert card["content"] == WAITING
+    assert card_text(card) == WAITING
     assert button_ids(card["view"]) == ["wisp:begin"]
 
 
@@ -1052,24 +1077,24 @@ async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card
 
     server.house.send.assert_not_awaited()
     waiting = server.card_edit.await_args.kwargs
-    assert waiting["content"] == WAITING
-    (button,) = waiting["view"].children
+    assert card_text(waiting) == WAITING
+    (button,) = card_buttons(waiting)
     assert isinstance(button, discord.ui.Button)
     assert (button.label, button.custom_id, button.disabled) == (
         "Begin again",
         "wisp:begin",
         False,
     )
-    card = question_post()
+    card = waiting_card()
 
     pressed = await press_begin(bot, server, staff_member(), card)
 
     egg = await current_life(bot)
     assert (egg.version, egg.from_coal) == (2, True)
     assert private_reply(pressed) == "♪ A new egg is on its way."
-    assert retired(card)
+    card.edit.assert_not_awaited()
     shown = server.card_edit.await_args.kwargs
-    assert "**life stage**・𝐄𝐆𝐆・" in shown["content"]
+    assert "LIFE STAGE ・ EGG" in card_text(shown)
     assert button_ids(shown["view"]) == STATUS_BUTTON_IDS
 
 
@@ -1084,7 +1109,7 @@ async def test_a_waiting_card_without_its_ending_picture_shows_none(
 
     waiting, still_waiting = server.card_edit.await_args_list
     for edit in (waiting, still_waiting):
-        assert edit.kwargs["content"] == WAITING
+        assert card_text(edit.kwargs) == WAITING
         assert "attachments" not in edit.kwargs
     assert post_pictures(server) == [[]]
     assert server.starter_edit.await_args.kwargs["content"] == "♪ Wisp's status"
@@ -1148,7 +1173,7 @@ async def test_an_ended_life_waits_through_every_tick(
     assert [life.version for life in await bot.lives.history(GUILD_ID)] == [1]
     server.house.send.assert_not_awaited()
     edits = server.card_edit.await_args_list
-    assert [edit.kwargs["content"] for edit in edits] == [WAITING] * 3
+    assert [card_text(edit.kwargs) for edit in edits] == [WAITING] * 3
     assert all(button_ids(edit.kwargs["view"]) == ["wisp:begin"] for edit in edits)
     assert post_pictures(server) == [["died.png"], ["died.png"]]
     assert not any("attachments" in edit.kwargs for edit in edits)
@@ -1675,7 +1700,15 @@ def staff_member() -> MagicMock:
 def question_post() -> MagicMock:
     """The House's Do you want to begin again? post, as a pressed button sees it."""
     message = MagicMock(spec=discord.Message)
+    message.flags = discord.MessageFlags()
     message.edit = AsyncMock()
+    return message
+
+
+def waiting_card() -> MagicMock:
+    """The waiting status card, a Components V2 message, as a pressed button sees it."""
+    message = question_post()
+    message.flags = discord.MessageFlags(components_v2=True)
     return message
 
 
@@ -1733,10 +1766,10 @@ def retired(question: MagicMock) -> bool:
     return bool(edits)
 
 
-def button_ids(view: discord.ui.View) -> list[str | None]:
-    """The custom ids of a view's buttons, persistent ones included."""
+def button_ids(view: discord.ui.View | discord.ui.LayoutView) -> list[str | None]:
+    """The custom ids of a view's buttons, in its rows too, persistent ones included."""
     ids: list[str | None] = []
-    for child in view.children:
+    for child in view.walk_children():
         button = child.item if isinstance(child, discord.ui.DynamicItem) else child
         if isinstance(button, discord.ui.Button):
             ids.append(button.custom_id)
@@ -1775,7 +1808,7 @@ async def test_a_staff_press_after_a_farewell_lays_the_coal_egg_halfway_hatched(
     )
     assert private_reply(pressed) == "♪ A new egg is on its way."
     card = server.card_edit.await_args.kwargs
-    assert "**life stage**・𝐄𝐆𝐆・" in card["content"]
+    assert "LIFE STAGE ・ EGG" in card_text(card)
     assert button_ids(card["view"]) == STATUS_BUTTON_IDS
     assert post_pictures(server) == [["egg.png"]]
     assert panel_pictures(panel) == [["egg.png"]]

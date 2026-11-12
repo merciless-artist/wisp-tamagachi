@@ -19,7 +19,7 @@ from db.badges import OwnedBadge
 from wisp.bond import tier_for
 from wisp.life import is_over
 from wisp.rules import BADGE_BY_KEY, BADGES, Badge, badge_name
-from wisp.text import heading, item, with_emoji
+from wisp.text import Frame, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -38,13 +38,6 @@ _NO_ICONS: Final = (
 OWNED: Final = "owned"
 COMING_SOON: Final = "coming soon"
 BETWEEN_WISPS: Final = "with the next Wisp"
-# Spaces after each badge's name in the Vault, tuned by Myra so the │ line up.
-_VAULT_PADDING: Final[dict[str, int]] = {
-    "pickle_diplomat": 2,
-    "flame_keeper": 7,
-    "team_viibr": 14,
-    "bandmate": 14,
-}
 
 # ---
 # Roles in the server
@@ -273,18 +266,19 @@ async def badge_offers(
     return offers
 
 
-def badge_section(bot: "WispBot", offers: list[Offer]) -> list[str]:
-    """The Vault's Badges lines: each badge's name, emoji, price and any reason.
+def badge_section(bot: "WispBot", frame: Frame, offers: list[Offer]) -> list[str]:
+    """The Vault's Badges lines in `frame`: each badge's emoji, name, price and
+    any reason.
 
     A badge whose emoji is not uploaded shows only its name.
     """
-    lines = [heading("Badges")]
+    lines = [frame.heading("Badges")]
     for offer in offers:
         badge = offer.badge
-        name = badge.name.lower() + " " * _VAULT_PADDING.get(badge.key, 1)
         price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{badge.cost} WC")
-        line = item(f"{name}│{bot.emoji(badge.emoji_name)}・{price}")
-        lines.append(line if offer.reason is None else f"{line}・{offer.reason}")
+        name = with_emoji(bot.emoji(badge.emoji_name), badge.name)
+        line = frame.item(f"{name} ・ {price}")
+        lines.append(line if offer.reason is None else f"{line} ・ {offer.reason}")
     return lines
 
 
@@ -307,15 +301,17 @@ def badge_options(bot: "WispBot", offers: list[Offer]) -> list[discord.SelectOpt
 # ---
 
 
-def badge_pack_lines(bot: "WispBot", owned: list[OwnedBadge]) -> list[str]:
-    """One line per badge the member ever bought, in the order given.
+def badge_pack_lines(
+    bot: "WispBot", frame: Frame, owned: list[OwnedBadge]
+) -> list[str]:
+    """One item of `frame` per badge the member ever bought, in the order given.
 
     Each reads "Wisp v3's" and the badge's emoji, or its name when the emoji
     is not uploaded. A badge no longer sold is kept as a collectible under
     its stored key.
     """
     return [
-        item(
+        frame.item(
             f"Wisp v{badge.version}'s "
             + (bot.emoji(f"badge_{badge.badge}") or badge_name(badge.badge))
         )

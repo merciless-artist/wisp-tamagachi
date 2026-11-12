@@ -293,9 +293,7 @@ async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
         guild_id,
         "rules_thread_id",
         "rules_message_id",
-        rules_post(
-            await bot.settings.get(guild_id), await bot.settings.roles(guild_id)
-        ),
+        await rules_post(bot, guild_id),
         "Wisp FAQ rules post",
     )
 

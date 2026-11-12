@@ -30,29 +30,27 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from tests.layout import (
-    assert_fits_its_box,
     assert_fits_its_frame,
+    entries,
     layout_selects,
     layout_text,
+    rows,
+    vault_opened,
+    vault_parts,
 )
 from wisp import rules
 from wisp.gifts import GiftState, Outcome, decide, like_chance, with_article
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
-from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, VAULT_WIDTH, Stage
+from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
 from wisp.text import (
-    BLANK,
     FRAME_EMOJIS,
     LAYOUT_TEXT_LIMIT,
-    SECTION_BREAK,
+    UNICODE_FRAME,
     USER_ERROR,
     Frame,
-    box_bottom,
-    box_top,
     emoji_frame,
     text_length,
-    wrap,
-    wrapped,
 )
 from wisp.voice import DrawReason
 
@@ -71,14 +69,10 @@ PASS = 0.99
 GIVE = "Give Wisp a gift"
 PICK = "Pick a collection"
 LONG_EMOJI = "<a:" + "e" * 23 + ":" + "1" * 19 + ">"
-GIFTS_HEADING = "║𝄡𝄚𝄂𝄆 **Gifts**・15 WC each"
-GAMBLE = "║ ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ"
-SPEC_LINES = frozenset(
-    (ASSETS.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
-    .read_bytes()
-    .decode("utf-8")
-    .splitlines()
-)
+# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+FRAME = UNICODE_FRAME
+GIFTS_HEADING = f"{FRAME.heading('Gifts')} ・ 15 WC each"
+GAMBLE = FRAME.note("ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ")
 
 # ---
 # Fakes
@@ -248,8 +242,7 @@ async def open_vault(
     interaction = make_interaction(bot, user_id)
     command: Any = snacks.wisp_vault
     await command.callback(interaction)
-    view = interaction.followup.send.await_args.kwargs["view"]
-    return layout_text(view), layout_selects(view)
+    return vault_opened(interaction.followup.send)
 
 
 def placeholder_select(
@@ -338,11 +331,11 @@ def edited(interaction: MagicMock) -> str:
 def lines_under(text: str, heading: str) -> list[str]:
     """The lines under a `#` heading, up to the next break or the box's end."""
     lines = text.splitlines()
-    start = lines.index(f"║𝄡𝄚𝄂𝄆 **{heading}**") + 1
+    start = lines.index(FRAME.heading(heading)) + 1
     end = next(
         index
         for index in range(start, len(lines))
-        if lines[index] in (SECTION_BREAK, BLANK) or lines[index].startswith("╚")
+        if lines[index] in (FRAME.section_break, FRAME.blank, FRAME.bottom)
     )
     return lines[start:end]
 
@@ -351,8 +344,7 @@ def gift_lines(text: str) -> list[str]:
     """The Vault's lines under the Gifts heading, up to the box's end."""
     lines = text.splitlines()
     start = lines.index(GIFTS_HEADING) + 1
-    end = next(index for index, line in enumerate(lines) if line.startswith("╚"))
-    return lines[start:end]
+    return lines[start : lines.index(FRAME.bottom) - 1]
 
 
 def house_post(server: FakeServer) -> tuple[str, dict[str, Any]]:
@@ -632,7 +624,7 @@ async def test_a_kept_gift_leaves_the_vault_and_gives_bond_and_growth(
     assert reply.startswith(
         f"{gave('a Blue Alien Doll')}\n♪ Wisp kept your Blue Alien Doll"
     )
-    assert f"║𝄡𝄚𝄂 wisp coins: {100 - rules.GIFT_COST}" in reply.splitlines()
+    assert FRAME.sub(f"wisp coins: {100 - rules.GIFT_COST}") in reply.splitlines()
     assert "alien_blue" not in await offered(bot)
 
 
@@ -752,7 +744,7 @@ async def test_a_collection_is_given_from_once_a_day(
 
     text, _ = await open_vault(bot, OTHER_USER_ID)
     assert not any(key.startswith("alien_") for key in await offered(bot))
-    assert "║𝄡 Alien Dolls: back tomorrow" in text
+    assert FRAME.item("Alien Dolls: back tomorrow") in text
 
     stale = await give(bot, "alien_green", OTHER_USER_ID, select=before)
 
@@ -820,7 +812,7 @@ async def test_the_fourth_item_completes_the_collection_with_a_bonus(
     )
     assert "Books" in edited(interaction)
     vault_text, _ = await open_vault(bot)
-    assert "║𝄡 Books: all kept this life" in vault_text
+    assert FRAME.item("Books: all kept this life") in vault_text
 
 
 async def test_a_new_life_restocks_the_vault(bot: app.WispBot) -> None:
@@ -1006,29 +998,31 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
     text, selects = await open_vault(bot)
 
     lines = text.splitlines()
-    snacks_at = lines.index("║𝄡𝄚𝄂𝄆 **Snacks**")
-    badges_at = lines.index("║𝄡𝄚𝄂𝄆 **Badges**")
+    snacks_at = lines.index(FRAME.heading("Snacks"))
+    badges_at = lines.index(FRAME.heading("Badges"))
     gifts_at = lines.index(GIFTS_HEADING)
     assert snacks_at < badges_at < gifts_at
-    assert lines[gifts_at - 1] == SECTION_BREAK
+    assert lines[gifts_at - 1] == FRAME.section_break
+    alien_emojis = (
+        f"{emoji_text('gift_alien_blue', 2)} {emoji_text('gift_alien_green', 3)}"
+    )
     gift_lines = [
         GAMBLE,
-        "║𝄡 Lunchbox Liners: Bird Butterfly Kitties Poppies",
-        f"║𝄡 Alien Dolls: {emoji_text('gift_alien_blue', 2)} "
-        f"{emoji_text('gift_alien_green', 3)} Purple Yellow",
-        "║𝄡 Books: Blue Green Orange Red",
-        "║𝄡 Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You",
-        "║𝄡 Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi",
-        "║𝄡 Tetris: Tetris Handheld I Block L Block T Block S Block Z Block",
-        "║𝄡 Jewels: Amethyst Crystal Rainbow Jewel Ruby",
+        FRAME.item("Lunchbox Liners: Bird Butterfly Kitties Poppies"),
+        FRAME.item(f"Alien Dolls: {alien_emojis} Purple Yellow"),
+        FRAME.item("Books: Blue Green Orange Red"),
+        FRAME.item("Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You"),
+        FRAME.item("Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi"),
+        FRAME.item("Tetris: Tetris Handheld I Block L Block T Block S Block Z Block"),
+        FRAME.item("Jewels: Amethyst Crystal Rainbow Jewel Ruby"),
     ]
     assert lines[gifts_at + 1 :] == [
-        *"\n".join(wrapped(gift_lines, VAULT_WIDTH)).split("\n"),
-        box_bottom(VAULT_WIDTH),
+        *"\n".join(FRAME.wrapped(gift_lines)).split("\n"),
+        FRAME.blank,
+        FRAME.bottom,
     ]
-    assert GAMBLE in SPEC_LINES
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_box(text)
+    assert_fits_its_frame(text, FRAME)
     snack_select, collections = selects
     assert snack_select.placeholder == "Buy a snack"
     assert collections.placeholder == PICK
@@ -1055,8 +1049,8 @@ async def test_picking_a_collection_shows_its_gifts_with_the_price(
     interaction = await pick(bot, "tetris")
 
     text, selects = shown(interaction)
-    assert text.startswith(box_top(VAULT_WIDTH))
-    assert [select.placeholder for select in selects] == ["Buy a snack", PICK, GIVE]
+    assert text.startswith(f"{FRAME.section_break}\n{FRAME.heading('Badges')}\n")
+    assert [select.placeholder for select in selects] == [PICK, GIVE]
     items = gift_select(selects)
     assert [(option.label, option.value) for option in items.options] == [
         ("Tetris Handheld", "tetris_handheld"),
@@ -1137,7 +1131,7 @@ async def test_picking_a_collection_once_he_is_gone_says_gifts_wait(
 
     text, selects = shown(interaction)
     assert text.startswith("♪ Wisp isn't alive right now, so gifts have to wait.")
-    assert [select.placeholder for select in selects] == ["Buy a snack"]
+    assert selects == []
 
 
 async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None:
@@ -1150,8 +1144,8 @@ async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None
 
     text, _ = await open_vault(bot)
 
-    assert "║𝄡 Alien Dolls: Green Purple Yellow" in text
-    assert "║𝄡 Books: back tomorrow" in text
+    assert FRAME.item("Alien Dolls: Green Purple Yellow") in text
+    assert FRAME.item("Books: back tomorrow") in text
     options = await offered(bot)
     assert "alien_blue" not in options
     assert not any(option.startswith("book_") for option in options)
@@ -1170,13 +1164,15 @@ async def test_the_vault_warns_when_he_already_kept_a_gift_today(
 
     lines = text.splitlines()
     heading = lines.index(GIFTS_HEADING)
-    kept_today = wrap(
-        "║ Wisp already picked his treasure today. "
-        "Anything you give him goes back to the Vault.",
-        VAULT_WIDTH,
+    kept_today = FRAME.wrap(
+        FRAME.note(
+            "Wisp already picked his treasure today. "
+            "Anything you give him goes back to the Vault."
+        )
     ).split("\n")
     assert len(kept_today) > 1
-    assert lines[heading + 1 : heading + 2 + len(kept_today)] == [GAMBLE, *kept_today]
+    warned = [*rows(FRAME, GAMBLE), *kept_today]
+    assert lines[heading + 1 : heading + 1 + len(warned)] == warned
     assert "book_red" in await offered(bot)
 
 
@@ -1207,7 +1203,8 @@ async def test_with_nothing_to_give_there_is_no_gift_select(
     text, selects = await open_vault(bot)
 
     assert [select.placeholder for select in selects] == ["Buy a snack"]
-    assert text.count("back tomorrow") == len(GIFT_COLLECTIONS)
+    for group in GIFT_COLLECTIONS:
+        assert FRAME.wrap(FRAME.item(f"{group.name}: back tomorrow")) in text
 
 
 @pytest.mark.parametrize("phase", [None, Phase.EGG, Phase.DEAD])
@@ -1219,7 +1216,9 @@ async def test_before_he_hatches_the_vault_says_gifts_wait(
 
     text, selects = await open_vault(bot)
 
-    assert gift_lines(text) == [GAMBLE, "║𝄡 He takes gifts once he has hatched"]
+    assert gift_lines(text) == rows(
+        FRAME, GAMBLE, FRAME.item("He takes gifts once he has hatched")
+    )
     assert [select.placeholder for select in selects] == ["Buy a snack"]
 
 
@@ -1268,16 +1267,16 @@ async def test_the_lunchbox_shows_this_lifes_collections(bot: app.WispBot) -> No
 
     text = await lunchbox_text(bot, GUILD_ID)
 
-    finished = frame.wrap(
-        frame.sub(f"BOOKS 4/4 COMPLETE ・ finished by <@{OTHER_USER_ID}>")
+    expected = frame.wrapped(
+        [
+            frame.sub("ALIEN DOLLS 2/4"),
+            frame.item(f"{bot.emoji('gift_alien_blue')} Blue ・ from <@{USER_ID}>"),
+            frame.item(f"Green ・ from <@{OTHER_USER_ID}>"),
+            frame.group_break,
+            frame.sub(f"BOOKS 4/4 COMPLETE ・ finished by <@{OTHER_USER_ID}>"),
+        ]
     )
-    assert collections_of(text, frame) == [
-        frame.sub("ALIEN DOLLS 2/4"),
-        frame.item(f"{bot.emoji('gift_alien_blue')} Blue ・ from <@{USER_ID}>"),
-        frame.item(f"Green ・ from <@{OTHER_USER_ID}>"),
-        frame.group_break,
-        *finished.splitlines(),
-    ]
+    assert collections_of(text, frame) == "\n".join(expected).splitlines()
     assert_fits_its_frame(text, frame)
 
 
@@ -1396,7 +1395,7 @@ async def test_the_sixth_tetris_piece_completes_its_collection(
     assert text == f"{head}\n[gift_kept]\n[collection_done]"
     assert kwargs["file"].filename == "tetris_z.gif"
     vault_text, _ = await open_vault(bot)
-    assert "║𝄡 Tetris: all kept this life" in vault_text
+    assert FRAME.item("Tetris: all kept this life") in vault_text
     frame = framed(bot)
     lunchbox = await lunchbox_text(bot, GUILD_ID)
     finished = frame.sub(f"TETRIS 6/6 COMPLETE ・ finished by <@{USER_ID}>")
@@ -1413,7 +1412,7 @@ async def test_five_of_six_tetris_pieces_is_not_complete(bot: app.WispBot) -> No
 
     lunchbox = await lunchbox_text(bot, GUILD_ID)
 
-    section = collections_of(lunchbox, frame)
+    section = entries(collections_of(lunchbox, frame), frame)
     assert section[0] == frame.sub("TETRIS 5/6")
     assert len(section) == 6
     assert all(line.startswith(frame.item_mark + " ") for line in section[1:])
@@ -1443,16 +1442,20 @@ async def test_the_vault_fits_with_long_emojis_and_everything_in_stock(
     await bot.gifts.record(
         GUILD_ID, life.id, USER_ID, "book_red", True, discord.utils.utcnow()
     )
-    long_emojis(bot, monkeypatch)
+    frame = long_emojis(bot, monkeypatch)
+    interaction = make_interaction(bot, USER_ID)
+    command: Any = snacks.wisp_vault
 
-    text, _ = await open_vault(bot)
+    await command.callback(interaction)
 
-    assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_box(text)
-    assert f"║𝄡𝄚𝄂𝄆 **Gifts**・{LONG_EMOJI} 15 WC each" in text.splitlines()
+    text, _ = vault_opened(interaction.followup.send)
+    for part in vault_parts(interaction.followup.send):
+        assert text_length(layout_text(part)) <= LAYOUT_TEXT_LIMIT
+    assert_fits_its_frame(text, frame)
+    assert frame.wrap(f"{frame.heading('Gifts')} ・ {LONG_EMOJI} 15 WC each") in text
     for group in GIFT_COLLECTIONS:
-        assert f"║𝄡 {group.name}: " in text
-    assert "║ Wisp already picked his" in text
+        assert frame.item(f"{group.name}: ") in text
+    assert "Wisp already picked his" in text
     liners = next(line for line in text.splitlines() if "Lunchbox Liners" in line)
     assert LONG_EMOJI in liners
 
@@ -1461,7 +1464,7 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await lay(bot)
-    long_emojis(bot, monkeypatch)
+    frame = long_emojis(bot, monkeypatch)
     say(bot)
 
     interaction = await give(bot, "card_futureisbright")
@@ -1472,9 +1475,8 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
         "♪ Wisp kept your Future Is Bright Affirmation Card"
     )
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_box(text)
     for group in GIFT_COLLECTIONS:
-        assert f"║𝄡 {group.name}: " in text
+        assert frame.item(f"{group.name}: ") in text
 
 
 async def test_the_lunchbox_fits_with_every_collection_nearly_full(

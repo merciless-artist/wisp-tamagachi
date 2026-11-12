@@ -25,10 +25,10 @@ All are Wisp's app emojis, by name through `bot.emoji(...)`.
 | blank `║` | `:header_edge:` |
 | `>` between sections | `:header_edge::rest_bar::rest_bar:` |
 | between two groups in one section (the lunchbox's collections) | `:header_edge::rest_bar:` |
-| `>>>` box bottom | `:header_edge: :clef:` + 16 × `:header2:` + `:header:` |
+| `>>>` box bottom | `:header_edge: :clef:` + 8 × `:header2:` + `:header:` |
 | box top | none: the header picture sits right above |
 | wrapped continuation row | `:header_edge: ` |
-| `SEPARATOR`, the plain divider in short posts | `:clef:` + 16 × `:header2:` + `:header:` (**my call**: her bottom line without its edge) |
+| `SEPARATOR`, the plain divider in short posts | `:clef:` + 8 × `:header2:` + `:header:` (**my call**: her bottom line without its edge) |
 
 Myra, 2026-11-11: "no unicode" for the divider too.
 
@@ -37,10 +37,12 @@ Myra, 2026-11-11: "no unicode" for the divider too.
   to the v2.1 Unicode pieces (and the missing name is logged, as today), so a
   half-emoji box never shows. **My call.**
 - No line may look wider than the bottom line. `visual_width` measures it
-  (a custom emoji is 1.375 em, so the bottom line is about 26 em), and longer
+  (a custom emoji is 1.375 em, so the bottom line is about 15 em), and longer
   lines wrap with `:header_edge: ` rows as before.
-- On a narrow phone Discord may wrap the 19-emoji bottom line itself. Check on
-  Myra's phone after the lunchbox ships; shorten the `header2` run if needed.
+- The bottom line is 11 emojis so it stays on one line on a phone. A
+  phone's message area fits about 12 inline emojis (22 px each in about
+  300 px); her first 19-emoji line would have wrapped there. Myra,
+  2026-11-11: "make them whatever that works". **My call: 8 `header2`.**
 
 ## One message per menu
 
@@ -96,3 +98,57 @@ Her design, with app emoji names (her server copies are `headeredge` and
 - Empty sections: `:header_edge::header3: none yet`.
 - Lists are cut to fit 4,000 as before: the oldest songs go first, and a
   collection drops to its progress line when its gifts do not fit.
+
+## The other menus (2026-11-11)
+
+Myra, 2026-11-11: "yes do all the cards, dont ask for permission, just do
+them all". Every menu now follows the lunchbox. What changed from v2.1 in
+each, beyond the pieces above, all **my calls**:
+
+- **Every item leads with its emoji**, as the lunchbox's favorite snack
+  does: `:snack_cloudwave: Cloud Wave ・ 3 WC`. Her hand-tuned padding before
+  the Vault's `│` only lined up the old Unicode bar, so the `│` and the
+  padding are gone, for snacks and badges alike, and items use the
+  display names (`Cloud Wave`, `Team ViiBR`), not the keys.
+- **No box top**, since the header picture sits right above, and a blank
+  edge line before the bottom line, as in her lunchbox.
+- **Snack Pack**: one V2 message: header picture, the pack, then the
+  Shop the Vault button in a row. 4,000 characters, so far more keepsakes
+  and badges show before "and N more".
+- **Vault**: its footer picture is gone and the frame's bottom line closes
+  it. The Gifts heading reads `GIFTS ・ 15 WC each`. It is **two
+  messages**, one right under the other, so it still reads as one box (Myra:
+  "or if you have to split them in two parts, that is fine too"). In the
+  emoji frame each line carries about 64 characters of frame emoji
+  text, so with every emoji uploaded the one-message Vault measured 5,074
+  characters, over the 4,000 limit, and Discord would have refused it.
+  - Part one: a note when there is one, the header picture, wisp coins,
+    Snacks, then Medicine while he has a cold. No bottom line.
+  - Part two: Badges, Magazines while he is a Rockstar, Gifts, a blank edge
+    line and the bottom line. Measured: 2,214 and 3,955 characters, with
+    every gift's emoji shown.
+  - A menu redraws only its own part, with its note on top. Part one's coin
+    count cannot be changed from part two, so after a badge, magazine or
+    gift, part two shows `wisp coins` again under its note.
+- **Leaderboard**: one V2 message, posted card and `/wisp board` alike.
+  The posted card's header used to be a message of its own; that old
+  header is deleted the first time the card is posted again. Whether the
+  card changed is read from the posted layout's text.
+- **Status card**: one V2 message under the Wisp Stats title, edited in
+  place, with its six buttons three to a row. Her quote layout keeps its
+  lines and blank lines, with these changes:
+  - the `𝄡𝄚𝄂` and `𝄡` marks are the frame's sub and item marks, and
+    `**right now**` is a heading, `RIGHT NOW`;
+  - her Mathematical Bold words (`𝐃𝐀𝐘`, `𝐁𝐀𝐁𝐘`) are plain capitals: they
+    are the same kind of character some phones cannot show;
+  - the frame fits a phone, so lines wrap; her flourishes after Fed by,
+    the tracks and the life stage (`・♬‿♩. ♪`) would wrap onto rows of
+    their own, so they are gone; the day keeps its `♫ ♪. ♫‿♪`;
+  - the two hint lines are one item, wrapped by the frame;
+  - the bars stay on their own line with no edge before them, as in her
+    quote where they had no clef: a full bar is 10 emojis and the percent,
+    and with an edge it would be wider than the bottom line and break on a
+    phone. The `│` before the percent is a space now.
+  - The old card, two messages, is replaced the first time it is shown;
+    after that it is edited in place. Begin again pressed on the waiting
+    card leaves it as it is: the egg's card replaces it straight away.

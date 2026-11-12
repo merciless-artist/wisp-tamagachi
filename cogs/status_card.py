@@ -1,10 +1,10 @@
-"""Wisp's Status post: his picture, the Wisp Stats title and his live card.
+"""Wisp's Status post: his picture, then his live card under the Wisp Stats title.
 
 The post's first message shows only Wisp's picture, so the Studio's gallery
-shows him. Under it come Myra's Wisp Stats title picture on its own, then the
-card, which carries the same picture so it shows under the card and closes
-it, and the card's buttons: everything a member can do with Wisp, each
-answering privately. The card is pinned and edited in place.
+shows him. Under it is the card, one Components V2 message: Myra's Wisp
+Stats title picture, the card in her emoji frame, then the card's buttons:
+everything a member can do with Wisp, each answering privately. The card
+is pinned and edited in place.
 """
 
 from pathlib import Path
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.conversation import PokeButton
-from cogs.headers import HeadedCard, show_headed_card
+from cogs.headers import Buttons, HeadedCard, show_headed_card
 from cogs.pictures import Picture
 from cogs.rhyme_duel import PlayButton
 from cogs.snacks import FeedButton, ShopButton, SnackPackButton
@@ -31,7 +31,6 @@ _NO_PICTURE: Final = "♪ Wisp's status"
 _NO_PING: Final = discord.AllowedMentions.none()
 _CARD: Final = HeadedCard(
     header=_TITLE_NAME,
-    footer=_TITLE_NAME,
     title_attr="status_title_message_id",
     card_attr=_CARD_ATTR,
     label=_LABEL,
@@ -45,7 +44,7 @@ _BUTTONS_PER_ROW: Final = 3
 # ---
 
 
-def status_view() -> discord.ui.View:
+def status_buttons() -> Buttons:
     """The live status card's buttons, three to a row.
 
     Feed Wisp, Poke Wisp and Vault, then Snack Pack, Play and Lunchbox. Each
@@ -59,11 +58,10 @@ def status_view() -> discord.ui.View:
         PlayButton(),
         LunchboxButton(),
     ]
-    view = discord.ui.View(timeout=None)
-    for index, button in enumerate(buttons):
-        button.row = index // _BUTTONS_PER_ROW
-        view.add_item(button)
-    return view
+    return [
+        buttons[start : start + _BUTTONS_PER_ROW]
+        for start in range(0, len(buttons), _BUTTONS_PER_ROW)
+    ]
 
 
 # ---
@@ -75,7 +73,7 @@ async def show_status(
     bot: "WispBot",
     guild_id: int,
     content: str,
-    view: discord.ui.View,
+    rows: Buttons,
     image: Path | None,
     *,
     clear_image: bool = False,
@@ -86,14 +84,14 @@ async def show_status(
         bot: The running bot.
         guild_id: The guild whose Studio to use.
         content: The card's text.
-        view: The card's buttons.
+        rows: The card's rows of buttons.
         image: Wisp's picture for the post's first message, or None to leave
             it as it is.
         clear_image: With no `image`, take the picture off instead.
 
-    A post from before the title and card had their own messages, whose first
+    A post from before the card had a message of its own, whose first
     message is still the card, is brought over: its first message keeps only
-    the picture and the title and card are posted under it. A failure is
+    the picture and the card is posted under it. A failure is
     posted in the thread, or in Wisp's House when the thread cannot be
     reached, once per streak of failures. It is never raised.
     """
@@ -105,7 +103,7 @@ async def show_status(
         posted = card_id is not None and card_id != thread.id
         await _show_picture(bot, guild_id, thread, image, clear_image, posted)
         await show_headed_card(
-            bot, guild_id, thread, content, view, _CARD, card_id if posted else None
+            bot, guild_id, thread, content, rows, _CARD, card_id if posted else None
         )
     except (discord.DiscordException, StudioError) as error:
         if key not in bot.failing_displays:

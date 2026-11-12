@@ -7,26 +7,17 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.groups import require_guild, wisp
-from cogs.headers import FOOTER, HeadedCard, repost_headed_in_thread, send_headed
+from cogs.headers import (
+    HeadedCard,
+    repost_headed_in_thread,
+    send_framed,
+)
 from cogs.players import say_privately
-from cogs.snacks import vault_view
+from cogs.snacks import vault_buttons
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
 from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
-from wisp.text import (
-    BLANK,
-    box_bottom,
-    box_top,
-    channel_or,
-    count,
-    fit,
-    heading,
-    item,
-    sections,
-    sub,
-    wrap,
-    wrapped,
-)
+from wisp.text import LAYOUT_TEXT_LIMIT, Frame, channel_or, count, fit, frame_of
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -34,7 +25,6 @@ if TYPE_CHECKING:
 _HEADER: Final = "leaderboard_title.png"
 _CARD: Final = HeadedCard(
     header=_HEADER,
-    footer=FOOTER,
     title_attr="vault_title_message_id",
     card_attr="vault_message_id",
     label="Leaderboard card",
@@ -48,8 +38,10 @@ _NO_PING: Final = discord.AllowedMentions.none()
 # ---
 
 
-def _intro(status_thread_id: int | None, private: bool) -> tuple[str, ...]:
-    """The card's opening lines.
+def _intro(
+    frame: Frame, status_thread_id: int | None, private: bool
+) -> tuple[str, ...]:
+    """The card's opening lines in `frame`.
 
     The posted card says where to shop the Vault; the private one answering
     `/wisp board` has the buttons under it.
@@ -60,7 +52,7 @@ def _intro(status_thread_id: int | None, private: bool) -> tuple[str, ...]:
         if private
         else f"Shop the Vault with the button on {where}."
     )
-    return (sub("The leaderboard."), BLANK, item(shop), BLANK)
+    return (frame.sub("The leaderboard."), frame.blank, frame.item(shop), frame.blank)
 
 
 def version_line(life: Life, now: datetime) -> str:
@@ -96,13 +88,15 @@ def version_line(life: Life, now: datetime) -> str:
 async def render_leaderboard(
     bot: "WispBot", guild_id: int, now: datetime, *, private: bool = False
 ) -> str:
-    """Build the Leaderboard card: two top tens, top rhymers, then every version.
+    """Build the Leaderboard card in Myra's emoji frame: two top tens, top
+    rhymers, then every version.
 
-    The history is trimmed from the oldest end so the text fits one message;
-    the box always closes. Each list ends with a blank line, as in Myra's
-    draft, and every line is wrapped to fit the box. `private` is the copy
-    `/wisp board` sends, whose intro points at its own buttons.
+    The history is trimmed from the oldest end so the text fits one layout
+    message; the box always closes. Each list ends with a blank line, as in
+    Myra's draft, and every line is wrapped to fit the frame. `private` is
+    the copy `/wisp board` sends, whose intro points at its own buttons.
     """
+    frame = frame_of(bot.emoji)
     settings = await bot.settings.get(guild_id)
     history = await bot.lives.history(guild_id)
     current_id = history[0].id if history else None
@@ -113,39 +107,36 @@ async def render_leaderboard(
     )
     all_time = await bot.players.top_lifetime(guild_id, LEADERBOARD_SIZE)
     this_life_lines = [
-        item(f"{place}. <@{user_id}> ・ {count(points, 'point')}")
+        frame.item(f"{place}. <@{user_id}> ・ {count(points, 'point')}")
         for place, (user_id, points) in enumerate(this_life, start=1)
-    ] or [item("Nobody has fed him yet")]
+    ] or [frame.item("Nobody has fed him yet")]
     all_time_lines = [
-        item(
+        frame.item(
             f"{place}. <@{player.user_id}> ・ {count(player.lifetime_points, 'point')}"
             f" ・ {tier_for(player.bond)}"
         )
         for place, player in enumerate(all_time, start=1)
-    ] or [item("Nobody has points yet")]
+    ] or [frame.item("Nobody has points yet")]
     rhymers = await bot.players.top_rhyme(guild_id, RHYME_LEADERBOARD_SIZE)
     rhyme_lines = [
-        item(
+        frame.item(
             f"{place}. <@{player.user_id}> ・ {count(player.best_rhyme_score, 'point')}"
         )
         for place, player in enumerate(rhymers, start=1)
-    ] or [item("Nobody has dueled him yet")]
-    head = [
-        box_top(),
-        *wrapped(
-            sections(
-                _intro(settings.status_thread_id, private),
-                [heading("This life"), *this_life_lines, BLANK],
-                [heading("All time"), *all_time_lines, BLANK],
-                [heading("Rhyme Duel"), *rhyme_lines, BLANK],
-                [heading("Versions")],
-            )
-        ),
-    ]
-    versions = [wrap(item(version_line(life, now))) for life in history] or [
-        item("None yet")
-    ]
-    return fit(head, versions, [BLANK, box_bottom()])
+    ] or [frame.item("Nobody has dueled him yet")]
+    head = frame.wrapped(
+        frame.sections(
+            _intro(frame, settings.status_thread_id, private),
+            [frame.heading("This life"), *this_life_lines, frame.blank],
+            [frame.heading("All time"), *all_time_lines, frame.blank],
+            [frame.heading("Rhyme Duel"), *rhyme_lines, frame.blank],
+            [frame.heading("Versions")],
+        )
+    )
+    versions = [
+        frame.wrap(frame.item(version_line(life, now))) for life in history
+    ] or [frame.item("None yet")]
+    return fit(head, versions, [frame.blank, frame.bottom], LAYOUT_TEXT_LIMIT)
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
@@ -169,11 +160,11 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
         await bot.players.activate(guild_id, interaction.user.id, now)
         await say_privately(interaction, "♪ You're on Wisp's radar now.")
-    await send_headed(
+    await send_framed(
         functools.partial(interaction.followup.send, ephemeral=True),
         _HEADER,
         await render_leaderboard(bot, guild_id, now, private=True),
-        view=vault_view(),
+        vault_buttons(),
         allowed_mentions=_NO_PING,
         wait=True,
     )

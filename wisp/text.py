@@ -1,12 +1,15 @@
 """Small text pieces shared by Wisp's posts, and the frame of Myra's house style.
 
-The house style is `DOCS/specs/2026-10-27-house-style.md`. Its marks work like
-markdown: `#` is a section heading, `##` a sub-heading or information line, `###`
-an item, `>` the break between sections and `>>>` the end of the box.
+The house style is `DOCS/specs/2026-11-11-house-style-v3-emoji-frame.md`, on
+top of `DOCS/specs/2026-10-27-house-style.md`. Its marks work like markdown:
+`#` is a section heading, `##` a sub-heading or information line, `###` an
+item, `>` the break between sections and `>>>` the end of the box. Every menu
+gets its pieces from a `Frame`: Myra's emoji frame, or the Unicode one when
+her emojis are not uploaded.
 """
 
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Final, TypeVar
 
@@ -142,27 +145,18 @@ def visual_width(text: str) -> float:
 
 
 # ---
-# The house style frame
+# The Unicode frame (house style v2.1, the fallback)
 # ---
 
 SEPARATOR: Final = "𝄡" + _STAFF * 22 + "𝄂"
 BOX_WIDTH: Final = 22
 SECTION_BREAK: Final = "╠═══⇕"
 RAIL: Final = "║"
-BLANK: Final = RAIL
 SUB_CLEF: Final = "𝄡𝄚𝄂"
 ITEM_CLEF: Final = "𝄡"
 HEADING_MARK: Final = f"{RAIL}{SUB_CLEF}𝄆"
 SUB_MARK: Final = f"{RAIL}{SUB_CLEF}"
 ITEM_MARK: Final = f"{RAIL}{ITEM_CLEF}"
-QUOTE: Final = "> "
-CONTINUATION: Final = f"{RAIL} "
-_MARKS: Final = (HEADING_MARK, SUB_MARK, ITEM_MARK, RAIL)
-
-
-def box_top(width: int = BOX_WIDTH) -> str:
-    """The top of a box `width` `═` wide."""
-    return "╔" + "═" * width + "╗"
 
 
 def box_bottom(width: int = BOX_WIDTH) -> str:
@@ -170,49 +164,9 @@ def box_bottom(width: int = BOX_WIDTH) -> str:
     return "╚" + "═" * width + "╝"
 
 
-def heading(name: str) -> str:
-    """A `#` line: a section heading, always bold."""
-    return f"{HEADING_MARK} **{name}**"
-
-
-def sub(text: str) -> str:
-    """A `##` line: a sub-heading or an information line."""
-    return f"{SUB_MARK} {text}"
-
-
-def item(text: str) -> str:
-    """A `###` line: one item."""
-    return f"{ITEM_MARK} {text}"
-
-
-def note(text: str) -> str:
-    """A plain line inside the box, with no clef."""
-    return f"{RAIL} {text}"
-
-
-def sections(*parts: Sequence[str]) -> list[str]:
-    """The lines of each part, with a section break between parts."""
-    lines: list[str] = []
-    for index, part in enumerate(parts):
-        if index:
-            lines.append(SECTION_BREAK)
-        lines.extend(part)
-    return lines
-
-
-def quoted(lines: Sequence[str]) -> str:
-    """`lines` as one Discord quote: each starts with `> `, an empty one too."""
-    return "\n".join(QUOTE + line for line in lines)
-
-
 # ---
-# Wrapping inside the box
+# Wrapping inside a frame
 # ---
-
-
-def box_room(width: int = BOX_WIDTH) -> float:
-    """How wide, in em, a line inside a box `width` `═` wide may look."""
-    return visual_width(box_top(width))
 
 
 def _is_emoji(token: str) -> bool:
@@ -261,19 +215,16 @@ def _joined(start: str, pieces: Sequence[tuple[str, str]]) -> str:
 
 
 def _wrap_line(
-    line: str,
-    room: float,
-    marks: Sequence[str] = _MARKS,
-    continuation: str = CONTINUATION,
+    line: str, room: float, marks: Sequence[str], continuation: str
 ) -> list[str]:
-    """One box line broken at word boundaries so each row fits `room`.
+    """One frame line broken at word boundaries so each row fits `room`.
 
     `marks` are the frame's line starts, longest first, and rows after the
     first start with `continuation`. A row that runs out of room breaks
     before its last `・` part, so each `・` part keeps together, unless that
     would leave the first row less than half full; otherwise it breaks before
     the word that did not fit. A word that alone is too wide stays whole on its
-    row. A line that is not inside a box is left as it is.
+    row. A line that does not start with one of `marks` is left as it is.
     """
     mark = next((mark for mark in marks if line.startswith(mark)), None)
     if visual_width(line) <= room or mark is None:
@@ -306,18 +257,6 @@ def _wrap_line(
     return [*rows, _joined(start, row)]
 
 
-def wrap(text: str, width: int = BOX_WIDTH) -> str:
-    """Each box line of `text` broken so nothing passes a box `width` wide."""
-    room = box_room(width)
-    return "\n".join(row for line in text.split("\n") for row in _wrap_line(line, room))
-
-
-def wrapped(lines: Sequence[str], width: int = BOX_WIDTH) -> list[str]:
-    """`lines`, each wrapped to a box `width` wide; a wrapped entry keeps its rows
-    together as one entry, so a list cut short drops whole entries."""
-    return [wrap(line, width) for line in lines]
-
-
 # ---
 # The emoji frame (house style v3)
 # ---
@@ -331,7 +270,7 @@ FRAME_EMOJIS: Final = (
     "rest_bar",
     "clef",
 )
-_BOTTOM_BARS: Final = 16
+_BOTTOM_BARS: Final = 8
 
 
 @dataclass(frozen=True)
@@ -397,6 +336,10 @@ class Frame:
             for row in _wrap_line(line, self.room, marks, self.continuation)
         )
 
+    def wrapped(self, lines: Sequence[str]) -> list[str]:
+        """Each of `lines` wrapped on its own, so a long one stays one entry."""
+        return [self.wrap(line) for line in lines]
+
 
 def emoji_frame(
     edge: str, header: str, header2: str, header3: str, rest_bar: str, clef: str
@@ -424,6 +367,18 @@ UNICODE_FRAME: Final = Frame(
     bottom=box_bottom(),
     divider=SEPARATOR,
 )
+
+
+def frame_of(emoji: Callable[[str], str]) -> Frame:
+    """Myra's emoji frame from Wisp's app emojis, or the Unicode frame.
+
+    `emoji` gives an app emoji's text by name, or "" when it is not uploaded.
+    The frame is all or nothing: with any of its emojis not uploaded, the
+    whole box falls back to the Unicode pieces, so a half-emoji box never
+    shows.
+    """
+    pieces = [emoji(name) for name in FRAME_EMOJIS]
+    return emoji_frame(*pieces) if all(pieces) else UNICODE_FRAME
 
 
 # ---

@@ -1,9 +1,12 @@
-"""Text of Wisp's status card, in Myra's quote layout.
+"""Text of Wisp's status card, in Myra's emoji frame (house style v3).
 
-The card is one Discord quote with her Wisp Stats title picture attached, so
-the picture shows under it and closes it. Each line is copied from her draft
-of 2026-10-31, blank lines and line breaks included, apart from the Right now
-block under the day and the one line pointing at the buttons under the card.
+The card sits under her Wisp Stats title picture and closes with the frame's
+bottom line. Its lines follow her draft of 2026-10-31, blank lines included,
+apart from the Right now block under the day and the one line pointing at
+the buttons under the card. Her music-symbol marks are the frame's pieces
+now, and her Mathematical Bold words are plain capitals: some phones show
+neither. The frame is narrow enough for a phone, so only the day keeps her
+flourish; on the longer lines it would wrap onto a row of its own.
 """
 
 from collections.abc import Callable
@@ -29,17 +32,14 @@ from wisp.rules import (
     WELLBEING_MAX,
     Chore,
 )
-from wisp.text import ITEM_CLEF, SUB_CLEF, channel_or, count, quoted, round_half_up
+from wisp.text import Frame, channel_or, count, round_half_up
 
 # ---
 # Layout
 # ---
 
-WAITING: Final = quoted(
-    ["", f"{SUB_CLEF} No Wisp right now. Waiting for staff to begin again."]
-)
-
-_RIGHT_NOW: Final = f"{SUB_CLEF} **right now**"
+_WAITING: Final = "No Wisp right now. Waiting for staff to begin again."
+_RIGHT_NOW: Final = "Right now"
 _LONELY: Final = "lonely: chat, play, poke or give him a snack or gift"
 _CHORE_NEEDS: Final = {
     Chore.MESS: "a mess is waiting in his House",
@@ -51,7 +51,6 @@ _HAPPY: Final = "happy"
 
 _PERCENT_PER_PIECE: Final = 10
 _LEFT_FROM: Final = 5
-_MATH_BOLD_A: Final = 0x1D400
 
 Emoji = Callable[[str], str]
 
@@ -96,8 +95,15 @@ class CardFacts:
 # ---
 
 
-def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> str:
-    """The status card for an egg, a hatching egg or a living Wisp.
+def waiting(frame: Frame) -> str:
+    """The card while there is no Wisp: one line, then the frame closes."""
+    return "\n".join([frame.sub(_WAITING), frame.blank, frame.bottom])
+
+
+def render_status(
+    life: Life, now: datetime, facts: CardFacts, emoji: Emoji, frame: Frame
+) -> str:
+    """The status card in `frame` for an egg, a hatching egg or a living Wisp.
 
     `emoji` gives an app emoji's text by name, or "" when it is not uploaded.
 
@@ -108,39 +114,47 @@ def render_status(life: Life, now: datetime, facts: CardFacts, emoji: Emoji) -> 
         warmth = 100 - _share(life.phase_seconds, EGG_WARMTH.total_seconds())
         hatching = _share(life.egg_food, EGG_FOOD_NEEDED)
         bars = [
-            *_meter("Warmth", warmth, HEALTH_BAR, emoji),
-            *_meter("Hatching", hatching, EGG_BAR, emoji),
+            *_meter(frame, "Warmth", warmth, HEALTH_BAR, emoji),
+            *_meter(frame, "Hatching", hatching, EGG_BAR, emoji),
         ]
-        return _card([], bars, "the egg", "EGG", facts)
+        return _card(frame, [], bars, "the egg", "Egg", facts)
     if life.phase is Phase.HATCHING:
         emerging = _share(life.phase_seconds, HATCHING_TIME.total_seconds())
-        bars = _meter("Emerging", emerging, EGG_BAR, emoji)
-        return _card([], bars, "the egg", "HATCHING", facts)
+        bars = _meter(frame, "Emerging", emerging, EGG_BAR, emoji)
+        return _card(frame, [], bars, "the egg", "Hatching", facts)
     if life.phase is Phase.ALIVE:
-        heading = [f"{SUB_CLEF}・・𝐃𝐀𝐘 **{age_days(life, now)}**・♫ ♪. ♫‿♪"]
+        heading = [frame.heading(f"Day {age_days(life, now)} ・ ♫ ♪. ♫‿♪")]
         if is_sick(life):
             hours = hours_left(life.cold_left)
-            heading.append(f"{SUB_CLEF} he has Monster Pox・{hours} h left")
+            heading.append(frame.sub(f"he has Monster Pox ・ {hours} h left"))
         if has_sniffles(life):
             hours = hours_left(life.sniffles_left)
-            heading.append(f"{SUB_CLEF} he has a cold・{hours} h left")
+            heading.append(frame.sub(f"he has a cold ・ {hours} h left"))
         health = life.health / HEALTH_MAX * 100
         wellbeing = life.wellbeing / WELLBEING_MAX * 100
-        heading.extend(["", *_right_now(life, health, wellbeing, now, facts)])
+        heading.extend(
+            [frame.blank, *_right_now(frame, life, health, wellbeing, now, facts)]
+        )
         bars = [
-            *_meter("Health", health, HEALTH_BAR, emoji),
-            *_meter("Wellbeing", wellbeing, WELLBEING_BAR, emoji),
+            *_meter(frame, "Health", health, HEALTH_BAR, emoji),
+            *_meter(frame, "Wellbeing", wellbeing, WELLBEING_BAR, emoji),
         ]
-        return _card(heading, bars, "him", life.stage.label.upper(), facts)
+        return _card(frame, heading, bars, "him", life.stage.label, facts)
     raise ValueError(f"A finished life has no status card (phase {life.phase}).")
 
 
 def _card(
-    heading: list[str], bars: list[str], poke: str, stage: str, facts: CardFacts
+    frame: Frame,
+    heading: list[str],
+    bars: list[str],
+    poke: str,
+    stage: str,
+    facts: CardFacts,
 ) -> str:
-    """Myra's quote: the heading, the bars, the facts, the hints and the stage.
+    """Myra's card: the heading, the bars, the facts, the hints and the stage.
 
-    An egg has no heading, so its bars follow the first blank line.
+    An egg has no heading, so its card opens with its bars. Every line is
+    wrapped to fit the frame.
     """
     people = "person" if facts.fed_today == 1 else "people"
     tracks = (
@@ -148,30 +162,33 @@ def _card(
         f"{count(facts.suno_tracks, 'Suno track')}"
     )
     house = "his House" if facts.house_id is None else f"<#{facts.house_id}>"
-    return quoted(
-        [
-            "",
-            *([*heading, ""] if heading else []),
-            *bars,
-            "",
-            f"{SUB_CLEF} Fed by {facts.fed_today:02d} {people} today・♬‿♩. ♪",
-            "",
-            f"{SUB_CLEF} {tracks} ・♪‿♫ ♪",
-            "",
-            f"{ITEM_CLEF} Poke {poke} or tag <@{facts.wisp_id}> in {house} "
-            "to say hi!!",
-            "",
-            f"{ITEM_CLEF} feed Wisp, shop the Vault and play",
-            " with the buttons below!",
-            "",
-            "",
-            f"{SUB_CLEF}・・**life stage**・{_bold(stage)}・♪‿♪ ♫.",
-        ]
-    )
+    lines = [
+        *([*heading, frame.blank] if heading else []),
+        *bars,
+        frame.blank,
+        frame.sub(f"Fed by {facts.fed_today:02d} {people} today"),
+        frame.blank,
+        frame.sub(tracks),
+        frame.blank,
+        frame.item(f"Poke {poke} or tag <@{facts.wisp_id}> in {house} to say hi!!"),
+        frame.blank,
+        frame.item("feed Wisp, shop the Vault and play with the buttons below!"),
+        frame.blank,
+        frame.blank,
+        frame.heading(f"Life stage ・ {stage}"),
+        frame.blank,
+        frame.bottom,
+    ]
+    return "\n".join(frame.wrapped(lines))
 
 
 def _right_now(
-    life: Life, health: float, wellbeing: float, now: datetime, facts: CardFacts
+    frame: Frame,
+    life: Life,
+    health: float,
+    wellbeing: float,
+    now: datetime,
+    facts: CardFacts,
 ) -> list[str]:
     """The Right now block: what he needs, worst first, then his nap.
 
@@ -197,9 +214,9 @@ def _right_now(
         *(need for chore, need in _CHORE_NEEDS.items() if is_open(life, chore)),
     ]
     return [
-        _RIGHT_NOW,
-        *(f"{ITEM_CLEF} {need}" for need in needs or [_HAPPY]),
-        f"{SUB_CLEF} {_nap_line(life, now)}",
+        frame.heading(_RIGHT_NOW),
+        *(frame.item(need) for need in needs or [_HAPPY]),
+        frame.sub(_nap_line(life, now)),
     ]
 
 
@@ -220,17 +237,16 @@ def _nap_line(life: Life, now: datetime) -> str:
 
 
 def bar(value: float, full: str, left: str) -> str:
-    """A meter for a value from 0 to 100, then `│` and the percent.
+    """A meter for a value from 0 to 100, then a space and the percent.
 
     The percent is rounded half up. There is one `full` piece per whole 10% of
-    it, and one `left` piece when its last digit is 5 to 9. A bar without a
-    `left` piece, including one whose `left` is not uploaded, has a space
-    before the `│`.
+    it, and one `left` piece when its last digit is 5 to 9 and it is
+    uploaded. With no pieces it is the percent alone.
     """
     percent = _shown_percent(value)
     tens, ones = divmod(percent, _PERCENT_PER_PIECE)
-    end = left if ones >= _LEFT_FROM and left else " "
-    return f"{full * tens}{end}│{percent}%"
+    pieces = full * tens + (left if ones >= _LEFT_FROM else "")
+    return f"{pieces} {percent}%" if pieces else f"{percent}%"
 
 
 def _shown_percent(value: float) -> int:
@@ -238,17 +254,16 @@ def _shown_percent(value: float) -> int:
     return round_half_up(min(max(value, 0.0), 100.0))
 
 
-def _bold(text: str) -> str:
-    """`text` with A to Z in Mathematical Bold capitals; other characters kept."""
-    return "".join(
-        chr(_MATH_BOLD_A + ord(letter) - ord("A")) if "A" <= letter <= "Z" else letter
-        for letter in text
-    )
+def _meter(
+    frame: Frame, label: str, value: float, meter: BarEmoji, emoji: Emoji
+) -> list[str]:
+    """The label's item, then the bar on its own line under it.
 
-
-def _meter(label: str, value: float, meter: BarEmoji, emoji: Emoji) -> list[str]:
-    """The label's line, then the bar on its own line under it."""
-    return [f"{ITEM_CLEF} {label}", bar(value, emoji(meter.full), emoji(meter.left))]
+    The bar has no frame edge, as it had no clef in Myra's quote: a full bar
+    with an edge would be wider than the frame's bottom line and break on a
+    phone. Wrapping leaves a line without a mark alone, so it never breaks.
+    """
+    return [frame.item(label), bar(value, emoji(meter.full), emoji(meter.left))]
 
 
 def _share(part: float, whole: float) -> float:

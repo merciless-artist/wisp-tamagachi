@@ -385,8 +385,10 @@ Member commands:
 - `/wisp vault` (also the Status post's **Vault** button) is the shop: buy
   snacks with your wisp coins (WC, the points you can spend), get a badge, or
   give Wisp a gift from one of seven collections: pick a collection, then a
-  gift. He might not like it. It is one private Components V2 message with each
-  menu under its section.
+  gift. He might not like it. It is two private Components V2 messages, one
+  under the other (snacks and medicine, then badges, magazines and gifts),
+  with each menu under its section: in Myra's emoji frame it is too long for
+  one message.
 - `/wisp snackpack` (also the **Snack Pack** button) shows your Snack Pack:
   your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
   any magazine covers you bought and how many drawings Wisp has made you, with
@@ -627,9 +629,9 @@ posts text only.
 - `stats_title.png`, `leaderboard_title.png`, `lunchbox_title.png`,
   `snack_pack_title.png` and `vault_title.png`, Myra's header pictures above
   the status card, the Leaderboard, Wisp's Lunchbox, the Snack Pack and the
-  Vault, and `box_footer.png`, the footer under the menus still in the old
-  frame (not the status card, which closes with its own header, or the
-  lunchbox, which closes with the emoji frame's `clef` line).
+  Vault. Each menu is one message: its header picture, then the menu in the
+  emoji frame, closed by the frame's `clef` line, then its buttons. The old
+  footer picture, `box_footer.png`, is no longer used.
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
   `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,

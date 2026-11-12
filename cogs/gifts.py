@@ -41,31 +41,19 @@ from wisp.rules import (
     Gift,
     GiftCollection,
 )
-from wisp.text import (
-    BOX_WIDTH,
-    Frame,
-    heading,
-    item,
-    meter_receipt,
-    note,
-    richest,
-    text_length,
-    with_emoji,
-    wrap,
-    wrapped,
-)
+from wisp.text import Frame, meter_receipt, richest, text_length, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _BACK_IN_VAULT: Final = "♪ It's back in the ViiBR Vault."
-_GAMBLE: Final = note("ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ")
-_KEPT_TODAY: Final = note(
+_GAMBLE: Final = "ᵗʰᵉˢᵉ ᵃʳᵉ ᵃ ᵍᵃᵐᵇˡᵉ... ʰᵉ ᵐⁱᵍʰᵗ ⁿᵒᵗ ʷᵃⁿᵗ ⁱᵗ ᵗʰᵃᵗ ᵈᵃʸ"
+_KEPT_TODAY: Final = (
     "Wisp already picked his treasure today. "
     "Anything you give him goes back to the Vault."
 )
-_HATCH_FIRST: Final = item("He takes gifts once he has hatched")
+_HATCH_FIRST: Final = "He takes gifts once he has hatched"
 _MOMENTS: Final = {
     Outcome.KEPT: Moment.GIFT_KEPT,
     Outcome.PASSED: Moment.GIFT_PASSED,
@@ -153,28 +141,29 @@ def _stock(
 
 
 def gift_section(
-    bot: "WispBot", state: GiftState | None, room: int, width: int = BOX_WIDTH
+    bot: "WispBot", frame: Frame, state: GiftState | None, room: int
 ) -> list[str]:
-    """The Vault's Gifts lines: each collection's stock, or why it is shut.
+    """The Vault's Gifts lines in `frame`: each collection's stock, or why it is shut.
 
     Once he has kept a gift today, a line says so before anyone pays. The
-    lines are wrapped to a box `width` wide and take at most `room`, counted
-    by `text_length`: a collection shows each gift while there is room, else
-    how many are left.
+    lines are wrapped to fit the frame and take at most `room`, counted by
+    `text_length`: a collection shows each gift while there is room, else how
+    many are left.
     """
     price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{GIFT_COST} WC each")
-    head = [f"{heading('Gifts')}・{price}", _GAMBLE]
+    head = [f"{frame.heading('Gifts')} ・ {price}", frame.note(_GAMBLE)]
     if state is None:
-        return wrapped([*head, _HATCH_FIRST], width)
+        return frame.wrapped([*head, frame.item(_HATCH_FIRST)])
     if state.kept_today:
-        head.append(_KEPT_TODAY)
-    head = wrapped(head, width)
+        head.append(frame.note(_KEPT_TODAY))
+    head = frame.wrapped(head)
 
     def lines(rich: bool) -> list[str]:
         return [
-            wrap(
-                item(f"{collection.name}: {_stock(bot, state, collection, rich=rich)}"),
-                width,
+            frame.wrap(
+                frame.item(
+                    f"{collection.name}: {_stock(bot, state, collection, rich=rich)}"
+                )
             )
             for collection in GIFT_COLLECTIONS
         ]

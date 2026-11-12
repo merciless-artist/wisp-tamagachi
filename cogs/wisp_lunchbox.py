@@ -13,13 +13,13 @@ from cogs.announce import display_name, say_in_mealtime
 from cogs.channels import in_channel, may_post_in, where_of
 from cogs.gifts import collection_lines
 from cogs.groups import require_guild, wisp
-from cogs.headers import frame_of, send_framed
+from cogs.headers import send_framed
 from cogs.players import bot_of, press
 from db.lunchbox import Favorite
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, SNACK_BY_KEY
-from wisp.text import LAYOUT_TEXT_LIMIT, Frame, fit, text_length, with_emoji
+from wisp.text import LAYOUT_TEXT_LIMIT, Frame, fit, frame_of, text_length, with_emoji
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -116,7 +116,7 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     oldest songs go when even the collections' short lines do not fit. The
     box always closes, and every line is wrapped to fit it.
     """
-    frame = frame_of(bot)
+    frame = frame_of(bot.emoji)
     favorites = await bot.wisp_lunchbox.favorites(guild_id, FAVORITE_SONGS_SHOWN)
     life = await bot.lives.current(guild_id)
     songs = [

@@ -31,6 +31,7 @@ from cogs.chores import post_chores
 from cogs.drawings import DailyDrawings
 from cogs.feeding import refresh_rules
 from cogs.groups import require_guild
+from cogs.headers import Buttons
 from cogs.pictures import life_image
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -41,11 +42,11 @@ from cogs.players import (
     test_press,
 )
 from cogs.staff import StaffContext, guild_of, is_staff, reply
-from cogs.status_card import show_status, status_view
+from cogs.status_card import show_status, status_buttons
 from cogs.studio import refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
-from wisp.card import WAITING
+from wisp.card import waiting
 from wisp.chores import ChoreEvent, is_napping, tick_chores
 from wisp.life import (
     Event,
@@ -59,6 +60,7 @@ from wisp.life import (
 )
 from wisp.lines import Moment
 from wisp.rules import PAID_SNACKS, PEOPLE_WINDOW, QUIET_AFTER, TICK_EVERY
+from wisp.text import frame_of
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -279,22 +281,23 @@ async def show_status_card(
 ) -> None:
     """Show `life` in the Status post: his picture first, then the card.
 
-    While he goes on it is his live card with its buttons (`status_view`),
+    While he goes on it is his live card with its buttons (`status_buttons`),
     under his current picture. Once his life is over it says Wisp is
     waiting for staff to begin again and carries only the Begin again button,
     so staff always have one to press even when the House's question was never
     posted or is gone; the post shows the picture of how his life ended, or no
     picture when that is missing.
     """
-    view: discord.ui.View
+    rows: Buttons
     image: Path | None
     if is_over(life):
-        content, view, image = WAITING, begin_view(), ending_image(life)
+        content, image = waiting(frame_of(bot.emoji)), ending_image(life)
+        rows = [[begin_button()]]
     else:
         content = await status_text(bot, guild_id, life, now)
-        view, image = status_view(), life_image(life)
+        rows, image = status_buttons(), life_image(life)
     await show_status(
-        bot, guild_id, content, view, image, clear_image=image is None and is_over(life)
+        bot, guild_id, content, rows, image, clear_image=image is None and is_over(life)
     )
 
 
@@ -377,11 +380,16 @@ async def _show_egg(bot: "WispBot", guild_id: int, egg: Life, now: datetime) -> 
 
 
 async def _retire_question(interaction: discord.Interaction) -> None:
-    """Disable the pressed question's button; a failure is reported, never raised."""
-    if interaction.message is None:
+    """Disable the pressed question's button; a failure is reported, never raised.
+
+    A press on the waiting status card, a Components V2 message, leaves it
+    alone: the next card shown there replaces its button.
+    """
+    message = interaction.message
+    if message is None or message.flags.components_v2:
         return
     try:
-        await interaction.message.edit(view=begin_view(disabled=True))
+        await message.edit(view=begin_view(disabled=True))
     except discord.HTTPException as error:
         await bot_of(interaction).report_error(
             interaction.guild, _BEGIN_CONTEXT, error, where=where_of(interaction)

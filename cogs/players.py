@@ -30,7 +30,7 @@ from wisp.rules import (
     WELLBEING_PER_CHAT,
     WELLBEING_PER_POKE,
 )
-from wisp.text import USER_ERROR, any_role, count, with_emoji
+from wisp.text import USER_ERROR, any_role, count, frame_of, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
 
 
 async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) -> str:
-    """Render the status card for a life that is not over.
+    """Render the status card for a life that is not over, in Myra's emoji frame.
 
     Fed today counts the members who fed Wisp or gave him a snack since UTC
     midnight; the tracks are those fed on the same UTC day.
@@ -68,7 +68,7 @@ async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) 
         house_id=settings.house_channel_id,
         tracks_id=settings.tracks_channel_id,
     )
-    return render_status(life, now, facts, bot.emoji)
+    return render_status(life, now, facts, bot.emoji, frame_of(bot.emoji))
 
 
 # ---

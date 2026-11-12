@@ -28,7 +28,7 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import USER_ERROR, count
+from wisp.text import UNICODE_FRAME, USER_ERROR, count
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -38,6 +38,9 @@ QUALIFYING_ROLE = 555
 WISP_ID = 5000
 WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
+# Without the frame emojis uploaded, the card is in the Unicode frame.
+FRAME = UNICODE_FRAME
+
 
 # ---
 # Fakes
@@ -172,8 +175,9 @@ async def test_status_text_shows_the_card(bot: app.WispBot) -> None:
 
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
-    assert "**life stage**・𝐁𝐀𝐁𝐘・" in text
-    assert f"tag <@{WISP_ID}> in his House to say hi!!" in text
+    assert "LIFE STAGE ・ BABY" in text
+    poke = f"Poke him or tag <@{WISP_ID}> in his House to say hi!!"
+    assert FRAME.wrap(FRAME.item(poke)) in text
 
 
 async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) -> None:
@@ -207,9 +211,10 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
 
     text = await players.status_text(bot, GUILD_ID, life, now)
 
-    assert "> 𝄡𝄚𝄂 Fed by 02 people today・♬‿♩. ♪" in text.splitlines()
-    assert "> 𝄡𝄚𝄂 1 ViiBR track and 2 Suno tracks ・♪‿♫ ♪" in text.splitlines()
-    assert f"tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!" in text
+    assert FRAME.wrap(FRAME.sub("Fed by 02 people today")) in text
+    assert FRAME.wrap(FRAME.sub("1 ViiBR track and 2 Suno tracks")) in text
+    poke = f"Poke him or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!"
+    assert FRAME.wrap(FRAME.item(poke)) in text
 
 
 async def test_status_text_points_a_hungry_wisp_at_the_track_drop(
@@ -222,7 +227,7 @@ async def test_status_text_points_a_hungry_wisp_at_the_track_drop(
 
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
-    assert f"> 𝄡 hungry: drop a track in <#{tracks_id}>" in text.splitlines()
+    assert FRAME.wrap(FRAME.item(f"hungry: drop a track in <#{tracks_id}>")) in text
 
 
 # ---
@@ -450,8 +455,8 @@ async def test_the_status_card_shows_health_and_wellbeing_only(
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     lines = text.splitlines()
-    assert lines[lines.index("> 𝄡 Wellbeing") + 1] == f"> {bar(35.0, '', '')}"
-    assert "> 𝄡 Health" in lines
+    assert lines[lines.index(FRAME.item("Wellbeing")) + 1] == bar(35.0, "", "")
+    assert FRAME.item("Health") in lines
     assert "Mood" not in text
 
 

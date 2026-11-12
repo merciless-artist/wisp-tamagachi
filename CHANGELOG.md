@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-11-11 (Every menu in Myra's emoji frame)
+
+- The frame's bottom line is shorter: the `clef`, 8 `header2` and the
+  `header` (11 emojis with the edge, was 19), so it stays on one line on a
+  phone, which fits about 12 inline emojis. Lines inside the frame wrap
+  sooner to match.
+- The Snack Pack, the Vault, the Leaderboard (posted card and `/wisp board`)
+  and the status card are in the emoji frame, each one Components V2 message:
+  Myra's header picture, the menu, the `clef` line, then its buttons. The
+  footer picture is gone from all of them. With any frame emoji missing they
+  fall back to the Unicode frame, as the lunchbox does.
+- The Vault is two messages, one right under the other: in the emoji frame
+  every line carries about 64 characters of emoji text, and with every emoji
+  uploaded the whole Vault measured 5,074 characters, over Discord's 4,000.
+  Part one has the coins, Snacks and Medicine; part two has Badges,
+  Magazines, Gifts and the bottom line, with room for every gift's emoji. A
+  menu redraws only its own part, and after a badge, magazine or gift, part
+  two shows your new coin count under its note.
+- The plain divider in the rules post and the Rhyme Duel summary is the
+  emoji divider (the `clef` line without its edge) once the frame emojis are
+  up. The rules post is edited to it on the next refresh.
+- Items lead with their emoji, as in the lunchbox, and use the display
+  names: `Cloud Wave ・ 3 WC`, `Team ViiBR ・ 250 WC`. The `│` and its padding
+  in the Vault are gone.
+- The status card keeps Myra's lines with the frame's marks. Her bold
+  letters (`𝐃𝐀𝐘`, `𝐁𝐀𝐁𝐘`) are plain capitals, since some phones cannot show
+  them, and the flourishes that would wrap onto their own row are gone (the
+  day keeps its own). The meter bars sit on their own line with no edge, so
+  a full bar never breaks, and the `│` before the percent is a space.
+- The pinned cards used to be two messages, a header picture and the card.
+  The first time each is shown now, the new one-message card is posted and
+  both old messages are deleted; after that the status card is edited in
+  place and the Leaderboard reposted only when its text changes.
+- The menus have 4,000 characters now, so the Snack Pack lists far more
+  keepsakes and badges before "and N more".
+
 ## 2026-11-11 (The lunchbox in Myra's emoji frame)
 
 - The lunchbox uses Myra's emoji frame instead of the Unicode one, since

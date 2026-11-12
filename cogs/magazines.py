@@ -14,7 +14,7 @@ from cogs.assets import ASSETS_DIR
 from db.magazines import OwnedMagazine
 from wisp.life import Life, Phase
 from wisp.rules import MAGAZINE_BY_KEY, MAGAZINE_COST, MAGAZINES, Magazine, Stage
-from wisp.text import heading, item, with_emoji
+from wisp.text import Frame, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -52,13 +52,14 @@ async def magazines_owned(
 # ---
 
 
-def magazine_section(bot: "WispBot", owned: set[str]) -> list[str]:
-    """The Vault's Magazines lines: each cover's name and price, then any owned."""
+def magazine_section(bot: "WispBot", frame: Frame, owned: set[str]) -> list[str]:
+    """The Vault's Magazines lines in `frame`: each cover's name and price, then
+    any owned."""
     price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{MAGAZINE_COST} WC")
-    lines = [heading("Magazines")]
+    lines = [frame.heading("Magazines")]
     for magazine in MAGAZINES:
-        line = item(f"{magazine.name}・{price}")
-        lines.append(f"{line}・{OWNED}" if magazine.key in owned else line)
+        line = frame.item(f"{magazine.name} ・ {price}")
+        lines.append(f"{line} ・ {OWNED}" if magazine.key in owned else line)
     return lines
 
 
@@ -78,14 +79,15 @@ def magazine_options(owned: set[str]) -> list[discord.SelectOption]:
 # ---
 
 
-def magazine_pack_lines(owned: list[OwnedMagazine]) -> list[str]:
-    """One line per magazine the member ever bought, in the order given.
+def magazine_pack_lines(frame: Frame, owned: list[OwnedMagazine]) -> list[str]:
+    """One item of `frame` per magazine the member ever bought, in the order given.
 
     Each reads "Wisp v3's VIIBRATIONS cover". A cover no longer sold reads as
     its stored key's words.
     """
     return [
-        item(f"Wisp v{bought.version}'s {_name(bought.magazine)}") for bought in owned
+        frame.item(f"Wisp v{bought.version}'s {_name(bought.magazine)}")
+        for bought in owned
     ]
 
 

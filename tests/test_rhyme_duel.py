@@ -37,7 +37,14 @@ from wisp.rules import (
     WELLBEING_PER_PLAY,
     Stage,
 )
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, USER_ERROR, count, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SEPARATOR,
+    UNICODE_FRAME,
+    USER_ERROR,
+    count,
+    text_length,
+)
 
 GUILD_ID = 100
 HOUSE_ID = 20
@@ -817,7 +824,8 @@ async def test_new_best_goes_on_the_vault(
 
     vault.assert_awaited_once_with(bot, GUILD_ID)
     board = await render_leaderboard(bot, GUILD_ID, discord.utils.utcnow())
-    assert f"║𝄡𝄚𝄂𝄆 **Rhyme Duel**\n║𝄡 1. <@{USER_ID}> ・ 2 points" in board
+    best = UNICODE_FRAME.item(f"1. <@{USER_ID}> ・ 2 points")
+    assert f"{UNICODE_FRAME.heading('Rhyme Duel')}\n{best}" in board
 
     await duel(bot, server)
 

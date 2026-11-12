@@ -7,7 +7,6 @@ import asyncio
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -25,16 +24,11 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
-from tests.layout import assert_fits_its_box, entries
+from tests.layout import assert_fits_its_frame, entries, layout_text
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import (
-    BLANK,
-    MESSAGE_LIMIT,
-    SECTION_BREAK,
-    text_length,
-)
+from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -44,26 +38,26 @@ STATUS_ID = 60
 VAULT_MESSAGE_ID = 778
 VAULT_TITLE_ID = 777
 POSTED_ID = 779
-NEW_TITLE_ID = 780
 FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-BOX_BOTTOM = "╚══════════════════════╝"
-BOX_TOP = "╔══════════════════════╗"
+# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+FRAME = UNICODE_FRAME
+BLANK = FRAME.blank
 INTRO = [
-    "║𝄡𝄚𝄂 The leaderboard.",
+    FRAME.sub("The leaderboard."),
     BLANK,
     "║𝄡 Shop the Vault with the button on",
     "║ the Status post.",
     BLANK,
 ]
-SPEC_LINES = frozenset(
-    (Path(__file__).parent.parent / "DOCS" / "specs" / "2026-10-27-house-style.md")
-    .read_bytes()
-    .decode("utf-8")
-    .splitlines()
-)
+HEADER = "leaderboard_title.png"
+
+
+def text_display(content: str) -> discord.TextDisplay:
+    return discord.TextDisplay({"type": 10, "content": content})
+
 
 # ---
 # Fakes
@@ -88,7 +82,7 @@ class FakeServer:
         self.starter.attachments = ["vault.png"]
         self.starter.edit = AsyncMock()
         self.old_card = MagicMock(spec=discord.Message)
-        self.old_card.content = ""
+        self.old_card.components = []
         self.vault.fetch_message = AsyncMock(side_effect=self.fetch_message)
         self.deleted: list[int] = []
         self.delete_errors: dict[int, discord.HTTPException] = {}
@@ -98,13 +92,19 @@ class FakeServer:
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
+    def shows(self, text: str) -> None:
+        """Make the stored card a posted layout showing `text`."""
+        self.old_card.components = [text_display(text)]
+
     def send(self, *args: Any, **kwargs: Any) -> MagicMock:
-        if self.fail_card and args:
+        view = kwargs.get("view")
+        if self.fail_card and view is not None:
             raise discord.Forbidden(MagicMock(status=403), "Missing Permissions")
-        sent = MagicMock(
-            id=NEW_TITLE_ID if "file" in kwargs and not args else POSTED_ID,
-            pin=AsyncMock(),
-            content=args[0] if args else None,
+        sent = MagicMock(id=POSTED_ID, pin=AsyncMock())
+        sent.components = (
+            [text_display(layout_text(view))]
+            if isinstance(view, discord.ui.LayoutView)
+            else []
         )
         sent.delete = AsyncMock(side_effect=lambda: self.deleted.append(sent.id))
         self.posted.append(sent)
@@ -186,18 +186,20 @@ async def run(command: Any, *args: Any) -> None:
 def followups(interaction: MagicMock) -> list[str]:
     """Texts sent as ephemeral follow-ups that cannot ping anyone.
 
-    The Leaderboard header, sent on its own above the board, is skipped.
+    The board is a layout under its header picture and is read as its text.
     """
     sent = []
     for call in interaction.followup.send.await_args_list:
         assert call.kwargs["ephemeral"] is True
-        if not call.args:
-            assert call.kwargs["file"].filename == "leaderboard_title.png"
-            continue
         assert call.kwargs["allowed_mentions"].to_dict() == (
             discord.AllowedMentions.none().to_dict()
         )
-        sent.append(call.args[0])
+        view = call.kwargs.get("view")
+        if isinstance(view, discord.ui.LayoutView):
+            assert [file.filename for file in call.kwargs["files"]] == [HEADER]
+            sent.append(layout_text(view))
+        else:
+            sent.append(call.args[0])
     return sent
 
 
@@ -257,12 +259,12 @@ async def test_board_activates_once(bot: app.WispBot) -> None:
     first.response.defer.assert_awaited_once_with(ephemeral=True)
     radar, board = followups(first)
     assert "radar" in radar
-    assert board.startswith(BOX_TOP)
+    assert board.startswith(INTRO[0])
 
     second = make_interaction(bot)
     await run(vault.wisp_board, second)
     (board_only,) = followups(second)
-    assert board_only.startswith(BOX_TOP)
+    assert board_only.startswith(INTRO[0])
     assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
 
 
@@ -274,11 +276,11 @@ async def test_board_puts_the_buttons_on_the_leaderboard_only(
 
     await run(vault.wisp_board, interaction)
 
-    radar_call, header_call, board_call = interaction.followup.send.await_args_list
+    radar_call, board_call = interaction.followup.send.await_args_list
     assert "view" not in radar_call.kwargs
-    assert "view" not in header_call.kwargs
-    view = board_call.kwargs["view"]
-    shop, snack_pack = view.children
+    *_, row = board_call.kwargs["view"].children
+    assert isinstance(row, discord.ui.ActionRow)
+    shop, snack_pack = row.children
     assert isinstance(shop, ShopButton)
     assert isinstance(snack_pack, SnackPackButton)
 
@@ -291,20 +293,20 @@ async def test_board_works_before_any_life_exists(bot: app.WispBot) -> None:
     assert "Nobody" in followups(interaction)[-1]
 
 
-async def test_board_shows_myras_header_above_and_footer_under_it(
-    bot: app.WispBot,
-) -> None:
+async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
     await lay(bot)
     interaction = make_interaction(bot)
     await bot.players.activate(GUILD_ID, FIRST_USER, NOW)
 
     await run(vault.wisp_board, interaction)
 
-    header_call, board_call = interaction.followup.send.await_args_list
-    assert header_call.args == ()
-    assert header_call.kwargs["file"].filename == "leaderboard_title.png"
-    assert board_call.args[0].startswith(BOX_TOP)
-    assert board_call.kwargs["file"].filename == "box_footer.png"
+    (board_call,) = interaction.followup.send.await_args_list
+    assert board_call.args == ()
+    header, board, _ = board_call.kwargs["view"].children
+    assert isinstance(header, discord.ui.MediaGallery)
+    assert header.items[0].media.url == f"attachment://{HEADER}"
+    assert isinstance(board, discord.ui.TextDisplay)
+    assert board.content.splitlines()[-1] == FRAME.bottom
 
 
 # ---
@@ -427,7 +429,7 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
 def section(text: str, name: str) -> list[str]:
     """The entries under one `#` heading, up to the blank line that ends it."""
     lines = text.splitlines()
-    start = lines.index(f"║𝄡𝄚𝄂𝄆 **{name}**") + 1
+    start = lines.index(FRAME.heading(name)) + 1
     return entries(lines[start : lines.index(BLANK, start)])
 
 
@@ -435,11 +437,9 @@ async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     lines = text.splitlines()
-    assert lines[:6] == [BOX_TOP, *INTRO]
-    assert lines[-2:] == [BLANK, BOX_BOTTOM]
-    for line in (lines[0], lines[-1]):
-        assert line in SPEC_LINES, line
-    assert_fits_its_box(text)
+    assert lines[:5] == INTRO
+    assert lines[-2:] == [BLANK, FRAME.bottom]
+    assert_fits_its_frame(text, FRAME)
 
 
 async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
@@ -486,25 +486,25 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
 ) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text.splitlines()[1:] == [
+    assert text.splitlines() == [
         *INTRO,
-        SECTION_BREAK,
-        "║𝄡𝄚𝄂𝄆 **This life**",
+        FRAME.section_break,
+        FRAME.heading("This life"),
         "║𝄡 Nobody has fed him yet",
         BLANK,
-        SECTION_BREAK,
-        "║𝄡𝄚𝄂𝄆 **All time**",
+        FRAME.section_break,
+        FRAME.heading("All time"),
         "║𝄡 Nobody has points yet",
         BLANK,
-        SECTION_BREAK,
-        "║𝄡𝄚𝄂𝄆 **Rhyme Duel**",
+        FRAME.section_break,
+        FRAME.heading("Rhyme Duel"),
         "║𝄡 Nobody has dueled him yet",
         BLANK,
-        SECTION_BREAK,
-        "║𝄡𝄚𝄂𝄆 **Versions**",
+        FRAME.section_break,
+        FRAME.heading("Versions"),
         "║𝄡 None yet",
         BLANK,
-        BOX_BOTTOM,
+        FRAME.bottom,
     ]
 
 
@@ -544,10 +544,10 @@ async def test_leaderboard_fits_one_message(
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert text_length(text) <= MESSAGE_LIMIT
+    assert text_length(text) <= LAYOUT_TEXT_LIMIT
     lines = text.splitlines()
-    assert lines[-2:] == [BLANK, BOX_BOTTOM]
-    assert_fits_its_box(text)
+    assert lines[-2:] == [BLANK, FRAME.bottom]
+    assert_fits_its_frame(text, FRAME)
     assert sum(line.startswith("║𝄡 ") and ". <@" in line for line in lines) == 25
     version_lines = section(text, "Versions")
     assert 0 < len(version_lines) < len(history)
@@ -574,7 +574,7 @@ async def test_unchanged_text_posts_nothing(
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = await current_text(bot)
+    server.shows(await current_text(bot))
 
     await refresh_vault(bot, GUILD_ID)
 
@@ -586,30 +586,54 @@ async def test_unchanged_text_posts_nothing(
     assert settings.vault_title_message_id == VAULT_TITLE_ID
 
 
-async def test_changed_text_posts_new_and_deletes_the_old_pair(
+def card_text(call: Any) -> str:
+    """The text of a card posted as one layout under its header picture."""
+    assert call.args == ()
+    assert [file.filename for file in call.kwargs["files"]] == [HEADER]
+    return layout_text(call.kwargs["view"])
+
+
+async def test_changed_text_posts_one_new_card_and_deletes_the_old_pair(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = "an older board"
+    server.shows("an older board")
 
     await refresh_vault(bot, GUILD_ID)
 
-    header, card = server.vault.send.await_args_list
-    assert header.args == ()
-    assert header.kwargs["file"].filename == "leaderboard_title.png"
-    assert card.args[0].startswith(BOX_TOP)
-    assert "║𝄡 v1 ・ going strong" in card.args[0]
-    assert card.kwargs["file"].filename == "box_footer.png"
-    assert "view" not in card.kwargs
+    (card,) = server.vault.send.await_args_list
+    board = card_text(card)
+    assert board.startswith(INTRO[0])
+    assert "║𝄡 v1 ・ going strong" in board
+    header, _ = card.kwargs["view"].children
+    assert isinstance(header, discord.ui.MediaGallery)
     assert card.kwargs["allowed_mentions"].to_dict() == (
         discord.AllowedMentions.none().to_dict()
     )
     settings = await bot.settings.get(GUILD_ID)
     assert settings.vault_message_id == POSTED_ID
-    assert settings.vault_title_message_id == NEW_TITLE_ID
+    assert settings.vault_title_message_id is None
     assert sorted(server.deleted) == [VAULT_TITLE_ID, VAULT_MESSAGE_ID]
     server.house.send.assert_not_awaited()
+
+
+async def test_a_card_from_before_v3_is_replaced_once(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await lay(bot)
+    server.old_card.content = await current_text(bot)
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert server.vault.send.await_count == 1
+    server.shows(await current_text(bot))
+    await bot.settings.update(GUILD_ID, vault_message_id=VAULT_MESSAGE_ID)
+
+    await refresh_vault(bot, GUILD_ID)
+
+    assert server.vault.send.await_count == 1
 
 
 async def test_a_deleted_old_card_is_fine(bot: app.WispBot, server: FakeServer) -> None:
@@ -625,7 +649,7 @@ async def test_a_deleted_old_card_is_fine(bot: app.WispBot, server: FakeServer) 
 
     await refresh_vault(bot, GUILD_ID)
 
-    assert server.vault.send.await_count == 2
+    assert server.vault.send.await_count == 1
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
 
 
@@ -634,7 +658,7 @@ async def test_a_failed_delete_of_the_old_card_is_reported_in_the_thread(
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = "an older board"
+    server.shows("an older board")
     server.delete_errors[VAULT_MESSAGE_ID] = discord.Forbidden(
         MagicMock(status=403), "Missing Permissions"
     )
@@ -652,47 +676,44 @@ async def test_the_new_card_is_not_pinned_and_the_first_post_left_alone(
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = "an older board"
+    server.shows("an older board")
 
     await refresh_vault(bot, GUILD_ID)
 
-    title, card = server.posted
+    (card,) = server.posted
     card.pin.assert_not_awaited()
-    title.pin.assert_not_awaited()
     server.starter.edit.assert_not_awaited()
 
 
-async def test_two_refreshes_at_once_leave_one_new_pair(
+async def test_two_refreshes_at_once_leave_one_new_card(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = "an older board"
+    server.shows("an older board")
 
     await asyncio.gather(refresh_vault(bot, GUILD_ID), refresh_vault(bot, GUILD_ID))
 
-    assert len(server.posted) == 2
-    assert server.vault.send.await_count == 2
+    assert len(server.posted) == 1
     assert sorted(server.deleted) == [VAULT_TITLE_ID, VAULT_MESSAGE_ID]
     settings = await bot.settings.get(GUILD_ID)
     assert settings.vault_message_id == POSTED_ID
-    assert settings.vault_title_message_id == NEW_TITLE_ID
+    assert settings.vault_title_message_id is None
 
 
-async def test_a_header_whose_card_failed_to_post_is_deleted(
+async def test_a_card_that_fails_to_post_keeps_the_old_one(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
     await lay(bot)
-    server.old_card.content = "an older board"
+    server.shows("an older board")
     server.fail_card = True
 
     await refresh_vault(bot, GUILD_ID)
 
-    header, report = server.posted[0], server.vault.send.await_args.args[0]
-    header.delete.assert_awaited_once()
-    assert server.deleted == [NEW_TITLE_ID]
+    (report,) = server.vault.send.await_args.args
     assert report.startswith("Error in updating the Leaderboard card: Forbidden")
+    assert server.deleted == []
     settings = await bot.settings.get(GUILD_ID)
     assert settings.vault_message_id == VAULT_MESSAGE_ID
 
@@ -711,9 +732,8 @@ async def test_a_card_in_the_first_post_is_brought_over(
     assert starter["content"] is None
     assert starter["view"] is None
     assert server.deleted == [VAULT_TITLE_ID]
-    header, card = server.vault.send.await_args_list
-    assert header.kwargs["file"].filename == "leaderboard_title.png"
-    assert card.kwargs["file"].filename == "box_footer.png"
+    (card,) = server.vault.send.await_args_list
+    assert card_text(card).splitlines()[-1] == FRAME.bottom
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
 
 
@@ -742,7 +762,7 @@ async def test_no_stored_card_posts_one(bot: app.WispBot, server: FakeServer) ->
 
     await refresh_vault(bot, GUILD_ID)
 
-    assert server.vault.send.await_count == 2
+    assert server.vault.send.await_count == 1
     assert server.deleted == []
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
 

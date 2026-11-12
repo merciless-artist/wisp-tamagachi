@@ -26,7 +26,7 @@ from wisp import rules
 from wisp.chores import nap_clock_text
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, any_role, count, text_length
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, any_role, count, frame_of, text_length
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -78,13 +78,17 @@ def _ban_line() -> str:
 
 
 def rules_text(
-    meal_values: Mapping[TrackKind, int], feeding_roles: Collection[int] = ()
+    meal_values: Mapping[TrackKind, int],
+    feeding_roles: Collection[int] = (),
+    *,
+    divider: str = SEPARATOR,
 ) -> str:
     """Return the Wisp FAQ's rules post, the live text after its pictures.
 
     The meal points are the guild's effective values and `feeding_roles` the
     roles that can feed Wisp, named as mentions (the post pings nobody);
-    every other number is taken from the rules.
+    every other number is taken from the rules. `divider` sits under the
+    opening lines.
     """
     feeders = any_role(feeding_roles, rules.FEEDING_ROLES_SHOWN) or (
         "a role that can feed Wisp"
@@ -112,7 +116,7 @@ def rules_text(
         [
             "♪ Quick rules (current numbers)",
             "One Wisp per server: share music and he grows.",
-            SEPARATOR,
+            divider,
             "Who can feed him and earn points",
             f"・Anyone with {feeders} who opened /wisp board",
             "",
@@ -182,9 +186,14 @@ def rules_text(
 # ---
 
 
-def rules_post(settings: Settings, feeding_roles: Collection[int]) -> str:
-    """The Wisp FAQ's rules post with the guild's own food values and roles."""
-    return rules_text(meal_points(settings), feeding_roles)
+async def rules_post(bot: "WispBot", guild_id: int) -> str:
+    """The Wisp FAQ's rules post with the guild's own food values and roles,
+    and the divider of the bot's frame."""
+    return rules_text(
+        meal_points(await bot.settings.get(guild_id)),
+        await bot.settings.roles(guild_id),
+        divider=frame_of(bot.emoji).divider,
+    )
 
 
 @dataclass(frozen=True)
@@ -464,9 +473,7 @@ async def _build_faq(
     bot: "WispBot", guild: discord.Guild, thread: discord.Thread
 ) -> None:
     """Fill the Wisp FAQ thread; a failure is posted in it."""
-    rules = rules_post(
-        await bot.settings.get(guild.id), await bot.settings.roles(guild.id)
-    )
+    rules = await rules_post(bot, guild.id)
     try:
         await fill_faq(bot, guild.id, thread, rules)
     except (discord.HTTPException, OSError) as error:
@@ -766,9 +773,7 @@ async def rebuild(bot: "WispBot", guild_id: int) -> str:
     except StudioError as error:
         return str(error)
     async with _studio_locks.setdefault(guild_id, asyncio.Lock()):
-        rules = rules_post(
-            await bot.settings.get(guild_id), await bot.settings.roles(guild_id)
-        )
+        rules = await rules_post(bot, guild_id)
         await fill_faq(bot, guild_id, thread, rules)
     return "♪ The Wisp FAQ is rebuilt."
 
