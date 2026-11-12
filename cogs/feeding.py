@@ -32,7 +32,7 @@ from wisp.life import Event, Life, Mood, feed, is_over, mood
 from wisp.lines import Moment
 from wisp.links import ShareLink, Track, TrackKind, find_track
 from wisp.rules import BOND_PER_VIIBR_TRACK, FED_REACTION, MEAL_POINTS_MAX
-from wisp.text import count
+from wisp.text import count, daily_reset
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -200,7 +200,8 @@ class Feeding(commands.Cog):
                     raise NotFed(_WORTHLESS)
                 raise NotFed(
                     "you've reached the daily meal limit "
-                    f"({eaten} of {cap} meal points today, resets at 00:00 UTC)."
+                    f"({eaten} of {cap} meal points today, "
+                    f"resets at {daily_reset(now)})."
                 )
             events = await credit_feed(
                 bot, guild_id, life, user_id, track, grant, message_id, now, self.rng

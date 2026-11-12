@@ -32,9 +32,16 @@ from wisp.text import (
     emoji_frame,
     round_half_up,
     text_length,
+    timestamp,
 )
 
-NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
+
+def october(day: int, hour: int, minute: int = 0) -> datetime:
+    """That UTC moment in October 2026."""
+    return datetime(2026, 10, day, hour, minute, tzinfo=UTC)
+
+
+NOW = october(20, 12)
 WISP_ID = 1560213420068966441
 HOUSE_ID = 1563693152882262026
 TRACKS_ID = 1563693152882262027
@@ -55,7 +62,9 @@ EMOJI_FRAME = emoji_frame(
 )
 BLANK = FRAME.blank
 RIGHT_NOW = FRAME.heading("Right now")
-NEXT_NAP = FRAME.sub("next nap 7am Pacific")
+# NOW is 5am Pacific, so his next nap is 7am Pacific.
+NEXT_NAP_TEXT = f"next nap {timestamp(october(20, 14))}"
+NEXT_NAP = FRAME.sub(NEXT_NAP_TEXT)
 
 
 def need(text: str) -> str:
@@ -191,7 +200,7 @@ def test_the_card_is_myras_layout_in_her_emoji_frame() -> None:
             frame.blank,
             frame.heading("Right now"),
             frame.item("happy"),
-            frame.sub("next nap 7am Pacific"),
+            frame.sub(NEXT_NAP_TEXT),
             frame.blank,
             frame.item("Health"),
         ),
@@ -605,24 +614,31 @@ def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
 @pytest.mark.parametrize(
     ("now", "nap"),
     [
-        (datetime(2026, 10, 20, 0, 0, tzinfo=UTC), "10pm"),
-        (datetime(2026, 10, 20, 5, 0, tzinfo=UTC), "7am"),
-        (datetime(2026, 10, 20, 12, 0, tzinfo=UTC), "7am"),
-        (datetime(2026, 10, 20, 14, 0, tzinfo=UTC), "1pm"),
-        (datetime(2026, 10, 20, 23, 59, tzinfo=UTC), "10pm"),
+        # 10pm, 7am, 7am, 1pm and 10pm Pacific.
+        (october(20, 0), october(20, 5)),
+        (october(20, 5), october(20, 14)),
+        (october(20, 12), october(20, 14)),
+        (october(20, 14), october(20, 20)),
+        (october(20, 23, 59), october(21, 5)),
     ],
 )
-def test_the_card_says_when_his_next_nap_is(now: datetime, nap: str) -> None:
+def test_the_card_says_when_his_next_nap_is(now: datetime, nap: datetime) -> None:
     card = render_status(alive_life(hatched_at=now), now, FACTS, emoji, FRAME)
 
-    assert FRAME.sub(f"next nap {nap} Pacific") in card.split("\n")
+    assert FRAME.sub(f"next nap {timestamp(nap)}") in card.split("\n")
 
 
 @pytest.mark.parametrize(
     ("nap_left", "until"),
-    [(NAP_FOR.total_seconds(), "6am"), (90.0, "5:02am")],
+    [
+        # 6am and 5:02am Pacific: 90 seconds left rounds up to the minute.
+        (NAP_FOR.total_seconds(), october(20, 13)),
+        (90.0, october(20, 12, 2)),
+    ],
 )
-def test_while_he_naps_the_card_says_when_he_wakes(nap_left: float, until: str) -> None:
+def test_while_he_naps_the_card_says_when_he_wakes(
+    nap_left: float, until: datetime
+) -> None:
     card = render_status(alive_life(nap_left=nap_left), NOW, FACTS, emoji, FRAME)
 
     lines = card.split("\n")
@@ -630,7 +646,7 @@ def test_while_he_naps_the_card_says_when_he_wakes(nap_left: float, until: str) 
     assert lines[start : start + 3] == [
         RIGHT_NOW,
         HAPPY,
-        FRAME.sub(f"napping until {until} Pacific"),
+        FRAME.sub(f"napping until {timestamp(until)}"),
     ]
     assert not any("next nap" in line for line in lines)
 

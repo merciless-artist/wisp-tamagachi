@@ -11,6 +11,7 @@ her emojis are not uploaded.
 import re
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Final, TypeVar
 
 MESSAGE_LIMIT: Final = 2000
@@ -53,6 +54,7 @@ WIDTHS: Final[dict[str, float]] = {
     "dot": 1.0,
     "emoji": 1.375,
     "mention": 6.0,
+    "timestamp": 4.5,
     "unseen": 0.0,
     "other": 0.6,
 }
@@ -73,12 +75,14 @@ _BOX_DRAWING: Final = re.compile("[\u2500-\u257f]")
 _CUSTOM_EMOJI: Final = r"<a?:\w+:\d+>"
 
 # What a line is made of, as Discord shows it: a masked link (only its label
-# shows), a custom emoji, a mention, a bold mark, an escaped character, or
-# any other single character.
+# shows), a custom emoji, a mention, a timestamp (a short time such as
+# "10:00 PM" in its grey box), a bold mark, an escaped character, or any other
+# single character.
 _TOKEN: Final = re.compile(
     r"\[(?P<label>[^\]\n]*)\]\(<?https?://[^)\s]*>?\)"
     rf"|(?P<emoji>{_CUSTOM_EMOJI})"
     r"|(?P<mention><(?:@[!&]?|#)\d+>)"
+    r"|(?P<timestamp><t:-?\d+(?::[tTdDfFR])?>)"
     r"|(?P<bold>\*\*)"
     r"|\\(?P<escaped>[^\w\s])"
     r"|.",
@@ -126,6 +130,8 @@ def _token_width(token: re.Match[str]) -> float:
         return WIDTHS["emoji"]
     if token["mention"]:
         return WIDTHS["mention"]
+    if token["timestamp"]:
+        return WIDTHS["timestamp"]
     if token["bold"]:
         return WIDTHS["unseen"]
     return WIDTHS[_character_kind(token["escaped"] or token[0])]
@@ -468,6 +474,20 @@ def any_role(role_ids: Collection[int], shown: int) -> str:
     if len(mentions) < 2:
         return "".join(mentions)
     return f"{', '.join(mentions[:-1])} or {mentions[-1]}"
+
+
+def timestamp(moment: datetime) -> str:
+    """`moment` as a Discord timestamp, which each reader sees in their own time.
+
+    It shows as a short time of day, such as "10:00 PM".
+    """
+    return f"<t:{int(moment.timestamp())}:t>"
+
+
+def daily_reset(now: datetime) -> str:
+    """When the daily limits reset after `now`: next UTC midnight, as a timestamp."""
+    midnight = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return timestamp(midnight + timedelta(days=1))
 
 
 def channel_or(words: _Words, channel_id: int | None) -> str | _Words:

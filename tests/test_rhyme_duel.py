@@ -43,7 +43,9 @@ from wisp.text import (
     UNICODE_FRAME,
     USER_ERROR,
     count,
+    daily_reset,
     text_length,
+    timestamp,
 )
 
 GUILD_ID = 100
@@ -909,7 +911,8 @@ async def test_a_duel_past_the_daily_limit_says_so(
 
     assert receipt(interaction) == (
         "♪ This duel didn't count toward his Wellbeing: you've already played "
-        f"{count(PLAYS_PER_DAY, 'counted game')} today (resets at 00:00 UTC)."
+        f"{count(PLAYS_PER_DAY, 'counted game')} today "
+        f"(resets at {daily_reset(discord.utils.utcnow())})."
     )
 
 
@@ -1152,8 +1155,9 @@ async def test_a_duel_while_he_naps_is_refused_until_he_wakes(
 
     await (start if opener == "command" else press_rhyme_duel)(interaction)
 
+    wakes = timestamp(datetime(2026, 11, 6, 10, 46, tzinfo=UTC))
     assert replies(interaction) == [
-        "♪ Wisp is napping until 2:46am Pacific. Poke him awake first."
+        f"♪ Wisp is napping until {wakes}. Poke him awake first."
     ]
     server.house.create_thread.assert_not_awaited()
     assert (GUILD_ID, USER_ID) not in bot.rhyme_duels

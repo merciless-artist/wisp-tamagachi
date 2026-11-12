@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
-from datetime import time, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Final
 from urllib.parse import urlsplit
@@ -23,10 +23,18 @@ from cogs.speech import POKE_ID, poke_view
 from cogs.staff import StaffContext, guild_of, refused, reply, usage_line
 from db.settings import Settings, meal_points
 from wisp import rules
-from wisp.chores import nap_clock_text
+from wisp.chores import nap_starts_on
 from wisp.life import Life, is_over
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, any_role, count, frame_of, text_length
+from wisp.text import (
+    MESSAGE_LIMIT,
+    SEPARATOR,
+    any_role,
+    count,
+    frame_of,
+    text_length,
+    timestamp,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -81,14 +89,15 @@ def rules_text(
     meal_values: Mapping[TrackKind, int],
     feeding_roles: Collection[int] = (),
     *,
+    day: date,
     divider: str = SEPARATOR,
 ) -> str:
     """Return the Wisp FAQ's rules post, the live text after its pictures.
 
     The meal points are the guild's effective values and `feeding_roles` the
     roles that can feed Wisp, named as mentions (the post pings nobody);
-    every other number is taken from the rules. `divider` sits under the
-    opening lines.
+    every other number is taken from the rules. The nap times are his naps
+    on `day`, as timestamps. `divider` is the line under the opening lines.
     """
     feeders = any_role(feeding_roles, rules.FEEDING_ROLES_SHOWN) or (
         "a role that can feed Wisp"
@@ -111,7 +120,7 @@ def rules_text(
     tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
     lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
     rockstar_days = rules.ROCKSTAR_WELLBEING_FOR // timedelta(days=1)
-    nap_times = nap_clock_text(*(time(hour) for hour in sorted(rules.NAP_LOCAL_HOURS)))
+    nap_times = ", ".join(timestamp(start) for start in nap_starts_on(day))
     return "\n".join(
         [
             "♪ Quick rules (current numbers)",
@@ -121,7 +130,7 @@ def rules_text(
             f"・Anyone with {feeders} who opened /wisp board",
             "",
             "What counts",
-            "・Links posted in the track drop:",
+            "・Links in the track drop:",
             *meals,
             "・Each link feeds him once, for leaderboard points",
             f"・Your meals and snacks count up to {daily_cap} a day",
@@ -145,8 +154,8 @@ def rules_text(
             f"or Wellbeing drops {rules.LIGHTS_WELLBEING_PENALTY:g}",
             "",
             "Your bond",
-            "・Tracks, games, snacks and gifts build it",
-            f"・After {count(rules.MEET_AFTER_DAYS, 'different day')} with him, "
+            "・Tracks, games, snacks, gifts build it",
+            f"・After {count(rules.MEET_AFTER_DAYS, 'different day')}, "
             "he learns your name",
             f"・Tiers: {tiers}",
             "",
@@ -155,16 +164,16 @@ def rules_text(
             f"・Gifts cost {rules.GIFT_COST} WC and he might not keep "
             "them. One per collection a day",
             f"・He keeps one a day: {rules.BOND_PER_KEPT_GIFT} bond, "
-            f"{rules.COLLECTION_BOND_BONUS} more for a full set. New Wisps start over",
+            f"+{rules.COLLECTION_BOND_BONUS} for a full set. New Wisps start over",
             "・/wisp snackpack: your snacks and keepsakes. /wisp lunchbox: his "
             "favorites and gifts",
             "",
             "His life",
-            f"・Old Fogey at day {rules.OLD_FOGEY_AT_DAY}. At day "
-            f"{rules.FAREWELL_AT_DAY} he passes on; his coal is a new egg, "
+            f"・Old Fogey at day {rules.OLD_FOGEY_AT_DAY}, passes on at day "
+            f"{rules.FAREWELL_AT_DAY}; his coal is a new egg, "
             f"{rules.COAL_EGG_FOOD} of {rules.EGG_FOOD_NEEDED} fed",
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
-            "Last Ember, unless he died of neglect",
+            "Last Ember, unless he was neglected",
             f"・Once, as a Baby or Child: Monster Pox, {sick_hours} h max, "
             f"{pox_minutes} min off per meal point. He can't die, meals count up "
             f"to {sick_cap} a day",
@@ -188,12 +197,19 @@ def rules_text(
 
 async def rules_post(bot: "WispBot", guild_id: int) -> str:
     """The Wisp FAQ's rules post with the guild's own food values and roles,
-    and the divider of the bot's frame."""
-    return rules_text(
-        meal_points(await bot.settings.get(guild_id)),
-        await bot.settings.roles(guild_id),
-        divider=frame_of(bot.emoji).divider,
-    )
+    and today's (UTC) nap times.
+
+    The divider is the bot's frame's, unless that takes the post over one
+    message: then it is a blank line. The emoji divider is about 300
+    characters, which the plain post has no room for.
+    """
+    values = meal_points(await bot.settings.get(guild_id))
+    roles = await bot.settings.roles(guild_id)
+    day = discord.utils.utcnow().date()
+    framed = rules_text(values, roles, day=day, divider=frame_of(bot.emoji).divider)
+    if text_length(framed) <= MESSAGE_LIMIT:
+        return framed
+    return rules_text(values, roles, day=day, divider="")
 
 
 @dataclass(frozen=True)

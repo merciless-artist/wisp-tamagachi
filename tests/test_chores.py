@@ -17,8 +17,8 @@ from wisp.chores import (
     is_open,
     message_id,
     nap_ends_at,
-    nap_time_text,
-    next_nap_text,
+    nap_starts_on,
+    next_nap_start,
     next_tantrum,
     open_mess,
     open_tantrum,
@@ -516,56 +516,56 @@ def test_no_pacific_slot_is_lost_or_doubled_at_the_utc_midnight_seam(
 
 
 @pytest.mark.parametrize(
-    ("now", "nap"),
+    ("now", "day", "hour"),
     [
-        (DAY, "next nap 10pm Pacific"),
-        (utc(5, 59), "next nap 10pm Pacific"),
-        (utc(6), "next nap 7am Pacific"),
-        (utc(12), "next nap 7am Pacific"),
-        (utc(15), "next nap 1pm Pacific"),
-        (utc(21), "next nap 10pm Pacific"),
-        (utc(23, 59), "next nap 10pm Pacific"),
-        (datetime(2026, 3, 8, 13, 59, tzinfo=UTC), "next nap 7am Pacific"),
-        (datetime(2026, 3, 8, 23, 59, tzinfo=UTC), "next nap 10pm Pacific"),
-        (datetime(2026, 11, 1, 4, 59, tzinfo=UTC), "next nap 10pm Pacific"),
-        (datetime(2026, 11, 1, 5, 0, tzinfo=UTC), "next nap 7am Pacific"),
+        (DAY, date(2026, 11, 1), 22),
+        (utc(5, 59), date(2026, 11, 1), 22),
+        (utc(6), date(2026, 11, 2), 7),
+        (utc(12), date(2026, 11, 2), 7),
+        (utc(15), date(2026, 11, 2), 13),
+        (utc(21), date(2026, 11, 2), 22),
+        (utc(23, 59), date(2026, 11, 2), 22),
+        (datetime(2026, 3, 8, 13, 59, tzinfo=UTC), date(2026, 3, 8), 7),
+        (datetime(2026, 3, 8, 23, 59, tzinfo=UTC), date(2026, 3, 8), 22),
+        (datetime(2026, 11, 1, 4, 59, tzinfo=UTC), date(2026, 10, 31), 22),
+        (datetime(2026, 11, 1, 5, 0, tzinfo=UTC), date(2026, 11, 1), 7),
     ],
 )
-def test_the_next_nap_is_the_first_start_after_now(now: datetime, nap: str) -> None:
-    assert next_nap_text(now) == nap
+def test_the_next_nap_is_the_first_start_after_now(
+    now: datetime, day: date, hour: int
+) -> None:
+    assert next_nap_start(now) == pacific(day, hour)
 
 
 @pytest.mark.parametrize(
-    ("moment", "shown"),
-    [
-        (utc(21), "1pm Pacific"),
-        (utc(2, 5), "6:05pm Pacific"),
-        (utc(20), "12pm Pacific"),
-        (utc(20, 30), "12:30pm Pacific"),
-        (utc(8), "12am Pacific"),
-        (utc(8, 1), "12:01am Pacific"),
-        (utc(15), "7am Pacific"),
-        (datetime(2026, 7, 1, 21, tzinfo=UTC), "2pm Pacific"),
-    ],
+    "day",
+    [date(2026, 11, 2), date(2026, 7, 1), date(2026, 3, 8), date(2026, 11, 1)],
 )
-def test_a_nap_time_reads_on_the_pacific_clock(moment: datetime, shown: str) -> None:
-    assert nap_time_text(moment) == shown
+def test_a_days_nap_starts_are_on_the_pacific_clock(day: date) -> None:
+    assert nap_starts_on(day) == [pacific(day, hour) for hour in (7, 13, 22)]
+
+
+def test_a_days_nap_starts_follow_daylight_saving() -> None:
+    summer, winter = nap_starts_on(date(2026, 7, 1)), nap_starts_on(date(2026, 12, 1))
+
+    assert [start.hour for start in summer] == [14, 20, 5]
+    assert [start.hour for start in winter] == [15, 21, 6]
 
 
 @pytest.mark.parametrize(
     ("left", "ends"),
     [
-        (timedelta(minutes=30), "2:45am Pacific"),
-        (timedelta(minutes=30, seconds=1), "2:46am Pacific"),
-        (timedelta(seconds=1), "2:16am Pacific"),
-        (timedelta(hours=1), "3:15am Pacific"),
+        (timedelta(minutes=30), utc(10, 45)),
+        (timedelta(minutes=30, seconds=1), utc(10, 46)),
+        (timedelta(seconds=1), utc(10, 16)),
+        (timedelta(hours=1), utc(11, 15)),
     ],
 )
 def test_a_nap_ends_when_its_time_left_runs_out_rounded_up(
-    left: timedelta, ends: str
+    left: timedelta, ends: datetime
 ) -> None:
     life = alive(nap_left=left.total_seconds())
-    assert nap_time_text(nap_ends_at(life, utc(10, 15))) == ends
+    assert nap_ends_at(life, utc(10, 15)) == ends
 
 
 SLOTS_EITHER_SIDE_OF_A_CHANGE = [

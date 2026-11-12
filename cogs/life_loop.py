@@ -6,7 +6,7 @@ After an ending the loop lays nothing: staff press Begin again for the next egg.
 import asyncio
 import random
 import re
-from datetime import datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -88,7 +88,7 @@ class LifeLoop(commands.Cog):
         self.drawings = DailyDrawings(bot, self.rng)
         self._quiet_announced: set[int] = set()
         self._watching_since: dict[int, datetime] = {}
-        self._rules_refreshed: set[int] = set()
+        self._rules_refreshed: dict[int, date] = {}
 
     async def cog_load(self) -> None:
         """Start ticking."""
@@ -165,7 +165,7 @@ class LifeLoop(commands.Cog):
             await post_events(bot, guild_id, events)
             await post_chores(bot, guild_id, ticked, chores)
         await sweep_badges(bot, guild_id, now)
-        await self._refresh_rules_once(guild_id, settings.rules_message_id)
+        await self._refresh_rules_daily(guild_id, settings.rules_message_id, now)
         current = await bot.lives.current(guild_id)
         if current is None:
             return
@@ -177,20 +177,23 @@ class LifeLoop(commands.Cog):
             await pick_favorite_song(bot, guild, current, self.rng, now)
         await self.drawings.run(guild_id, now)
 
-    async def _refresh_rules_once(
-        self, guild_id: int, rules_message_id: int | None
+    async def _refresh_rules_daily(
+        self, guild_id: int, rules_message_id: int | None, now: datetime
     ) -> None:
-        """Bring the Wisp FAQ's rules post up to date on the guild's first tick.
+        """Bring the Wisp FAQ's rules post up to date on the guild's first tick
+        of each UTC day.
 
-        A new build can change the rules, and otherwise only the role and food
-        commands touch the post, so each guild's is refreshed once per run, if
-        it has one. Called outside the guild lock, like every display. A
-        failure is posted and never stops the tick; it is not retried until
-        the next run.
+        A new build can change the rules, and the nap times follow the day's
+        daylight saving; otherwise only the role and food commands touch the
+        post. So each guild's is refreshed on its first tick of a run and of
+        every UTC day, if it has one. Called outside the guild lock, like
+        every display. A failure is posted and never stops the tick; it is not
+        retried until the next day or run.
         """
-        if guild_id in self._rules_refreshed:
+        today = now.astimezone(UTC).date()
+        if self._rules_refreshed.get(guild_id) == today:
             return
-        self._rules_refreshed.add(guild_id)
+        self._rules_refreshed[guild_id] = today
         if rules_message_id is None:
             return
         try:

@@ -4,7 +4,7 @@ import asyncio
 import io
 import re
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -30,15 +30,13 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
-from wisp import rules
+from wisp import chores, rules
 from wisp.life import new_egg
 from wisp.links import TrackKind
-from wisp.text import (
-    MESSAGE_LIMIT,
-    SEPARATOR,
-    text_length,
-)
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length, timestamp
 
+# A day after daylight saving ended: Pacific is UTC-8.
+RULES_DAY = date(2026, 11, 2)
 GUILD_ID = 100
 FORUM_ID = 10
 OTHER_FORUM_ID = 11
@@ -383,6 +381,11 @@ class FakeServer:
         return match
 
 
+def today() -> date:
+    """Today in UTC: the day whose nap times the bot's rules post shows."""
+    return discord.utils.utcnow().date()
+
+
 def file_names(files: list[discord.File]) -> list[str]:
     """The names of uploaded files, closed once read."""
     for file in files:
@@ -569,7 +572,9 @@ async def test_a_new_rules_post_shows_the_current_food_values(
     await run_setup(bot, server)
 
     *_sections, rules_post = server.live_posts(server.thread_named(FAQ))
-    assert rules_post.content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    assert rules_post.content == rules_text(
+        {TrackKind.VIIBR: 12, TrackKind.SUNO: 1}, day=today()
+    )
 
 
 async def test_new_threads_carry_their_thumbnails(
@@ -1186,7 +1191,7 @@ async def test_setup_builds_the_faq_in_order(
     ]
     assert first_post == "Loading the FAQ..."
     *sections, rules_post = assert_faq_built(server.live_posts(thread))
-    assert rules_post.content == rules_text(rules.MEAL_POINTS)
+    assert rules_post.content == rules_text(rules.MEAL_POINTS, day=today())
     settings = await bot.settings.get(GUILD_ID)
     assert settings.faq_message_ids == tuple(section.id for section in sections)
     assert settings.rules_message_id == rules_post.id
@@ -1226,7 +1231,9 @@ async def test_food_command_edits_the_faq_rules_post(
     await invoke(feeding.set_food, make_ctx(server, bot), 12, 1)
 
     assert server.live_posts(thread) == posts
-    assert posts[-1].content == rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    assert posts[-1].content == rules_text(
+        {TrackKind.VIIBR: 12, TrackKind.SUNO: 1}, day=today()
+    )
     assert sends_without_pinging(posts[-1].edit.await_args.kwargs)
 
 
@@ -1234,7 +1241,9 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
     add_thumbnails(art_dir)
-    old = server.add_thread("How Wisp Works", rules_text(rules.MEAL_POINTS))
+    old = server.add_thread(
+        "How Wisp Works", rules_text(rules.MEAL_POINTS, day=today())
+    )
     old.locked = True
     await bot.settings.update(
         GUILD_ID,
@@ -1384,7 +1393,7 @@ async def test_faq_command_deletes_and_reposts_the_faq(
     after = await bot.settings.get(GUILD_ID)
     assert after.faq_message_ids == tuple(section.id for section in sections)
     assert after.rules_message_id == rules_post.id
-    assert rules_post.content == rules_text(rules.MEAL_POINTS)
+    assert rules_post.content == rules_text(rules.MEAL_POINTS, day=today())
     starter = server.messages[thread.id]
     assert starter.content.splitlines() == toc_lines(thread.id, after.faq_message_ids)
     assert sent_text(ctx) == "♪ The Wisp FAQ is rebuilt."
@@ -1439,7 +1448,7 @@ async def test_one_per_section_posts_from_before_are_deleted_on_the_rebuild(
         await old.send(file=discord.File(io.BytesIO(b"png"), filename=name))
         for name in OLD_FAQ_PICTURES
     ]
-    old_rules = await old.send(rules_text(rules.MEAL_POINTS))
+    old_rules = await old.send(rules_text(rules.MEAL_POINTS, day=today()))
     await bot.settings.update(
         GUILD_ID,
         studio_forum_id=FORUM_ID,
@@ -1850,7 +1859,7 @@ async def test_the_rules_post_names_the_feeding_roles(
     await run_setup(bot, server, tracks)
 
     *_sections, posted = server.live_posts(server.thread_named(FAQ))
-    assert posted.content == rules_text(rules.MEAL_POINTS, {5, 7})
+    assert posted.content == rules_text(rules.MEAL_POINTS, {5, 7}, day=today())
     assert "・Anyone with <@&5> or <@&7> who opened /wisp board" in posted.content
     assert sends_without_pinging(posted.sent_kwargs)
 
@@ -1865,13 +1874,37 @@ def test_studio_is_a_loaded_extension() -> None:
 
 
 def test_rules_text_is_headed_as_the_quick_rules() -> None:
-    assert rules_text(rules.MEAL_POINTS).startswith("♪ Quick rules (current numbers)\n")
+    assert rules_text(rules.MEAL_POINTS, day=today()).startswith(
+        "♪ Quick rules (current numbers)\n"
+    )
+
+
+async def test_the_rules_post_has_a_blank_line_when_the_emoji_divider_is_too_long(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bot, "emoji", lambda name: f"<:{name}:1564444125976068186>")
+
+    text = await studio.rules_post(bot, GUILD_ID)
+
+    assert text == rules_text(rules.MEAL_POINTS, day=today(), divider="")
+    assert "One Wisp per server: share music and he grows.\n\nWho can" in text
+    assert SEPARATOR not in text and "<:" not in text
+    assert text_length(text) < MESSAGE_LIMIT
+
+
+async def test_the_rules_post_has_the_frames_divider_when_it_fits(
+    bot: app.WispBot,
+) -> None:
+    text = await studio.rules_post(bot, GUILD_ID)
+
+    assert text == rules_text(rules.MEAL_POINTS, day=today())
+    assert SEPARATOR in text
 
 
 def test_rules_text_fits_one_message() -> None:
-    assert text_length(rules_text(rules.MEAL_POINTS)) < MESSAGE_LIMIT
+    assert text_length(rules_text(rules.MEAL_POINTS, day=today())) < MESSAGE_LIMIT
     biggest = {kind: rules.MEAL_POINTS_MAX for kind in TrackKind}
-    assert text_length(rules_text(biggest)) < MESSAGE_LIMIT
+    assert text_length(rules_text(biggest, day=today())) < MESSAGE_LIMIT
 
 
 def test_rules_text_fits_with_every_number_at_four_digits(
@@ -1925,7 +1958,6 @@ def test_rules_text_fits_with_every_number_at_four_digits(
     monkeypatch.setattr(
         rules, "CHORE_POINTS", {chore: 9999 for chore in rules.CHORE_POINTS}
     )
-    monkeypatch.setattr(rules, "NAP_LOCAL_HOURS", (22, 23, 0))
     monkeypatch.setattr(
         rules,
         "BOND_TIERS",
@@ -1936,7 +1968,7 @@ def test_rules_text_fits_with_every_number_at_four_digits(
     )
 
     many_roles = [10**19 + index for index in range(10)]
-    text = rules_text({kind: 9999 for kind in TrackKind}, many_roles)
+    text = rules_text({kind: 9999 for kind in TrackKind}, many_roles, day=today())
 
     assert "9999" in text
     assert "or 8 more" in text
@@ -1947,7 +1979,7 @@ def test_rules_text_fits_with_many_long_feeding_roles() -> None:
     biggest = {kind: rules.MEAL_POINTS_MAX for kind in TrackKind}
     for roles_set in range(0, 12):
         roles = [10**19 + index for index in range(roles_set)]
-        assert text_length(rules_text(biggest, roles)) < MESSAGE_LIMIT
+        assert text_length(rules_text(biggest, roles, day=today())) < MESSAGE_LIMIT
 
 
 @pytest.mark.parametrize(
@@ -1960,7 +1992,7 @@ def test_rules_text_fits_with_many_long_feeding_roles() -> None:
     ],
 )
 def test_rules_text_names_the_feeding_roles(roles: tuple[int, ...], line: str) -> None:
-    text = rules_text(rules.MEAL_POINTS, roles)
+    text = rules_text(rules.MEAL_POINTS, roles, day=today())
 
     section = text.split("\nWho can feed him and earn points\n")[1].split("\n\n")[0]
     assert section == line
@@ -1968,14 +2000,14 @@ def test_rules_text_names_the_feeding_roles(roles: tuple[int, ...], line: str) -
 
 
 def test_rules_text_shows_the_food_values_it_is_given() -> None:
-    text = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1})
+    text = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1}, day=today())
 
     assert "・viibrmusic.com track: 12 meal points" in text
     assert "・Suno track: 1 meal point" in text
 
 
 def test_rules_text_has_meters_vault_life_and_talking_sections() -> None:
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     for heading in (
         "His meters",
@@ -1996,7 +2028,7 @@ def test_rules_text_has_meters_vault_life_and_talking_sections() -> None:
 
 
 def test_rules_text_points_to_the_snack_pack_and_wisps_lunchbox() -> None:
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
     assert (
@@ -2010,7 +2042,7 @@ def test_rules_text_explains_the_two_meters(
 ) -> None:
     monkeypatch.setattr(rules, "PLAYS_PER_DAY", 4)
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
     health, wellbeing = section.split("\n")
@@ -2033,7 +2065,7 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(rules, "MESS_LEFT_FOR", timedelta(hours=5))
     monkeypatch.setattr(rules, "TANTRUM_WELLBEING_PENALTY", 17.0)
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=RULES_DAY)
 
     section = text.split("\nChores\n")[1].split("\n\n")[0]
     assert "First press wins WC" in section
@@ -2041,14 +2073,19 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     assert "medicine (13 WC) cures it" in section
     assert "5 h" in section
     assert "Scold a tantrum" in section and "Wellbeing drops 17" in section
-    assert "Lights off at naps (7am, 1pm, 10pm Pacific)" in section
-    assert "UTC" not in section
+    # 7am, 1pm and 10pm Pacific on RULES_DAY.
+    naps = ", ".join(
+        timestamp(datetime(2026, 11, day, hour, tzinfo=UTC))
+        for day, hour in ((2, 15), (2, 21), (3, 6))
+    )
+    assert f"Lights off at naps ({naps}) in 15 min" in section
+    assert "UTC" not in section and "Pacific" not in section
 
 
 def test_rules_text_chore_numbers_come_from_the_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(rules, "NAP_LOCAL_HOURS", (17, 1, 12))
+    monkeypatch.setattr(chores, "NAP_LOCAL_HOURS", (17, 1, 12))
     monkeypatch.setattr(rules, "TANTRUM_WINDOW", timedelta(minutes=43))
     monkeypatch.setattr(rules, "LIGHTS_WINDOW", timedelta(minutes=47))
     monkeypatch.setattr(rules, "LIGHTS_WELLBEING_PENALTY", 53.0)
@@ -2057,10 +2094,15 @@ def test_rules_text_chore_numbers_come_from_the_rules(
     monkeypatch.setattr(rules, "ROCKSTAR_WELLBEING", 67)
     monkeypatch.setattr(rules, "ROCKSTAR_WELLBEING_FOR", timedelta(days=71))
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=RULES_DAY)
 
     section = text.split("\nChores\n")[1].split("\n\n")[0]
-    assert "naps (1am, 12pm, 5pm Pacific)" in section
+    # 1am, 12pm and 5pm Pacific on RULES_DAY.
+    naps = ", ".join(
+        timestamp(datetime(2026, 11, day, hour, tzinfo=UTC))
+        for day, hour in ((2, 9), (2, 20), (3, 1))
+    )
+    assert f"naps ({naps})" in section
     for number in ("43", "47", "53"):
         assert number in section, number
     meters = text.split("\nHis meters\n")[1].split("\n\n")[0]
@@ -2076,7 +2118,7 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
     monkeypatch.setattr(rules, "SICK_FOR", timedelta(hours=36))
     monkeypatch.setattr(rules, "POX_HEALED_PER_MEAL_POINT", timedelta(minutes=20))
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     assert "・Your meals and snacks count up to 20 points a day" in text
     pox = next(line for line in text.split("\n") if "Monster Pox" in line)
@@ -2089,7 +2131,7 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
 
 
 def test_rules_text_does_not_say_talking_earns_no_points() -> None:
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     assert "no bond or points" not in text
     assert "Talking earns no bond" in text
@@ -2102,7 +2144,7 @@ def test_rules_text_chat_points_come_from_the_rules(
     monkeypatch.setattr(rules, "CHAT_POINTS", 3)
 
     assert "・First chat or poke each day earns 3 points" in rules_text(
-        rules.MEAL_POINTS
+        rules.MEAL_POINTS, day=today()
     )
 
 
@@ -2113,18 +2155,18 @@ def test_rules_text_explains_gifts_with_numbers_from_the_rules(
     monkeypatch.setattr(rules, "BOND_PER_KEPT_GIFT", 109)
     monkeypatch.setattr(rules, "COLLECTION_BOND_BONUS", 113)
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     section = text.split("\nThe ViiBR Vault\n")[1].split("\n\n")[0]
     assert "snacks and gifts" in section
     assert "・Gifts cost 107 WC and he might not keep them" in section
     assert "・/wisp vault spends WC on snacks and gifts" in section
-    assert "109 bond" in section and "113 more" in section
+    assert "109 bond" in section and "+113 for a full set" in section
     assert "New Wisps start over" in section
 
 
 def test_rules_text_covers_every_topic() -> None:
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
     for phrase in (
         "a role that can feed Wisp",
         "/wisp board",
@@ -2141,7 +2183,7 @@ def test_rules_text_covers_every_topic() -> None:
 
 
 def test_rules_text_uses_bot_style() -> None:
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
     assert "・" in text
     assert "♪" in text
     assert SEPARATOR in text
@@ -2174,7 +2216,7 @@ def test_rules_text_numbers_come_from_the_rules(
     monkeypatch.setattr(rules, "EGG_FOOD_NEEDED", 101)
     monkeypatch.setattr(rules, "COAL_EGG_FOOD", 103)
 
-    text = rules_text(rules.MEAL_POINTS)
+    text = rules_text(rules.MEAL_POINTS, day=today())
 
     for number in (41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103):
         assert str(number) in text, number

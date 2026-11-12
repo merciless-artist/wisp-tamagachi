@@ -517,6 +517,22 @@ async def test_the_first_tick_after_boot_refreshes_the_rules_post_once(
     refresh.assert_awaited_once_with(bot, GUILD_ID)
 
 
+async def test_the_rules_post_is_refreshed_again_on_the_next_utc_day(
+    cog: LifeLoop, bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure_rules_post(bot)
+    await lay(bot)
+    refresh = AsyncMock()
+    monkeypatch.setattr(life_loop, "refresh_rules", refresh)
+    midnight = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    await cog.run_tick(NOW)
+    await cog.run_tick(midnight + timedelta(days=1) - rules.TICK_EVERY)
+    await cog.run_tick(midnight + timedelta(days=1))
+
+    assert refresh.await_count == 2
+
+
 async def test_a_server_with_no_rules_post_gets_no_refresh(
     cog: LifeLoop, bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:

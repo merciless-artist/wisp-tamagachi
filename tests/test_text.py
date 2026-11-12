@@ -1,5 +1,7 @@
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -22,6 +24,7 @@ from wisp.text import (
     channel_or,
     clip,
     count,
+    daily_reset,
     emoji_frame,
     fit,
     frame_of,
@@ -30,6 +33,7 @@ from wisp.text import (
     round_half_up,
     strip_emoji,
     text_length,
+    timestamp,
     visual_width,
 )
 
@@ -135,6 +139,41 @@ def test_fit_keeps_the_tail_and_drops_the_last_optional_lines() -> None:
     assert text.splitlines() == ["head", "a" * 1000, "end"]
 
 
+def test_a_timestamp_is_the_short_time_of_its_whole_second() -> None:
+    assert timestamp(datetime(2026, 11, 2, 6, tzinfo=UTC)) == "<t:1793599200:t>"
+    assert timestamp(datetime(2026, 11, 2, 6, 0, 1, 999999, tzinfo=UTC)) == (
+        "<t:1793599201:t>"
+    )
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        (datetime(2026, 11, 2, tzinfo=UTC), "<t:1793664000:t>"),
+        (datetime(2026, 11, 2, 13, 30, tzinfo=UTC), "<t:1793664000:t>"),
+        (datetime(2026, 11, 2, 23, 59, 59, 999999, tzinfo=UTC), "<t:1793664000:t>"),
+        # 8pm Pacific on the 2nd is already the 3rd in UTC.
+        (
+            datetime(2026, 11, 2, 20, tzinfo=ZoneInfo("America/Los_Angeles")),
+            ("<t:1793750400:t>"),
+        ),
+    ],
+)
+def test_daily_limits_reset_at_the_next_utc_midnight(
+    now: datetime, expected: str
+) -> None:
+    assert daily_reset(now) == expected
+
+
+def test_a_timestamp_is_never_broken_across_rows() -> None:
+    line = U.item(f"Wisp is napping until {'<t:1793599200:t> ' * 4}and more")
+
+    rows = U.wrap(line).split("\n")
+
+    assert len(rows) > 1
+    assert "".join(rows).count("<t:1793599200:t>") == 4
+
+
 def test_separator_is_myras_plain_divider() -> None:
     assert SEPARATOR == "𝄡" + "𝄚" * 22 + "𝄂"
     assert SEPARATOR in SPEC.read_bytes().decode("utf-8")
@@ -177,6 +216,7 @@ def test_her_burrito_lines_fit_a_22_box_and_her_breaks_are_kept() -> None:
         ("\U0001f525", WIDTHS["emoji"]),
         ("<@1560213420068966441>", WIDTHS["mention"]),
         ("<#1563693152882262026>", WIDTHS["mention"]),
+        ("<t:1793599200:t>", WIDTHS["timestamp"]),
         ("**ab**", 2 * WIDTHS["letter"]),
         ("[ab](https://viibrmusic.com/s/Kg4qckZe)", 2 * WIDTHS["letter"]),
         ("\\*", WIDTHS["letter"]),

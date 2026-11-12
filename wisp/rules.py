@@ -161,14 +161,13 @@ HEALTH_PER_CLEANUP = 5
 # while the server is small.
 TANTRUM_WINDOW = timedelta(minutes=15)
 TANTRUM_WELLBEING_PENALTY = 15.0
-# He naps for NAP_FOR from each of NAP_LOCAL_HOURS on the NAP_TIMEZONE clock,
-# which members read as NAP_TIMEZONE_NAME; the slots follow that clock through
-# daylight saving, and everything else stays UTC. The lights must go off
+# He naps for NAP_FOR from each of NAP_LOCAL_HOURS on the NAP_TIMEZONE clock;
+# the slots follow that clock through daylight saving, and everything else
+# stays UTC. Members see nap times in their own time zone. The lights must go off
 # within LIGHTS_WINDOW, or he loses LIGHTS_WELLBEING_PENALTY Wellbeing and is
 # cranky for CRANKY_FOR after the nap. A poke that wakes him makes him cranky
 # for CRANKY_FOR too.
 NAP_TIMEZONE: Final = "America/Los_Angeles"
-NAP_TIMEZONE_NAME: Final = "Pacific"
 NAP_LOCAL_HOURS: Final = (7, 13, 22)
 NAP_FOR = timedelta(hours=1)
 LIGHTS_WINDOW = timedelta(minutes=15)

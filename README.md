@@ -20,9 +20,10 @@ then a **right now** heading: what he needs, worst first, one line each.
 - a mess is waiting, he is having a tantrum, or he is asleep and the lights
   need turning off, each pointing at his House
 
-When there is nothing to do it says `happy`. The last line is his next nap in
-Pacific time, such as `next nap 2pm Pacific`, or, while he naps, when he wakes,
-such as `napping until 2pm Pacific`. A line under the card points at the
+When there is nothing to do it says `happy`. The last line is his next nap,
+such as `next nap 2:00 PM`, or, while he naps, when he wakes, such as
+`napping until 2:00 PM`. Both are Discord timestamps, so each member sees the
+time in their own time zone. A line under the card points at the
 buttons. There are six, three to a row. Menus and refusals are private; what
 you do to him shows in his House:
 
@@ -142,11 +143,12 @@ while he is an egg, and the buttons keep working after a restart.
   day.
 - **Naps** are at 7am, 1pm and 10pm Pacific, an hour each; they follow the
   Pacific clock through daylight saving (so they move by an hour in UTC), and
-  everything else stays on UTC. Turn the lights off
+  everything else stays on UTC. Members see nap times, and when the daily
+  limits reset, as timestamps in their own time zone. Turn the lights off
   within 15 minutes for 2 points; otherwise he loses 10 Wellbeing and is cranky
   for an hour after the nap. While he sleeps he answers only with sleepy
   noises, and a poke wakes him early, cranky, with no Wellbeing plus. A Rhyme
-  Duel is refused with `♪ Wisp is napping until 2pm Pacific. Poke him awake
+  Duel is refused with `♪ Wisp is napping until 2:00 PM. Poke him awake
   first.` Snacks, gifts and medicine still work, and he answers them with
   sleepy lines. A nap whose start falls while he is frozen or the bot is down
   is skipped without a penalty.

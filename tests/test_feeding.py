@@ -36,6 +36,7 @@ from wisp import rules
 from wisp.life import Event, EventKind, Life, Phase, new_egg
 from wisp.links import ShareLink, Track, TrackKind
 from wisp.rules import Stage
+from wisp.text import daily_reset
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -469,7 +470,11 @@ async def test_food_command_saves_the_values_and_updates_the_rules_post(
     server.rules.get_partial_message.assert_called_once_with(RULES_MESSAGE_ID)
     roles = await bot.settings.roles(GUILD_ID)
     assert roles
-    expected = rules_text({TrackKind.VIIBR: 12, TrackKind.SUNO: 1}, roles)
+    expected = rules_text(
+        {TrackKind.VIIBR: 12, TrackKind.SUNO: 1},
+        roles,
+        day=discord.utils.utcnow().date(),
+    )
     assert server.rules_edit.await_args.kwargs["content"] == expected
     ctx.channel.send.assert_awaited_once()
     assert ctx.channel.send.await_args.args == (
@@ -775,7 +780,9 @@ async def test_daily_cap_clamps_then_gives_the_limit_reason(
     assert player.lifetime_points == 3
     assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 15
     server.mealtime.send.assert_awaited_once()
-    assert_refused_after_feed(server, "daily", "15 of 15")
+    assert_refused_after_feed(
+        server, "daily", "15 of 15", f"resets at {daily_reset(now)})."
+    )
 
 
 async def test_the_meal_cap_doubles_while_sick(

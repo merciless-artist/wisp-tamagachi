@@ -8,7 +8,7 @@ set on the NAP_TIMEZONE clock and worked with as UTC moments.
 
 import random
 from dataclasses import dataclass
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum, auto
 from zoneinfo import ZoneInfo
 
@@ -26,7 +26,6 @@ from wisp.rules import (
     NAP_FOR,
     NAP_LOCAL_HOURS,
     NAP_TIMEZONE,
-    NAP_TIMEZONE_NAME,
     TANTRUM_WELLBEING_PENALTY,
     TANTRUM_WINDOW,
     TICK_EVERY,
@@ -211,33 +210,23 @@ def latest_nap_start(now: datetime) -> datetime:
     return max(start for start in _nap_starts(_midnight(now)) if start <= now)
 
 
-def nap_clock_text(*clocks: time) -> str:
-    """Times on the nap clock as members read them, such as "7am, 1pm Pacific".
+def next_nap_start(now: datetime) -> datetime:
+    """When his next nap starts after `now`; at a nap's start, the one after."""
+    return min(start for start in _nap_starts(_midnight(now)) if start > now)
 
-    On the hour a time reads "2pm", off it "2:30pm"; noon is "12pm" and
-    midnight "12am".
+
+def nap_starts_on(day: date) -> list[datetime]:
+    """His nap starts of `day` on the NAP_TIMEZONE clock, in order, as UTC moments.
+
+    As timestamps they show members the nap times of day in their own time
+    zone, right for the daylight saving of `day`.
     """
-    return f"{', '.join(_clock_text(clock) for clock in clocks)} {NAP_TIMEZONE_NAME}"
+    return [_on_nap_clock(day, hour) for hour in sorted(NAP_LOCAL_HOURS)]
 
 
-def _clock_text(clock: time) -> str:
-    hour = clock.hour % 12 or 12
-    minutes = "" if clock.minute == 0 else f":{clock.minute:02d}"
-    return f"{hour}{minutes}{'am' if clock.hour < 12 else 'pm'}"
-
-
-def nap_time_text(moment: datetime) -> str:
-    """A moment on the nap clock as members see it, such as "2pm Pacific"."""
-    return nap_clock_text(moment.astimezone(_NAP_ZONE).time())
-
-
-def next_nap_text(now: datetime) -> str:
-    """When his next nap starts after `now`, as the status card says it.
-
-    Such as "next nap 7am Pacific". At a nap's start the next one is meant.
-    """
-    start = min(start for start in _nap_starts(_midnight(now)) if start > now)
-    return f"next nap {nap_time_text(start)}"
+def _on_nap_clock(day: date, hour: int) -> datetime:
+    """`hour` o'clock on `day` on the NAP_TIMEZONE clock, as a UTC moment."""
+    return datetime.combine(day, time(hour), _NAP_ZONE).astimezone(UTC)
 
 
 def nap_ends_at(life: Life, now: datetime) -> datetime:
@@ -259,9 +248,7 @@ def _nap_starts_on(day: datetime) -> list[datetime]:
     """
     end = day + timedelta(days=1)
     starts = (
-        datetime.combine(
-            day.date() + timedelta(days=offset), time(hour), _NAP_ZONE
-        ).astimezone(UTC)
+        _on_nap_clock(day.date() + timedelta(days=offset), hour)
         for offset in (-1, 0, 1)
         for hour in NAP_LOCAL_HOURS
     )

@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-11 (Times in each member's own time zone)
+
+- Every time Wisp tells members is a Discord timestamp, which each reader
+  sees in their own time zone: the status card's `next nap` and `napping
+  until`, the Rhyme Duel's nap refusal, the rules post's nap times, and when
+  the daily meal and Rhyme Duel limits reset (was `00:00 UTC`; now the next
+  UTC midnight as a time). Nothing says "Pacific" or "UTC" any more. The naps
+  still follow the Pacific clock and every day is still a UTC day.
+- The rules post is refreshed on the first tick of each UTC day as well as
+  after a deploy, so its nap times follow daylight saving.
+- Line wrapping counts a timestamp as one piece about as wide as "10:00 PM"
+  and never breaks inside it.
+- Fix: the emoji divider made the rules post about 2,180 characters, over
+  Discord's 2,000, so the deploy's refresh failed with a 400 (posted in the
+  Wisp FAQ) and the old post stayed. The rules post now uses the frame's
+  divider only when the post fits, and a blank line otherwise, which is what
+  it gets with the emoji frame. A few lines are shorter so the post still
+  fits with every number at four digits and the longer nap timestamps:
+  `Links in the track drop:`, `Tracks, games, snacks, gifts build it`,
+  `After 3 different days, he learns your name`, `+25 for a full set`,
+  `Old Fogey at day 24, passes on at day 30`, `unless he was neglected`.
+
 ## 2026-11-11 (Every menu in Myra's emoji frame)
 
 - The frame's bottom line is shorter: the `clef`, 8 `header2` and the
@@ -20,7 +42,7 @@
   two shows your new coin count under its note.
 - The plain divider in the rules post and the Rhyme Duel summary is the
   emoji divider (the `clef` line without its edge) once the frame emojis are
-  up. The rules post is edited to it on the next refresh.
+  up. (The rules post had no room for it; see the fix above.)
 - Items lead with their emoji, as in the lunchbox, and use the display
   names: `Cloud Wave ・ 3 WC`, `Team ViiBR ・ 250 WC`. The `│` and its padding
   in the Vault are gone.

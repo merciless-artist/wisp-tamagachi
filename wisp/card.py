@@ -14,13 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-from wisp.chores import (
-    is_napping,
-    is_open,
-    nap_ends_at,
-    nap_time_text,
-    next_nap_text,
-)
+from wisp.chores import is_napping, is_open, nap_ends_at, next_nap_start
 from wisp.life import Life, Phase, age_days, has_sniffles, hours_left, is_sick
 from wisp.rules import (
     EGG_FOOD_NEEDED,
@@ -32,7 +26,7 @@ from wisp.rules import (
     WELLBEING_MAX,
     Chore,
 )
-from wisp.text import Frame, channel_or, count, round_half_up
+from wisp.text import Frame, channel_or, count, round_half_up, timestamp
 
 # ---
 # Layout
@@ -223,12 +217,12 @@ def _right_now(
 def _nap_line(life: Life, now: datetime) -> str:
     """What the Right now block's last line says about his nap.
 
-    While he naps it is when he wakes, such as "napping until 2pm Pacific";
-    otherwise it is when his next nap starts.
+    While he naps it is when he wakes, otherwise when his next nap starts,
+    each a timestamp members see in their own time zone.
     """
     if is_napping(life):
-        return f"napping until {nap_time_text(nap_ends_at(life, now))}"
-    return next_nap_text(now)
+        return f"napping until {timestamp(nap_ends_at(life, now))}"
+    return f"next nap {timestamp(next_nap_start(now))}"
 
 
 # ---

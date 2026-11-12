@@ -7,6 +7,7 @@ private games menu the Status post's Play button opens.
 import random
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
 import discord
@@ -28,7 +29,7 @@ from cogs.players import (
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
 from wisp.bond import casual_bond_grant
-from wisp.chores import is_napping, nap_ends_at, nap_time_text
+from wisp.chores import is_napping, nap_ends_at
 from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
@@ -46,9 +47,11 @@ from wisp.text import (
     SEPARATOR,
     clip,
     count,
+    daily_reset,
     frame_of,
     meter_receipt,
     text_length,
+    timestamp,
     with_emoji,
 )
 from wisp.voice import MINI_COIN_EMOJI
@@ -221,6 +224,7 @@ def _verdict(
     frozen: bool,
     blocked: str | None,
     plays: int,
+    now: datetime,
 ) -> tuple[Life, int] | str:
     """The living life and its id when the duel counts as play, else why not.
 
@@ -236,7 +240,7 @@ def _verdict(
         return blocked
     if plays >= PLAYS_PER_DAY:
         played = count(PLAYS_PER_DAY, "counted game")
-        return f"you've already played {played} today (resets at 00:00 UTC)."
+        return f"you've already played {played} today (resets at {daily_reset(now)})."
     return life, life.id
 
 
@@ -290,6 +294,7 @@ async def _record_play(
             await is_frozen(bot, guild_id),
             None if blocker is None else await blocker_reason(bot, guild_id, blocker),
             plays,
+            now,
         )
         if isinstance(verdict, str):
             receipt = _NOT_COUNTED + verdict
@@ -318,7 +323,7 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
         await say_privately(interaction, no_wisp_text(life, "Rhymes"))
         return
     if is_napping(life):
-        until = nap_time_text(nap_ends_at(life, now))
+        until = timestamp(nap_ends_at(life, now))
         await say_privately(
             interaction, f"♪ Wisp is napping until {until}. Poke him awake first."
         )
