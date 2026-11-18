@@ -103,7 +103,7 @@ def test_the_badge_catalog() -> None:
     ] == [
         ("pickle_diplomat", "Pickle Diplomat", 25, 5, None),
         ("flame_keeper", "Flame Keeper", 100, 15, None),
-        ("team_viibr", "Team ViiBR", 250, 25, None),
+        ("team_viibr", "Team ViiBR", 175, 25, None),
         ("bandmate", "Bandmate", 250, 25, "Bandmate"),
     ]
     assert {badge.key: badge.phrase for badge in BADGES} == {

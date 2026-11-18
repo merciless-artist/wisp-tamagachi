@@ -630,7 +630,7 @@ class Badge:
 BADGES: tuple[Badge, ...] = (
     Badge("pickle_diplomat", "Pickle Diplomat", 25, 5, "is now a Pickle Diplomat"),
     Badge("flame_keeper", "Flame Keeper", 100, 15, "is now a Flame Keeper"),
-    Badge("team_viibr", "Team ViiBR", 250, 25, "joined Team ViiBR"),
+    Badge("team_viibr", "Team ViiBR", 175, 25, "joined Team ViiBR"),
     Badge(
         "bandmate",
         "Bandmate",

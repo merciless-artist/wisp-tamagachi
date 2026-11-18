@@ -546,7 +546,7 @@ async def test_the_vault_lists_every_badge_with_its_price(
         FRAME,
         FRAME.item("Pickle Diplomat ・ 25 WC"),
         FRAME.item("Flame Keeper ・ 100 WC"),
-        FRAME.item("<:badge_team_viibr:1> Team ViiBR ・ 250 WC"),
+        FRAME.item("<:badge_team_viibr:1> Team ViiBR ・ 175 WC"),
         FRAME.item("Bandmate ・ 250 WC ・ Bandmates only"),
     )
     select = badge_select(selects)
@@ -596,7 +596,7 @@ async def test_badges_without_a_role_cannot_be_bought_yet(
 
     text, selects = await open_vault(bot, server)
 
-    assert FRAME.wrap(FRAME.item("Team ViiBR ・ 250 WC ・ coming soon")) in text
+    assert FRAME.wrap(FRAME.item("Team ViiBR ・ 175 WC ・ coming soon")) in text
     assert badge_select(selects) is None
 
 
@@ -681,7 +681,8 @@ async def test_buying_spends_gives_bond_and_the_role(
     interaction = await buy(bot, server, "team_viibr")
 
     player = await bot.players.get(GUILD_ID, USER_ID)
-    assert (player.balance, player.lifetime_points, player.bond) == (50, 300, 25)
+    left = 300 - BADGE_BY_KEY["team_viibr"].cost
+    assert (player.balance, player.lifetime_points, player.bond) == (left, 300, 25)
     role = await role_of(bot, server, "team_viibr")
     server.members[USER_ID].add_roles.assert_awaited_once_with(
         role, reason="Bought in the ViiBR Vault"

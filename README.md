@@ -407,7 +407,7 @@ Old Fogey, the section is gone, and a menu left open from before answers
 `♪ The magazines are gone from the shelf.`
 
 Badges: the Vault sells four badge roles (Pickle Diplomat at 25 points,
-Flame Keeper at 100, Team ViiBR and Bandmate at 250; Bandmate only for
+Flame Keeper at 100, Team ViiBR at 175, Bandmate at 250; Bandmate only for
 members at the Bandmate bond tier). Each raises your
 bond, outside the daily cap, and shows by your name for the current Wisp
 only: when his life ends the roles come off, and the next Wisp sells them

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-18 (Team ViiBR price and new book covers)
+
+- The Team ViiBR badge costs 175 wisp coins, down from 250. Bandmate stays
+  at 250.
+- The Blue and Red Books' House pictures are Myra's new covers, so all four
+  books now show a surprise cover when Wisp keeps one. Their Vault emojis
+  stay the same.
+
 ## 2026-11-16 (Tech collection and the Vault's gift lines)
 
 - The Tetris collection is now **Tech**: the Tetris Handheld, an Arcade, a
