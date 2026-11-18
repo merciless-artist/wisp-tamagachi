@@ -415,8 +415,8 @@ async def test_vault_is_three_layouts_in_the_house_frame(bot: app.WispBot) -> No
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     assert option_values(select) == [snack.key for snack in paid]
     assert [option.description for option in select.options][:2] == [
-        "3 WC ・ wellbeing +8",
-        "3 WC ・ wellbeing +8",
+        "6 WC ・ wellbeing +8",
+        "6 WC ・ wellbeing +8",
     ]
 
 
@@ -876,14 +876,14 @@ async def test_buy_spends_balance_not_lifetime(bot: app.WispBot) -> None:
     interaction = await buy(bot, "cloudwave")
 
     player = await bot.players.get(GUILD_ID, USER_ID)
-    assert (player.balance, player.lifetime_points) == (7, 10)
+    assert (player.balance, player.lifetime_points) == (4, 10)
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     interaction.response.defer.assert_awaited_once_with()
     interaction.edit_original_response.assert_awaited_once()
     interaction.followup.send.assert_not_awaited()
     text = reply_text(interaction)
-    assert text.startswith("♪ Bought Cloud Wave for 3 WC.")
-    assert FRAME.sub("wisp coins: 7") in text.splitlines()
+    assert text.startswith("♪ Bought Cloud Wave for 6 WC.")
+    assert FRAME.sub("wisp coins: 4") in text.splitlines()
     assert isinstance(
         interaction.edit_original_response.await_args.kwargs["view"],
         snacks.VaultLayout,
@@ -891,14 +891,14 @@ async def test_buy_spends_balance_not_lifetime(bot: app.WispBot) -> None:
 
 
 async def test_buying_twice_stacks_the_snack(bot: app.WispBot) -> None:
-    await bot.players.add_points(GUILD_ID, USER_ID, 10)
+    await bot.players.add_points(GUILD_ID, USER_ID, 15)
     _, select = await open_vault(bot)
 
     await choose(bot, select, "jellywave")
     await choose(bot, select, "jellywave")
 
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"jellywave": 2}
-    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 4
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 3
 
 
 async def test_buy_refused_when_short(bot: app.WispBot) -> None:
@@ -1734,7 +1734,7 @@ async def test_medicine_while_frozen_says_he_is_frozen(bot: app.WispBot) -> None
         ("spicywave", Moment.SPICY),
         ("juicewave", Moment.JUICE),
         ("pickles", Moment.PICKLE_HEDGE),
-        ("glitterwave", Moment.SNACK_FANCY),
+        ("glitterwave", Moment.SNACK),
         ("viibrwave", Moment.SNACK_FANCY),
     ],
 )
@@ -1810,7 +1810,7 @@ async def test_his_favorite_snack_line_follows_his_mood(bot: app.WispBot) -> Non
 def test_fancy_starts_at_the_fancy_cost() -> None:
     fancy = {snack.key for snack in SNACKS if snack.cost >= rules.FANCY_SNACK_COST}
 
-    assert fancy == {"glitterwave", "viibrwave"}
+    assert fancy == {"viibrwave"}
 
 
 async def test_house_post_has_the_snack_emoji_and_line(
@@ -2098,7 +2098,7 @@ async def test_a_failed_confirmation_says_the_purchase_went_through(
     await select.callback(interaction)
 
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
-    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 7
+    assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 4
     reported.assert_awaited_once_with(
         interaction.guild,
         "confirming a snack purchase (the purchase went through)",

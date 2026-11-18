@@ -386,7 +386,7 @@ Member commands:
   with the shop and Snack Pack buttons. Open it once to join in.
 - `/wisp vault` (also the Status post's **Vault** button) is the shop: buy
   snacks with your wisp coins (WC, the points you can spend), get a badge, or
-  give Wisp a gift from one of seven collections: pick a collection, then a
+  give Wisp a gift from one of four collections: pick a collection, then a
   gift. He might not like it. It is three private Components V2 messages,
   one under the other (snacks and medicine, then badges and magazines, then
   gifts), with each menu under its section: in Myra's emoji frame it is too

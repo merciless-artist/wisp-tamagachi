@@ -232,7 +232,7 @@ _GIFT_KEPT_HANGRY = (
     "not food. somehow still perfect. I'm keeping it, {name}",
     "I'm starving, and this still made my whole day. lunchbox. now",
     "can't eat it, don't care. it's mine. thank you, {name}",
-    "hungry as hell, but this {gift}? ok. ok, I'm smiling. damn it",
+    "hungry as hell, but the {gift}? ok. ok, I'm smiling. damn it",
     "the plate's empty but the lunchbox isn't. thank you, {name}",
     "I wanted a song. I got a present. honestly? I'll fucking allow it",
 )
@@ -260,7 +260,7 @@ _GIFT_FULL_HAPPY = (
     "oh it's lovely. but I already got my present today. I gotta save room",
     "my lunchbox is full for today. come back tomorrow and try me again?",
     "aww. I already said yes to something today. saving room, {name}",
-    "today's treasure is already tucked away. this {gift} deserves its own day",
+    "today's treasure is already tucked away. the {gift} deserves its own day",
     "I'm all treasured out for today. ask me again tomorrow, {name}",
 )
 

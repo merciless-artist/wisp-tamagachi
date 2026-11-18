@@ -397,13 +397,13 @@ FANCY_SNACK_COST = 8
 
 SNACKS: tuple[Snack, ...] = (
     Snack("sinewave", "Sine Wave", 0, 2, 1),
-    Snack("cloudwave", "Cloud Wave", 3, 5, 1),
-    Snack("jellywave", "Jelly Wave", 3, 5, 1),
-    Snack("juicewave", "Juice Wave", 3, 5, 1),
+    Snack("cloudwave", "Cloud Wave", 6, 5, 1),
+    Snack("jellywave", "Jelly Wave", 6, 5, 1),
+    Snack("juicewave", "Juice Wave", 6, 5, 1),
     Snack("spicywave", "Spicy Wave", 5, 8, 2),
     Snack("cheese", "Cheese", 6, 8, 2),
     Snack("pickles", "Pickles", 6, 8, 2),
-    Snack("glitterwave", "Glitter Wave", 8, 12, 3),
+    Snack("glitterwave", "Glitter Wave", 6, 12, 3),
     Snack("viibrwave", "ViiBR Wave", 10, 15, 3),
 )
 SNACK_BY_KEY: dict[str, Snack] = {snack.key: snack for snack in SNACKS}
@@ -434,7 +434,8 @@ class Gift:
 
     `collection` is the key of its collection and `title` is how messages name
     it, such as "Blue Alien Doll" or "Arcade". A gift that `grows` looks
-    different at each of Wisp's stages, like his TV.
+    different at each of Wisp's stages, like his TV. A `plural` title takes
+    no "a" in messages, as "gave Wisp TV Shows".
     """
 
     key: str
@@ -442,6 +443,7 @@ class Gift:
     collection: str
     title: str
     grows: bool = False
+    plural: bool = False
 
     def look(self, stage: Stage) -> str:
         """The name of its emoji and picture while Wisp is at `stage`.
@@ -473,12 +475,13 @@ def _collection(
     *,
     named_by_item: bool = True,
     growing: frozenset[str] = frozenset(),
+    plural: frozenset[str] = frozenset(),
 ) -> GiftCollection:
     """A collection whose gifts are titled "<name> <item>", such as "Red Book".
 
     With `named_by_item` off, each gift's name is already its whole title,
     such as "Mimitchi". The gifts keyed in `growing` look different at each
-    of Wisp's stages.
+    of Wisp's stages; those keyed in `plural` have plural titles.
     """
     return GiftCollection(
         key,
@@ -491,6 +494,7 @@ def _collection(
                 key,
                 f"{gift_name} {item}" if named_by_item else gift_name,
                 gift_key in growing,
+                gift_key in plural,
             )
             for gift_key, gift_name in gifts
         ),
@@ -498,17 +502,6 @@ def _collection(
 
 
 GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
-    _collection(
-        "liners",
-        "Lunchbox Liners",
-        "Lunchbox Liner",
-        (
-            ("liner_bird", "Bird"),
-            ("liner_butterfly", "Butterfly"),
-            ("liner_kitties", "Kitties"),
-            ("liner_poppies", "Poppies"),
-        ),
-    ),
     _collection(
         "aliens",
         "Alien Dolls",
@@ -532,17 +525,6 @@ GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
         ),
     ),
     _collection(
-        "cards",
-        "Affirmation Cards",
-        "Affirmation Card",
-        (
-            ("card_futureisbright", "Future Is Bright"),
-            ("card_goodvibes", "Good Vibes"),
-            ("card_keepcalm", "Keep Calm"),
-            ("card_seeyou", "See You"),
-        ),
-    ),
-    _collection(
         "tamagotchis",
         "Tamagotchis",
         "Tamagotchi",
@@ -561,23 +543,11 @@ GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
         (
             ("tetris_handheld", "Tetris Handheld"),
             ("tech_arcade", "Arcade"),
-            ("tech_game_controller", "Game Controller"),
-            ("tech_tv", "TV"),
+            ("tech_tv", "TV Shows"),
         ),
         named_by_item=False,
         growing=frozenset({"tech_tv"}),
-    ),
-    _collection(
-        "jewels",
-        "Jewels",
-        "Jewel",
-        (
-            ("jewel_amethyst", "Amethyst"),
-            ("jewel_crystal", "Crystal"),
-            ("jewel_rainbow", "Rainbow Jewel"),
-            ("jewel_ruby", "Ruby"),
-        ),
-        named_by_item=False,
+        plural=frozenset({"tech_tv"}),
     ),
 )
 GIFT_BY_KEY: dict[str, Gift] = {

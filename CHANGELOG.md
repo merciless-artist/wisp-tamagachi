@@ -1,12 +1,31 @@
 # Changelog
 
-## 2026-11-18 (Team ViiBR price and new book covers)
+## 2026-11-18 (Team ViiBR price, new book covers, four gift collections)
 
+- Snack prices match Myra's Snacks header: Cloud, Jelly and Juice Wave
+  cost 6 WC (were 3) and Glitter Wave 6 WC (was 8). Glitter Wave is now
+  under `FANCY_SNACK_COST` (8), so it gets the everyday snack lines; only
+  the ViiBR Wave gets the fancy ones.
 - The Team ViiBR badge costs 175 wisp coins, down from 250. Bandmate stays
   at 250.
 - The Blue and Red Books' House pictures are Myra's new covers, so all four
   books now show a surprise cover when Wisp keeps one. Their Vault emojis
   stay the same.
+- The Affirmation Cards, Jewels and Lunchbox Liners are gone from the
+  Vault, leaving four gift collections: Alien Dolls, Books, Tamagotchis and
+  Tech, 15 gifts in all. Their art is in `RECYCLING/2026-11-18-retired-gifts`.
+  Gifts from them already kept this life stay in the database but no longer
+  show or count.
+- The Game Controller is gone from Tech, which is now the Tetris Handheld,
+  the Arcade and the TV. A Tech set is complete at 3 of 3. Its art is in
+  `RECYCLING/2026-11-18-retired-gifts` too; a controller already kept
+  this life no longer shows or counts.
+- The TV gift is now called **TV Shows**, to match Myra's Vault art. Its
+  messages read "gave Wisp TV Shows", with no "a" (a gift's new `plural`
+  flag in `wisp/rules.py`).
+- The Welcotchi's House picture was a copy of the Hawaikotchi. It is now
+  the pink Welcotchi from its Vault emoji; the old copy is in
+  `RECYCLING/2026-11-18-welcotchi-copy`.
 
 ## 2026-11-16 (Tech collection and the Vault's gift lines)
 

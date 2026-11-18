@@ -27,7 +27,14 @@ from db.activity import InteractionKind
 from db.gifts import GiftAttempt
 from db.players import Player
 from wisp.chores import is_napping
-from wisp.gifts import GiftState, Outcome, collection_of, decide, with_article
+from wisp.gifts import (
+    GiftState,
+    Outcome,
+    collection_of,
+    decide,
+    named,
+    with_article,
+)
 from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
 from wisp.lines import Moment
 from wisp.rules import (
@@ -326,7 +333,7 @@ def gift_note(given: GiftGiven) -> str:
     """What the gift did and what Wisp did with it, for the member who gave it."""
     title = given.gift.title
     gave = (
-        f"♪ You gave Wisp {with_article(title)}. "
+        f"♪ You gave Wisp {named(given.gift)}. "
         f"{meter_receipt('Wellbeing', given.wellbeing_before, given.life.wellbeing)}."
     )
     if given.outcome is Outcome.FULL:
@@ -367,7 +374,7 @@ async def announce_gift(
     wellbeing = meter_receipt("Wellbeing", given.wellbeing_before, given.life.wellbeing)
     bond = f" ・ bond +{given.bond}" if kept else ""
     lines = [
-        f"♪ <@{giver}> gave Wisp {with_article(title)} ・ {wellbeing}{bond}",
+        f"♪ <@{giver}> gave Wisp {named(given.gift)} ・ {wellbeing}{bond}",
         bot.lines.pick(moment, feeling, name=name, gift=title),
     ]
     if given.completed:

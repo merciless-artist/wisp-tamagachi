@@ -103,3 +103,11 @@ def with_article(title: str) -> str:
     first = title.split(" ", 1)[0]
     vowels = _VOWEL_LETTERS if len(first) == 1 else _VOWELS
     return f"an {title}" if first[:1] in vowels else f"a {title}"
+
+
+def named(gift: Gift) -> str:
+    """One gift as messages name it after "gave Wisp".
+
+    "a Red Book" or "an Arcade"; a plural title stands alone, as "TV Shows".
+    """
+    return gift.title if gift.plural else with_article(gift.title)
