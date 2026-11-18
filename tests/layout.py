@@ -51,14 +51,14 @@ def layout_selects(view: discord.ui.LayoutView) -> list[discord.ui.Select[Any]]:
 
 
 def vault_parts(send: Any) -> list[discord.ui.LayoutView]:
-    """The two parts of the Vault `send`, a mocked follow-up send, sent last."""
-    calls = send.await_args_list[-2:]
-    assert len(calls) == 2
+    """The three parts of the Vault `send`, a mocked follow-up send, sent last."""
+    calls = send.await_args_list[-3:]
+    assert len(calls) == 3
     return [call.kwargs["view"] for call in calls]
 
 
 def vault_opened(send: Any) -> tuple[str, list[discord.ui.Select[Any]]]:
-    """The Vault `send` sent last: both parts' text, one line apart, and every
+    """The Vault `send` sent last: every part's text, one line apart, and every
     select in order."""
     parts = vault_parts(send)
     text = "\n".join(layout_text(part) for part in parts)

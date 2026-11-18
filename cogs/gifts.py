@@ -37,9 +37,11 @@ from wisp.rules import (
     GIFT_COLLECTIONS,
     GIFT_COST,
     GROWTH_PER_BOND_MOMENT,
+    TV_EPISODES,
     WELLBEING_PER_GIFT,
     Gift,
     GiftCollection,
+    Stage,
 )
 from wisp.text import Frame, meter_receipt, richest, text_length, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
@@ -98,7 +100,7 @@ def _living_id(life: Life | None) -> int | None:
 
 
 async def _state(
-    bot: "WispBot", guild_id: int, life_id: int, now: datetime
+    bot: "WispBot", guild_id: int, life: Life, life_id: int, now: datetime
 ) -> GiftState:
     kept = await bot.gifts.kept(guild_id, life_id)
     today = await bot.gifts.today(guild_id, life_id, now)
@@ -110,6 +112,7 @@ async def _state(
             if attempt.gift in GIFT_BY_KEY
         ),
         any(attempt.kept for attempt in today),
+        life.stage,
     )
 
 
@@ -117,27 +120,40 @@ async def todays_gifts(
     bot: "WispBot", guild_id: int, now: datetime
 ) -> GiftState | None:
     """The current life's gifts on the UTC day of `now`; None unless he is alive."""
-    life_id = _living_id(await bot.lives.current(guild_id))
-    return None if life_id is None else await _state(bot, guild_id, life_id, now)
+    life = await bot.lives.current(guild_id)
+    life_id = _living_id(life)
+    if life is None or life_id is None:
+        return None
+    return await _state(bot, guild_id, life, life_id, now)
 
 
-def _label(bot: "WispBot", gift: Gift) -> str:
-    """The gift's emoji, or its name when the emoji is not uploaded."""
-    return bot.emoji(gift.emoji_name) or gift.name
+def _label(bot: "WispBot", state: GiftState, gift: Gift) -> str:
+    """The gift's emoji now, or its name when the emoji is not uploaded."""
+    return bot.emoji(state.emoji_name(gift)) or gift.name
 
 
 def _stock(
-    bot: "WispBot", state: GiftState, collection: GiftCollection, *, rich: bool
+    bot: "WispBot",
+    frame: Frame,
+    state: GiftState,
+    collection: GiftCollection,
+    *,
+    rich: bool,
 ) -> str:
-    """What is left of a collection: its gifts when `rich`, else how many."""
+    """A collection's Vault entry: what is left of it, or why it is shut.
+
+    When `rich`, its gifts go on the line under its name, split by `・`;
+    otherwise one line says how many are left.
+    """
     in_stock = [gift for gift in collection.gifts if state.in_stock(gift)]
     if not in_stock:
-        return "all kept this life"
+        return frame.item(f"{collection.name}: all kept this life")
     if not state.is_open(collection):
-        return "back tomorrow"
+        return frame.item(f"{collection.name}: back tomorrow")
     if not rich:
-        return f"{len(in_stock)} left"
-    return " ".join(_label(bot, gift) for gift in in_stock)
+        return frame.item(f"{collection.name}: {len(in_stock)} left")
+    gifts = " ・ ".join(_label(bot, state, gift) for gift in in_stock)
+    return f"{frame.item(f'{collection.name}:')}\n{frame.note(gifts)}"
 
 
 def gift_section(
@@ -160,11 +176,7 @@ def gift_section(
 
     def lines(rich: bool) -> list[str]:
         return [
-            frame.wrap(
-                frame.item(
-                    f"{collection.name}: {_stock(bot, state, collection, rich=rich)}"
-                )
-            )
+            frame.wrap(_stock(bot, frame, state, collection, rich=rich))
             for collection in GIFT_COLLECTIONS
         ]
 
@@ -186,7 +198,7 @@ def collection_options(
             label=collection.name,
             value=collection.key,
             description=f"{len(gifts)} left",
-            emoji=bot.emojis_by_name.get(gifts[0].emoji_name),
+            emoji=bot.emojis_by_name.get(state.emoji_name(gifts[0])),
         )
         for collection in GIFT_COLLECTIONS
         if (gifts := state.offered_from(collection))
@@ -204,7 +216,7 @@ def gift_options(
             label=gift.title,
             value=gift.key,
             description=f"{GIFT_COST} WC",
-            emoji=bot.emojis_by_name.get(gift.emoji_name),
+            emoji=bot.emojis_by_name.get(state.emoji_name(gift)),
         )
         for gift in state.offered_from(collection)
     ]
@@ -275,7 +287,7 @@ async def give_gift(
     life_id = _living_id(life)
     if life is None or life_id is None:
         raise Refusal(no_wisp_text(life, "Gifts"))
-    state = await _state(bot, guild_id, life_id, now)
+    state = await _state(bot, guild_id, life, life_id, now)
     collection = collection_of(gift)
     if not state.in_stock(gift):
         raise Refusal(f"♪ Wisp already has the {gift.title}.")
@@ -330,9 +342,9 @@ def gift_note(given: GiftGiven) -> str:
     return kept
 
 
-def _gift_art(gift: Gift) -> Path | None:
-    """The gift's picture, when the art is on disk."""
-    return asset_image(ASSETS_DIR / "gifts", gift.key)
+def _gift_art(gift: Gift, stage: Stage) -> Path | None:
+    """The gift's picture while Wisp is at `stage`, when the art is on disk."""
+    return asset_image(ASSETS_DIR / "gifts", gift.look(stage))
 
 
 async def announce_gift(
@@ -343,7 +355,8 @@ async def announce_gift(
     The post tags and pings the giver, so they see how Wisp took it, and says
     what the gift did for the whole House to see. A gift
     he keeps while he naps gets a sleepy line; one he passes on keeps its own
-    line, so the post never says he hugged a gift that went back.
+    line, so the post never says he hugged a gift that went back. A kept TV
+    shows his stage's TV and links that stage's episode.
     """
     feeling = mood(given.life)
     title = given.gift.title
@@ -364,13 +377,17 @@ async def announce_gift(
                 Moment.COLLECTION_DONE, feeling, name=name, collection=collection
             )
         )
+    stage = given.life.stage
+    episode = TV_EPISODES.get(stage) if given.gift.grows else None
+    if kept and episode is not None:
+        lines.append(f"♪ Now on Wisp's TV: {episode}")
     if not kept:
         lines.append(_BACK_IN_VAULT)
     await post_in_house(
         bot,
         guild_id,
         "\n".join(lines),
-        image=_gift_art(given.gift) if kept else None,
+        image=_gift_art(given.gift, stage) if kept else None,
         ping=giver,
     )
 
@@ -381,7 +398,11 @@ async def announce_gift(
 
 
 def collection_lines(
-    bot: "WispBot", frame: Frame, kept: Sequence[GiftAttempt], room: int
+    bot: "WispBot",
+    frame: Frame,
+    kept: Sequence[GiftAttempt],
+    stage: Stage,
+    room: int,
 ) -> list[str]:
     """The lunchbox lines of each collection this life kept gifts from, in order.
 
@@ -389,7 +410,8 @@ def collection_lines(
     entry after the first opens with the frame's group break. A collection's
     line is in capitals, as `BOOKS 1/4`. The entries take at most `room`,
     counted by `text_length`: an unfinished collection lists its gifts and
-    givers while there is room, else only its progress.
+    givers while there is room, else only its progress. A growing gift shows
+    its look at his `stage`.
     """
     plain: list[str] = []
     rich: list[str] = []
@@ -413,7 +435,7 @@ def collection_lines(
             continue
         items = (
             frame.item(
-                f"{with_emoji(bot.emoji(gift.emoji_name), gift.name)} ・ "
+                f"{with_emoji(bot.emoji(gift.emoji_name(stage)), gift.name)} ・ "
                 f"from <@{user_id}>"
             )
             for gift, user_id in got

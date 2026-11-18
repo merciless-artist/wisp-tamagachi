@@ -433,18 +433,26 @@ class Gift:
     """A gift members can give Wisp from the Vault.
 
     `collection` is the key of its collection and `title` is how messages name
-    it, such as "Blue Alien Doll" or "I Block".
+    it, such as "Blue Alien Doll" or "Arcade". A gift that `grows` looks
+    different at each of Wisp's stages, like his TV.
     """
 
     key: str
     name: str
     collection: str
     title: str
+    grows: bool = False
 
-    @property
-    def emoji_name(self) -> str:
-        """Name of the app emoji that shows this gift."""
-        return f"gift_{self.key}"
+    def look(self, stage: Stage) -> str:
+        """The name of its emoji and picture while Wisp is at `stage`.
+
+        A gift that grows is named for the stage too, as "tech_tv_teen".
+        """
+        return f"{self.key}_{stage.value}" if self.grows else self.key
+
+    def emoji_name(self, stage: Stage) -> str:
+        """Name of the app emoji that shows this gift while Wisp is at `stage`."""
+        return f"gift_{self.look(stage)}"
 
 
 @dataclass(frozen=True)
@@ -464,11 +472,13 @@ def _collection(
     gifts: tuple[tuple[str, str], ...],
     *,
     named_by_item: bool = True,
+    growing: frozenset[str] = frozenset(),
 ) -> GiftCollection:
     """A collection whose gifts are titled "<name> <item>", such as "Red Book".
 
     With `named_by_item` off, each gift's name is already its whole title,
-    such as "Mimitchi".
+    such as "Mimitchi". The gifts keyed in `growing` look different at each
+    of Wisp's stages.
     """
     return GiftCollection(
         key,
@@ -480,6 +490,7 @@ def _collection(
                 gift_name,
                 key,
                 f"{gift_name} {item}" if named_by_item else gift_name,
+                gift_key in growing,
             )
             for gift_key, gift_name in gifts
         ),
@@ -544,18 +555,17 @@ GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
         named_by_item=False,
     ),
     _collection(
-        "tetris",
-        "Tetris",
-        "Tetris Toy",
+        "tech",
+        "Tech",
+        "Tech Toy",
         (
             ("tetris_handheld", "Tetris Handheld"),
-            ("tetris_i", "I Block"),
-            ("tetris_l", "L Block"),
-            ("tetris_t", "T Block"),
-            ("tetris_s", "S Block"),
-            ("tetris_z", "Z Block"),
+            ("tech_arcade", "Arcade"),
+            ("tech_game_controller", "Game Controller"),
+            ("tech_tv", "TV"),
         ),
         named_by_item=False,
+        growing=frozenset({"tech_tv"}),
     ),
     _collection(
         "jewels",
@@ -572,6 +582,19 @@ GIFT_COLLECTIONS: tuple[GiftCollection, ...] = (
 )
 GIFT_BY_KEY: dict[str, Gift] = {
     gift.key: gift for collection in GIFT_COLLECTIONS for gift in collection.gifts
+}
+# Every name a gift's emoji and picture go by, at any stage.
+GIFT_BY_LOOK: dict[str, Gift] = {
+    gift.look(stage): gift for gift in GIFT_BY_KEY.values() for stage in Stage
+}
+# The episode on Wisp's TV at each stage, posted in his House when he keeps it.
+TV_EPISODES: dict[Stage, str] = {
+    Stage.BABY: "https://www.youtube.com/watch?v=U1jUICPWMYU",
+    Stage.CHILD: "https://www.youtube.com/watch?v=rpJkTXWM-dI",
+    Stage.TEEN: "https://www.youtube.com/shorts/XByD0w9P9lk",
+    Stage.ADULT: "https://www.youtube.com/watch?v=51X9Rdz2PWk",
+    Stage.ROCKSTAR: "https://www.youtube.com/watch?v=CtvxQ09LqUY",
+    Stage.OLD_FOGEY: "https://www.youtube.com/watch?v=7cv91dwBUo4",
 }
 COLLECTION_BY_KEY: dict[str, GiftCollection] = {
     collection.key: collection for collection in GIFT_COLLECTIONS

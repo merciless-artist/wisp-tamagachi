@@ -624,15 +624,10 @@ async def test_the_badge_select_sits_under_the_badges(
 
     await command.callback(interaction)
 
-    first, second = vault_parts(interaction.followup.send)
+    first, second, third = vault_parts(interaction.followup.send)
     assert layout_order(first) == ["text", "Buy a snack"]
-    assert layout_order(second) == [
-        "text",
-        "Get a badge",
-        "text",
-        "Pick a collection",
-        "text",
-    ]
+    assert layout_order(second) == ["text", "Get a badge"]
+    assert layout_order(third) == ["text", "Pick a collection", "text"]
 
 
 async def test_the_fullest_vault_stays_within_the_layout_text_limit(
@@ -646,7 +641,7 @@ async def test_the_fullest_vault_stays_within_the_layout_text_limit(
         "viibr_logo",
         *(badge.emoji_name for badge in BADGES),
         *(snack.emoji_name for snack in SNACKS),
-        *(gift.emoji_name for gift in GIFT_BY_KEY.values()),
+        *(gift.emoji_name(Stage.TEEN) for gift in GIFT_BY_KEY.values()),
     ]
     bot.emojis_by_name = {
         name: cast(
@@ -668,7 +663,7 @@ async def test_the_fullest_vault_stays_within_the_layout_text_limit(
     assert all(len(select.options) <= 25 for select in selects)
     assert len(selects) <= 4
     for gift in GIFT_BY_KEY.values():
-        assert f"<a:{gift.emoji_name}:" in text, gift.key
+        assert f"<a:{gift.emoji_name(Stage.TEEN)}:" in text, gift.key
 
 
 # ---

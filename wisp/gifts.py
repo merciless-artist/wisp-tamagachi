@@ -13,6 +13,7 @@ from wisp.rules import (
     GIFT_LIKE_RISE,
     Gift,
     GiftCollection,
+    Stage,
 )
 
 _VOWELS = frozenset("AEIOUaeiou")
@@ -33,13 +34,19 @@ class GiftState:
     """The gifts of one life on one UTC day.
 
     `kept` holds the keys of the gifts he kept this life, `given_today` the keys
-    of the collections someone gave from today, and `kept_today` whether he
-    kept one today.
+    of the collections someone gave from today, `kept_today` whether he
+    kept one today, and `stage` the stage he is at, which a growing gift's
+    look follows.
     """
 
     kept: frozenset[str]
     given_today: frozenset[str]
     kept_today: bool
+    stage: Stage
+
+    def emoji_name(self, gift: Gift) -> str:
+        """Name of the app emoji that shows `gift` now."""
+        return gift.emoji_name(self.stage)
 
     def in_stock(self, gift: Gift) -> bool:
         """Whether the Vault still has this gift: he has not kept it this life."""

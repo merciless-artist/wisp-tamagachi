@@ -200,13 +200,17 @@ def emoji_text(name: str, index: int) -> str:
 
 
 async def lay(
-    bot: app.WispBot, phase: Phase = Phase.ALIVE, health: float = 50.0, version: int = 1
+    bot: app.WispBot,
+    phase: Phase = Phase.ALIVE,
+    health: float = 50.0,
+    version: int = 1,
+    stage: Stage = Stage.BABY,
 ) -> Life:
     life = new_egg(version, discord.utils.utcnow() - timedelta(days=2))
     life.phase = phase
     life.health = health
     if phase is Phase.ALIVE:
-        life.stage = life.peak_stage = Stage.BABY
+        life.stage = life.peak_stage = stage
         life.hatched_at = life.stage_started_at = discord.utils.utcnow()
     return await bot.lives.insert(GUILD_ID, life)
 
@@ -408,21 +412,14 @@ def test_there_are_seven_collections_in_order() -> None:
             ["tama_hawaikotchi", "tama_mimitchi", "tama_nano", "tama_welcotchi"],
         ),
         (
-            "Tetris",
-            [
-                "tetris_handheld",
-                "tetris_i",
-                "tetris_l",
-                "tetris_t",
-                "tetris_s",
-                "tetris_z",
-            ],
+            "Tech",
+            ["tetris_handheld", "tech_arcade", "tech_game_controller", "tech_tv"],
         ),
         ("Jewels", ["jewel_amethyst", "jewel_crystal", "jewel_rainbow", "jewel_ruby"]),
     ]
-    assert [len(group.gifts) for group in GIFT_COLLECTIONS] == [4, 4, 4, 4, 4, 6, 4]
+    assert [len(group.gifts) for group in GIFT_COLLECTIONS] == [4] * 7
     assert all(len(key) <= 30 for key in GIFT_BY_KEY)
-    assert len(GIFT_BY_KEY) == 30
+    assert len(GIFT_BY_KEY) == 28
 
 
 @pytest.mark.parametrize(
@@ -438,11 +435,9 @@ def test_there_are_seven_collections_in_order() -> None:
         ("tama_nano", "Tamagotchi Nano"),
         ("tama_welcotchi", "Welcotchi"),
         ("tetris_handheld", "Tetris Handheld"),
-        ("tetris_i", "I Block"),
-        ("tetris_l", "L Block"),
-        ("tetris_t", "T Block"),
-        ("tetris_s", "S Block"),
-        ("tetris_z", "Z Block"),
+        ("tech_arcade", "Arcade"),
+        ("tech_game_controller", "Game Controller"),
+        ("tech_tv", "TV"),
         ("jewel_amethyst", "Amethyst"),
         ("jewel_crystal", "Crystal"),
         ("jewel_rainbow", "Rainbow Jewel"),
@@ -453,12 +448,23 @@ def test_a_gift_reads_with_its_collection(key: str, title: str) -> None:
     assert GIFT_BY_KEY[key].title == title
 
 
-def test_every_gift_has_its_emoji_name_and_art() -> None:
+@pytest.mark.parametrize("stage", [stage for stage in Stage if stage is not Stage.EGG])
+def test_every_gift_has_its_emoji_name_and_art(stage: Stage) -> None:
     for group in GIFT_COLLECTIONS:
         for gift in group.gifts:
+            look = f"{gift.key}_{stage.value}" if gift.grows else gift.key
             assert gift.collection == group.key
-            assert gift.emoji_name == f"gift_{gift.key}"
-            assert asset_image(ASSETS / "gifts", gift.key) is not None, gift.key
+            assert gift.look(stage) == look
+            assert gift.emoji_name(stage) == f"gift_{look}"
+            assert len(gift.emoji_name(stage)) <= 32, look
+            assert rules.GIFT_BY_LOOK[look] is gift
+            assert asset_image(ASSETS / "gifts", look) is not None, look
+
+
+def test_only_the_tv_grows_and_it_has_an_episode_for_each_stage() -> None:
+    assert [gift.key for gift in GIFT_BY_KEY.values() if gift.grows] == ["tech_tv"]
+    assert set(rules.TV_EPISODES) == set(Stage) - {Stage.EGG}
+    assert GIFT_BY_KEY["tech_tv"].look(Stage.OLD_FOGEY) == "tech_tv_old_fogey"
 
 
 def test_the_catalog_fits_discord_and_the_database() -> None:
@@ -492,7 +498,9 @@ def test_gift_numbers_are_the_starting_values() -> None:
         ("S Block", "an S Block"),
         ("T Block", "a T Block"),
         ("Z Block", "a Z Block"),
-        ("Tetris Toy", "a Tetris Toy"),
+        ("Tech Toy", "a Tech Toy"),
+        ("Arcade", "an Arcade"),
+        ("TV", "a TV"),
     ],
 )
 def test_a_gift_gets_the_right_article(title: str, expected: str) -> None:
@@ -505,7 +513,7 @@ def test_a_gift_gets_the_right_article(title: str, expected: str) -> None:
 
 
 def test_the_roll_keeps_under_the_like_chance() -> None:
-    state = GiftState(frozenset(), frozenset(), kept_today=False)
+    state = GiftState(frozenset(), frozenset(), kept_today=False, stage=Stage.BABY)
 
     assert decide(state, FixedRandom(rules.GIFT_LIKE_CHANCE - 0.01)) is Outcome.KEPT
     assert decide(state, FixedRandom(rules.GIFT_LIKE_CHANCE)) is Outcome.PASSED
@@ -518,25 +526,33 @@ def test_the_roll_keeps_under_the_like_chance() -> None:
 def test_each_gift_he_passes_on_makes_him_more_open(
     passed_today: tuple[str, ...], chance: float
 ) -> None:
-    state = GiftState(frozenset(), frozenset(passed_today), kept_today=False)
+    state = GiftState(
+        frozenset(), frozenset(passed_today), kept_today=False, stage=Stage.BABY
+    )
 
     assert like_chance(state) == pytest.approx(chance)
     assert decide(state, FixedRandom(chance - 0.01)) is Outcome.KEPT
 
 
 def test_the_third_gift_of_a_day_is_always_kept() -> None:
-    state = GiftState(frozenset(), frozenset({"aliens", "books"}), kept_today=False)
+    state = GiftState(
+        frozenset(), frozenset({"aliens", "books"}), kept_today=False, stage=Stage.BABY
+    )
 
     assert decide(state, FixedRandom(PASS)) is Outcome.KEPT
     assert like_chance(
-        GiftState(frozenset(), frozenset({"aliens", "books", "cards"}), False)
+        GiftState(
+            frozenset(), frozenset({"aliens", "books", "cards"}), False, Stage.BABY
+        )
     ) == pytest.approx(1.0)
 
 
 def test_after_a_kept_gift_he_is_full_without_rolling() -> None:
     rng = FixedRandom(KEEP)
 
-    outcome = decide(GiftState(frozenset(), frozenset(), kept_today=True), rng)
+    outcome = decide(
+        GiftState(frozenset(), frozenset(), kept_today=True, stage=Stage.BABY), rng
+    )
 
     assert outcome is Outcome.FULL
     assert rng.rolls == 0
@@ -545,7 +561,7 @@ def test_after_a_kept_gift_he_is_full_without_rolling() -> None:
 def test_the_state_knows_stock_open_collections_and_completion() -> None:
     aliens = collection("aliens")
     kept = frozenset(gift.key for gift in aliens.gifts[:3])
-    state = GiftState(kept, frozenset({"books"}), kept_today=False)
+    state = GiftState(kept, frozenset({"books"}), kept_today=False, stage=Stage.BABY)
 
     assert not state.in_stock(aliens.gifts[0])
     assert state.can_give(aliens.gifts[3])
@@ -553,7 +569,7 @@ def test_the_state_knows_stock_open_collections_and_completion() -> None:
     assert not state.can_give(collection("books").gifts[0])
     assert state.offered_from(aliens) == [aliens.gifts[3]]
     assert state.offered_from(collection("books")) == []
-    assert state.offered_from(collection("tetris")) == list(collection("tetris").gifts)
+    assert state.offered_from(collection("tech")) == list(collection("tech").gifts)
 
 
 # ---
@@ -1004,17 +1020,20 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
     assert snacks_at < badges_at < gifts_at
     assert lines[gifts_at - 1] == FRAME.section_break
     alien_emojis = (
-        f"{emoji_text('gift_alien_blue', 2)} {emoji_text('gift_alien_green', 3)}"
+        f"{emoji_text('gift_alien_blue', 2)} ・ {emoji_text('gift_alien_green', 3)}"
     )
-    gift_lines = [
-        GAMBLE,
-        FRAME.item("Lunchbox Liners: Bird Butterfly Kitties Poppies"),
-        FRAME.item(f"Alien Dolls: {alien_emojis} Purple Yellow"),
-        FRAME.item("Books: Blue Green Orange Red"),
-        FRAME.item("Affirmation Cards: Future Is Bright Good Vibes Keep Calm See You"),
-        FRAME.item("Tamagotchis: Hawaikotchi Mimitchi Tamagotchi Nano Welcotchi"),
-        FRAME.item("Tetris: Tetris Handheld I Block L Block T Block S Block Z Block"),
-        FRAME.item("Jewels: Amethyst Crystal Rainbow Jewel Ruby"),
+    stock = {
+        "Lunchbox Liners": "Bird ・ Butterfly ・ Kitties ・ Poppies",
+        "Alien Dolls": f"{alien_emojis} ・ Purple ・ Yellow",
+        "Books": "Blue ・ Green ・ Orange ・ Red",
+        "Affirmation Cards": "Future Is Bright ・ Good Vibes ・ Keep Calm ・ See You",
+        "Tamagotchis": "Hawaikotchi ・ Mimitchi ・ Tamagotchi Nano ・ Welcotchi",
+        "Tech": "Tetris Handheld ・ Arcade ・ Game Controller ・ TV",
+        "Jewels": "Amethyst ・ Crystal ・ Rainbow Jewel ・ Ruby",
+    }
+    gift_lines = [GAMBLE] + [
+        f"{FRAME.item(f'{name}:')}\n{FRAME.note(gifts)}"
+        for name, gifts in stock.items()
     ]
     assert lines[gifts_at + 1 :] == [
         *"\n".join(FRAME.wrapped(gift_lines)).split("\n"),
@@ -1043,26 +1062,27 @@ async def test_picking_a_collection_shows_its_gifts_with_the_price(
     life = await lay(bot)
     assert life.id is not None
     yesterday = discord.utils.utcnow() - timedelta(days=1)
-    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "tetris_i", True, yesterday)
-    give_emojis(bot, "gift_tetris_l")
+    await bot.gifts.record(
+        GUILD_ID, life.id, USER_ID, "tetris_handheld", True, yesterday
+    )
+    give_emojis(bot, "gift_tech_game_controller")
 
-    interaction = await pick(bot, "tetris")
+    interaction = await pick(bot, "tech")
 
     text, selects = shown(interaction)
-    assert text.startswith(f"{FRAME.section_break}\n{FRAME.heading('Badges')}\n")
+    assert text.startswith(f"{FRAME.section_break}\n{GIFTS_HEADING}\n")
+    assert FRAME.heading("Badges") not in text
     assert [select.placeholder for select in selects] == [PICK, GIVE]
     items = gift_select(selects)
     assert [(option.label, option.value) for option in items.options] == [
-        ("Tetris Handheld", "tetris_handheld"),
-        ("L Block", "tetris_l"),
-        ("T Block", "tetris_t"),
-        ("S Block", "tetris_s"),
-        ("Z Block", "tetris_z"),
+        ("Arcade", "tech_arcade"),
+        ("Game Controller", "tech_game_controller"),
+        ("TV", "tech_tv"),
     ]
     assert {option.description for option in items.options} == {"15 WC"}
-    assert str(items.options[1].emoji) == emoji_text("gift_tetris_l", 1)
-    tetris = collection_select(selects).options[5]
-    assert tetris.description == "5 left"
+    assert str(items.options[1].emoji) == emoji_text("gift_tech_game_controller", 1)
+    tech = collection_select(selects).options[5]
+    assert tech.description == "3 left"
     assert await balance(bot) == 100
 
 
@@ -1144,7 +1164,8 @@ async def test_the_vault_shows_stock_and_the_days_buys(bot: app.WispBot) -> None
 
     text, _ = await open_vault(bot)
 
-    assert FRAME.item("Alien Dolls: Green Purple Yellow") in text
+    aliens = f"{FRAME.item('Alien Dolls:')}\n{FRAME.note('Green ・ Purple ・ Yellow')}"
+    assert aliens in text
     assert FRAME.item("Books: back tomorrow") in text
     options = await offered(bot)
     assert "alien_blue" not in options
@@ -1364,59 +1385,122 @@ def test_a_gift_is_its_own_kind_of_interaction() -> None:
 # ---
 
 
-async def test_the_sixth_tetris_piece_completes_its_collection(
+async def test_the_last_tech_toy_completes_tech(
     bot: app.WispBot,
     server: FakeServer,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     (tmp_path / "gifts").mkdir()
-    (tmp_path / "gifts" / "tetris_z.gif").write_bytes(b"GIF")
+    (tmp_path / "gifts" / "tech_game_controller.gif").write_bytes(b"GIF")
     monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
     life = await lay(bot)
     assert life.id is not None
     yesterday = discord.utils.utcnow() - timedelta(days=1)
-    for gift in collection("tetris").gifts[:5]:
-        await bot.gifts.record(
-            GUILD_ID, life.id, OTHER_USER_ID, gift.key, True, yesterday
-        )
+    for key in ("tetris_handheld", "tech_arcade", "tech_tv"):
+        await bot.gifts.record(GUILD_ID, life.id, OTHER_USER_ID, key, True, yesterday)
     say(bot)
 
-    interaction = await give(bot, "tetris_z")
+    interaction = await give(bot, "tech_game_controller")
 
     bonus = rules.BOND_PER_KEPT_GIFT + rules.COLLECTION_BOND_BONUS
     assert await bond(bot) == bonus
     assert edited(interaction).startswith(
-        f"{gave('a Z Block')}\n"
-        f"♪ Wisp kept your Z Block ・ bond +{bonus} ・ Tetris complete"
+        f"{gave('a Game Controller')}\n"
+        f"♪ Wisp kept your Game Controller ・ bond +{bonus} ・ Tech complete"
     )
     text, kwargs = house_post(server)
-    head = posted(USER_ID, "a Z Block", bonus)
+    head = posted(USER_ID, "a Game Controller", bonus)
     assert text == f"{head}\n[gift_kept]\n[collection_done]"
-    assert kwargs["file"].filename == "tetris_z.gif"
+    assert kwargs["file"].filename == "tech_game_controller.gif"
     vault_text, _ = await open_vault(bot)
-    assert FRAME.item("Tetris: all kept this life") in vault_text
+    assert FRAME.item("Tech: all kept this life") in vault_text
     frame = framed(bot)
     lunchbox = await lunchbox_text(bot, GUILD_ID)
-    finished = frame.sub(f"TETRIS 6/6 COMPLETE ・ finished by <@{USER_ID}>")
+    finished = frame.sub(f"TECH 4/4 COMPLETE ・ finished by <@{USER_ID}>")
     assert frame.wrap(finished) in lunchbox
 
 
-async def test_five_of_six_tetris_pieces_is_not_complete(bot: app.WispBot) -> None:
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN, Stage.OLD_FOGEY])
+async def test_a_kept_tv_shows_his_stages_tv_and_its_episode(
+    bot: app.WispBot,
+    server: FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: Stage,
+) -> None:
+    (tmp_path / "gifts").mkdir()
+    (tmp_path / "gifts" / f"tech_tv_{stage.value}.png").write_bytes(b"PNG")
+    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    await lay(bot, stage=stage)
+    say(bot)
+
+    await give(bot, "tech_tv")
+
+    text, kwargs = house_post(server)
+    assert text == (
+        f"{posted(USER_ID, 'a TV', rules.BOND_PER_KEPT_GIFT)}\n[gift_kept]\n"
+        f"♪ Now on Wisp's TV: {rules.TV_EPISODES[stage]}"
+    )
+    assert kwargs["file"].filename == f"tech_tv_{stage.value}.png"
+
+
+async def test_a_tv_he_passes_on_shows_no_tv_and_no_episode(
+    bot: app.WispBot, cog: Gifts, server: FakeServer
+) -> None:
+    await lay(bot, stage=Stage.ROCKSTAR)
+    cog.rng = FixedRandom(PASS)
+    say(bot)
+
+    await give(bot, "tech_tv")
+
+    text, kwargs = house_post(server)
+    assert text == (
+        f"{posted(USER_ID, 'a TV')}\n[gift_passed]\n♪ It's back in the ViiBR Vault."
+    )
+    assert "youtube" not in text
+    assert "file" not in kwargs
+
+
+async def test_the_vault_and_lunchbox_show_the_tv_for_his_stage(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot, stage=Stage.ROCKSTAR)
+    assert life.id is not None
+    give_emojis(bot, "gift_tech_tv_baby", "gift_tech_tv_rockstar")
+
+    text, _ = await open_vault(bot)
+
+    toys = FRAME.note("Tetris Handheld ・ Arcade ・ Game Controller ・ ")
+    rockstar_tv = emoji_text("gift_tech_tv_rockstar", 2)
+    assert FRAME.wrap(f"{FRAME.item('Tech:')}\n{toys}{rockstar_tv}") in text
+    assert "gift_tech_tv_baby" not in text
+    items = gift_select(shown(await pick(bot, "tech"))[1])
+    assert str(items.options[3].emoji) == emoji_text("gift_tech_tv_rockstar", 2)
+    yesterday = discord.utils.utcnow() - timedelta(days=1)
+    await bot.gifts.record(GUILD_ID, life.id, USER_ID, "tech_tv", True, yesterday)
+    frame = framed(bot, "gift_tech_tv_rockstar")
+    lunchbox = await lunchbox_text(bot, GUILD_ID)
+    tv = frame.item(f"{bot.emoji('gift_tech_tv_rockstar')} TV ・ from <@{USER_ID}>")
+    assert frame.wrap(tv) in lunchbox
+
+
+async def test_tetris_pieces_kept_before_tech_are_left_out(bot: app.WispBot) -> None:
     life = await lay(bot)
     assert life.id is not None
     yesterday = discord.utils.utcnow() - timedelta(days=1)
-    for gift in collection("tetris").gifts[:5]:
-        await bot.gifts.record(GUILD_ID, life.id, USER_ID, gift.key, True, yesterday)
+    for key in ("tetris_handheld", "tetris_i", "tetris_z"):
+        await bot.gifts.record(GUILD_ID, life.id, USER_ID, key, True, yesterday)
     frame = framed(bot)
 
     lunchbox = await lunchbox_text(bot, GUILD_ID)
+    vault_text, _ = await open_vault(bot)
 
     section = entries(collections_of(lunchbox, frame), frame)
-    assert section[0] == frame.sub("TETRIS 5/6")
-    assert len(section) == 6
-    assert all(line.startswith(frame.item_mark + " ") for line in section[1:])
-    assert "COMPLETE" not in lunchbox
+    assert section[0] == frame.sub("TECH 1/4")
+    assert len(section) == 2
+    tech = f"{frame.item('Tech:')}\n{frame.note('Arcade ・ Game Controller ・ TV')}"
+    assert frame.wrap(tech) in vault_text
 
 
 def long_emojis(bot: app.WispBot, monkeypatch: pytest.MonkeyPatch) -> Frame:
@@ -1453,11 +1537,19 @@ async def test_the_vault_fits_with_long_emojis_and_everything_in_stock(
         assert text_length(layout_text(part)) <= LAYOUT_TEXT_LIMIT
     assert_fits_its_frame(text, frame)
     assert frame.wrap(f"{frame.heading('Gifts')} ・ {LONG_EMOJI} 15 WC each") in text
+    picked = GIFT_BY_KEY["book_red"].collection
     for group in GIFT_COLLECTIONS:
-        assert frame.item(f"{group.name}: ") in text
+        if group.key == picked:
+            assert frame.wrap(frame.item(f"{group.name}: back tomorrow")) in text
+        else:
+            assert frame.item(f"{group.name}:") + "\n" in text
+    gifts_part = layout_text(vault_parts(interaction.followup.send)[2])
+    shown_gifts = sum(len(g.gifts) for g in GIFT_COLLECTIONS if g.key != picked)
+    assert gifts_part.count(LONG_EMOJI) == shown_gifts + 1
     assert "Wisp already picked his" in text
-    liners = next(line for line in text.splitlines() if "Lunchbox Liners" in line)
-    assert LONG_EMOJI in liners
+    lines = text.splitlines()
+    liners = lines.index(frame.item("Lunchbox Liners:"))
+    assert lines[liners + 1].startswith(frame.note(f"{LONG_EMOJI} ・ {LONG_EMOJI}"))
 
 
 async def test_the_vault_fits_under_a_note_after_a_gift(
@@ -1475,8 +1567,12 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
         "♪ Wisp kept your Future Is Bright Affirmation Card"
     )
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
+    picked = GIFT_BY_KEY["card_futureisbright"].collection
     for group in GIFT_COLLECTIONS:
-        assert frame.item(f"{group.name}: ") in text
+        if group.key == picked:
+            assert frame.wrap(frame.item(f"{group.name}: back tomorrow")) in text
+        else:
+            assert frame.item(f"{group.name}:") + "\n" in text
 
 
 async def test_the_lunchbox_fits_with_every_collection_nearly_full(

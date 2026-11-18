@@ -105,7 +105,7 @@ async def _collections(
     if life is None or life.id is None:
         return nothing
     kept = await bot.gifts.kept(guild_id, life.id)
-    return collection_lines(bot, frame, kept, room) or nothing
+    return collection_lines(bot, frame, kept, life.stage, room) or nothing
 
 
 async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:

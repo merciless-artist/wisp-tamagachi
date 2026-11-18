@@ -21,7 +21,7 @@ from wisp.rules import (
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
     EGG_WARMTH,
-    GIFT_BY_KEY,
+    GIFT_BY_LOOK,
     HATCHING_TIME,
     IMAGE_PROMPT_MAX_CHARS,
     POKE_CURIOUS_WEIGHT,
@@ -845,8 +845,8 @@ def _emoji_meaning(emoji: OwnEmoji, whose: str) -> str:
         return f"{whose} {_REACTIONS[emoji.name]}"
     if kind == "wisp" and key:
         return f"{whose} {words} face"
-    if kind == "gift" and key in GIFT_BY_KEY:
-        return f"{GIFT_BY_KEY[key].title}, one of {whose} gifts"
+    if kind == "gift" and key in GIFT_BY_LOOK:
+        return f"{GIFT_BY_LOOK[key].title}, one of {whose} gifts"
     if kind == "keepsake" and key:
         return f"{words.title()}, one of {whose} keepsakes"
     if kind == "snack" and key in SNACK_BY_KEY:

@@ -373,8 +373,9 @@ class _VaultPiece:
 class VaultLayout(Lasting, discord.ui.LayoutView):
     """One part of the Vault as a Components V2 message, with no container.
 
-    The Vault is two messages, one right under the other: in Myra's emoji frame
-    it is too long for one. Each piece's lines are one text display, followed
+    The Vault is three messages, one right under the other: in Myra's emoji
+    frame it is too long for one, and the Gifts need a whole one for their
+    emojis. Each piece's lines are one text display, followed
     by an action row for each
     of its menus; a picture piece is a media gallery of its attached picture,
     left out when the picture is missing. A failure is reported as the ViiBR
@@ -413,10 +414,16 @@ class _SnackMenus:
 
 @dataclass(frozen=True)
 class _ExtraMenus:
-    """The selects of the Vault's second part: any badges, magazines and gifts."""
+    """The selects of the Vault's second part: any badges and magazines."""
 
     badges: discord.ui.Select[Any] | None
     magazines: discord.ui.Select[Any] | None
+
+
+@dataclass(frozen=True)
+class _GiftMenus:
+    """The selects of the Vault's third part: any collections and their gifts."""
+
     collections: discord.ui.Select[Any] | None
     gifts: discord.ui.Select[Any] | None
 
@@ -448,8 +455,8 @@ def _snack_pieces(
     An optional note comes before Myra's header picture, then the member's
     wisp coins, the snacks and, while he has a cold, the medicine. A blank
     line follows the snacks, as in Myra's draft. There is no bottom line: the
-    second part sits right under this one and closes the box. Every line is
-    wrapped to fit the frame.
+    other parts sit right under this one and the last closes the box. Every
+    line is wrapped to fit the frame.
     """
     told = [note] if note else []
     snacks = frame.wrapped(
@@ -498,21 +505,18 @@ def _extra_pieces(
     balance: int,
     offers: list[Offer],
     magazines: set[str] | None,
-    gifts: GiftState | None,
     note: str | None,
     menus: _ExtraMenus,
 ) -> list[_VaultPiece]:
     """The Vault's second part in `frame`, in pieces, each followed by its menus.
 
-    The badges, the Magazines when `magazines`, the covers the member owns
-    this life, is not None, then the Gifts; a blank line and the frame's
-    bottom line close the box, as in Myra's lunchbox. Under a note the
-    member's wisp coins come first, since the first part's cannot be updated
-    from here. The Gifts take whatever room the rest leaves of the layout's
-    text limit. Every line is wrapped to fit the frame.
+    The badges, then the Magazines when `magazines`, the covers the member
+    owns this life, is not None. There is no bottom line: the Gifts part sits
+    right under this one and closes the box. Under a note the member's wisp
+    coins come first, since the first part's cannot be updated from here.
+    Every line is wrapped to fit the frame.
     """
     told = [note] if note else []
-    close = [frame.blank, frame.bottom]
     coins = [_coins_line(bot, frame, balance)] if note else []
     badges = frame.wrapped(
         [*coins, frame.section_break, *badge_section(bot, frame, offers)]
@@ -524,17 +528,41 @@ def _extra_pieces(
             [frame.section_break, *magazine_section(bot, frame, magazines)]
         )
     )
-    # Joined as one text, so the newlines between the text displays are
-    # counted too: a small safety margin on purpose.
-    rest = "\n".join([*told, *badges, *covers, frame.section_break, *close])
-    room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
-    gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
     cover_menus = [] if menus.magazines is None else [menus.magazines]
-    gift_lines = [frame.section_break, *gift_section(bot, frame, gifts, room)]
     return [
         *([_VaultPiece(told)] if told else []),
         _VaultPiece(badges, [] if menus.badges is None else [menus.badges]),
         *([_VaultPiece(covers, cover_menus)] if covers else []),
+    ]
+
+
+def _gift_pieces(
+    bot: "WispBot",
+    frame: Frame,
+    balance: int,
+    gifts: GiftState | None,
+    note: str | None,
+    menus: _GiftMenus,
+) -> list[_VaultPiece]:
+    """The Vault's third part in `frame`, in pieces, each followed by its menus.
+
+    The Gifts; a blank line and the frame's bottom line close the box, as in
+    Myra's lunchbox. Under a note the member's wisp coins come first, since
+    the first part's cannot be updated from here. The Gifts take whatever
+    room the rest leaves of the layout's text limit. Every line is wrapped to
+    fit the frame.
+    """
+    told = [note] if note else []
+    close = [frame.blank, frame.bottom]
+    coins = frame.wrapped([_coins_line(bot, frame, balance)] if note else [])
+    # Joined as one text, so the newlines between the text displays are
+    # counted too: a small safety margin on purpose.
+    rest = "\n".join([*told, *coins, frame.section_break, *close])
+    room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
+    gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
+    gift_lines = [*coins, frame.section_break, *gift_section(bot, frame, gifts, room)]
+    return [
+        *([_VaultPiece(told)] if told else []),
         _VaultPiece(gift_lines, gift_menus),
         _VaultPiece(close),
     ]
@@ -566,28 +594,19 @@ async def _snack_part(
 
 
 async def _extra_part(
-    bot: "WispBot",
-    guild_id: int,
-    user_id: int,
-    note: str | None = None,
-    collection: GiftCollection | None = None,
+    bot: "WispBot", guild_id: int, user_id: int, note: str | None = None
 ) -> VaultLayout:
     """The Vault's second part, after an optional note.
 
     The badge select follows the badges when the member can get a badge now,
-    the magazine select the magazines while Wisp is a Rockstar and the member
-    lacks a cover, and the collection select the gifts when a gift can be
-    given today. With a picked `collection` that can still be given from,
-    that collection's gift select follows it.
+    and the magazine select the magazines while Wisp is a Rockstar and the
+    member lacks a cover.
     """
-    gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
     player = await bot.players.get(guild_id, user_id)
     offers = await badge_offers(bot, guild_id, user_id, player.bond)
     badge_choices = badge_options(bot, offers)
     magazines = await magazines_owned(bot, guild_id, user_id)
     magazine_choices = [] if magazines is None else magazine_options(magazines)
-    collection_choices = collection_options(bot, gifts)
-    gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
     menus = _ExtraMenus(
         badges=BadgeSelect(badge_choices, _get_badge) if badge_choices else None,
         magazines=(
@@ -595,6 +614,32 @@ async def _extra_part(
             if magazine_choices
             else None
         ),
+    )
+    return VaultLayout(
+        _extra_pieces(
+            bot, frame_of(bot.emoji), player.balance, offers, magazines, note, menus
+        )
+    )
+
+
+async def _gift_part(
+    bot: "WispBot",
+    guild_id: int,
+    user_id: int,
+    note: str | None = None,
+    collection: GiftCollection | None = None,
+) -> VaultLayout:
+    """The Vault's third part, after an optional note.
+
+    The collection select follows the gifts when a gift can be given today.
+    With a picked `collection` that can still be given from, that
+    collection's gift select follows it.
+    """
+    gifts = await todays_gifts(bot, guild_id, discord.utils.utcnow())
+    player = await bot.players.get(guild_id, user_id)
+    collection_choices = collection_options(bot, gifts)
+    gift_choices = [] if collection is None else gift_options(bot, gifts, collection)
+    menus = _GiftMenus(
         collections=(
             CollectionSelect(collection_choices, _pick_collection)
             if collection_choices
@@ -603,16 +648,7 @@ async def _extra_part(
         gifts=GiftSelect(gift_choices, _give) if gift_choices else None,
     )
     return VaultLayout(
-        _extra_pieces(
-            bot,
-            frame_of(bot.emoji),
-            player.balance,
-            offers,
-            magazines,
-            gifts,
-            note,
-            menus,
-        )
+        _gift_pieces(bot, frame_of(bot.emoji), player.balance, gifts, note, menus)
     )
 
 
@@ -1073,7 +1109,7 @@ async def _pick_collection(
     if reason is not None:
         await _confirm(
             interaction,
-            _extra_part,
+            _gift_part,
             reason,
             "showing a closed gift collection",
             tell_member=True,
@@ -1081,7 +1117,7 @@ async def _pick_collection(
         return
     await _confirm(
         interaction,
-        functools.partial(_extra_part, collection=collection),
+        functools.partial(_gift_part, collection=collection),
         None,
         "showing a gift collection",
         tell_member=True,
@@ -1105,11 +1141,11 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
                 bot, gift_rng(bot), guild_id, user, gift, discord.utils.utcnow()
             )
     except Refusal as refusal:
-        await _confirm(interaction, _extra_part, str(refusal), "showing a refused gift")
+        await _confirm(interaction, _gift_part, str(refusal), "showing a refused gift")
         return
     await _confirm(
         interaction,
-        _extra_part,
+        _gift_part,
         gift_note(given),
         "confirming a gift (the gift went through)",
     )
@@ -1127,8 +1163,8 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
 async def _open_vault(interaction: discord.Interaction) -> None:
     """Show the Vault with its menus to buy from, only to the member.
 
-    The Vault is two messages, its first part then its second, both built
-    before either is sent. Every private menu is a follow-up sent with `wait`,
+    The Vault is three messages, its parts in order, all built before any is
+    sent. Every private menu is a follow-up sent with `wait`,
     so discord.py files its view under the menu's own message id, never under
     the key it shares with the persistent buttons. The header file is closed
     once the first part is sent or has failed.
@@ -1139,7 +1175,7 @@ async def _open_vault(interaction: discord.Interaction) -> None:
     guild_id = require_guild(interaction)
     parts = [
         await part(bot, guild_id, interaction.user.id, None)
-        for part in (_snack_part, _extra_part)
+        for part in (_snack_part, _extra_part, _gift_part)
     ]
     with gallery_files(_VAULT_HEADER) as pictures:
         await interaction.followup.send(
@@ -1149,9 +1185,10 @@ async def _open_vault(interaction: discord.Interaction) -> None:
             allowed_mentions=_NO_PING,
             wait=True,
         )
-    await interaction.followup.send(
-        view=parts[1], ephemeral=True, allowed_mentions=_NO_PING, wait=True
-    )
+    for part in parts[1:]:
+        await interaction.followup.send(
+            view=part, ephemeral=True, allowed_mentions=_NO_PING, wait=True
+        )
 
 
 async def _open_snack_pack(interaction: discord.Interaction) -> None:

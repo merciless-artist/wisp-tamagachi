@@ -218,7 +218,7 @@ async def open_vault(
 
 
 def vault_text(interaction: MagicMock) -> str:
-    """The text of the Vault the interaction was first answered with: both parts."""
+    """The text of the Vault the interaction was first answered with: every part."""
     parts = vault_parts(interaction.followup.send)
     assert all(isinstance(part, snacks.VaultLayout) for part in parts)
     text, _ = vault_opened(interaction.followup.send)
@@ -373,7 +373,7 @@ def vault_snack(key: str, emoji: str, price: str) -> str:
     return FRAME.item(f"{emoji} {name} ・ {price}" if emoji else f"{name} ・ {price}")
 
 
-async def test_vault_is_two_layouts_in_the_house_frame(bot: app.WispBot) -> None:
+async def test_vault_is_three_layouts_in_the_house_frame(bot: app.WispBot) -> None:
     give_emojis(bot, "wisp_coin", "snack_cloudwave", "snack_sinewave", "wisp_coin_mini")
     await bot.players.add_points(GUILD_ID, USER_ID, 12)
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave", 2)
@@ -382,7 +382,7 @@ async def test_vault_is_two_layouts_in_the_house_frame(bot: app.WispBot) -> None
 
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     calls = interaction.followup.send.await_args_list
-    assert len(calls) == 2
+    assert len(calls) == 3
     for call in calls:
         assert not call.args and "content" not in call.kwargs
         assert call.kwargs["ephemeral"] is True
@@ -447,12 +447,13 @@ async def test_the_vaults_menus_sit_between_its_sections(bot: app.WispBot) -> No
 
     interaction, _ = await open_vault(bot)
 
-    first, second = vault_parts(interaction.followup.send)
+    first, second, third = vault_parts(interaction.followup.send)
     assert layout_order(first) == ["text", "Buy a snack"]
-    assert layout_order(second) == ["text", "text", "Pick a collection", "text"]
+    assert layout_order(second) == ["text"]
+    assert layout_order(third) == ["text", "Pick a collection", "text"]
     snacks_part, badges_part, gifts_part, closing = (
         child.content
-        for part in (first, second)
+        for part in (first, second, third)
         for child in part.children
         if isinstance(child, discord.ui.TextDisplay)
     )
@@ -504,12 +505,13 @@ async def test_the_vault_opens_with_myras_header_and_closes_with_the_frame(
 ) -> None:
     interaction, _ = await open_vault(bot)
 
-    first, second = interaction.followup.send.await_args_list
+    first, *rest = interaction.followup.send.await_args_list
+    assert len(rest) == 2
     assert [file.filename for file in first.kwargs["files"]] == ["vault_title.png"]
     assert all(file.fp.closed for file in first.kwargs["files"])
-    assert "files" not in second.kwargs
+    assert all("files" not in call.kwargs for call in rest)
     header = first.kwargs["view"].children[0]
-    closing = second.kwargs["view"].children[-1]
+    closing = rest[-1].kwargs["view"].children[-1]
     assert isinstance(header, discord.ui.MediaGallery)
     assert [item.media.url for item in header.items] == ["attachment://vault_title.png"]
     assert isinstance(closing, discord.ui.TextDisplay)
@@ -1559,8 +1561,8 @@ async def test_medicine_shows_in_the_vault_only_while_he_has_a_cold(
     await catch_cold(bot)
     sick, _ = await open_vault(bot)
 
-    well_view, _ = vault_parts(well.followup.send)
-    sick_view, _ = vault_parts(sick.followup.send)
+    well_view, *_ = vault_parts(well.followup.send)
+    sick_view, *_ = vault_parts(sick.followup.send)
     assert "Medicine" not in layout_text(well_view)
     assert "Give Wisp medicine" not in layout_order(well_view)
     sections = [

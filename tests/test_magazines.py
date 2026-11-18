@@ -140,7 +140,7 @@ async def lay(
 async def open_vault(
     bot: app.WispBot, guild: MagicMock
 ) -> tuple[list[discord.ui.LayoutView], str, list[discord.ui.Select[Any]]]:
-    """Open the Vault: its two parts, their text and every select."""
+    """Open the Vault: its three parts, their text and every select."""
     interaction = make_interaction(bot, guild)
     command: Any = snacks.wisp_vault
     await command.callback(interaction)
@@ -186,14 +186,17 @@ def shown(interaction: MagicMock) -> str:
 
 
 def section(text: str, heading: str) -> list[str]:
-    """The entries under a `#` heading, up to the next break, each wrapped
-    entry's rows joined."""
+    """The entries under a `#` heading, up to the next break or the end of
+    the text, each wrapped entry's rows joined."""
     lines = text.splitlines()
     start = lines.index(FRAME.heading(heading)) + 1
     end = next(
-        index
-        for index in range(start, len(lines))
-        if lines[index] in (FRAME.section_break, FRAME.blank, FRAME.bottom)
+        (
+            index
+            for index in range(start, len(lines))
+            if lines[index] in (FRAME.section_break, FRAME.blank, FRAME.bottom)
+        ),
+        len(lines),
     )
     return entries(lines[start:end])
 
@@ -279,7 +282,8 @@ async def test_a_rockstar_vault_sells_both_covers_with_a_select_under_them(
     )
     assert [layout_order(part) for part in parts] == [
         ["text", "Buy a snack"],
-        ["text", "text", "Get a magazine", "text", "Pick a collection", "text"],
+        ["text", "text", "Get a magazine"],
+        ["text", "Pick a collection", "text"],
     ]
     select = magazine_select(selects)
     assert select is not None
@@ -306,7 +310,7 @@ async def test_the_fullest_rockstar_vault_stays_within_the_layout_text_limit(
         "viibr_logo",
         *(badge.emoji_name for badge in BADGES),
         *(snack.emoji_name for snack in SNACKS),
-        *(gift.emoji_name for gift in GIFT_BY_KEY.values()),
+        *(gift.emoji_name(Stage.ROCKSTAR) for gift in GIFT_BY_KEY.values()),
     ]
     bot.emojis_by_name = {
         name: cast(
@@ -324,7 +328,7 @@ async def test_the_fullest_rockstar_vault_stays_within_the_layout_text_limit(
     assert "Get a badge" in layout_order(parts[1])
     assert magazine_select(selects) is not None
     for gift in GIFT_BY_KEY.values():
-        assert f"<a:{gift.emoji_name}:" in text, gift.key
+        assert f"<a:{gift.emoji_name(Stage.ROCKSTAR)}:" in text, gift.key
 
 
 # ---

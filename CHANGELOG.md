@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-11-16 (Tech collection and the Vault's gift lines)
+
+- The Tetris collection is now **Tech**: the Tetris Handheld, an Arcade, a
+  Game Controller and a TV. The I, L, T, S and Z Blocks are gone; their art
+  is in `RECYCLING/2026-11-16-tetris-pieces`. Blocks already kept this life
+  stay in the database but no longer show or count.
+- The TV changes as Wisp grows: the Vault, the gift menu and the lunchbox
+  show the TV of his current stage (`gift_tech_tv_<stage>`). When he keeps
+  one, his House post attaches that stage's TV and links that stage's
+  episode (`TV_EPISODES` in `wisp/rules.py`): Llamabrain for baby, child and
+  teen, Zephyrine T. Weirdo for adult, rockstar and old fogey. A TV he passes
+  on posts like any other passed gift, with no picture and no link.
+- The Green and Orange Books' House pictures are Myra's new covers; their
+  Vault emojis stay the same.
+- In the Vault, each collection's name has its own line and its gifts go on
+  the line under it, split by ・, as `Lunchbox Liners:` then
+  `bird ・ butterfly ・ kitties ・ poppies`. A collection that is shut still
+  says it on one line.
+- The Vault is now three messages: snacks and medicine, then badges and
+  magazines, then Gifts alone, which closes the box. With real emojis only
+  five of the seven collections had room for their emojis in the second
+  message; on their own all seven fit, about 800 characters under the
+  limit, even under a note. Picking a collection or giving a gift redraws
+  only the Gifts message, with the member's wisp coins at its top.
+- Wisp's chat knows the TV emojis as his TV, at any stage.
+
 ## 2026-11-11 (Times in each member's own time zone)
 
 - Every time Wisp tells members is a Discord timestamp, which each reader

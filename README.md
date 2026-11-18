@@ -387,10 +387,10 @@ Member commands:
 - `/wisp vault` (also the Status post's **Vault** button) is the shop: buy
   snacks with your wisp coins (WC, the points you can spend), get a badge, or
   give Wisp a gift from one of seven collections: pick a collection, then a
-  gift. He might not like it. It is two private Components V2 messages, one
-  under the other (snacks and medicine, then badges, magazines and gifts),
-  with each menu under its section: in Myra's emoji frame it is too long for
-  one message.
+  gift. He might not like it. It is three private Components V2 messages,
+  one under the other (snacks and medicine, then badges and magazines, then
+  gifts), with each menu under its section: in Myra's emoji frame it is too
+  long for one message, and the gifts need a whole one to show every emoji.
 - `/wisp snackpack` (also the **Snack Pack** button) shows your Snack Pack:
   your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
   any magazine covers you bought and how many drawings Wisp has made you, with
@@ -642,13 +642,16 @@ posts text only.
   required: without all of them the FAQ is not built and the error is posted
   in its thread.
 - `gifts/<key>.gif` or `gifts/<key>.png` (512px) for each gift, attached
-  when Wisp keeps it. An animated GIF is used before a PNG.
+  when Wisp keeps it. An animated GIF is used before a PNG. The TV changes
+  with his stage, so it has one per stage instead: `gifts/tech_tv_baby.png`
+  to `gifts/tech_tv_old_fogey.png`.
 - `keepsakes/<kind>.gif` or `.png` for `eggshell`, `first_spark`,
   `teen_spark`, `adult_spark`, `guitar_pick`, `time_piece` and `last_ember`,
   attached when the keepsake is given.
 
 App emojis (uploaded to the application in the Developer Portal):
-`snack_<key>` for each snack key, `gift_<key>` for each gift key,
+`snack_<key>` for each snack key, `gift_<key>` for each gift key (the TV
+is `gift_tech_tv_<stage>` for each stage from `baby` to `old_fogey`),
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
 `wisp_coin`, `wisp_coin_mini` (prices and balances), `medicine` (the Vault's
 medicine option), `viibr_logo` (the Vault's title), the status card's meters
