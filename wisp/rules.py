@@ -157,20 +157,21 @@ MESS_DELAY_MAX = timedelta(minutes=90)
 MESS_GAP = timedelta(hours=6)
 MESS_LEFT_FOR = timedelta(hours=6)
 HEALTH_PER_CLEANUP = 5
-# About once a day he throws a tantrum while awake. Myra may stretch the window
-# while the server is small.
-TANTRUM_WINDOW = timedelta(minutes=15)
+# About once a day he throws a tantrum while awake. The window is an hour
+# while the server is small (it was 15 minutes).
+TANTRUM_WINDOW = timedelta(hours=1)
 TANTRUM_WELLBEING_PENALTY = 15.0
 # He naps for NAP_FOR from each of NAP_LOCAL_HOURS on the NAP_TIMEZONE clock;
 # the slots follow that clock through daylight saving, and everything else
 # stays UTC. Members see nap times in their own time zone. The lights must go off
 # within LIGHTS_WINDOW, or he loses LIGHTS_WELLBEING_PENALTY Wellbeing and is
 # cranky for CRANKY_FOR after the nap. A poke that wakes him makes him cranky
-# for CRANKY_FOR too.
+# for CRANKY_FOR too. LIGHTS_WINDOW must stay under NAP_FOR; it is nearly the
+# whole nap while the server is small (it was 15 minutes).
 NAP_TIMEZONE: Final = "America/Los_Angeles"
 NAP_LOCAL_HOURS: Final = (7, 13, 22)
 NAP_FOR = timedelta(hours=1)
-LIGHTS_WINDOW = timedelta(minutes=15)
+LIGHTS_WINDOW = timedelta(minutes=55)
 LIGHTS_WELLBEING_PENALTY = 10.0
 CRANKY_FOR = timedelta(hours=1)
 # What the mess is at each stage, its button label and its picture in

@@ -30,7 +30,11 @@ from wisp.chores import (
 )
 from wisp.life import Life, Phase, credited_gap, new_egg
 from wisp.rules import (
+    CRANKY_FOR,
     HEALTH_PER_CLEANUP,
+    LIGHTS_WINDOW,
+    MAX_CREDITED_GAP,
+    NAP_FOR,
     NAP_LOCAL_HOURS,
     SICK_FOR,
     TANTRUM_WINDOW,
@@ -144,7 +148,7 @@ def test_open_tantrum_sets_only_the_tantrum() -> None:
     life = alive(tantrum_message_id=5)
     assert changed(life, open_tantrum) == (
         event(ChoreEventKind.TANTRUM),
-        {"tantrum_left": 900.0, "tantrum_message_id": None},
+        {"tantrum_left": TANTRUM_WINDOW.total_seconds(), "tantrum_message_id": None},
     )
 
 
@@ -152,7 +156,11 @@ def test_start_nap_sets_only_the_nap() -> None:
     life = alive(nap_message_id=5)
     assert changed(life, start_nap) == (
         event(ChoreEventKind.NAP),
-        {"nap_left": 3600.0, "lights_left": 900.0, "nap_message_id": None},
+        {
+            "nap_left": NAP_FOR.total_seconds(),
+            "lights_left": LIGHTS_WINDOW.total_seconds(),
+            "nap_message_id": None,
+        },
     )
 
 
@@ -375,7 +383,7 @@ def test_a_tantrum_starts_when_due() -> None:
     assert run(life, T0 + timedelta(minutes=5)) == []
     assert run(life, T0 + timedelta(minutes=10)) == [event(ChoreEventKind.TANTRUM)]
     assert is_open(life, Chore.TANTRUM)
-    assert life.tantrum_left == 900
+    assert life.tantrum_left == TANTRUM_WINDOW.total_seconds()
     assert life.tantrum_message_id is None
     assert life.tantrum_due_at is not None
     assert life.tantrum_due_at.date() == datetime(2026, 11, 3).date()
@@ -409,7 +417,7 @@ def test_a_tantrum_due_during_an_outage_waits_out_the_nap_coming() -> None:
 
 
 def test_a_tantrum_closing_on_the_naps_first_tick_lets_the_nap_start() -> None:
-    life = alive(at=utc(14, 45), nap_slot=None)
+    life = alive(at=utc(15) - TANTRUM_WINDOW, nap_slot=None)
     open_tantrum(life)
     assert run(life, utc(15)) == [event(ChoreEventKind.NAP)]
     assert not is_open(life, Chore.TANTRUM)
@@ -430,8 +438,8 @@ def test_a_missed_tantrum_costs_fifteen_wellbeing_and_spoils_him() -> None:
     life = alive()
     open_tantrum(life)
     set_message_id(life, Chore.TANTRUM, POST)
-    assert run(life, T0 + timedelta(minutes=10)) == []
-    assert run(life, T0 + timedelta(minutes=15)) == [
+    assert run(life, T0 + TANTRUM_WINDOW - TICK_EVERY) == []
+    assert run(life, T0 + TANTRUM_WINDOW) == [
         event(ChoreEventKind.TANTRUM_MISSED, POST)
     ]
     assert life.wellbeing == 35.0
@@ -442,7 +450,7 @@ def test_a_missed_tantrum_costs_fifteen_wellbeing_and_spoils_him() -> None:
 def test_an_unposted_tantrum_costs_nothing() -> None:
     life = alive()
     open_tantrum(life)
-    assert run(life, T0 + timedelta(minutes=15)) == []
+    assert run(life, T0 + TANTRUM_WINDOW) == []
     assert life.wellbeing == WELLBEING_START
     assert life.spoiled_until is None
     assert not is_open(life, Chore.TANTRUM)
@@ -472,8 +480,8 @@ def test_naps_start_at_seven_one_and_ten_pacific(hour: int) -> None:
     assert run(life, utc(hour)) == [event(ChoreEventKind.NAP)]
     assert is_napping(life)
     assert is_open(life, Chore.NAP)
-    assert life.nap_left == 3600
-    assert life.lights_left == 900
+    assert life.nap_left == NAP_FOR.total_seconds()
+    assert life.lights_left == LIGHTS_WINDOW.total_seconds()
     assert life.nap_slot == utc(hour)
     assert life.nap_message_id is None
 
@@ -621,17 +629,18 @@ def _napping_at_seven_pacific() -> Life:
 def test_missed_lights_cost_ten_wellbeing_and_make_him_cranky() -> None:
     life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    assert run(life, utc(15, 10)) == []
-    assert tick_at(life, utc(15, 15)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    lights_out = utc(15) + LIGHTS_WINDOW
+    assert run(life, lights_out - TICK_EVERY) == []
+    assert tick_at(life, lights_out) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
     assert life.wellbeing == 40.0
-    assert life.cranky_until == utc(15, 15) + timedelta(minutes=45) + timedelta(hours=1)
+    assert life.cranky_until == utc(15) + NAP_FOR + CRANKY_FOR
     assert not is_open(life, Chore.NAP)
     assert is_napping(life)
 
 
 def test_unposted_lights_cost_nothing() -> None:
     life = _napping_at_seven_pacific()
-    assert run(life, utc(15, 15)) == []
+    assert run(life, utc(15) + LIGHTS_WINDOW) == []
     assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
     assert not is_open(life, Chore.NAP)
@@ -682,10 +691,10 @@ def test_wake_ends_the_nap_and_says_whether_the_lights_were_on(
 def test_a_poke_after_missed_lights_never_shortens_the_crankiness() -> None:
     life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    run(life, utc(15, 15))
+    run(life, utc(15) + LIGHTS_WINDOW)
     cranky_until = life.cranky_until
     assert cranky_until == utc(17)
-    assert wake(life, utc(15, 20)) is False
+    assert wake(life, utc(15) + LIGHTS_WINDOW + timedelta(minutes=2)) is False
     assert life.cranky_until == cranky_until
 
 
@@ -705,7 +714,7 @@ def test_a_lights_window_never_outlasts_the_nap(
 def test_no_nap_starts_over_an_open_tantrum() -> None:
     life = alive(at=utc(14, 55), nap_slot=None)
     open_tantrum(life)
-    assert run(life, utc(15, 30)) == []
+    assert run(life, utc(14, 55) + TANTRUM_WINDOW + TICK_EVERY) == []
     assert life.nap_slot == utc(15)
     assert not is_napping(life)
     assert not is_open(life, Chore.TANTRUM)
@@ -744,5 +753,6 @@ def test_a_chore_never_counts_more_than_the_credited_gap() -> None:
     open_mess(life)
     open_tantrum(life)
     assert tick_at(life, T0 + timedelta(hours=3)) == []
-    assert life.mess_left == 21600 - 900
-    assert life.tantrum_left == 0.0
+    credited = MAX_CREDITED_GAP.total_seconds()
+    assert life.mess_left == 21600 - credited
+    assert life.tantrum_left == TANTRUM_WINDOW.total_seconds() - credited

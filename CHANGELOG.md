@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-19 (Longer chore windows for beta)
+
+- Members get an hour to scold a tantrum (was 15 minutes) and 55 minutes
+  to turn the lights off at a nap (was 15). The lights window has to end
+  before the hour-long nap does. Tantrums now keep an hour and five
+  minutes clear before each nap, so one always closes before he dozes.
+
 ## 2026-11-18 (Team ViiBR price, new book covers, four gift collections)
 
 - Snack prices match Myra's Snacks header: Cloud, Jelly and Juice Wave
