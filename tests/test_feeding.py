@@ -53,6 +53,10 @@ SECOND_USER = 2
 VIIBR_URL = "https://viibrmusic.com/songs/11111111-1111-1111-1111-111111111111"
 VIIBR_URL_2 = "https://viibrmusic.com/songs/22222222-2222-2222-2222-222222222222"
 SUNO_URL = "https://suno.com/song/33333333-3333-3333-3333-333333333333"
+# With one member feeding him this week a viibrmusic.com track gives the most
+# Health (TRACK_HEALTH_MAX, 20 instead of its 5 meal points), and every track
+# the same per meal point.
+ALONE_PER_POINT = rules.TRACK_HEALTH_MAX / rules.MEAL_POINTS[TrackKind.VIIBR]
 
 
 # ---
@@ -241,7 +245,7 @@ async def assert_nothing_fed(bot: app.WispBot) -> None:
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (0, 0)
     now = discord.utils.utcnow()
-    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == 0
 
 
 async def assert_untouched(bot: app.WispBot, server: FakeServer) -> None:
@@ -286,13 +290,13 @@ async def test_viibr_track_feeds_five_and_forwards(
     await cog.on_message(post)
 
     life = await current_life(bot)
-    assert life.health == 55.0
+    assert life.health == 70.0
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert player.lifetime_points == 5
     assert player.balance == 5
     assert player.bond == rules.BOND_PER_VIIBR_TRACK
     now = discord.utils.utcnow()
-    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 5
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == 5
 
     server.mealtime.send.assert_awaited_once()
     (text,) = server.mealtime.send.await_args.args
@@ -317,7 +321,7 @@ async def test_a_fed_track_fills_health_and_restarts_its_stretch(
     await cog.on_message(message(f"new one {VIIBR_URL}"))
 
     life = await current_life(bot)
-    assert life.health == ready.health + 5.0
+    assert life.health == ready.health + 20.0
     assert life.health_stretch == 0.0
     assert life.wellbeing_stretch == 10800.0
     assert life.wellbeing == ready.wellbeing
@@ -403,7 +407,7 @@ async def test_suno_track_feeds_one_no_bond(
 ) -> None:
     await cog.on_message(message(SUNO_URL))
 
-    assert (await current_life(bot)).health == 51.0
+    assert (await current_life(bot)).health == 54.0
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (1, 0)
     server.mealtime.send.assert_awaited_once()
@@ -415,16 +419,16 @@ async def test_staff_food_values_set_what_each_track_feeds(
     message: MessageFactory,
     ready: Life,
 ) -> None:
-    await bot.settings.update(GUILD_ID, viibr_meal_points=12)
+    await bot.settings.update(GUILD_ID, viibr_meal_points=8)
 
     await cog.on_message(message(VIIBR_URL))
     await cog.on_message(message(SUNO_URL))
 
-    assert (await current_life(bot)).health == 50.0 + 12 + rules.MEAL_POINTS[
-        TrackKind.SUNO
-    ]
+    suno = rules.MEAL_POINTS[TrackKind.SUNO]
+    health = 50.0 + (8 + suno) * ALONE_PER_POINT
+    assert (await current_life(bot)).health == health == 86.0
     player = await bot.players.get(GUILD_ID, FIRST_USER)
-    assert player.lifetime_points == 12 + rules.MEAL_POINTS[TrackKind.SUNO]
+    assert player.lifetime_points == 8 + suno
 
 
 async def test_unset_food_values_use_the_rules(
@@ -440,7 +444,7 @@ async def test_unset_food_values_use_the_rules(
     await cog.on_message(message(VIIBR_URL))
     await cog.on_message(message(SUNO_URL))
 
-    assert (await current_life(bot)).health == 50.0 + 7 + 3
+    assert (await current_life(bot)).health == 50.0 + (7 + 3) * ALONE_PER_POINT
 
 
 def make_staff_context(bot: app.WispBot, server: FakeServer) -> MagicMock:
@@ -596,7 +600,7 @@ async def test_expired_ban_feeds_again(
 
     await cog.on_message(message(VIIBR_URL))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
 
 
 async def test_duplicate_track_gets_a_reason(
@@ -609,7 +613,7 @@ async def test_duplicate_track_gets_a_reason(
     await cog.on_message(message(VIIBR_URL))
     await cog.on_message(message(f"again {VIIBR_URL}"))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (5, 10)
     server.mealtime.send.assert_awaited_once()
@@ -664,7 +668,7 @@ async def test_a_share_link_feeds_wisp_once_as_its_song(
     await cog.on_message(message(f"same song {VIIBR_URL}"))
 
     assert viibr_site == [f"/s/{SHARE_CODE}"]
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert (player.lifetime_points, player.bond) == (5, 10)
     server.mealtime.send.assert_awaited_once()
@@ -725,7 +729,7 @@ async def test_a_share_link_is_resolved_outside_the_guild_lock(
     await cog.on_message(message(SHARE_URL))
 
     assert held == [False]
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
 
 
 async def test_an_unreachable_viibr_site_is_reported_in_the_house_and_not_fed(
@@ -775,10 +779,10 @@ async def test_daily_cap_clamps_then_gives_the_limit_reason(
     await cog.on_message(message(VIIBR_URL))
     await cog.on_message(message(VIIBR_URL_2))
 
-    assert (await current_life(bot)).health == 53.0
+    assert (await current_life(bot)).health == 50.0 + 3 * ALONE_PER_POINT
     player = await bot.players.get(GUILD_ID, FIRST_USER)
     assert player.lifetime_points == 3
-    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 15
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == 15
     server.mealtime.send.assert_awaited_once()
     assert_refused_after_feed(
         server, "daily", "15 of 15", f"resets at {daily_reset(now)})."
@@ -796,6 +800,7 @@ async def test_the_meal_cap_doubles_while_sick(
     assert ready.id is not None
     ready.cold_left = rules.SICK_FOR.total_seconds()
     ready.had_cold = True
+    ready.health = 20.0
     await bot.lives.save(GUILD_ID, ready)
     await bot.activity_log.record_interaction(
         GUILD_ID,
@@ -814,9 +819,9 @@ async def test_the_meal_cap_doubles_while_sick(
             )
         )
 
-    assert (await current_life(bot)).health == 65.0
+    assert (await current_life(bot)).health == 20.0 + 15 * ALONE_PER_POINT
     cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
-    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == cap
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == cap
     assert server.mealtime.send.await_count == 3
     assert_refused_after_feed(server, "daily", "30 of 30")
 
@@ -830,7 +835,7 @@ async def test_one_feed_per_message(
 ) -> None:
     await cog.on_message(message(f"{SUNO_URL} and {VIIBR_URL}"))
 
-    assert (await current_life(bot)).health == 51.0
+    assert (await current_life(bot)).health == 54.0
     server.mealtime.send.assert_awaited_once()
     (text,) = server.mealtime.send.await_args.args
     assert SUNO_URL in text
@@ -846,7 +851,7 @@ async def test_post_in_tracks_forum_thread_counts(
 ) -> None:
     await cog.on_message(message(VIIBR_URL, channel=make_thread(parent_id=TRACKS_ID)))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     server.mealtime.send.assert_awaited_once()
 
 
@@ -882,10 +887,102 @@ async def test_simultaneous_feeds_both_count(
         cog.on_message(message(VIIBR_URL_2, author=make_member(SECOND_USER))),
     )
 
-    assert (await current_life(bot)).health == 60.0
+    assert (await current_life(bot)).health == 90.0
     assert server.mealtime.send.await_count == 2
     for user_id in (FIRST_USER, SECOND_USER):
         assert (await bot.players.get(GUILD_ID, user_id)).lifetime_points == 5
+
+
+async def record_track_feeders(
+    bot: app.WispBot, life: Life, users: range, ago: timedelta
+) -> None:
+    """Record a track fed by each of `users`, `ago` before now."""
+    assert life.id is not None
+    at = discord.utils.utcnow() - ago
+    for user_id in users:
+        await bot.activity_log.record_interaction(
+            GUILD_ID, life.id, user_id, InteractionKind.FEED, 0, 5, at
+        )
+
+
+@pytest.mark.parametrize(
+    ("others", "health"),
+    [(0, 70.0), (2, 70.0), (4, 62.8), (7, 58.0), (12, 54.92307692307692)],
+)
+async def test_a_track_fills_more_health_when_fewer_people_feed_him(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+    others: int,
+    health: float,
+) -> None:
+    await record_track_feeders(bot, ready, range(10, 10 + others), timedelta(days=6))
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).health == pytest.approx(health)
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert (player.lifetime_points, player.balance) == (5, 5)
+
+
+async def test_feeders_from_over_a_week_ago_do_not_count(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    week = rules.ACTIVE_FEEDER_WINDOW
+    await record_track_feeders(bot, ready, range(10, 30), week + timedelta(hours=1))
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).health == 70.0
+
+
+async def test_snackers_do_not_count_as_track_feeders(
+    cog: Feeding,
+    bot: app.WispBot,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    assert ready.id is not None
+    now = discord.utils.utcnow()
+    for user_id in range(10, 30):
+        await bot.activity_log.record_interaction(
+            GUILD_ID, ready.id, user_id, InteractionKind.SNACK, 0, 5, now
+        )
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).health == 70.0
+
+
+async def test_a_full_day_of_snacks_does_not_stop_a_track(
+    cog: Feeding,
+    bot: app.WispBot,
+    server: FakeServer,
+    message: MessageFactory,
+    ready: Life,
+) -> None:
+    assert ready.id is not None
+    now = discord.utils.utcnow()
+    await bot.activity_log.record_interaction(
+        GUILD_ID,
+        ready.id,
+        FIRST_USER,
+        InteractionKind.SNACK,
+        0,
+        rules.DAILY_SNACK_CAP,
+        now,
+    )
+
+    await cog.on_message(message(VIIBR_URL))
+
+    assert (await current_life(bot)).health == 70.0
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == 5
+    server.mealtime.send.assert_awaited_once()
+    server.house.send.assert_not_awaited()
 
 
 async def test_egg_feed_that_completes_starts_hatching_event(
@@ -992,7 +1089,7 @@ async def test_finished_life_gets_the_no_wisp_reason(
 
     assert_refused(server, "no living Wisp")
     now = discord.utils.utcnow()
-    assert await bot.activity_log.meal_points_today(GUILD_ID, FIRST_USER, now) == 0
+    assert await bot.activity_log.track_points_today(GUILD_ID, FIRST_USER, now) == 0
 
 
 async def test_failed_forward_is_posted_in_mealtime_and_keeps_the_feed(
@@ -1009,7 +1106,7 @@ async def test_failed_forward_is_posted_in_mealtime_and_keeps_the_feed(
 
     await cog.on_message(message(VIIBR_URL))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     assert server.mealtime.send.await_count == 2
     report = server.mealtime.send.await_args
     assert report.args[0].startswith(
@@ -1032,7 +1129,7 @@ async def test_forward_failure_goes_to_the_house_when_mealtime_cannot_be_posted_
 
     await cog.on_message(message(VIIBR_URL))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     assert server.mealtime.send.await_count == 2
     server.house.send.assert_awaited_once()
     (report,) = server.house.send.await_args.args
@@ -1404,7 +1501,7 @@ async def test_a_failed_reaction_is_reported_in_the_house_and_keeps_the_feed(
 
     await cog.on_message(post)
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     server.mealtime.send.assert_awaited_once()
     server.house.send.assert_awaited_once()
     (text,) = server.house.send.await_args.args
@@ -1498,6 +1595,6 @@ async def test_a_frozen_wisp_is_still_fed(
 
     await cog.on_message(message(VIIBR_URL))
 
-    assert (await current_life(bot)).health == 55.0
+    assert (await current_life(bot)).health == 70.0
     server.mealtime.send.assert_awaited_once()
     server.house.send.assert_not_awaited()

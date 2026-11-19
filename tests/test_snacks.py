@@ -26,6 +26,7 @@ from cogs.snacks import (
     FeedButton,
     ShopButton,
     SnackPackButton,
+    full_text,
     vault_buttons,
 )
 from cogs.status_card import status_buttons
@@ -59,6 +60,7 @@ from wisp.text import (
     LAYOUT_TEXT_LIMIT,
     UNICODE_FRAME,
     USER_ERROR,
+    daily_reset,
     emoji_frame,
     text_length,
 )
@@ -1204,7 +1206,8 @@ async def test_feed_takes_one_and_adds_full_growth_bond(
     assert life.growth == 2
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == rules.BOND_PER_SNACK
     now = discord.utils.utcnow()
-    assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 8
+    assert await bot.activity_log.snack_points_today(GUILD_ID, USER_ID, now) == 8
+    assert await bot.activity_log.track_points_today(GUILD_ID, USER_ID, now) == 0
     assert await bot.activity_log.casual_bond_today(GUILD_ID, USER_ID, now) == 1
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     interaction.response.defer.assert_awaited_once_with()
@@ -1240,9 +1243,7 @@ async def test_a_snack_restarts_the_wellbeing_stretch(bot: app.WispBot) -> None:
     assert life.health_stretch == 10800.0
 
 
-async def test_snacks_still_count_against_the_daily_meal_cap(
-    bot: app.WispBot,
-) -> None:
+async def test_a_full_day_of_tracks_does_not_stop_a_snack(bot: app.WispBot) -> None:
     life = await lay(bot)
     assert life.id is not None
     await bot.activity_log.record_interaction(
@@ -1256,11 +1257,19 @@ async def test_snacks_still_count_against_the_daily_meal_cap(
     )
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cheese")
 
-    full = await eat(bot, "cheese")
+    await eat(bot, "cheese")
 
-    assert reply_text(full) == "♪ Wisp is full from you today. Save it for tomorrow."
-    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cheese": 1}
-    assert (await current_life(bot)).wellbeing == 50.0
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
+    assert (await current_life(bot)).wellbeing == 58.0
+
+
+async def test_the_snack_limit_message_says_tracks_still_feed_him() -> None:
+    now = discord.utils.utcnow()
+
+    assert full_text(now) == (
+        "♪ Wisp is full of snacks from you today. Your tracks still feed him. "
+        f"Snacks reset at {daily_reset(now)}."
+    )
 
 
 async def test_the_snack_post_says_wellbeing(
@@ -1352,7 +1361,7 @@ async def test_the_last_bond_point_of_the_day_still_lands(bot: app.WispBot) -> N
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 1
 
 
-async def test_snack_counts_toward_daily_meal_cap(
+async def test_the_last_snack_of_the_day_counts_only_what_fits(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     life = await lay(bot, health=40.0)
@@ -1361,9 +1370,9 @@ async def test_snack_counts_toward_daily_meal_cap(
         GUILD_ID,
         life.id,
         USER_ID,
-        InteractionKind.FEED,
+        InteractionKind.SNACK,
         0,
-        rules.DAILY_MEAL_CAP - 3,
+        rules.DAILY_SNACK_CAP - 3,
         discord.utils.utcnow(),
     )
 
@@ -1373,10 +1382,13 @@ async def test_snack_counts_toward_daily_meal_cap(
     assert (life.health, life.growth) == (40.0, 1)
     assert house_text(server).startswith(f"{ate('Cloud Wave')}\n")
     now = discord.utils.utcnow()
-    assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == 15
+    assert (
+        await bot.activity_log.snack_points_today(GUILD_ID, USER_ID, now)
+        == rules.DAILY_SNACK_CAP
+    )
 
 
-async def test_the_meal_cap_doubles_while_sick(
+async def test_the_snack_limit_stays_the_same_while_sick(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     life = await lay(bot, health=40.0)
@@ -1385,19 +1397,18 @@ async def test_the_meal_cap_doubles_while_sick(
     life.had_cold = True
     await bot.lives.save(GUILD_ID, life)
     now = discord.utils.utcnow()
-    await bot.activity_log.record_interaction(
-        GUILD_ID, life.id, USER_ID, InteractionKind.FEED, 0, rules.DAILY_MEAL_CAP, now
-    )
 
     for meals in (1, 2, 3):
         await eat(bot, "cloudwave")
         assert house_text(server).startswith(f"{ate('Cloud Wave', meals)}\n")
     full = await eat(bot, "cloudwave")
 
-    assert reply_text(full) == "♪ Wisp is full from you today. Save it for tomorrow."
+    assert reply_text(full) == full_text(now)
     assert (await current_life(bot)).health == 40.0
-    cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
-    assert await bot.activity_log.meal_points_today(GUILD_ID, USER_ID, now) == cap
+    assert (
+        await bot.activity_log.snack_points_today(GUILD_ID, USER_ID, now)
+        == rules.DAILY_SNACK_CAP
+    )
 
 
 @pytest.mark.parametrize("key", ["cloudwave", "sinewave"])
@@ -1410,21 +1421,21 @@ async def test_a_snack_at_the_daily_cap_is_refused_and_kept(
         GUILD_ID,
         life.id,
         USER_ID,
-        InteractionKind.FEED,
+        InteractionKind.SNACK,
         0,
-        rules.DAILY_MEAL_CAP,
+        rules.DAILY_SNACK_CAP,
         discord.utils.utcnow(),
     )
 
     full = await eat(bot, key)
 
-    assert reply_text(full) == "♪ Wisp is full from you today. Save it for tomorrow."
+    now = discord.utils.utcnow()
+    assert reply_text(full) == full_text(now)
     inventory = {} if key == "sinewave" else {key: 1}
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == inventory
-    now = discord.utils.utcnow()
     assert not await bot.activity_log.free_snack_used_today(GUILD_ID, USER_ID, now)
     rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')}")
-    assert rows == [{"kind": InteractionKind.FEED.value}]
+    assert rows == [{"kind": InteractionKind.SNACK.value}]
     life = await current_life(bot)
     assert (life.health, life.growth) == (40.0, 0)
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
@@ -1450,7 +1461,7 @@ async def test_cannot_feed_egg_with_snacks(
     life = await current_life(bot)
     assert (life.health, life.growth, life.egg_food) == (0.0, 0, 0)
     assert (
-        await bot.activity_log.meal_points_today(
+        await bot.activity_log.snack_points_today(
             GUILD_ID, USER_ID, discord.utils.utcnow()
         )
         == 0

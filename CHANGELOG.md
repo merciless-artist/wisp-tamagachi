@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-19 (Track Health follows the group, snacks get their own limit)
+
+- A track's Health now follows how many members fed Wisp a track in the
+  last 7 days (`track_health`, `ACTIVE_FEEDER_WINDOW`). He holds steady
+  when half of them (`TRACK_SHARE`) each feed one viibrmusic.com track a
+  day, so that track gives his day's Health loss (32) shared among half of
+  them, kept between 2 and 20 (`TRACK_HEALTH_MIN`, `TRACK_HEALTH_MAX`).
+  With 1 to 3 feeders it gives 20, with 5 about 13, with 8 it gives 8,
+  with 13 about 5 (the old value), and from 32 on it gives 2. A Suno track
+  gives a fifth of that. A small server can keep him alive with the same
+  effort as a big one.
+- Meal points, leaderboard points and wisp coins never shift: a
+  viibrmusic.com track is still 5 of each, so a quiet server can't farm
+  coins. Only his Health from a track moves. The egg and Monster Pox still
+  count meal points.
+- Snacks have their own daily limit (`DAILY_SNACK_CAP`, 15 of their meal
+  sizes) apart from tracks (`DAILY_MEAL_CAP`, 15). Snacks never filled his
+  Health, but they used to share the tracks' limit, so one ViiBR Wave
+  stopped a member's tracks from feeding him for the day. Now they never
+  do. The extra 15 while he has Monster Pox is for tracks only.
+- At the snack limit he says `♪ Wisp is full of snacks from you today.
+  Your tracks still feed him. Snacks reset at <time>.` At the track limit
+  the reason now says "daily track limit".
+- The rules post, the FAQ page, the spec and the README say so. The FAQ
+  pictures still show the old limit until they are re-rendered.
+- `meal_points_today` is split into `track_points_today` and
+  `snack_points_today`; `track_feeders_since` counts the week's feeders.
+
 ## 2026-11-19 (Longer chore windows for beta)
 
 - Members get an hour to scold a tantrum (was 15 minutes) and 55 minutes

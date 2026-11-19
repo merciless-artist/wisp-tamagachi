@@ -28,10 +28,15 @@ from db.activity import InteractionKind
 from db.settings import meal_points
 from wisp.bond import daily_meal_cap, meal_grant
 from wisp.chores import schedule_mess
-from wisp.life import Event, Life, Mood, feed, is_over, mood
+from wisp.life import Event, Life, Mood, feed, is_over, mood, track_health
 from wisp.lines import Moment
 from wisp.links import ShareLink, Track, TrackKind, find_track
-from wisp.rules import BOND_PER_VIIBR_TRACK, FED_REACTION, MEAL_POINTS_MAX
+from wisp.rules import (
+    ACTIVE_FEEDER_WINDOW,
+    BOND_PER_VIIBR_TRACK,
+    FED_REACTION,
+    MEAL_POINTS_MAX,
+)
 from wisp.text import count, daily_reset
 
 if TYPE_CHECKING:
@@ -179,7 +184,7 @@ class Feeding(commands.Cog):
     ) -> tuple[list[Event], Mood]:
         """Record a feed worth `points` and apply it.
 
-        As much of it as fits under the member's daily meal limit is
+        As much of it as fits under the member's daily track limit is
         credited, through `credit_feed`.
 
         Raises:
@@ -192,14 +197,14 @@ class Feeding(commands.Cog):
             life = await bot.lives.current(guild_id)
             if life is None or is_over(life):
                 raise NotFed(_NO_WISP)
-            eaten = await bot.activity_log.meal_points_today(guild_id, user_id, now)
+            eaten = await bot.activity_log.track_points_today(guild_id, user_id, now)
             cap = daily_meal_cap(life)
             grant = meal_grant(eaten, points, cap)
             if grant == 0:
                 if points == 0:
                     raise NotFed(_WORTHLESS)
                 raise NotFed(
-                    "you've reached the daily meal limit "
+                    "you've reached the daily track limit "
                     f"({eaten} of {cap} meal points today, "
                     f"resets at {daily_reset(now)})."
                 )
@@ -250,7 +255,9 @@ async def credit_feed(
 
     The feed is recorded, the member earns its points (and bond, for a
     viibrmusic.com track), Wisp eats and a mess is made due when one may
-    come; `rng` picks when. Returns what happened to him. Call this under the
+    come; `rng` picks when. His Health gain follows how many members fed him
+    a track in the last ACTIVE_FEEDER_WINDOW, this one included
+    (`track_health`). Returns what happened to him. Call this under the
     guild lock; `life` is saved.
 
     Raises:
@@ -269,7 +276,10 @@ async def credit_feed(
     await bot.players.add_points(guild_id, user_id, grant)
     if bond:
         await bot.players.add_bond(guild_id, user_id, bond)
-    events = feed(life, grant, user_id, now)
+    feeders = await bot.activity_log.track_feeders_since(
+        guild_id, now - ACTIVE_FEEDER_WINDOW
+    )
+    events = feed(life, grant, user_id, now, health=track_health(grant, feeders))
     schedule_mess(life, rng)
     await bot.lives.save(guild_id, life)
     return events

@@ -28,11 +28,8 @@ class InteractionKind(StrEnum):
 
 _CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)
 _TALK = (InteractionKind.CHAT, InteractionKind.POKE)
-_FEEDING = (
-    InteractionKind.FEED,
-    InteractionKind.SNACK,
-    InteractionKind.FREE_SNACK,
-)
+_SNACKS = (InteractionKind.SNACK, InteractionKind.FREE_SNACK)
+_FEEDING = (InteractionKind.FEED, *_SNACKS)
 
 
 def utc_day(now: datetime) -> tuple[datetime, datetime]:
@@ -97,13 +94,19 @@ class ActivityRepo:
             (guild_id, life_id, user_id, kind.value, bond, meal_points, to_db_time(at)),
         )
 
-    async def meal_points_today(
+    async def track_points_today(
         self, guild_id: int, user_id: int, now: datetime
     ) -> int:
-        """Meal points the member has given Wisp on the UTC day of `now`."""
+        """Meal points the member has fed Wisp in tracks on the UTC day of `now`."""
         return await self._sum_today(
-            "meal_points", tuple(InteractionKind), guild_id, user_id, now
+            "meal_points", (InteractionKind.FEED,), guild_id, user_id, now
         )
+
+    async def snack_points_today(
+        self, guild_id: int, user_id: int, now: datetime
+    ) -> int:
+        """Meal points the member has given Wisp in snacks on the UTC day of `now`."""
+        return await self._sum_today("meal_points", _SNACKS, guild_id, user_id, now)
 
     async def casual_bond_today(
         self, guild_id: int, user_id: int, now: datetime
@@ -139,6 +142,10 @@ class ActivityRepo:
     async def feeders_since(self, guild_id: int, since: datetime) -> int:
         """Number of different members who fed Wisp or gave a snack since `since`."""
         return await self._people_since(_FEEDING, guild_id, since)
+
+    async def track_feeders_since(self, guild_id: int, since: datetime) -> int:
+        """Number of different members who fed Wisp a track since `since`."""
+        return await self._people_since((InteractionKind.FEED,), guild_id, since)
 
     async def _people_since(
         self, kinds: tuple[InteractionKind, ...], guild_id: int, since: datetime

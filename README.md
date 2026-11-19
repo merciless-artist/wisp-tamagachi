@@ -83,9 +83,16 @@ only time he is alive and not frozen. All the numbers are starting values in
 `wisp/rules.py`.
 
 - **Health** is his body (`Life.health` in the code, stored in the old
-  `lives.care` column). Each fed track adds its meal points, inside each
-  member's daily meal limit, and a mess cleaned up adds 5; snacks do not fill
-  it, so coins can never keep him alive instead of music. Every 6 hours with no
+  `lives.care` column). Each fed track adds Health, inside each member's
+  daily track limit (15 meal points), and a mess cleaned up adds 5; snacks do
+  not fill it, so coins can never keep him alive instead of music. A track's
+  Health follows how many members fed him a track in the last 7 days
+  (`track_health`): he holds steady when half of them feed one viibrmusic.com
+  track a day, so that track gives his day's Health loss (32) shared among
+  half of them, kept between 2 and 20, and a Suno track the same per meal
+  point. Meal points, leaderboard points and wisp coins never shift. Snacks
+  have their own daily limit (`DAILY_SNACK_CAP`, 15 of the snacks' meal
+  sizes), so a snack never stops a track. Every 6 hours with no
   track fed costs 8 (6 as an Old Fogey). While he has Monster Pox, a cold or
   both, that penalty is 1.5 times as big (once, not once each), but it never
   takes Health below 1. Below 30 he is hangry, below 10 he is fading, and at 0
@@ -163,8 +170,8 @@ so the more he is fed the sooner he is better. While he has it the status
 card's Right now block says so, in place of the hungry line. While sick the
 Health penalty is 1.5 times as big, but Health never drops below 1, so he
 cannot die of it; he can still be hangry and fading. Only Monster Pox (not a
-cold) raises each member's daily meal limit from 15 to 30 meal points, room
-for about one extra song and one extra snack. He posts once when he catches it
+cold) raises each member's daily track limit from 15 to 30 meal points, room
+for about three extra songs; the snack limit stays at 15. He posts once when he catches it
 (with his sick picture) and once when he is better, and the status card and
 Poke Wisp panel show his sick picture meanwhile.
 
@@ -329,7 +336,7 @@ where the command was used.
     privately `♪ This button is for <name>'s test run.` and nothing happens.
     Every other step holds 8 seconds so its posts can be read.
   - It is real: you get the feed, the points, the keepsakes and the drawing,
-    and the life joins the history. The feed is lifted past the daily meal
+    and the life joins the history. The feed is lifted past the daily track
     limit and the medicine is free, for the test only. General chat is not
     told: his hatching and new stages are announced in his House only.
   - Without `CF_IMAGE_WORKER_URL` the drawing step fails with

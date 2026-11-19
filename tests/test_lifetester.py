@@ -60,7 +60,7 @@ FROZEN = "♪ Wisp is frozen right now, so nothing can change until staff unfree
 FULL_STEPS = [
     "a new egg is laid.",
     "he is fed until he hatches into a Baby "
-    "(the daily meal limit is lifted for the test).",
+    "(the daily track limit is lifted for the test).",
     "he catches Monster Pox, then gets better.",
     "he makes a mess. Waiting for Runner to press its button.",
     "a second mess is left too long, so he catches a cold.",

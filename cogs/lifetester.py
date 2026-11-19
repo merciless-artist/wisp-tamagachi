@@ -368,7 +368,7 @@ class _TestLife:
             _Step("a new egg is laid", self._lay_egg),
             _Step(
                 "he is fed until he hatches into a Baby "
-                "(the daily meal limit is lifted for the test)",
+                "(the daily track limit is lifted for the test)",
                 self._hatch,
             ),
         ]
@@ -449,7 +449,7 @@ class _TestLife:
         """Feed the egg full as a track from the runner, then let it hatch.
 
         The feed is the track drop's own, for exactly what the egg still
-        needs, past the runner's daily meal limit.
+        needs, past the runner's daily track limit.
         """
         now = discord.utils.utcnow()
         async with self._bot.guild_lock(self._guild_id):

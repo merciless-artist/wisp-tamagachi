@@ -2046,7 +2046,9 @@ def test_rules_text_explains_the_two_meters(
 
     section = text.split("\nHis meters\n")[1].split("\n\n")[0]
     health, wellbeing = section.split("\n")
-    assert health.startswith("・Health: tracks, cleanups")
+    assert health.startswith(
+        "・Health: tracks, cleanups. A track fills more when fewer feed. "
+    )
     assert "6 h with no track costs 8" in health
     assert "Hangry when low, dies at 0" in health
     assert wellbeing.startswith(
@@ -2120,14 +2122,14 @@ def test_rules_text_explains_monster_pox_and_the_bigger_meal_limit(
 
     text = rules_text(rules.MEAL_POINTS, day=today())
 
-    assert "・Your meals and snacks count up to 20 points a day" in text
+    assert "・Each link feeds him once, for leaderboard points. Up to 20 a day" in text
     pox = next(line for line in text.split("\n") if "Monster Pox" in line)
     assert pox.startswith("・Once, as a Baby or Child: Monster Pox")
     assert "before Adult" not in pox
     assert "Monster Pox, 36 h max, 20 min off per meal point" in pox
     assert "faster drain" not in pox.lower()
     assert "He can't die" in pox
-    assert "meals count up to 27 a day" in pox
+    assert "tracks count up to 27 a day" in pox
 
 
 def test_rules_text_does_not_say_talking_earns_no_points() -> None:

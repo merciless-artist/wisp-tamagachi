@@ -34,7 +34,9 @@ from wisp.life import (
     ready_to_pass_on,
     schedule_cold,
     tick,
+    track_health,
 )
+from wisp.links import TrackKind
 from wisp.rules import (
     COAL_EGG_FOOD,
     COLD_EARLIEST,
@@ -44,10 +46,12 @@ from wisp.rules import (
     FAREWELL_AT_DAY,
     HATCHING_TIME,
     HEALTH_MAX,
+    HEALTH_PENALTY,
     HEALTH_START,
     HEALTH_STRETCH,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
+    MEAL_POINTS,
     OLD_FOGEY_AT_DAY,
     POX_HEALED_PER_MEAL_POINT,
     ROCKSTAR_WELLBEING,
@@ -59,6 +63,8 @@ from wisp.rules import (
     STAGE_MIN_TIME,
     STAGE_RULES,
     TICK_EVERY,
+    TRACK_HEALTH_MAX,
+    TRACK_HEALTH_MIN,
     WELLBEING_MAX,
     WELLBEING_START,
     WELLBEING_STRETCH,
@@ -494,6 +500,63 @@ def test_full_never_exceeds_max() -> None:
     life = alive(health=95.0)
     assert feed(life, 50, FEEDER, T0) == []
     assert life.health == HEALTH_MAX
+
+
+def test_feeding_gives_the_health_it_is_told() -> None:
+    life = alive(health=40.0)
+    feed(life, 5, FEEDER, T0, health=12.8)
+    assert life.health == pytest.approx(52.8)
+    assert life.health_stretch == 0.0
+
+
+def test_an_egg_counts_meal_points_not_health() -> None:
+    egg = new_egg(1, T0)
+    feed(egg, 5, FEEDER, T0, health=20.0)
+    assert egg.egg_food == 5
+
+
+def test_monster_pox_heals_by_meal_points_not_health() -> None:
+    life = alive(cold_left=SICK_FOR.total_seconds(), had_cold=True)
+    feed(life, 1, FEEDER, T0, health=20.0)
+    assert life.cold_left == (SICK_FOR - POX_HEALED_PER_MEAL_POINT).total_seconds()
+
+
+@pytest.mark.parametrize(
+    ("feeders", "viibr_health"),
+    [
+        (0, 20.0),
+        (1, 20.0),
+        (3, 20.0),
+        (4, 16.0),
+        (5, 12.8),
+        (8, 8.0),
+        (13, 64 / 13),
+        (20, 3.2),
+        (32, 2.0),
+        (100, 2.0),
+    ],
+)
+def test_track_health_follows_the_active_feeders(
+    feeders: int, viibr_health: float
+) -> None:
+    viibr = MEAL_POINTS[TrackKind.VIIBR]
+    assert track_health(viibr, feeders) == pytest.approx(viibr_health)
+    assert track_health(1, feeders) == pytest.approx(viibr_health / viibr)
+
+
+def test_track_health_holds_him_steady_when_half_feed_one_track() -> None:
+    daily_loss = HEALTH_PENALTY * (timedelta(days=1) / HEALTH_STRETCH)
+    for feeders in range(8, 31, 2):
+        gained = feeders // 2 * track_health(MEAL_POINTS[TrackKind.VIIBR], feeders)
+        assert gained == pytest.approx(daily_loss)
+
+
+def test_track_health_stays_inside_its_bounds() -> None:
+    viibr = MEAL_POINTS[TrackKind.VIIBR]
+    healths = [track_health(viibr, feeders) for feeders in range(200)]
+    assert min(healths) == TRACK_HEALTH_MIN
+    assert max(healths) == TRACK_HEALTH_MAX
+    assert healths == sorted(healths, reverse=True)
 
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD])

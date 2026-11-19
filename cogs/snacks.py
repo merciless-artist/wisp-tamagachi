@@ -70,7 +70,6 @@ from db.players import Player
 from wisp.bond import (
     PickleStance,
     casual_bond_grant,
-    daily_meal_cap,
     meal_grant,
     tier_for,
 )
@@ -93,6 +92,7 @@ from wisp.rules import (
     BADGE_BY_KEY,
     BOND_PER_SNACK,
     COLLECTION_BY_KEY,
+    DAILY_SNACK_CAP,
     FANCY_SNACK_COST,
     GIFT_BY_KEY,
     MAGAZINE_BY_KEY,
@@ -115,6 +115,7 @@ from wisp.story import Entry, EntryKind
 from wisp.text import (
     LAYOUT_TEXT_LIMIT,
     Frame,
+    daily_reset,
     frame_of,
     meter_receipt,
     text_length,
@@ -134,7 +135,6 @@ _NO_SNACKS: Final = (
     "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
 )
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
-_FULL: Final = "♪ Wisp is full from you today. Save it for tomorrow."
 _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
 _NO_COLD: Final = "♪ Wisp doesn't have a cold right now."
 _BADGE_NOT_READY: Final = (
@@ -1325,8 +1325,9 @@ async def _eat(
 
     Raises:
         Refusal: The member is banned or cannot feed Wisp, Wisp is not alive,
-            the free snack is used up for today, the member has had their
-            meals for today or has none of this snack. Nothing is taken then.
+            the free snack is used up for today, the member has reached
+            their daily snack limit (tracks have their own) or has none of
+            this snack. Nothing is taken then.
     """
     log = bot.activity_log
     user_id = member.id
@@ -1337,10 +1338,10 @@ async def _eat(
         raise Refusal(no_wisp_text(life, "Snacks"))
     if snack == _FREE and await log.free_snack_used_today(guild_id, user_id, now):
         raise Refusal(_SINE_USED)
-    eaten = await log.meal_points_today(guild_id, user_id, now)
-    points = meal_grant(eaten, snack.meal, daily_meal_cap(life))
+    eaten = await log.snack_points_today(guild_id, user_id, now)
+    points = meal_grant(eaten, snack.meal, DAILY_SNACK_CAP)
     if points == 0:
-        raise Refusal(_FULL)
+        raise Refusal(full_text(now))
     if snack == _FREE:
         kind = InteractionKind.FREE_SNACK
     elif await log.take_snack(guild_id, user_id, snack.key):
@@ -1358,6 +1359,14 @@ async def _eat(
     await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
     await bot.lives.save(guild_id, life)
     return _Meal(life, player, before)
+
+
+def full_text(now: datetime) -> str:
+    """Why Wisp takes no more snacks from a member today; tracks still feed him."""
+    return (
+        "♪ Wisp is full of snacks from you today. Your tracks still feed him. "
+        f"Snacks reset at {daily_reset(now)}."
+    )
 
 
 def _moment(snack: Snack) -> Moment:

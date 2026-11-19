@@ -110,7 +110,7 @@ def rules_text(
     tiers = ", ".join(
         [first_name, *(f"{name} {needed}" for name, needed in later_tiers)]
     )
-    daily_cap = count(rules.DAILY_MEAL_CAP, "point")
+    daily_cap = rules.DAILY_MEAL_CAP
     sick_cap = rules.DAILY_MEAL_CAP + rules.SICK_EXTRA_MEAL_CAP
     sick_hours = rules.SICK_FOR // timedelta(hours=1)
     pox_minutes = rules.POX_HEALED_PER_MEAL_POINT // timedelta(minutes=1)
@@ -132,11 +132,12 @@ def rules_text(
             "What counts",
             "・Links in the track drop:",
             *meals,
-            "・Each link feeds him once, for leaderboard points",
-            f"・Your meals and snacks count up to {daily_cap} a day",
+            "・Each link feeds him once, for leaderboard points. "
+            f"Up to {daily_cap} a day",
             "",
             "His meters",
-            f"・Health: tracks, cleanups. {health_hours} h with no track costs "
+            "・Health: tracks, cleanups. A track fills more when fewer feed. "
+            f"{health_hours} h with no track costs "
             f"{rules.HEALTH_PENALTY:g}. Hangry when low, dies at 0",
             f"・Wellbeing: chats ({rules.CHAT_CREDITS_PER_DAY} a day), pokes "
             f"({rules.POKE_CREDITS_PER_DAY} a day), duels "
@@ -175,7 +176,7 @@ def rules_text(
             f"・That life's top {count(rules.LAST_EMBER_GIFTS, 'sharer')} get his "
             "Last Ember, unless he was neglected",
             f"・Once, as a Baby or Child: Monster Pox, {sick_hours} h max, "
-            f"{pox_minutes} min off per meal point. He can't die, meals count up "
+            f"{pox_minutes} min off per meal point. He can't die, tracks count up "
             f"to {sick_cap} a day",
             "",
             "Talking to Wisp",

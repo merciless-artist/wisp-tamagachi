@@ -32,7 +32,20 @@ class Stage(StrEnum):
 # Starting values; staff can change them per guild with !wisp food.
 MEAL_POINTS: dict[TrackKind, int] = {TrackKind.VIIBR: 5, TrackKind.SUNO: 1}
 MEAL_POINTS_MAX = 50
+# Each member's daily limits: DAILY_MEAL_CAP meal points from tracks and,
+# separately, DAILY_SNACK_CAP from snacks, so a snack never stops a track.
 DAILY_MEAL_CAP = 15
+DAILY_SNACK_CAP = 15
+# A track's Health follows how many members fed him a track in the last
+# ACTIVE_FEEDER_WINDOW, so a small group keeps him going with the same effort
+# as a big one: he holds steady when TRACK_SHARE of them each feed one
+# viibrmusic.com track a day. One viibrmusic.com track (its MEAL_POINTS) gives
+# between TRACK_HEALTH_MIN and TRACK_HEALTH_MAX Health, and every other track
+# the same per meal point. Points and coins never shift.
+ACTIVE_FEEDER_WINDOW = timedelta(days=7)
+TRACK_SHARE = 0.5
+TRACK_HEALTH_MIN = 2.0
+TRACK_HEALTH_MAX = 20.0
 # The app emoji Wisp reacts with on a track post that fed him.
 FED_REACTION: Final = "wisp_happy"
 # Vault points for a member's first credited poke or mention of the UTC day, and
@@ -107,8 +120,8 @@ COLD_LATEST = timedelta(days=5)
 SICK_FOR = timedelta(hours=48)
 # While he has Monster Pox or a cold the Health penalty is SICK_DRAIN_MULTIPLIER
 # times as big but never takes Health below SICK_FULL_FLOOR. While he has
-# Monster Pox each member's daily meal cap has room for SICK_EXTRA_MEAL_CAP more
-# meal points.
+# Monster Pox each member's daily track limit has room for SICK_EXTRA_MEAL_CAP
+# more meal points; the snack limit stays as it is.
 SICK_DRAIN_MULTIPLIER = 1.5
 SICK_FULL_FLOOR = 1.0
 SICK_EXTRA_MEAL_CAP = 15

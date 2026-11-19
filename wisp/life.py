@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
+from wisp.links import TrackKind
 from wisp.rules import (
     COAL_EGG_FOOD,
     COLD_EARLIEST,
@@ -27,6 +28,7 @@ from wisp.rules import (
     HEALTH_STRETCH,
     LONELY_BELOW,
     MAX_CREDITED_GAP,
+    MEAL_POINTS,
     OLD_FOGEY_AT_DAY,
     OLD_FOGEY_HEALTH_PENALTY,
     POX_HEALED_PER_MEAL_POINT,
@@ -38,6 +40,9 @@ from wisp.rules import (
     SNIFFLES_FOR,
     STAGE_MIN_TIME,
     STAGE_RULES,
+    TRACK_HEALTH_MAX,
+    TRACK_HEALTH_MIN,
+    TRACK_SHARE,
     WELLBEING_MAX,
     WELLBEING_PENALTY,
     WELLBEING_START,
@@ -296,18 +301,44 @@ def age_days(life: Life, now: datetime) -> int:
 # ---
 
 
-def feed(life: Life, meal_points: int, feeder_id: int, now: datetime) -> list[Event]:
+def feed(
+    life: Life,
+    meal_points: int,
+    feeder_id: int,
+    now: datetime,
+    *,
+    health: float | None = None,
+) -> list[Event]:
     """Feed an egg or a living Wisp; ignored in every other phase.
 
-    While he has Monster Pox each meal point also takes
-    POX_HEALED_PER_MEAL_POINT off it, and a meal that ends it returns RECOVERED.
+    An egg counts the meal points. A living Wisp gains `health` Health (see
+    `track_health`), or one per meal point when it is None. While he has
+    Monster Pox each meal point also takes POX_HEALED_PER_MEAL_POINT off it,
+    and a meal that ends it returns RECOVERED.
     """
     if life.phase is Phase.EGG:
         return _feed_egg(life, meal_points, feeder_id, now)
     if life.phase is not Phase.ALIVE:
         return []
-    change_meter(life, Meter.HEALTH, meal_points, ends_stretch=True)
+    gain = float(meal_points) if health is None else health
+    change_meter(life, Meter.HEALTH, gain, ends_stretch=True)
     return _heal_pox(life, meal_points, feeder_id)
+
+
+def track_health(meal_points: int, active_feeders: int) -> float:
+    """Health a track worth `meal_points` gives while `active_feeders` feed him.
+
+    `active_feeders` counts the members who fed him a track in the last
+    ACTIVE_FEEDER_WINDOW, fewer than one counting as one. He loses a day's
+    Health penalties when TRACK_SHARE of them each feed one viibrmusic.com
+    track, so that track gives a day's loss shared among that share, kept between
+    TRACK_HEALTH_MIN and TRACK_HEALTH_MAX; any track gives the same per meal
+    point.
+    """
+    daily_loss = HEALTH_PENALTY * (timedelta(days=1) / HEALTH_STRETCH)
+    per_track = daily_loss / (max(active_feeders, 1) * TRACK_SHARE)
+    per_track = min(max(per_track, TRACK_HEALTH_MIN), TRACK_HEALTH_MAX)
+    return meal_points * per_track / MEAL_POINTS[TrackKind.VIIBR]
 
 
 def _heal_pox(life: Life, meal_points: int, feeder_id: int) -> list[Event]:

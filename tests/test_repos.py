@@ -720,10 +720,12 @@ async def test_daily_counts_reset_at_utc_midnight(db: Database, now: datetime) -
     await repo.record_interaction(GUILD, 1, USER, InteractionKind.PLAY, 3, 0, NOW)
     await repo.record_interaction(GUILD, 1, USER, InteractionKind.FEED, 10, 8, after)
 
-    assert await repo.meal_points_today(GUILD, USER, now) == 7
+    assert await repo.track_points_today(GUILD, USER, now) == 5
+    assert await repo.snack_points_today(GUILD, USER, now) == 2
     assert await repo.casual_bond_today(GUILD, USER, now) == 4
-    assert await repo.meal_points_today(GUILD, OTHER_USER, now) == 0
-    assert await repo.meal_points_today(OTHER_GUILD, USER, now) == 0
+    assert await repo.track_points_today(GUILD, OTHER_USER, now) == 0
+    assert await repo.snack_points_today(GUILD, OTHER_USER, now) == 0
+    assert await repo.track_points_today(OTHER_GUILD, USER, now) == 0
 
 
 def test_db_time_truncates_to_whole_seconds() -> None:
@@ -739,9 +741,11 @@ async def test_fraction_of_a_second_stays_in_its_utc_day(db: Database) -> None:
         GUILD, 1, USER, InteractionKind.FREE_SNACK, 1, 2, late
     )
 
-    assert await repo.meal_points_today(GUILD, USER, MIDNIGHT) == 0
+    assert await repo.track_points_today(GUILD, USER, MIDNIGHT) == 0
+    assert await repo.snack_points_today(GUILD, USER, MIDNIGHT) == 0
     assert await repo.free_snack_used_today(GUILD, USER, MIDNIGHT) is False
-    assert await repo.meal_points_today(GUILD, USER, late) == 6
+    assert await repo.track_points_today(GUILD, USER, late) == 4
+    assert await repo.snack_points_today(GUILD, USER, late) == 2
     assert await repo.free_snack_used_today(GUILD, USER, late) is True
     assert await repo.distinct_days(GUILD, USER) == 1
 
@@ -752,7 +756,7 @@ async def test_daily_counts_use_the_utc_day_of_a_local_time(db: Database) -> Non
         GUILD, 1, USER, InteractionKind.FEED, 10, 6, MIDNIGHT - timedelta(hours=1)
     )
     local = datetime(2026, 10, 20, 8, 0, tzinfo=timezone(timedelta(hours=10)))
-    assert await repo.meal_points_today(GUILD, USER, local) == 6
+    assert await repo.track_points_today(GUILD, USER, local) == 6
 
 
 async def test_distinct_days(db: Database) -> None:
@@ -846,6 +850,29 @@ async def test_feeders_since_counts_only_feeding(db: Database) -> None:
     assert await repo.feeders_since(OTHER_GUILD, since) == 1
 
 
+async def test_track_feeders_since_counts_only_track_feeds(db: Database) -> None:
+    repo = ActivityRepo(db)
+    since = NOW - timedelta(days=7)
+    for user, kind in [
+        (1, InteractionKind.FEED),
+        (1, InteractionKind.FEED),
+        (2, InteractionKind.SNACK),
+        (3, InteractionKind.FREE_SNACK),
+        (4, InteractionKind.FEED),
+        (5, InteractionKind.PLAY),
+        (6, InteractionKind.CHAT),
+    ]:
+        await repo.record_interaction(GUILD, 1, user, kind, 0, 5, NOW)
+    await repo.record_interaction(GUILD, 2, 7, InteractionKind.FEED, 0, 5, since)
+    await repo.record_interaction(
+        GUILD, 1, 8, InteractionKind.FEED, 0, 5, since - timedelta(seconds=1)
+    )
+    await repo.record_interaction(OTHER_GUILD, 1, 9, InteractionKind.FEED, 0, 5, NOW)
+
+    assert await repo.track_feeders_since(GUILD, since) == 3
+    assert await repo.track_feeders_since(OTHER_GUILD, since) == 1
+
+
 async def test_chat_rows_do_not_count_as_caretakers_or_last_interactor(
     db: Database,
 ) -> None:
@@ -877,7 +904,8 @@ async def test_chats_count_toward_meeting_but_not_as_people_he_saw(
 
     assert await repo.people_since(GUILD, since) == 1
     assert await repo.distinct_days(GUILD, USER) == 2
-    assert await repo.meal_points_today(GUILD, USER, NOW) == 0
+    assert await repo.track_points_today(GUILD, USER, NOW) == 0
+    assert await repo.snack_points_today(GUILD, USER, NOW) == 0
     assert await repo.casual_bond_today(GUILD, USER, NOW) == 0
 
 
