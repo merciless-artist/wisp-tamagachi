@@ -760,7 +760,7 @@ async def test_the_lunchbox_shows_the_newest_songs_only(
     assert len(await repo.favorites(GUILD_ID, 100)) == 12
 
 
-async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
+async def test_the_longest_links_still_fit_with_every_song_shown(
     bot: app.WispBot, db: Database
 ) -> None:
     long_url = "https://viibrmusic.com/songs/" + "x" * 220
@@ -783,8 +783,7 @@ async def test_a_long_lunchbox_drops_the_oldest_songs_to_fit(
 
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
     songs = sections(text)[0][1:]
-    assert 0 < len(songs) < 2 * rules.FAVORITE_SONGS_SHOWN
-    assert len(songs) % 2 == 0
+    assert len(songs) == 2 * rules.FAVORITE_SONGS_SHOWN
     assert songs[0].startswith(f"{EDGE}{HEADER} Oct 22 ・")
     assert songs[-1].endswith(f" LISTEN HERE]({long_url})")
     assert [EMOJI, NONE_YET] in sections(text)

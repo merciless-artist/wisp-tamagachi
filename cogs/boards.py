@@ -1,4 +1,4 @@
-"""Boards: the Status and Leaderboard posts are for their own use, not for chat.
+"""Boards: the Status, Leaderboard and ViiBR Vault posts are not for chat.
 
 The posts stay unlocked, since a locked post's buttons and menus don't work
 for members, so Wisp deletes what members type there instead.
@@ -32,6 +32,7 @@ class Board:
 
 _STATUS: Final = Board("Status", "buttons")
 _LEADERBOARD: Final = Board("Leaderboard", "the leaderboard")
+_VAULT: Final = Board("ViiBR Vault", "shopping")
 
 
 def board_for(settings: Settings, channel_id: int) -> Board | None:
@@ -39,6 +40,7 @@ def board_for(settings: Settings, channel_id: int) -> Board | None:
     boards = {
         settings.status_thread_id: _STATUS,
         settings.vault_thread_id: _LEADERBOARD,
+        settings.shop_thread_id: _VAULT,
     }
     return boards.get(channel_id)
 
@@ -57,7 +59,7 @@ def board_notice(settings: Settings, board: Board) -> str:
 
 
 class Boards(commands.Cog):
-    """Deletes what members type in the Status and Leaderboard posts."""
+    """Deletes what members type in the Status, Leaderboard and Vault posts."""
 
     def __init__(self, bot: "WispBot") -> None:
         self.bot = bot

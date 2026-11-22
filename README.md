@@ -60,8 +60,8 @@ Menus opened before the update that added this fail once, with Discord's
   question's button is then disabled. A press that finds Wisp already here,
   from a second staff member or an old question, lays nothing and disables
   that button too.
-- Until someone presses it there is no Wisp: the status card and `/wisp
-  status` say `♪ No Wisp right now. Waiting for staff to begin again.`, and
+- Until someone presses it there is no Wisp: the status card says
+  `♪ No Wisp right now. Waiting for staff to begin again.`, and
   tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
   The waiting status card carries its own Begin again button (and no Feed or
   Poke buttons) with the picture of how he ended, so staff can always begin
@@ -262,6 +262,8 @@ picture.
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
   Manage Messages, to delete chat typed in the Status and Leaderboard posts.
+  Manage Channels, to show Wisp's Studio forum as a gallery; without it
+  every setup posts an error.
   Add Reactions, to react on a track post that fed him.
   Manage Roles, to make the badge roles and give and take them; Wisp's own
   role must sit above the badge roles.
@@ -299,7 +301,9 @@ where the command was used.
   the coal egg or his stage), and the life loop swaps it when the picture
   changes. A rerun leaves a panel that still exists alone, pins it again or
   gives back its button if needed, and posts a new one if it was deleted.
-- `!wisp roles add @role`, `!wisp roles remove @role`, `!wisp roles list`
+- `!wisp roles add @role [@role...]`, `!wisp roles remove @role [@role...]`
+  (several roles at once, such as every Mee6 level reward from Level 5 up)
+  and `!wisp roles list`
   choose which roles can feed Wisp. Adding or removing one brings the rules
   post at the end of the Wisp FAQ up to date, and a refusal for a missing role
   names the server's feeding roles (up to two, then "or N more").
@@ -426,7 +430,7 @@ retired stays in the buyer's Snack Pack. If Discord will not give the role,
 the purchase is undone and the points come back.
 - `/wisp lunchbox` (the **Lunchbox** button shows it to you alone) shows
   Wisp's lunchbox: his favorite song of each day (picked
-  at random from that UTC day's viibrmusic.com tracks, newest ten shown), the
+  at random from that UTC day's viibrmusic.com tracks, newest three shown), the
   favorite snack he picked when he hatched, the expression he uses most and
   the gift collections of this life. Each song is its day and sharer, then a
   numbered `#1 LISTEN HERE` link, and his favorite emoji shows its name in
@@ -574,6 +578,19 @@ and posts "This post is just for buttons" (Status) or "just for the
 leaderboard" for a few seconds; staff and bots may post there.
 
 - `⚡｜Jam Space`: his favorite songs and lyrics.
+- `🛍️ | ViiBR Vault`: the shop (`cogs/shop.py`). Its first post is Myra's
+  Snacks shelf picture (`gifts/VV_Store/VV_Snacks.gif`); under it the life
+  loop posts the shelves in order: the snack menu, the Tamagotchis and Tech
+  picture with its gift menu, the Alien Dolls and Books picture with its gift
+  menu, the Vanity Roles picture with the badge menu, then the medicine and
+  magazine menus with the Open my Snack Pack button. The shelves are stored in
+  `settings.shop_message_ids` and posted again whenever that is not one per
+  shelf. A pick makes the same purchase the private Vault does but answers
+  only the member, with the result and their wisp coins; the post never
+  changes. The menus are persistent (`ShelfMenu`, custom ids
+  `wisp:shelf:<menu>`), and a pick of something no longer sold is told so.
+  The Status card's Vault button jumps to this post; `/wisp vault` still
+  opens the private Vault. Member chat here is deleted like on Status.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
   linking to each section's first picture, then one banner picture per
   question, each in a message of its own, and its last post is the quick rules
@@ -582,7 +599,7 @@ leaderboard" for a few seconds; staff and bots may post there.
 Each thread's first post carries its picture, which the forum shows as the
 thumbnail. Setup renames a thread whose name differs, adds a
 missing thumbnail and fills a Wisp FAQ whose stored pictures are not the
-current set (35), such as an older How Wisp Works thread or the earlier
+current set (43), such as an older How Wisp Works thread or the earlier
 one-picture-per-section FAQ.
 
 ## Errors
@@ -622,7 +639,7 @@ posts text only.
   life (the egg's picture stands in when it is missing). The status card and
   the House's announcements use them.
 - `events/died.png`, `events/egg_cold.png`, `events/hatched.png`,
-  `events/farewell.png`.
+  `events/farewell.gif` (each may be a GIF or a PNG).
 - `badges/<key>.png` for each badge key (`pickle_diplomat`,
   `flame_keeper`, `team_viibr`, `bandmate`), the badge role icons, and the
   app emojis `badge_<key>` for the Vault and Snack Pack.
@@ -640,10 +657,12 @@ posts text only.
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
   `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,
-  `06_growing_1` to `_4`, `07_talking_1` to `_4`, `08_games_1` and `_2`,
-  `09_ending_1` to `_3`, `10_fair_1` and `_2` (35 in all). These are
-  required: without all of them the FAQ is not built and the error is posted
-  in its thread.
+  `06_growing_1` to `_4`, `07_chores_1` to `_6`, `08_talking_1` to `_6`,
+  `09_games_1` and `_2`, `10_ending_1` to `_3`, `11_fair_1` and `_2` (43 in
+  all). These are required: without all of them the FAQ is not built and the
+  error is posted in its thread. `tools/render_faq.py` renders them all from
+  `DOCS/wisp_faq.html` (run it with a Python that has Playwright), so edit
+  the page, then render, then run `!wisp faq`.
 - `gifts/<key>.gif` or `gifts/<key>.png` (512px) for each gift, attached
   when Wisp keeps it. An animated GIF is used before a PNG. The TV changes
   with his stage, so it has one per stage instead: `gifts/tech_tv_baby.png`
@@ -657,7 +676,7 @@ App emojis (uploaded to the application in the Developer Portal):
 is `gift_tech_tv_<stage>` for each stage from `baby` to `old_fogey`),
 `keepsake_<kind>` for each keepsake kind (shown in the Snack Pack),
 `wisp_coin`, `wisp_coin_mini` (prices and balances), `medicine` (the Vault's
-medicine option), `viibr_logo` (the Vault's title), the status card's meters
+medicine option), the status card's meters
 `full_full` / `full_left` (Health) and `care_full` / `care_left` (Wellbeing),
 `happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars),
 `wisp_happy`, `wisp_hangry`, `wisp_sad`, and the emoji frame's

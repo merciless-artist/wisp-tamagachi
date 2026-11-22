@@ -16,6 +16,7 @@ from discord.ext import commands
 import app
 from cogs import discipline
 from cogs.assets import ASSETS_DIR
+from cogs.players import NameButton
 from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
@@ -424,13 +425,49 @@ async def test_strip_one_point_is_singular(bot: app.WispBot) -> None:
 # ---
 
 
-async def test_resetname_clears_name(bot: app.WispBot) -> None:
+async def test_resetname_clears_name_and_posts_a_new_name_button(
+    bot: app.WispBot, server: FakeServer
+) -> None:
     await bot.players.set_name(GUILD_ID, MEMBER_ID, "Nova")
     ctx = make_ctx(bot)
+
     await run(discipline.resetname, ctx, make_member())
+
     assert (await bot.players.get(GUILD_ID, MEMBER_ID)).name is None
-    (reply,) = replies(ctx)
-    assert reply == "♪ Wisp forgot <@1>'s name. They can choose a new one."
+    assert replies(ctx) == [
+        "♪ Wisp forgot <@1>'s name. A new name button is in his House."
+    ]
+    server.house.send.assert_awaited_once()
+    (text,) = server.house.send.await_args.args
+    assert text == (
+        "♪ <@1> Wisp forgot your name. "
+        "Press the button to tell him what to call you."
+    )
+    kwargs = server.house.send.await_args.kwargs
+    assert kwargs["allowed_mentions"].to_dict() == {
+        "parse": [],
+        "users": [MEMBER_ID],
+    }
+    (button,) = kwargs["view"].children
+    assert isinstance(button, NameButton)
+    assert button.item.custom_id == f"wisp:name:{MEMBER_ID}"
+
+
+async def test_resetname_says_when_the_name_button_could_not_be_posted(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.house.send.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+    ctx = make_ctx(bot)
+
+    await run(discipline.resetname, ctx, make_member())
+
+    assert (await bot.players.get(GUILD_ID, MEMBER_ID)).name is None
+    assert replies(ctx)[-1] == (
+        "♪ Wisp forgot <@1>'s name. "
+        "The new name button couldn't be posted in his House."
+    )
 
 
 # ---

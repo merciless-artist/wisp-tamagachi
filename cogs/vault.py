@@ -78,7 +78,7 @@ def version_line(life: Life, now: datetime) -> str:
                     if life.phase is Phase.PASSED
                     else f"went out after {days}"
                 ),
-                f"peak {life.peak_stage.label}",
+                f"peak: {life.peak_stage.label}",
             ]
             if life.hatched_by is not None:
                 facts.append(f"hatched by <@{life.hatched_by}>")
@@ -89,7 +89,7 @@ async def render_leaderboard(
     bot: "WispBot", guild_id: int, now: datetime, *, private: bool = False
 ) -> str:
     """Build the Leaderboard card in Myra's emoji frame: two top tens, top
-    rhymers, then every version.
+    rhymers, then every version but staff test lives.
 
     The history is trimmed from the oldest end so the text fits one layout
     message; the box always closes. Each list ends with a blank line, as in
@@ -134,7 +134,9 @@ async def render_leaderboard(
         )
     )
     versions = [
-        frame.wrap(frame.item(version_line(life, now))) for life in history
+        frame.wrap(frame.item(version_line(life, now)))
+        for life in history
+        if not life.is_test
     ] or [frame.item("None yet")]
     return fit(head, versions, [frame.blank, frame.bottom], LAYOUT_TEXT_LIMIT)
 

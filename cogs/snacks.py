@@ -130,9 +130,11 @@ _NO_PING: Final = discord.AllowedMentions.none()
 _FEED_ID: Final = "wisp:feed"
 _VAULT_ID: Final = "wisp:vault"
 _SNACK_PACK_ID: Final = "wisp:snackpack"
+SHELF_ID_PREFIX: Final = "wisp:shelf:"
+"""Every ViiBR Vault post menu's custom id starts with this."""
 
 _NO_SNACKS: Final = (
-    "♪ You have no snacks. Buy some in the ViiBR Vault with /wisp vault."
+    "♪ You have no snacks. Buy some in the ViiBR Vault post in Wisp's Studio."
 )
 _SINE_USED: Final = "♪ You've had today's free Sine Wave. A new one comes tomorrow."
 _NO_WISP: Final = "♪ There's no Wisp to wear a badge for right now."
@@ -331,7 +333,7 @@ class MedicineSelect(discord.ui.Select[Any]):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Give Wisp his medicine."""
-        await _give_medicine(interaction)
+        await give_medicine(interaction)
 
 
 class Menu(Lasting, discord.ui.View):
@@ -583,7 +585,7 @@ async def _snack_part(
     player = await bot.players.get(guild_id, user_id)
     life = await bot.lives.current(guild_id)
     menus = _SnackMenus(
-        snacks=SnackSelect(snack_options, "Buy a snack", _buy, "snacks"),
+        snacks=SnackSelect(snack_options, "Buy a snack", buy_snack, "snacks"),
         medicine=(
             MedicineSelect(bot) if life is not None and has_sniffles(life) else None
         ),
@@ -608,11 +610,9 @@ async def _extra_part(
     magazines = await magazines_owned(bot, guild_id, user_id)
     magazine_choices = [] if magazines is None else magazine_options(magazines)
     menus = _ExtraMenus(
-        badges=BadgeSelect(badge_choices, _get_badge) if badge_choices else None,
+        badges=BadgeSelect(badge_choices, get_badge) if badge_choices else None,
         magazines=(
-            MagazineSelect(magazine_choices, _get_magazine)
-            if magazine_choices
-            else None
+            MagazineSelect(magazine_choices, get_magazine) if magazine_choices else None
         ),
     )
     return VaultLayout(
@@ -645,11 +645,31 @@ async def _gift_part(
             if collection_choices
             else None
         ),
-        gifts=GiftSelect(gift_choices, _give) if gift_choices else None,
+        gifts=GiftSelect(gift_choices, give_from_vault) if gift_choices else None,
     )
     return VaultLayout(
         _gift_pieces(bot, frame_of(bot.emoji), player.balance, gifts, note, menus)
     )
+
+
+def from_shelf(interaction: discord.Interaction) -> bool:
+    """Whether the interaction is a pick from a ViiBR Vault post menu."""
+    if interaction.data is None:
+        return False
+    return str(interaction.data.get("custom_id", "")).startswith(SHELF_ID_PREFIX)
+
+
+async def _acknowledge(interaction: discord.Interaction) -> None:
+    """Acknowledge a purchase before any slow work.
+
+    A pick from the ViiBR Vault post is answered privately, so the post
+    itself never changes. A pick from a private Vault keeps its menu, which
+    is shown again under the result.
+    """
+    if from_shelf(interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+    else:
+        await interaction.response.defer()
 
 
 async def _confirm(
@@ -662,14 +682,21 @@ async def _confirm(
 ) -> None:
     """Show the Vault's `part` the menu was in again under `note`.
 
-    A failure is reported as `context` and never reaches the caller, so
-    whatever follows the confirmation, such as announcing a gift, still
-    happens. With `tell_member`, the member is also told it failed, for when
-    nothing else would answer them.
+    A pick from the ViiBR Vault post gets `note` and the member's wisp coins
+    privately instead. A failure is reported as `context` and never reaches
+    the caller, so whatever follows the confirmation, such as announcing a
+    gift, still happens. With `tell_member`, the member is also told it
+    failed, for when nothing else would answer them.
     """
     bot = bot_of(interaction)
+    guild_id = require_guild(interaction)
     try:
-        vault = await part(bot, require_guild(interaction), interaction.user.id, note)
+        if from_shelf(interaction):
+            player = await bot.players.get(guild_id, interaction.user.id)
+            coins = f"♪ You have {_coins(bot, f'{player.balance} WC')}."
+            await say_privately(interaction, "\n".join(filter(None, [note, coins])))
+            return
+        vault = await part(bot, guild_id, interaction.user.id, note)
         await interaction.edit_original_response(view=vault, allowed_mentions=_NO_PING)
     except EXPECTED_FAILURES as error:
         if tell_member:
@@ -782,7 +809,7 @@ def _shown(frame: Frame, lines: list[str], room: int) -> list[str]:
     return [frame.item(f"and {len(lines)} more")]
 
 
-async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
+async def buy_snack(interaction: discord.Interaction, snack: Snack) -> None:
     """Spend the member's points on a snack, or say why they cannot.
 
     The interaction is acknowledged first so slow storage cannot make the
@@ -792,7 +819,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
-    await interaction.response.defer()
+    await _acknowledge(interaction)
     player = await bot.players.get(guild_id, user.id)
     if player.is_banned(discord.utils.utcnow()):
         await say_privately(interaction, NOT_TAKING)
@@ -815,7 +842,7 @@ async def _buy(interaction: discord.Interaction, snack: Snack) -> None:
         )
 
 
-async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
+async def get_badge(interaction: discord.Interaction, badge: Badge) -> None:
     """Spend the member's points on a badge and give them its role.
 
     The purchase is made under the guild lock; the role is given after it. If
@@ -827,7 +854,7 @@ async def _get_badge(interaction: discord.Interaction, badge: Badge) -> None:
     guild_id = require_guild(interaction)
     user = interaction.user
     guild = interaction.guild
-    await interaction.response.defer()
+    await _acknowledge(interaction)
     if not isinstance(user, discord.Member) or guild is None:
         await _confirm(
             interaction,
@@ -935,7 +962,7 @@ async def _return_badge(
     await bot.players.add_bond(guild_id, user_id, -badge.bond)
 
 
-async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) -> None:
+async def get_magazine(interaction: discord.Interaction, magazine: Magazine) -> None:
     """Spend the member's points on a magazine cover, then send them its picture.
 
     The purchase is made under the guild lock. The Vault is shown again under
@@ -945,7 +972,7 @@ async def _get_magazine(interaction: discord.Interaction, magazine: Magazine) ->
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
-    await interaction.response.defer()
+    await _acknowledge(interaction)
     try:
         async with bot.guild_lock(guild_id):
             await _take_magazine(
@@ -1011,7 +1038,7 @@ def _already_own(magazine: Magazine, life: Life) -> str:
     return f"♪ You already have the {magazine.name} for Wisp v{life.version}."
 
 
-async def _give_medicine(interaction: discord.Interaction) -> None:
+async def give_medicine(interaction: discord.Interaction) -> None:
     """Spend the member's points on Wisp's medicine, which cures his cold.
 
     The Vault is shown again under the result, or under the reason it was
@@ -1022,7 +1049,7 @@ async def _give_medicine(interaction: discord.Interaction) -> None:
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
-    await interaction.response.defer()
+    await _acknowledge(interaction)
     try:
         async with bot.guild_lock(guild_id):
             life, player = await _take_medicine(
@@ -1124,7 +1151,7 @@ async def _pick_collection(
     )
 
 
-async def _give(interaction: discord.Interaction, gift: Gift) -> None:
+async def give_from_vault(interaction: discord.Interaction, gift: Gift) -> None:
     """Spend the member's points on a gift for Wisp, then show what he did with it.
 
     The reply shows the Vault again under the result, or under the reason the
@@ -1134,7 +1161,7 @@ async def _give(interaction: discord.Interaction, gift: Gift) -> None:
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
     user = interaction.user
-    await interaction.response.defer()
+    await _acknowledge(interaction)
     try:
         async with bot.guild_lock(guild_id):
             given = await give_gift(

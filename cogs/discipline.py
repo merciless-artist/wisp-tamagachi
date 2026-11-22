@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING, Final
 import discord
 from discord.ext import commands
 
-from cogs.announce import say_in_house
+from cogs.announce import post_in_house, say_in_house
 from cogs.assets import moment_image
+from cogs.players import NameButton
 from cogs.staff import StaffContext, guild_of, reply
 from wisp.life import is_over
 from wisp.lines import Moment
@@ -136,13 +137,31 @@ async def strip(
 
 @commands.command(name="resetname", usage="@member")
 async def resetname(ctx: StaffContext, member: discord.Member) -> None:
-    """Clear the member's name so they can choose again from Wisp's button."""
+    """Clear the member's name and post a new name button for them in the House.
+
+    The post pings only that member. When it cannot be posted, the failure is
+    reported and the answer says so.
+    """
     if await _refuse_bot(ctx, member):
         return
-    await ctx.bot.players.set_name(guild_of(ctx).id, member.id, None)
-    await reply(
-        ctx, f"♪ Wisp forgot {member.mention}'s name. They can choose a new one."
+    guild_id = guild_of(ctx).id
+    await ctx.bot.players.set_name(guild_id, member.id, None)
+    view = discord.ui.View(timeout=None)
+    view.add_item(NameButton(member.id))
+    posted = await post_in_house(
+        ctx.bot,
+        guild_id,
+        f"♪ {member.mention} Wisp forgot your name. "
+        "Press the button to tell him what to call you.",
+        view=view,
+        ping=member.id,
     )
+    where = (
+        "A new name button is in his House."
+        if posted is not None
+        else "The new name button couldn't be posted in his House."
+    )
+    await reply(ctx, f"♪ Wisp forgot {member.mention}'s name. {where}")
 
 
 async def setup(bot: "WispBot") -> None:

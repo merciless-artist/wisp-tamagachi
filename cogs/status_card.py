@@ -8,7 +8,7 @@ is pinned and edited in place.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
@@ -44,16 +44,25 @@ _BUTTONS_PER_ROW: Final = 3
 # ---
 
 
-def status_buttons() -> Buttons:
+def status_buttons(vault_link: str | None = None) -> Buttons:
     """The live status card's buttons, three to a row.
 
-    Feed Wisp, Poke Wisp and Vault, then Snack Pack, Play and Lunchbox. Each
-    is persistent, so an old card keeps working after a restart.
+    Feed Wisp, Poke Wisp and Vault, then Snack Pack, Play and Lunchbox. Vault
+    jumps to `vault_link`, the ViiBR Vault post; before there is one it opens
+    the Vault privately. Every other button is persistent, so an old card
+    keeps working after a restart.
     """
-    buttons: list[discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]]] = [
+    vault: discord.ui.Item[Any] = (
+        ShopButton("Vault")
+        if vault_link is None
+        else discord.ui.Button(
+            label="Vault", style=discord.ButtonStyle.link, url=vault_link
+        )
+    )
+    buttons: list[discord.ui.Item[Any]] = [
         FeedButton(),
         PokeButton(),
-        ShopButton("Vault"),
+        vault,
         SnackPackButton("Snack Pack"),
         PlayButton(),
         LunchboxButton(),

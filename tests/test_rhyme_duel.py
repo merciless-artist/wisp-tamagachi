@@ -1001,14 +1001,44 @@ async def test_a_member_banned_during_the_duel_gets_it_uncounted(
     assert (await bot.players.get(GUILD_ID, USER_ID)).balance == 0
 
 
-async def test_a_duel_while_frozen_says_he_is_frozen(
-    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+@pytest.mark.parametrize("opener", ["command", "button"])
+async def test_a_duel_while_frozen_is_refused_before_it_starts(
+    bot: app.WispBot, server: FakeServer, opener: str
+) -> None:
+    await lay(bot)
+    await bot.settings.update(GUILD_ID, frozen=True)
+    interaction = make_interaction(bot, server)
+
+    await (start if opener == "command" else press_rhyme_duel)(interaction)
+
+    assert replies(interaction) == [
+        "♪ Wisp is frozen right now, so nothing can change until staff unfreeze him."
+    ]
+    server.house.create_thread.assert_not_awaited()
+    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+
+
+async def test_a_freeze_during_a_duel_keeps_it_from_counting(
+    bot: app.WispBot,
+    server: FakeServer,
+    wisp_says: Callable[..., list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     life = await lay(bot)
-    await bot.settings.update(GUILD_ID, frozen=True)
     wisp_says(None)
+    turns = cast(Turns, bot.wait_for)
+    turns.load(said("choir"))
 
-    interaction = await duel(bot, server, said("choir"))
+    async def freeze_then_answer(
+        event: str, *, check: Callable[[Any], bool], timeout: float
+    ) -> MagicMock:
+        await bot.settings.update(GUILD_ID, frozen=True)
+        return await turns(event, check=check, timeout=timeout)
+
+    monkeypatch.setattr(bot, "wait_for", freeze_then_answer)
+    interaction = make_interaction(bot, server)
+
+    await start(interaction)
 
     assert receipt(interaction) == (
         "♪ This duel didn't count toward his Wellbeing: "

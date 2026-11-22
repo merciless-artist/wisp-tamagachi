@@ -584,6 +584,8 @@ async def test_setup(
         f"・Track drop: <#{TRACKS_ID}>\n"
         "・General chat: off\n"
         "・Studio threads: all six already exist\n"
+        "・No feeding roles yet, so nobody can feed Wisp. "
+        "Add one with !wisp roles add @role.\n"
         "・Badge roles: all 2 ready"
     ]
 
@@ -703,8 +705,8 @@ async def test_roles(
         f"♪ <@&{STAFF_ROLE_ID}> can now feed Wisp.",
         f"♪ Roles that can feed Wisp\n・<@&{STAFF_ROLE_ID}>\n・<@&{OTHER_ROLE_ID}>",
         f"♪ <@&{STAFF_ROLE_ID}> no longer feeds Wisp.",
-        "♪ Usage: !wisp roles add @role",
-        "♪ Usage: !wisp roles add @role | remove @role | list",
+        "♪ Usage: !wisp roles add @role [@role...]",
+        "♪ Usage: !wisp roles add @role [@role...] | remove @role [@role...] | list",
     ]
     assert await bot.settings.roles(GUILD_ID) == {OTHER_ROLE_ID}
     assert refresh.await_count == 3
@@ -1066,7 +1068,7 @@ async def test_unban_strip_and_resetname(
         f"♪ Took 4 points from {mention}.",
         "♪ Usage: !wisp strip @member <points>",
         "♪ Usage: !wisp strip @member <points>",
-        f"♪ Wisp forgot {mention}'s name. They can choose a new one.",
+        f"♪ Wisp forgot {mention}'s name. A new name button is in his House.",
         "♪ Usage: !wisp unban @member",
     ]
 

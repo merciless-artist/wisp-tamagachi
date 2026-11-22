@@ -67,6 +67,10 @@ _GENERAL_IS_TRACKS: Final = (
     "Pick a different channel for one of them."
 )
 _PANEL_LABEL: Final = "Poke Wisp panel"
+_NO_FEEDING_ROLES: Final = (
+    "・No feeding roles yet, so nobody can feed Wisp. "
+    "Add one with !wisp roles add @role."
+)
 TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -277,10 +281,21 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         locked=True,
         image="thumbs/faq.png",
     ),
+    StudioThread(
+        "shop_thread_id",
+        "🛍️ | ViiBR Vault",
+        "ViiBR Vault",
+        "♪ The ViiBR Vault\n"
+        "・Pick something from a shelf's menu. Only you see your receipt.\n"
+        "・Snacks go in your Snack Pack, to feed him later. Gifts, badges and "
+        "medicine work right away.",
+        image="gifts/VV_Store/VV_Snacks.gif",
+    ),
 )
 
 _THREAD_ATTRS = frozenset(spec.attr for spec in STUDIO_THREADS)
 _FAQ_ATTR: Final = "rules_thread_id"
+_SHOP_ATTR: Final = "shop_thread_id"
 _studio_locks: dict[int, asyncio.Lock] = {}
 
 
@@ -464,7 +479,9 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     The Wisp FAQ is filled when its thread is new or does not have one stored
     post per picture: a How Wisp Works thread
     from before the FAQ, a build that stopped part way or a release with a
-    different set of pictures (such as one picture per section).
+    different set of pictures (such as one picture per section). A new ViiBR
+    Vault thread forgets the shelves stored for the old one, so the life loop
+    posts them in it (`cogs.shop.ensure_shelves`).
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -494,6 +511,8 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
         stored_pictures = len(settings.faq_message_ids or ())
         if _FAQ_ATTR in created or stored_pictures != FAQ_PICTURE_COUNT:
             await _build_faq(bot, forum.guild, threads[_FAQ_ATTR])
+        if _SHOP_ATTR in created:
+            await bot.settings.update(guild_id, shop_message_ids=None)
         settings = await bot.settings.get(guild_id)
     if recreated:
         await _announce(bot, forum.guild, recreated)
@@ -690,7 +709,8 @@ async def set_up(
     `general` is the server's general chat, where Wisp shares each new stage;
     without one he shares it only in his House. Failures along the way are
     reported in `where`. A House or general chat that is also the track drop
-    is refused, since Wisp never posts there. Returns the answer for staff.
+    is refused, since Wisp never posts there. Returns the answer for staff,
+    which says when no feeding role is set yet, since nobody can feed him then.
     """
     if house.id == tracks.id:
         return _HOUSE_IS_TRACKS
@@ -720,6 +740,7 @@ async def set_up(
         else f"Studio threads: all {_NUMBER_WORDS[len(STUDIO_THREADS)]} already exist"
     )
     badge_lines = await ensure_badge_roles(bot, guild, where)
+    roles_line = [] if await bot.settings.roles(guild.id) else [_NO_FEEDING_ROLES]
     return "\n".join(
         [
             "♪ Wisp is set up.",
@@ -728,6 +749,7 @@ async def set_up(
             f"・Track drop: {tracks.mention}",
             f"・General chat: {'off' if general is None else general.mention}",
             f"・{threads}",
+            *roles_line,
             *badge_lines,
         ]
     )

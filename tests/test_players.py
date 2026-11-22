@@ -455,7 +455,8 @@ async def test_the_status_card_shows_health_and_wellbeing_only(
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     lines = text.splitlines()
-    assert lines[lines.index(FRAME.item("Wellbeing")) + 1] == bar(35.0, "", "")
+    wellbeing_bar = lines[lines.index(FRAME.item("Wellbeing")) + 1]
+    assert wellbeing_bar == f"{FRAME.blank}{bar(35.0, '', '')}"
     assert FRAME.item("Health") in lines
     assert "Mood" not in text
 

@@ -147,8 +147,8 @@ def _card(
 ) -> str:
     """Myra's card: the heading, the bars, the facts, the hints and the stage.
 
-    An egg has no heading, so its card opens with its bars. Every line is
-    wrapped to fit the frame.
+    An egg has no heading, so its card opens with its bars. Every line but a
+    bar is wrapped to fit the frame; a bar stays whole (see `_meter`).
     """
     people = "person" if facts.fed_today == 1 else "people"
     tracks = (
@@ -156,9 +156,8 @@ def _card(
         f"{count(facts.suno_tracks, 'Suno track')}"
     )
     house = "his House" if facts.house_id is None else f"<#{facts.house_id}>"
+    top = [*heading, frame.blank] if heading else []
     lines = [
-        *([*heading, frame.blank] if heading else []),
-        *bars,
         frame.blank,
         frame.sub(f"Fed by {facts.fed_today:02d} {people} today"),
         frame.blank,
@@ -173,7 +172,7 @@ def _card(
         frame.blank,
         frame.bottom,
     ]
-    return "\n".join(frame.wrapped(lines))
+    return "\n".join([*frame.wrapped(top), *bars, *frame.wrapped(lines)])
 
 
 def _right_now(
@@ -253,11 +252,12 @@ def _meter(
 ) -> list[str]:
     """The label's item, then the bar on its own line under it.
 
-    The bar has no frame edge, as it had no clef in Myra's quote: a full bar
-    with an edge would be wider than the frame's bottom line and break on a
-    phone. Wrapping leaves a line without a mark alone, so it never breaks.
+    The bar starts with the frame's edge, as in Myra's card of 2026-11-21. A
+    full bar is a little wider than the bottom line, so the card never wraps
+    it: it stays one line.
     """
-    return [frame.item(label), bar(value, emoji(meter.full), emoji(meter.left))]
+    shown = bar(value, emoji(meter.full), emoji(meter.left))
+    return [frame.item(label), f"{frame.blank}{shown}"]
 
 
 def _share(part: float, whole: float) -> float:

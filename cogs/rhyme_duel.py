@@ -309,7 +309,8 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     """Run one duel for the member, or say why they cannot have one.
 
     The command and the Rhyme Duel button both come here, so both refuse the
-    same way, a nap included.
+    same way, a freeze and a nap included. A freeze that starts during the
+    duel keeps it from counting instead.
     """
     bot = bot_of(interaction)
     user = interaction.user
@@ -321,6 +322,9 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
         return
     if life is None or life.phase is not Phase.ALIVE:
         await say_privately(interaction, no_wisp_text(life, "Rhymes"))
+        return
+    if await is_frozen(bot, guild_id):
+        await say_privately(interaction, f"♪ {FROZEN_REASON}")
         return
     if is_napping(life):
         until = timestamp(nap_ends_at(life, now))

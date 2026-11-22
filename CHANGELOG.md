@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-11-21 (The ViiBR Vault post, beta audit fixes, new FAQ pictures)
+
+- **The ViiBR Vault post.** Wisp's Studio has a sixth post, `🛍️ | ViiBR
+  Vault` (`cogs/shop.py`), built on Myra's shelf pictures in
+  `ASSETS/gifts/VV_Store/`. Its first post is the Snacks shelf; the life loop
+  posts the rest under it: the snack menu, the Tamagotchis and Tech shelf
+  with its gift menu, the Alien Dolls and Books shelf with its gift menu, the
+  Vanity Roles shelf with the badge menu, then the medicine and magazine menus
+  and the Open my Snack Pack button. A pick makes the same purchase as the
+  private Vault but answers only the member, with the result and their wisp
+  coins; the post never changes. The menus keep working after a restart, and
+  member chat in the post is deleted like on Status and the Leaderboard.
+- The Status card's Vault button jumps to the ViiBR Vault post (before it
+  exists it still opens the Vault privately). `/wisp vault` still works.
+- New settings columns `shop_thread_id` and `shop_message_ids`.
+- **Status card:** every bar line (Warmth, Hatching, Emerging, Health,
+  Wellbeing) starts with the frame's edge, as in Myra's card of 2026-11-21.
+  Bars are never wrapped, so a full bar stays one line.
+- **Leaderboard versions** say `peak: Adult` (was `peak Adult`).
+- **Wisp's lunchbox** shows his newest 3 favorite songs (was 10,
+  `FAVORITE_SONGS_SHOWN`).
+- **`!wisp roles add` and `remove`** take several roles at once, such as
+  `!wisp roles add @Level 5 @Level 10 @Level 20`, since the server's Mee6
+  level roles don't stack. A role typed twice counts once; a word that isn't
+  a role is refused with the usage instead of being skipped.
+- **Drawings:** the bond-tier, top-feeder and daily "I like you" drawings
+  could never fire, because Wisp looked members up in a cache that is empty
+  without the members intent. He now fetches the member from Discord.
+- **Setup** says when no feeding role is set yet ("No feeding roles yet, so
+  nobody can feed Wisp. Add one with !wisp roles add @role.").
+- **`!wisp resetname`** posts a new Tell Wisp your name button for the member
+  in his House, pinging only them, and says if it couldn't.
+- **Rhyme Duels** are refused up front while Wisp is frozen; a freeze that
+  starts mid-duel still keeps it from counting.
+- **The leaderboard's Versions** leave out staff test lives.
+- **FAQ pictures** are re-rendered from the current FAQ page by the new
+  `tools/render_faq.py`: 43 pictures (was 35), with a new Chores, Colds and
+  Medicine section and all six Talking questions. The old pictures are in
+  `RECYCLING/2026-11-21-old-faq-pictures`. Wisp rebuilds the FAQ post by
+  himself, since the count changed.
+- **FAQ page fixes:** the egg needs 20 meal points (was 30), he answers each
+  person at most once every 4 seconds (was 15), badges are live, and the
+  status card sample shows a time instead of "Pacific".
+- **README:** Manage Channels is in the permission list, `/wisp status` is
+  gone, `events/farewell.gif`, and the unused `viibr_logo` emoji is dropped.
+
 ## 2026-11-21 (First-offense picture)
 
 - A member's first offense now comes with Myra's picture of a let-down

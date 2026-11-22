@@ -43,10 +43,11 @@ FAQ_SECTIONS: tuple[FaqSection, ...] = (
     FaqSection(_banners("04_lunchbox", 3), "Wisp's Lunchbox and Gifts"),
     FaqSection(_banners("05_bond", 3), "Your Bond"),
     FaqSection(_banners("06_growing", 4), "Growing Up"),
-    FaqSection(_banners("07_talking", 4), "Talking to Him"),
-    FaqSection(_banners("08_games", 2), "Games"),
-    FaqSection(_banners("09_ending", 3), "The End of a Life"),
-    FaqSection(_banners("10_fair", 2), "Fair Play"),
+    FaqSection(_banners("07_chores", 6), "Chores, Colds and Medicine"),
+    FaqSection(_banners("08_talking", 6), "Talking to Him"),
+    FaqSection(_banners("09_games", 2), "Games"),
+    FaqSection(_banners("10_ending", 3), "The End of a Life"),
+    FaqSection(_banners("11_fair", 2), "Fair Play"),
 )
 
 FAQ_PICTURE_COUNT: Final = sum(len(section.pictures) for section in FAQ_SECTIONS)

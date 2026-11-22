@@ -87,7 +87,14 @@ class FakeServer:
         self.guild.id = GUILD_ID
         self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
         self.members: dict[int, MagicMock] = {}
-        self.guild.get_member.side_effect = self.members.get
+        self.guild.get_member.return_value = None
+        self.guild.fetch_member = AsyncMock(side_effect=self._fetch_member)
+
+    async def _fetch_member(self, user_id: int) -> MagicMock:
+        """A member as Discord fetches it; the cache is empty, as when live."""
+        if user_id not in self.members:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Member")
+        return self.members[user_id]
 
     async def _send(self, *_args: Any, **kwargs: Any) -> MagicMock:
         self.sent.append(kwargs.get("file"))

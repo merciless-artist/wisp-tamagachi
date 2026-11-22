@@ -270,10 +270,20 @@ class DailyDrawings:
     async def _draw_for_id(
         self, guild_id: int, user_id: int, reason: DrawReason, now: datetime
     ) -> DrawResult:
-        """Draw for a member by id; SKIPPED when they are no longer in the server."""
+        """Draw for a member by id; SKIPPED when they are no longer in the server.
+
+        The member is fetched from Discord: without the members intent the
+        member cache holds almost nobody.
+
+        Raises:
+            discord.HTTPException: Discord could not say who the member is.
+        """
         guild = self._bot.get_guild(guild_id)
-        member = None if guild is None else guild.get_member(user_id)
-        if member is None:
+        if guild is None:
+            return DrawResult.SKIPPED
+        try:
+            member = await guild.fetch_member(user_id)
+        except discord.NotFound:
             return DrawResult.SKIPPED
         return await draw_for(self._bot, guild_id, member, reason, now)
 

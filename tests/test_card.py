@@ -204,9 +204,9 @@ def test_the_card_is_myras_layout_in_her_emoji_frame() -> None:
             frame.blank,
             frame.item("Health"),
         ),
-        f"{HEALTH_EMOJI * 10} 100%",
+        f"{frame.blank}{HEALTH_EMOJI * 10} 100%",
         frame.item("Wellbeing"),
-        f"{WELLBEING_EMOJI * 10} 100%",
+        f"{frame.blank}{WELLBEING_EMOJI * 10} 100%",
         *tail("him", "CHILD", facts, frame),
     ]
     assert not any(mark in card for mark in "║╠═╚│𝄡𝄚𝄂𝄆")
@@ -225,20 +225,18 @@ def test_a_living_baby_has_every_line_in_its_place() -> None:
         NEXT_NAP,
         BLANK,
         FRAME.item("Health"),
-        f"{pieces('full_full', 5)}{emoji('full_left')} 55%",
+        f"{BLANK}{pieces('full_full', 5)}{emoji('full_left')} 55%",
         FRAME.item("Wellbeing"),
-        f"{pieces('care_full', 6)}{emoji('care_left')} 65%",
+        f"{BLANK}{pieces('care_full', 6)}{emoji('care_left')} 65%",
         *tail("him", "BABY"),
     ]
 
 
-def test_every_line_but_the_bars_is_in_the_frame() -> None:
+def test_every_line_is_in_the_frame_bars_included() -> None:
     lines = render(alive_life()).split("\n")
 
     assert lines[-1] == FRAME.bottom
-    framed = [line for line in lines[:-1] if not line.startswith("<:")]
-    assert len(framed) == len(lines) - 3
-    assert all(line.startswith(FRAME.blank) for line in framed)
+    assert all(line.startswith(FRAME.blank) for line in lines[:-1])
 
 
 def test_the_waiting_card_has_only_its_line_in_the_frame() -> None:
@@ -294,7 +292,12 @@ def test_a_left_piece_not_uploaded_is_left_out() -> None:
 def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
     card = render(alive_life(), emojis=no_emoji)
 
-    assert meters(card) == [FRAME.item("Health"), "55%", FRAME.item("Wellbeing"), "65%"]
+    assert meters(card) == [
+        FRAME.item("Health"),
+        f"{BLANK}55%",
+        FRAME.item("Wellbeing"),
+        f"{BLANK}65%",
+    ]
     assert "<:" not in card
 
 
@@ -305,9 +308,9 @@ def test_the_card_has_two_bars_health_then_wellbeing() -> None:
 
     assert meters(card) == [
         FRAME.item("Health"),
-        f"{pieces('full_full', 10)} 100%",
+        f"{BLANK}{pieces('full_full', 10)} 100%",
         FRAME.item("Wellbeing"),
-        f"{pieces('care_full', 2)}{emoji('care_left')} 25%",
+        f"{BLANK}{pieces('care_full', 2)}{emoji('care_left')} 25%",
     ]
     assert "Mood" not in card
     assert "happiness" not in card
@@ -389,9 +392,9 @@ def test_egg_and_hatching_cards_open_with_their_bars() -> None:
 
     assert render(egg).split("\n") == [
         FRAME.item("Warmth"),
-        f"{pieces('full_full', 7)}{emoji('full_left')} 75%",
+        f"{BLANK}{pieces('full_full', 7)}{emoji('full_left')} 75%",
         FRAME.item("Hatching"),
-        f"{pieces('happiness_full', 5)} 50%",
+        f"{BLANK}{pieces('happiness_full', 5)} 50%",
         *tail("the egg", "EGG"),
     ]
 
@@ -400,7 +403,7 @@ def test_egg_and_hatching_cards_open_with_their_bars() -> None:
 
     assert render(egg).split("\n") == [
         FRAME.item("Emerging"),
-        f"{pieces('happiness_full', 2)} 20%",
+        f"{BLANK}{pieces('happiness_full', 2)} 20%",
         *tail("the egg", "HATCHING"),
     ]
 

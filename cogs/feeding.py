@@ -6,6 +6,7 @@ note in his House saying why.
 """
 
 import random
+from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Final
 
@@ -313,29 +314,53 @@ async def refresh_rules(bot: "WispBot", guild_id: int) -> None:
     name="roles",
     invoke_without_command=True,
     case_insensitive=True,
-    usage="add @role | remove @role | list",
+    usage="add @role [@role...] | remove @role [@role...] | list",
 )
 async def roles(ctx: StaffContext) -> None:
     """Explain the feeding role commands when no known one was typed."""
     await reply(ctx, usage_line(roles))
 
 
-@roles.command(name="add", usage="@role")
-async def roles_add(ctx: StaffContext, role: discord.Role) -> None:
-    """Add a qualifying role; the rules post names the roles, so it follows."""
-    guild_id = guild_of(ctx).id
-    await ctx.bot.settings.add_role(guild_id, role.id)
-    await refresh_rules(ctx.bot, guild_id)
-    await reply(ctx, f"♪ {role.mention} can now feed Wisp.")
+def _named(roles: Sequence[discord.Role]) -> str:
+    """The roles as mentions, joined as "A", "A and B" or "A, B and C"."""
+    mentions = [role.mention for role in roles]
+    if len(mentions) == 1:
+        return mentions[0]
+    return f"{', '.join(mentions[:-1])} and {mentions[-1]}"
 
 
-@roles.command(name="remove", usage="@role")
-async def roles_remove(ctx: StaffContext, role: discord.Role) -> None:
-    """Remove a qualifying role; the rules post follows."""
+def _distinct(roles: Sequence[discord.Role]) -> list[discord.Role]:
+    """The roles in the order typed, each once."""
+    return list({role.id: role for role in roles}.values())
+
+
+@roles.command(name="add", usage="@role [@role...]", ignore_extra=False)
+async def roles_add(ctx: StaffContext, given: commands.Greedy[discord.Role]) -> None:
+    """Add qualifying roles; the rules post names the roles, so it follows."""
+    chosen = _distinct(given)
+    if not chosen:
+        await reply(ctx, usage_line(roles_add))
+        return
     guild_id = guild_of(ctx).id
-    await ctx.bot.settings.remove_role(guild_id, role.id)
+    for role in chosen:
+        await ctx.bot.settings.add_role(guild_id, role.id)
     await refresh_rules(ctx.bot, guild_id)
-    await reply(ctx, f"♪ {role.mention} no longer feeds Wisp.")
+    await reply(ctx, f"♪ {_named(chosen)} can now feed Wisp.")
+
+
+@roles.command(name="remove", usage="@role [@role...]", ignore_extra=False)
+async def roles_remove(ctx: StaffContext, given: commands.Greedy[discord.Role]) -> None:
+    """Remove one or more qualifying roles; the rules post follows."""
+    chosen = _distinct(given)
+    if not chosen:
+        await reply(ctx, usage_line(roles_remove))
+        return
+    guild_id = guild_of(ctx).id
+    for role in chosen:
+        await ctx.bot.settings.remove_role(guild_id, role.id)
+    await refresh_rules(ctx.bot, guild_id)
+    verb = "feeds" if len(chosen) == 1 else "feed"
+    await reply(ctx, f"♪ {_named(chosen)} no longer {verb} Wisp.")
 
 
 @roles.command(name="list")

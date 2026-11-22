@@ -32,6 +32,8 @@ _DEFINITIONS: dict[str, str] = {
         status_title_message_id BIGINT NULL,
         vault_title_message_id BIGINT NULL,
         general_channel_id BIGINT NULL,
+        shop_thread_id BIGINT NULL,
+        shop_message_ids TEXT NULL,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -257,6 +259,8 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "status_title_message_id": "BIGINT NULL",
         "vault_title_message_id": "BIGINT NULL",
         "general_channel_id": "BIGINT NULL",
+        "shop_thread_id": "BIGINT NULL",
+        "shop_message_ids": "TEXT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
     "favorites": {"artist": "VARCHAR(100) NULL"},

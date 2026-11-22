@@ -41,6 +41,7 @@ from cogs.players import (
     status_text,
     test_press,
 )
+from cogs.shop import ensure_shelves, shop_url
 from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.status_card import show_status, status_buttons
 from cogs.studio import refresh_house_panel
@@ -173,6 +174,7 @@ class LifeLoop(commands.Cog):
         await show_status_card(bot, guild_id, current, now)
         await refresh_house_panel(bot, guild_id, current)
         await refresh_vault(bot, guild_id)
+        await ensure_shelves(bot, guild_id)
         if not is_over(current):
             await pick_favorite_song(bot, guild, current, self.rng, now)
         await self.drawings.run(guild_id, now)
@@ -284,9 +286,10 @@ async def show_status_card(
 ) -> None:
     """Show `life` in the Status post: his picture first, then the card.
 
-    While he goes on it is his live card with its buttons (`status_buttons`),
-    under his current picture. Once his life is over it says Wisp is
-    waiting for staff to begin again and carries only the Begin again button,
+    While he goes on it is his live card with its buttons (`status_buttons`,
+    whose Vault jumps to the ViiBR Vault post), under his current picture.
+    Once his life is over it says Wisp is waiting for staff to begin again
+    and carries only the Begin again button,
     so staff always have one to press even when the House's question was never
     posted or is gone; the post shows the picture of how his life ended, or no
     picture when that is missing.
@@ -298,7 +301,9 @@ async def show_status_card(
         rows = [[begin_button()]]
     else:
         content = await status_text(bot, guild_id, life, now)
-        rows, image = status_buttons(), life_image(life)
+        shop_thread_id = (await bot.settings.get(guild_id)).shop_thread_id
+        rows = status_buttons(shop_url(guild_id, shop_thread_id))
+        image = life_image(life)
     await show_status(
         bot, guild_id, content, rows, image, clear_image=image is None and is_over(life)
     )

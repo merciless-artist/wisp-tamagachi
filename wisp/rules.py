@@ -429,7 +429,7 @@ PAID_SNACKS: tuple[Snack, ...] = tuple(snack for snack in SNACKS if snack.cost >
 # Wisp's lunchbox
 # ---
 
-FAVORITE_SONGS_SHOWN = 10
+FAVORITE_SONGS_SHOWN = 3
 
 # ---
 # Gifts

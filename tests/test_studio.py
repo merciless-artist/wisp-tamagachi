@@ -50,13 +50,15 @@ VAULT = "🏆 | Leaderboard"
 OLD_VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
-THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
+SHOP = "🛍️ | ViiBR Vault"
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, SHOP)
 THREAD_TITLES = (
     "Status",
     "Mealtime",
     "Leaderboard",
     "Jam Space",
     "Wisp FAQ",
+    "ViiBR Vault",
 )
 OLD_NAMES = (
     "Status",
@@ -64,12 +66,14 @@ OLD_NAMES = (
     OLD_VAULT,
     "The Jam Space",
     "How Wisp Works",
+    "Shop",
 )
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
     VAULT: "vault.png",
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
+    SHOP: "gifts/VV_Store/VV_Snacks.gif",
 }
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
@@ -96,19 +100,27 @@ FAQ_PICTURES = (
     "06_growing_2.png",
     "06_growing_3.png",
     "06_growing_4.png",
-    "07_talking_1.png",
-    "07_talking_2.png",
-    "07_talking_3.png",
-    "07_talking_4.png",
-    "08_games_1.png",
-    "08_games_2.png",
-    "09_ending_1.png",
-    "09_ending_2.png",
-    "09_ending_3.png",
-    "10_fair_1.png",
-    "10_fair_2.png",
+    "07_chores_1.png",
+    "07_chores_2.png",
+    "07_chores_3.png",
+    "07_chores_4.png",
+    "07_chores_5.png",
+    "07_chores_6.png",
+    "08_talking_1.png",
+    "08_talking_2.png",
+    "08_talking_3.png",
+    "08_talking_4.png",
+    "08_talking_5.png",
+    "08_talking_6.png",
+    "09_games_1.png",
+    "09_games_2.png",
+    "10_ending_1.png",
+    "10_ending_2.png",
+    "10_ending_3.png",
+    "11_fair_1.png",
+    "11_fair_2.png",
 )
-FAQ_SECTION_SIZES = (1, 4, 4, 5, 3, 3, 4, 4, 2, 3, 2)
+FAQ_SECTION_SIZES = (1, 4, 4, 5, 3, 3, 4, 6, 6, 2, 3, 2)
 OLD_FAQ_PICTURES = (
     "00_how_wisp_works.png",
     "01_the_basics.png",
@@ -130,6 +142,7 @@ FAQ_TITLES = (
     "Wisp's Lunchbox and Gifts",
     "Your Bond",
     "Growing Up",
+    "Chores, Colds and Medicine",
     "Talking to Him",
     "Games",
     "The End of a Life",
@@ -143,6 +156,7 @@ THREAD_ATTRS = (
     "vault_thread_id",
     "jam_thread_id",
     "rules_thread_id",
+    "shop_thread_id",
 )
 
 
@@ -526,7 +540,7 @@ async def test_setup_creates_six_threads_with_the_vault(
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
     server.messages[status.id].pin.assert_awaited_once()
-    for name in (VAULT, MEALTIME, JAM, FAQ):
+    for name in (VAULT, MEALTIME, JAM, FAQ, SHOP):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -538,6 +552,10 @@ async def test_setup_creates_six_threads_with_the_vault(
     quoted = ", ".join(f'"{title}"' for title in THREAD_TITLES)
     assert f"Created threads: {quoted}" in text
     assert "・Badge roles created: Pickle Diplomat, Flame Keeper" in text
+    assert (
+        "・No feeding roles yet, so nobody can feed Wisp. "
+        "Add one with !wisp roles add @role."
+    ) in text
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
     assert house_posts(server) == []
@@ -573,6 +591,7 @@ async def test_new_threads_carry_their_thumbnails(
         VAULT: "vault.png",
         JAM: "jam_space.png",
         FAQ: "faq.png",
+        SHOP: "VV_Snacks.gif",
     }
     for art in attached.values():
         art.close()
@@ -642,7 +661,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all five already exist" in sent_text(ctx)
+    assert "Studio threads: all six already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     assert house_posts(server) == []
@@ -1037,7 +1056,7 @@ def sends_without_pinging(kwargs: dict[str, Any]) -> bool:
 
 
 def assert_faq_built(posts: list[MagicMock]) -> list[MagicMock]:
-    """Check the posts are the 35 FAQ pictures, one each, then the rules post."""
+    """Check the posts are the 43 FAQ pictures, one each, then the rules post."""
     *sections, rules_post = posts
     assert [section.attachments for section in sections] == [
         [name] for name in FAQ_PICTURES
@@ -1134,6 +1153,7 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
         MEALTIME,
         VAULT,
         JAM,
+        SHOP,
     ]
     assert old.name == FAQ
     *sections, rules_post = assert_faq_built(server.live_posts(old))
@@ -1281,7 +1301,7 @@ async def test_every_picture_is_one_file_in_a_message_of_its_own(
 
     *pictures_posted, rules_post = server.live_posts(server.thread_named(FAQ))
 
-    assert len(pictures_posted) == len(FAQ_PICTURES) == 35
+    assert len(pictures_posted) == len(FAQ_PICTURES) == 43
     for post in pictures_posted:
         assert "file" in post.sent_kwargs
         assert "files" not in post.sent_kwargs
@@ -1342,9 +1362,9 @@ async def test_one_per_section_posts_from_before_are_deleted_on_the_rebuild(
     )
 
 
-@pytest.mark.parametrize("count", [0, 11, 34, 36])
+@pytest.mark.parametrize("count", [0, 11, 42, 44])
 def test_the_table_of_contents_needs_one_id_per_picture(count: int) -> None:
-    with pytest.raises(ValueError, match="35 picture messages"):
+    with pytest.raises(ValueError, match="43 picture messages"):
         faq.table_of_contents(GUILD_ID, 1, tuple(range(count)))
 
 
@@ -1612,7 +1632,7 @@ async def test_roles_add_list_remove(
 
     for role_id in (7, 5, 7):
         ctx = make_ctx(server, bot)
-        await invoke(feeding.roles_add, ctx, make_role(role_id))
+        await invoke(feeding.roles_add, ctx, [make_role(role_id)])
         assert f"<@&{role_id}>" in sent_text(ctx)
     assert await bot.settings.roles(GUILD_ID) == {5, 7}
 
@@ -1622,9 +1642,48 @@ async def test_roles_add_list_remove(
     assert listed.index("<@&5>") < listed.index("<@&7>")
 
     ctx = make_ctx(server, bot)
-    await invoke(feeding.roles_remove, ctx, make_role(5))
-    assert "<@&5>" in sent_text(ctx)
+    await invoke(feeding.roles_remove, ctx, [make_role(5)])
+    assert sent_text(ctx) == "♪ <@&5> no longer feeds Wisp."
     assert await bot.settings.roles(GUILD_ID) == {7}
+
+
+async def test_several_roles_are_added_and_removed_in_one_command(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refresh = AsyncMock()
+    monkeypatch.setattr(feeding, "refresh_rules", refresh)
+    levels = [make_role(role_id) for role_id in (5, 10, 20, 10)]
+
+    ctx = make_ctx(server, bot)
+    await invoke(feeding.roles_add, ctx, levels)
+
+    assert sent_text(ctx) == "♪ <@&5>, <@&10> and <@&20> can now feed Wisp."
+    assert await bot.settings.roles(GUILD_ID) == {5, 10, 20}
+
+    ctx = make_ctx(server, bot)
+    await invoke(feeding.roles_remove, ctx, [make_role(5), make_role(20)])
+
+    assert sent_text(ctx) == "♪ <@&5> and <@&20> no longer feed Wisp."
+    assert await bot.settings.roles(GUILD_ID) == {10}
+    assert refresh.await_count == 2
+
+
+@pytest.mark.parametrize("command", ["roles_add", "roles_remove"])
+async def test_a_roles_command_with_no_role_shows_its_usage(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    refresh = AsyncMock()
+    monkeypatch.setattr(feeding, "refresh_rules", refresh)
+    ctx = make_ctx(server, bot)
+
+    await invoke(getattr(feeding, command), ctx, [])
+
+    word = command.removeprefix("roles_")
+    assert sent_text(ctx) == f"♪ Usage: !wisp roles {word} @role [@role...]"
+    refresh.assert_not_awaited()
 
 
 # ---
@@ -1717,7 +1776,7 @@ async def test_changing_the_feeding_roles_updates_the_rules_post(
     refresh = AsyncMock()
     monkeypatch.setattr(feeding, "refresh_rules", refresh)
 
-    await invoke(getattr(feeding, command), make_ctx(server, bot), make_role(5))
+    await invoke(getattr(feeding, command), make_ctx(server, bot), [make_role(5)])
 
     refresh.assert_awaited_once_with(bot, GUILD_ID)
 

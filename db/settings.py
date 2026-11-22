@@ -25,7 +25,9 @@ class Settings:
     `vault_title_message_id` is the Leaderboard title post above the Vault
     card, `vault_message_id`.
     `general_channel_id` is the server's general chat, where Wisp shares
-    each new stage; None keeps the news in his House.
+    each new stage; None keeps the news in his House. `shop_thread_id` is
+    the ViiBR Vault post in the Studio and `shop_message_ids` its shelves, in
+    order; the column holds them as a JSON list.
     """
 
     tracks_channel_id: int | None = None
@@ -47,10 +49,12 @@ class Settings:
     status_title_message_id: int | None = None
     vault_title_message_id: int | None = None
     general_channel_id: int | None = None
+    shop_thread_id: int | None = None
+    shop_message_ids: tuple[int, ...] | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))
-_ID_LISTS = frozenset({"faq_message_ids"})
+_ID_LISTS = frozenset({"faq_message_ids", "shop_message_ids"})
 _FEEDING_ROLES = "qualifying_roles"
 _STAFF_ROLES = "staff_roles"
 _ROLE_TABLES = (_FEEDING_ROLES, _STAFF_ROLES)

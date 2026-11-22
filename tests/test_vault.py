@@ -347,7 +347,7 @@ async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
                 peak=Stage.OLD_FOGEY,
                 hatched_by=SECOND_USER,
             ),
-            "v1 ・ lived a full life ・ 45 days ・ peak Old Fogey"
+            "v1 ・ lived a full life ・ 45 days ・ peak: Old Fogey"
             f" ・ hatched by <@{SECOND_USER}>",
             id="passed",
         ),
@@ -359,7 +359,7 @@ async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
                 lived=timedelta(days=45),
                 peak=Stage.OLD_FOGEY,
             ),
-            "v1 ・ lived a full life ・ 45 days ・ peak Old Fogey",
+            "v1 ・ lived a full life ・ 45 days ・ peak: Old Fogey",
             id="passed-no-hatcher",
         ),
         pytest.param(
@@ -371,7 +371,7 @@ async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
                 peak=Stage.ROCKSTAR,
                 hatched_by=SECOND_USER,
             ),
-            "v1 ・ went out after 18 days ・ peak Rockstar"
+            "v1 ・ went out after 18 days ・ peak: Rockstar"
             f" ・ hatched by <@{SECOND_USER}>",
             id="dead",
         ),
@@ -383,7 +383,7 @@ async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
                 lived=timedelta(days=1),
                 peak=Stage.BABY,
             ),
-            "v1 ・ went out after 1 day ・ peak Baby",
+            "v1 ・ went out after 1 day ・ peak: Baby",
             id="dead-no-hatcher",
         ),
         pytest.param(make_life(1, Phase.COLD), "v1 ・ never hatched", id="cold"),
@@ -416,9 +416,32 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
     assert section(text, "Versions") == [
         "║𝄡 v3 ・ going strong ・ 12 days\n║ ・ Baby",
         "║𝄡 v2 ・ never hatched",
-        "║𝄡 v1 ・ went out after 18 days\n║ ・ peak Teen"
+        "║𝄡 v1 ・ went out after 18 days\n║ ・ peak: Teen"
         f"\n║ ・ hatched by <@{SECOND_USER}>",
     ]
+
+
+async def test_leaderboard_versions_leave_out_staff_test_lives(
+    bot: app.WispBot,
+) -> None:
+    test = make_life(1, Phase.DEAD, hatched_ago=timedelta(days=3))
+    test.is_test = True
+    await bot.lives.insert(GUILD_ID, test)
+    await bot.lives.insert(GUILD_ID, make_life(2, Phase.COLD))
+
+    text = await render_leaderboard(bot, GUILD_ID, NOW)
+
+    assert section(text, "Versions") == ["║𝄡 v2 ・ never hatched"]
+
+
+async def test_a_test_life_alone_leaves_no_versions(bot: app.WispBot) -> None:
+    test = make_life(1, Phase.ALIVE, hatched_ago=timedelta(hours=1))
+    test.is_test = True
+    await bot.lives.insert(GUILD_ID, test)
+
+    text = await render_leaderboard(bot, GUILD_ID, NOW)
+
+    assert section(text, "Versions") == ["║𝄡 None yet"]
 
 
 # ---
