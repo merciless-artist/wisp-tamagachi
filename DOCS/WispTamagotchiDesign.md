@@ -183,8 +183,9 @@ only thing that kills him is neglect, which takes the whole server not showing u
 so one troll can't do it, and anyone can save him at any moment by sharing music.
 
 What trolls can try is cheating the leaderboard and bonds. That gets punished:
-☆ **Fake ViiBR links** don't count. A link has to be a real track page on
-  viibrmusic.com, not the homepage or a made-up path.
+☆ **Fake links** are against the rules. Wisp only checks that a link is shaped
+  like a track page (a share link is checked with viibrmusic.com), so a made-up
+  song link still feeds him, and staff strip the points.
 ☆ **Spamming junk tracks** to farm points runs into the daily cap, and staff can
   strip points.
 ☆ **Gross names.** The name you give Wisp is capped at 24 characters, and staff can

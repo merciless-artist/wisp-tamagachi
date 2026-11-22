@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-21 (Fake links wording)
+
+- The rules post says `・No fake links; staff strip points` (was "Fake
+  links don't count"), and the FAQ, spec and design doc no longer promise
+  that a made-up song link is refused. Wisp only checks that a link is
+  shaped like a track page (share links are checked with viibrmusic.com),
+  so a made-up song link still feeds him and staff strip the points.
+
 ## 2026-11-19 (Track Health follows the group, snacks get their own limit)
 
 - A track's Health now follows how many members fed Wisp a track in the

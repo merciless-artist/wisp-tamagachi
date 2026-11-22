@@ -184,7 +184,7 @@ def rules_text(
             f"・First chat or poke each day earns {chat_points}",
             "",
             "Fair play",
-            "・Fake links don't count; staff strip points. Names max "
+            "・No fake links; staff strip points. Names max "
             f"{rules.NAME_MAX} chars",
             f"{_ban_line()}",
         ]
