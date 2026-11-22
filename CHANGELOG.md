@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-21 (First-offense picture)
+
+- A member's first offense now comes with Myra's picture of a let-down
+  Wisp (`ASSETS/moments/banned.gif`, `FIRST_OFFENSE_PICTURE`), made from
+  her video at 320x320 and 10 frames a second like his other moments.
+  Later offenses stay text only. The FAQ already promised "a shaming
+  picture" for a first offense; now it's true.
+
 ## 2026-11-21 (Burrito leaves the Studio)
 
 - Wisp's Studio has five posts: setup no longer makes or updates

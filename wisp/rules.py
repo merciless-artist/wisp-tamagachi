@@ -311,6 +311,8 @@ FEEDING_ROLES_SHOWN = 2
 # The longest reason staff can give with !wisp punish.
 PUNISH_REASON_MAX = 500
 
+# The picture in ASSETS/moments Wisp posts with a member's first offense.
+FIRST_OFFENSE_PICTURE: Final = "banned.gif"
 # Ban lengths by offence count; None is permanent.
 BAN_LADDER: tuple[timedelta | None, ...] = (
     timedelta(days=1),

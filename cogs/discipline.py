@@ -7,10 +7,11 @@ import discord
 from discord.ext import commands
 
 from cogs.announce import say_in_house
+from cogs.assets import moment_image
 from cogs.staff import StaffContext, guild_of, reply
 from wisp.life import is_over
 from wisp.lines import Moment
-from wisp.rules import BAN_LADDER, PUNISH_REASON_MAX
+from wisp.rules import BAN_LADDER, FIRST_OFFENSE_PICTURE, PUNISH_REASON_MAX
 from wisp.text import count
 
 if TYPE_CHECKING:
@@ -52,7 +53,8 @@ async def punish(
     """Give the member their next offense and the ban that goes with it.
 
     Wisp announces the ban in his House without the reason, unless there is
-    no living Wisp to say it. The reason goes in the public answer, with the
+    no living Wisp to say it; a first offense comes with
+    FIRST_OFFENSE_PICTURE. The reason goes in the public answer, with the
     staff member who gave it.
     """
     bot = ctx.bot
@@ -81,6 +83,7 @@ async def punish(
             Moment.BANNED,
             life,
             name=player.name or member.display_name,
+            image=moment_image(FIRST_OFFENSE_PICTURE) if offense == 1 else None,
         )
     await reply(
         ctx,

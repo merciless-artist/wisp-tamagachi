@@ -15,11 +15,13 @@ from discord.ext import commands
 
 import app
 from cogs import discipline
+from cogs.assets import ASSETS_DIR
 from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
+from wisp import rules
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import Stage
@@ -250,10 +252,25 @@ async def test_the_staff_log_names_the_permanent_ban(
     )
 
 
-async def test_the_ban_announcement_has_no_picture(
+async def test_a_first_offense_comes_with_the_shaming_picture(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
+
+    await punish(bot)
+
+    picture: discord.File = server.house.send.await_args.kwargs["file"]
+    picture.close()
+    assert picture.filename == rules.FIRST_OFFENSE_PICTURE == "banned.gif"
+    assert (ASSETS_DIR / "moments" / rules.FIRST_OFFENSE_PICTURE).is_file()
+
+
+@pytest.mark.parametrize("earlier", [1, 2])
+async def test_a_later_offense_has_no_picture(
+    bot: app.WispBot, server: FakeServer, earlier: int
+) -> None:
+    await lay(bot)
+    await bot.players.set_offense(GUILD_ID, MEMBER_ID, earlier, None, False)
 
     await punish(bot)
 
