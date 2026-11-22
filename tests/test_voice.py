@@ -1334,7 +1334,7 @@ def test_the_sick_prompts_tell_him_to_say_what_he_has(
 
 
 # ---
-# How long he is sick, and Burrito
+# How long he is sick, and the Wisp FAQ
 # ---
 
 
@@ -1360,9 +1360,11 @@ def test_a_sick_prompt_holds_the_hours_left(feeling: Feeling, stage: Stage) -> N
 
 @pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
 @pytest.mark.parametrize("feeling", [Feeling.MONSTER_POX, Feeling.SNIFFLES])
-def test_a_sick_prompt_points_to_burrito(feeling: Feeling, stage: Stage) -> None:
+def test_a_sick_prompt_points_to_the_wisp_faq(feeling: Feeling, stage: Stage) -> None:
     system = sick_system(stage, feeling, 7)
-    assert "Burrito" in system.split("talks to you or pokes you", 1)[1]
+    sickness = system.split("talks to you or pokes you", 1)[1]
+    assert "the Wisp FAQ in Wisp's Studio" in sickness
+    assert "Burrito" not in system
 
 
 def test_sick_hours_round_up_like_the_status_card() -> None:

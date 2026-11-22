@@ -65,7 +65,7 @@ HOUSE_ID = 20
 OTHER_CHANNEL_ID = 21
 HOUSE_THREAD_ID = 22
 STUDIO_ID = 23
-BURRITO_THREAD_ID = 24
+JAM_THREAD_ID = 24
 TRACKS_ID = 25
 GENERAL_CHAT_ID = 26
 WISP_ID = 999
@@ -477,22 +477,20 @@ async def test_messages_outside_the_house_are_ignored(
     assert "duel thread" not in prompt.user
 
 
-async def test_wisp_stays_quiet_in_burritos_post(
+async def test_wisp_stays_quiet_in_a_studio_post(
     cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
 ) -> None:
     await lay(bot)
     await bot.settings.update(
-        GUILD_ID, studio_forum_id=STUDIO_ID, burrito_thread_id=BURRITO_THREAD_ID
+        GUILD_ID, studio_forum_id=STUDIO_ID, jam_thread_id=JAM_THREAD_ID
     )
-    burrito = MagicMock(spec=discord.Thread)
-    burrito.id = BURRITO_THREAD_ID
-    burrito.parent_id = STUDIO_ID
-    burrito.send = AsyncMock()
+    jam = MagicMock(spec=discord.Thread)
+    jam.id = JAM_THREAD_ID
+    jam.parent_id = STUDIO_ID
+    jam.send = AsyncMock()
     cog.rng = FixedRandom(0.0)
-    asked = message(
-        f"<@{WISP_ID}> how do I feed you?", channel=burrito, mentions=[WISP]
-    )
-    chatter = message("how does Wisp grow up?", channel=burrito)
+    asked = message(f"<@{WISP_ID}> how do I feed you?", channel=jam, mentions=[WISP])
+    chatter = message("how does Wisp grow up?", channel=jam)
 
     await cog.on_message(asked)
     await cog.on_message(chatter)
@@ -500,7 +498,7 @@ async def test_wisp_stays_quiet_in_burritos_post(
     ai.assert_not_awaited()
     asked.reply.assert_not_awaited()
     chatter.reply.assert_not_awaited()
-    burrito.send.assert_not_awaited()
+    jam.send.assert_not_awaited()
 
     await cog.on_message(message.to_wisp("you there?"))
 

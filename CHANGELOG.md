@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-21 (Burrito leaves the Studio)
+
+- Wisp's Studio has five posts: setup no longer makes or updates
+  "Burrito, Fairy God-bot". An existing Burrito post in Discord is left
+  alone; staff can delete it by hand. Its pictures are in
+  `RECYCLING/2026-11-21-burrito`.
+- When Wisp isn't sure how the game works, or someone asks about his
+  sickness, he points them to the Wisp FAQ in Wisp's Studio instead of
+  Burrito.
+- `Settings.burrito_thread_id` and the first-post updating it needed
+  (`current_content`, `_update_starter`) are gone. The
+  `settings.burrito_thread_id` column stays in the database, unread, since
+  live columns are never dropped.
+- The FAQ page, README and spec say so. The FAQ pictures still mention
+  Burrito until they are re-rendered.
+
 ## 2026-11-21 (Fake links wording)
 
 - The rules post says `・No fake links; staff strip points` (was "Fake

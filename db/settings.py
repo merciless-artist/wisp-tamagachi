@@ -19,12 +19,11 @@ class Settings:
     It is frozen, so the copy the repository caches can be shared safely.
     `faq_message_ids` are the Wisp FAQ's section posts, in order; the column
     holds them as a JSON list. `house_panel_message_id` is the pinned Poke
-    Wisp panel in Wisp's House. `burrito_thread_id` is Burrito's post in the
-    Studio, where Burrito, a separate bot, answers and Wisp stays quiet.
-    `status_title_message_id` is the Wisp Stats title post above the status
-    card; the card is `status_message_id`, and the Status post's first
-    message shows only Wisp's picture. `vault_title_message_id` is the
-    Leaderboard title post above the Vault card, `vault_message_id`.
+    Wisp panel in Wisp's House. `status_title_message_id` is the Wisp Stats
+    title post above the status card; the card is `status_message_id`, and
+    the Status post's first message shows only Wisp's picture.
+    `vault_title_message_id` is the Leaderboard title post above the Vault
+    card, `vault_message_id`.
     `general_channel_id` is the server's general chat, where Wisp shares
     each new stage; None keeps the news in his House.
     """
@@ -45,7 +44,6 @@ class Settings:
     suno_meal_points: int | None = None
     frozen: bool = False
     house_panel_message_id: int | None = None
-    burrito_thread_id: int | None = None
     status_title_message_id: int | None = None
     vault_title_message_id: int | None = None
     general_channel_id: int | None = None

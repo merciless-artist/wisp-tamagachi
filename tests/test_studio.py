@@ -50,15 +50,13 @@ VAULT = "🏆 | Leaderboard"
 OLD_VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
-BURRITO = "🧚│Burrito, Fairy God-bot"
-THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, BURRITO)
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ)
 THREAD_TITLES = (
     "Status",
     "Mealtime",
     "Leaderboard",
     "Jam Space",
     "Wisp FAQ",
-    "Burrito, Fairy God-bot",
 )
 OLD_NAMES = (
     "Status",
@@ -66,30 +64,12 @@ OLD_NAMES = (
     OLD_VAULT,
     "The Jam Space",
     "How Wisp Works",
-    "Burrito",
-)
-# Burrito's post as it was before Myra's picture became the post.
-OLD_BURRITO_STARTER = "\n".join(
-    [
-        "𝄃𝄞𝄚𝄚𝄚𝄚𝄚𝄚𝄆 𝔹𝓊𝓇𝓇𝒾𝓉𝑜 𝄇𝄡𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
-        "╔══════════════════════╗",
-        "║𝄡𝄚𝄂 Burrito is Wisp's fairy god-bot.",
-        "║",
-        "║𝄡 Ask him anything about how",
-        "║ Wisp works, right here.",
-        "║",
-        "║𝄡 He'll point you to where to look",
-        "║ for Wisp's live stats.",
-        "╚══════════════════════╝",
-        "𝄃𝄣𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄚𝄂",
-    ]
 )
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
     VAULT: "vault.png",
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
-    BURRITO: "burrito_post.png",
 }
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
@@ -163,7 +143,6 @@ THREAD_ATTRS = (
     "vault_thread_id",
     "jam_thread_id",
     "rules_thread_id",
-    "burrito_thread_id",
 )
 
 
@@ -547,7 +526,7 @@ async def test_setup_creates_six_threads_with_the_vault(
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
     server.messages[status.id].pin.assert_awaited_once()
-    for name in (VAULT, MEALTIME, JAM, FAQ, BURRITO):
+    for name in (VAULT, MEALTIME, JAM, FAQ):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -594,7 +573,6 @@ async def test_new_threads_carry_their_thumbnails(
         VAULT: "vault.png",
         JAM: "jam_space.png",
         FAQ: "faq.png",
-        BURRITO: "burrito_post.png",
     }
     for art in attached.values():
         art.close()
@@ -664,31 +642,10 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all six already exist" in sent_text(ctx)
+    assert "Studio threads: all five already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     assert house_posts(server) == []
-
-
-async def test_burritos_post_is_myras_picture_alone(
-    bot: app.WispBot, server: FakeServer, art_dir: Path
-) -> None:
-    add_thumbnails(art_dir)
-
-    await run_setup(bot, server)
-
-    burrito = server.thread_named(BURRITO)
-    starter = server.messages[burrito.id]
-    assert starter.content == ""
-    assert starter.attachments == ["burrito_post.png"]
-    burrito.edit.assert_not_awaited()
-    starter.pin.assert_not_awaited()
-    starter.edit.assert_not_awaited()
-    settings = await bot.settings.get(GUILD_ID)
-    assert settings.burrito_thread_id == burrito.id
-    for thread in server.threads.values():
-        if "file" in thread.create_kwargs:
-            thread.create_kwargs.pop("file").close()
 
 
 async def test_setup_pins_the_status_post_to_the_top_once(
@@ -765,87 +722,6 @@ async def test_a_failed_gallery_switch_is_posted_in_the_house_and_setup_carries_
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
 
 
-async def test_setup_brings_an_old_burrito_post_up_to_date(
-    bot: app.WispBot, server: FakeServer, art_dir: Path
-) -> None:
-    await run_setup(bot, server)
-    burrito = server.thread_named(BURRITO)
-    starter = server.messages[burrito.id]
-    starter.content = OLD_BURRITO_STARTER
-    starter.attachments = ["burrito.png"]
-    others = {
-        name: server.messages[server.thread_named(name).id].content
-        for name in THREAD_NAMES[:-1]
-    }
-    add_thumbnails(art_dir)
-
-    await run_setup(bot, server)
-
-    assert starter.content == ""
-    assert starter.attachments == ["burrito_post.png"]
-    starter.edit.assert_awaited_once()
-    assert starter.edit.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert server.created_names == list(THREAD_NAMES)
-    for name, content in others.items():
-        assert server.messages[server.thread_named(name).id].content == content
-
-    await run_setup(bot, server)
-
-    starter.edit.assert_awaited_once()
-
-
-async def test_a_burrito_post_that_is_gone_is_left_alone(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await run_setup(bot, server)
-    burrito = server.thread_named(BURRITO)
-    del server.messages[burrito.id]
-
-    await run_setup(bot, server)
-
-    burrito.send.assert_not_awaited()
-    assert server.created_names == list(THREAD_NAMES)
-
-
-async def test_a_failed_burrito_update_is_posted_in_his_thread(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await run_setup(bot, server)
-    burrito = server.thread_named(BURRITO)
-    starter = server.messages[burrito.id]
-    starter.content = OLD_BURRITO_STARTER
-    starter.edit.side_effect = discord.Forbidden(
-        MagicMock(status=403), "Missing Permissions"
-    )
-
-    await run_setup(bot, server)
-
-    (line,) = burrito.send.await_args.args
-    assert line.startswith(
-        "Error in updating the first post of Burrito, Fairy God-bot: Forbidden"
-    )
-
-
-async def test_a_studio_from_before_burrito_gets_his_post_without_a_notice(
-    bot: app.WispBot, server: FakeServer
-) -> None:
-    await run_setup(bot, server)
-    old = server.thread_named(BURRITO)
-    del server.threads[old.id]
-    await bot.settings.update(GUILD_ID, burrito_thread_id=None)
-    before = await bot.settings.get(GUILD_ID)
-
-    ctx = await run_setup(bot, server)
-
-    assert server.created_names == [*THREAD_NAMES, BURRITO]
-    settings = await bot.settings.get(GUILD_ID)
-    assert settings.burrito_thread_id == server.thread_named(BURRITO).id
-    for attr in THREAD_ATTRS[:-1]:
-        assert getattr(settings, attr) == getattr(before, attr)
-    assert 'Created threads: "Burrito, Fairy God-bot"' in sent_text(ctx)
-    assert house_posts(server) == []
-
-
 async def test_setup_recreates_deleted_thread(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -872,15 +748,13 @@ async def test_recreated_threads_are_named_one_by_one_in_the_house(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    for name in (MEALTIME, BURRITO):
+    for name in (MEALTIME, JAM):
         del server.threads[server.thread_named(name).id]
 
     await ensure_studio(bot, GUILD_ID)
 
     (post,) = house_posts(server)
-    assert post.args == (
-        'Wisp\'s Studio: recreated "Mealtime", "Burrito, Fairy God-bot".',
-    )
+    assert post.args == ('Wisp\'s Studio: recreated "Mealtime", "Jam Space".',)
 
 
 async def test_setup_recreates_a_pinned_card_thread_with_new_message_ids(
@@ -1260,7 +1134,6 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
         MEALTIME,
         VAULT,
         JAM,
-        BURRITO,
     ]
     assert old.name == FAQ
     *sections, rules_post = assert_faq_built(server.live_posts(old))
@@ -2290,31 +2163,6 @@ async def test_an_added_thumbnail_is_closed_after_the_edit(
     thread.fetch_message = AsyncMock(return_value=starter)
 
     await studio._add_thumbnail(
-        bot, MagicMock(spec=discord.Guild), thread, vault_spec()
-    )
-
-    (thumbnail,) = kept_files(starter.edit, "attachments")
-    assert thumbnail.fp.closed
-    assert bot.report_error.await_count == (1 if fails else 0)
-
-
-@pytest.mark.parametrize("fails", [False, True])
-async def test_an_updated_first_post_closes_its_picture(
-    bot: app.WispBot, art_dir: Path, fails: bool
-) -> None:
-    add_thumbnails(art_dir)
-    bot.report_error = AsyncMock()  # type: ignore[method-assign]
-    starter = MagicMock(spec=discord.Message)
-    starter.content = "an older first post"
-    starter.edit = AsyncMock(
-        side_effect=(
-            discord.HTTPException(MagicMock(status=500), "boom") if fails else None
-        )
-    )
-    thread = MagicMock(spec=discord.Thread)
-    thread.fetch_message = AsyncMock(return_value=starter)
-
-    await studio._update_starter(
         bot, MagicMock(spec=discord.Guild), thread, vault_spec()
     )
 

@@ -177,7 +177,7 @@ Poke Wisp panel show his sick picture meanwhile.
 
 While he has Monster Pox or a cold, anyone who talks to him or pokes him gets a
 reply that says plainly what he has and how many hours are left, and that
-Burrito can answer questions about his sickness, with a picture: his sick
+the Wisp FAQ answers questions about his sickness, with a picture: his sick
 picture or `sneeze.gif` for Monster Pox, `wispsick.gif` or `sneeze.gif` for a
 cold. Monster Pox wins when he has both. If Discord refuses the picture, the
 words are sent without it. A poke that wakes him from a nap shows the nap
@@ -441,8 +441,7 @@ the purchase is undone and the points come back.
   Wellbeing and pays 1 Vault point.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
-its threads). He never answers in the Studio, so Burrito's post is left to
-Burrito. He answers with AI at every stage: the egg wobbles or crackles in
+its threads). He never answers in the Studio. He answers with AI at every stage: the egg wobbles or crackles in
 reply to how warm and fed it is (and now and then posts its `wisp_egg` emoji),
 the baby answers with noises and single words, and from Child on he talks. If
 the AI is down, the egg and baby fall back to their pre-written lines. From
@@ -484,7 +483,7 @@ png, jpeg, webp and gif pictures up to 8 MB.
 
 Questions about how Wisp works: when he is not sure how something in the game
 works, or someone asks him about his sickness and he doesn't know, he points
-them to Burrito, his fairy god-bot, in the Studio instead of guessing.
+them to the Wisp FAQ in the Studio instead of guessing.
 
 No AI provider is asked to think first, and an answer that was cut off at the
 length limit is never posted: the next provider answers instead.
@@ -579,9 +578,6 @@ leaderboard" for a few seconds; staff and bots may post there.
   linking to each section's first picture, then one banner picture per
   question, each in a message of its own, and its last post is the quick rules
   with the current numbers.
-- `🧚│Burrito, Fairy God-bot`: Burrito's room. Burrito, a separate bot,
-  answers questions about how Wisp works there; Wisp never talks in it. Its
-  first post is Myra's picture alone (`burrito_post.png`).
 
 Each thread's first post carries its picture, which the forum shows as the
 thumbnail. Setup renames a thread whose name differs, adds a

@@ -184,8 +184,7 @@ def rules_text(
             f"・First chat or poke each day earns {chat_points}",
             "",
             "Fair play",
-            "・No fake links; staff strip points. Names max "
-            f"{rules.NAME_MAX} chars",
+            "・No fake links; staff strip points. Names max " f"{rules.NAME_MAX} chars",
             f"{_ban_line()}",
         ]
     )
@@ -219,9 +218,7 @@ class StudioThread:
 
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
-    post's text when the thread is created, empty when the picture is the
-    whole post; with `current_content`, a first post with other text is
-    edited to it, picture included, when the Studio is ensured. `image` is
+    post's text when the thread is created. `image` is
     the first post's picture, which the forum shows as the post's thumbnail,
     relative to the ASSETS folder. A `pinned_post` stays at the top
     of the forum; Discord pins one post per forum. The card in `message_attr`
@@ -236,7 +233,6 @@ class StudioThread:
     message_attr: str | None = None
     locked: bool = False
     image: str | None = None
-    current_content: bool = False
     pinned_post: bool = False
     pin_card: bool = True
 
@@ -280,14 +276,6 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Loading the FAQ...",
         locked=True,
         image="thumbs/faq.png",
-    ),
-    StudioThread(
-        "burrito_thread_id",
-        "🧚│Burrito, Fairy God-bot",
-        "Burrito, Fairy God-bot",
-        "",
-        image="burrito_post.png",
-        current_content=True,
     ),
 )
 
@@ -412,8 +400,6 @@ async def _finish_thread(
                 guild, f"pinning the {spec.title} post", error, where=thread
             )
     await _add_thumbnail(bot, guild, thread, spec)
-    if spec.current_content:
-        await _update_starter(bot, guild, thread, spec)
     if spec.message_attr is None or message_id is None or not spec.pin_card:
         return
     try:
@@ -451,38 +437,6 @@ async def _add_thumbnail(
     except discord.HTTPException as error:
         await bot.report_error(
             guild, f"adding the thumbnail to {spec.title}", error, where=thread
-        )
-
-
-async def _update_starter(
-    bot: "WispBot", guild: discord.Guild, thread: discord.Thread, spec: StudioThread
-) -> None:
-    """Edit the thread's first post to `spec.content` when its text differs.
-
-    The edit brings the post's picture up to date with it. A first post that
-    is gone is left alone; a failed edit is posted in the thread. The
-    picture's file is closed once the edit is done or failed.
-    """
-    try:
-        starter = await thread.fetch_message(thread.id)
-        if starter.content == spec.content:
-            return
-        path = _thumbnail(spec)
-        thumbnail = None if path is None else discord.File(path)
-        try:
-            await starter.edit(
-                content=spec.content,
-                allowed_mentions=_NO_PING,
-                **art_kwargs("attachments", thumbnail),
-            )
-        finally:
-            if thumbnail is not None:
-                thumbnail.close()
-    except discord.NotFound:
-        return
-    except discord.HTTPException as error:
-        await bot.report_error(
-            guild, f"updating the first post of {spec.title}", error, where=thread
         )
 
 
