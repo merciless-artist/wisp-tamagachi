@@ -1445,6 +1445,27 @@ async def test_buying_after_a_round_lost_past_midnight_leaves_a_note(
     assert await notes(bot) == [BOUGHT_ANYWAY]
 
 
+async def test_buying_the_snack_of_an_earlier_loss_today_leaves_a_note(
+    bot: app.WispBot,
+) -> None:
+    midnight = datetime.combine(discord.utils.utcnow().date(), time(), tzinfo=UTC)
+    yesterday = await bot.cravings.start(
+        GUILD_ID, USER_ID, "jellywave", midnight - timedelta(minutes=2)
+    )
+    await bot.cravings.end(GUILD_ID, USER_ID, yesterday.day, won=False, now=midnight)
+    today = await bot.cravings.start(
+        GUILD_ID, USER_ID, "cloudwave", midnight + timedelta(seconds=1)
+    )
+    await bot.cravings.end(
+        GUILD_ID, USER_ID, today.day, won=False, now=midnight + timedelta(seconds=2)
+    )
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+
+    await buy(bot, "jellywave")
+
+    assert await notes(bot) == [BOUGHT_ANYWAY]
+
+
 async def test_buying_the_day_after_losing_leaves_no_note(bot: app.WispBot) -> None:
     await craving(
         bot, "jellywave", won=False, at=discord.utils.utcnow() - timedelta(days=1)

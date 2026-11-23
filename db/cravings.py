@@ -161,19 +161,20 @@ class CravingRepo:
         return changed == 1
 
     async def lost_today(
-        self, guild_id: int, user_id: int, now: datetime
+        self, guild_id: int, user_id: int, snack: str, now: datetime
     ) -> Round | None:
-        """Return the member's latest round lost on the UTC day of `now`, or None.
+        """Return the member's latest round craving `snack` lost on the UTC day
+        of `now` and not yet marked bought, or None.
 
         A round started before midnight and lost after it counts as lost today.
         """
         midnight = datetime.combine(_utc_date(now), time(), tzinfo=UTC)
         row = await self._db.fetchone(
             f"SELECT {_COLUMNS} FROM {self._db.t('cravings')} "
-            "WHERE guild_id = %s AND user_id = %s AND won = 0 "
-            "AND ended_at >= %s AND ended_at <= %s "
+            "WHERE guild_id = %s AND user_id = %s AND snack = %s AND won = 0 "
+            "AND bought_at IS NULL AND ended_at >= %s AND ended_at <= %s "
             "ORDER BY ended_at DESC LIMIT 1",
-            (guild_id, user_id, to_db_time(midnight), to_db_time(now)),
+            (guild_id, user_id, snack, to_db_time(midnight), to_db_time(now)),
         )
         return None if row is None else _from_row(row)
 

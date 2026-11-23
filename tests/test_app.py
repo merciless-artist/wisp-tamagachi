@@ -1,6 +1,9 @@
 import logging
+import subprocess
+import sys
 from collections.abc import Iterator
 from dataclasses import fields
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -1056,3 +1059,41 @@ async def test_tests_never_reach_a_real_ai_provider() -> None:
     bot = app.WispBot()
 
     assert bot.ai.providers == ()
+
+
+# ---
+# Extension order
+# ---
+
+_LOAD_LIKE_DISCORD = """
+import importlib.util, sys
+import discord
+from discord import app_commands
+import app
+failed = []
+for name in app.EXTENSIONS:
+    spec = importlib.util.find_spec(name)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except (discord.ClientException, app_commands.AppCommandError) as error:
+        del sys.modules[name]
+        failed.append(f"{name}: {error}")
+print("\\n".join(failed))
+"""
+
+
+def test_every_extension_loads_in_order_as_discord_loads_it() -> None:
+    """`load_extension` runs each module afresh, so one an earlier extension
+    imported must not register its commands twice."""
+    result = subprocess.run(
+        [sys.executable, "-c", _LOAD_LIKE_DISCORD],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=Path(app.__file__).parent,
+        check=True,
+    )
+
+    assert result.stdout.strip() == ""

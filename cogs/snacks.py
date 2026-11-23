@@ -850,8 +850,8 @@ async def _note_craving_bought(
 ) -> None:
     """Note it once when the member buys the snack he craved, on the day they lost."""
     now = discord.utils.utcnow()
-    craving = await bot.cravings.lost_today(guild_id, user_id, now)
-    if craving is None or craving.snack != snack.key:
+    craving = await bot.cravings.lost_today(guild_id, user_id, snack.key, now)
+    if craving is None:
         return
     if await bot.cravings.mark_bought(guild_id, user_id, craving.day, now):
         await bot.notes.add(
