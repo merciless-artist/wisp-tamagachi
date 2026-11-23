@@ -96,13 +96,29 @@ class CravingRepo:
         return await self._stored(guild_id, user_id, day)
 
     async def end(
-        self, guild_id: int, user_id: int, day: date, *, won: bool, now: datetime
+        self,
+        guild_id: int,
+        user_id: int,
+        day: date,
+        *,
+        won: bool,
+        now: datetime,
+        idle_before: datetime | None = None,
     ) -> bool:
-        """End an open round as won or lost; False when it had already ended."""
+        """End an open round as won or lost; False when nothing was ended.
+
+        With `idle_before`, the round ends only if it was last touched before
+        then, so a guess that just came in keeps it open.
+        """
+        idle = ""
+        params: list[object] = [to_db_time(now), won, guild_id, user_id, day]
+        if idle_before is not None:
+            idle = " AND last_at < %s"
+            params.append(to_db_time(idle_before))
         changed = await self._db.execute(
             f"UPDATE {self._db.t('cravings')} SET ended_at = %s, won = %s "
-            f"WHERE {_KEY} AND ended_at IS NULL",
-            (to_db_time(now), won, guild_id, user_id, day),
+            f"WHERE {_KEY} AND ended_at IS NULL{idle}",
+            params,
         )
         return changed == 1
 
@@ -115,6 +131,18 @@ class CravingRepo:
             (to_db_time(cutoff),),
         )
         return [_from_row(row) for row in rows]
+
+    async def open_since(
+        self, guild_id: int, user_id: int, cutoff: datetime
+    ) -> Round | None:
+        """Return the member's newest open round touched at or after `cutoff`."""
+        row = await self._db.fetchone(
+            f"SELECT {_COLUMNS} FROM {self._db.t('cravings')} "
+            "WHERE guild_id = %s AND user_id = %s AND ended_at IS NULL "
+            "AND last_at >= %s ORDER BY day DESC LIMIT 1",
+            (guild_id, user_id, to_db_time(cutoff)),
+        )
+        return None if row is None else _from_row(row)
 
     async def mark_bought(
         self, guild_id: int, user_id: int, day: date, now: datetime

@@ -1256,6 +1256,25 @@ async def test_a_duel_while_he_naps_is_refused_until_he_wakes(
     assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
+async def test_two_duels_pressed_at_once_start_one(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    gate = Gate()
+    monkeypatch.setattr(bot, "wait_for", gate)
+    presses = [make_interaction(bot, server), make_interaction(bot, server)]
+    both = asyncio.gather(*(start(pressed) for pressed in presses))
+    while gate.waiting < 1:
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.05)
+
+    assert gate.waiting == 1
+    assert [replies(pressed) for pressed in presses].count([ROOM_BUSY]) == 1
+    gate.opened.set()
+    await both
+    assert (GUILD_ID, USER_ID) not in bot.room_games
+
+
 async def test_the_button_and_the_command_share_one_duel_per_player(
     bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -18,9 +18,14 @@ from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import casual_bond_grant
 from wisp.chores import is_napping, nap_ends_at
-from wisp.craving import is_idle
 from wisp.life import Life, Meter, Phase, add_growth, change_meter
-from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, PLAY_POINTS, WELLBEING_PER_PLAY
+from wisp.rules import (
+    BOND_PER_PLAY,
+    CRAVING_TIMEOUT,
+    GROWTH_PER_PLAY,
+    PLAY_POINTS,
+    WELLBEING_PER_PLAY,
+)
 from wisp.text import meter_receipt, timestamp, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
@@ -63,20 +68,16 @@ async def check_game(
     return life
 
 
-async def room_busy(bot: "WispBot", guild_id: int, user_id: int, now: datetime) -> bool:
-    """Whether the member's room has a game going: a duel, or a live Craving.
+async def craving_live(
+    bot: "WispBot", guild_id: int, user_id: int, now: datetime
+) -> bool:
+    """Whether the member has a Craving round open and not yet idle, of any day.
 
-    A Craving round that has gone idle no longer holds the room; it ends as a
-    timeout when it is next touched.
+    A round that has gone idle no longer holds the room; it ends as a timeout
+    when it is next touched. A round started before midnight still counts.
     """
-    if (guild_id, user_id) in bot.room_games:
-        return True
-    craving = await bot.cravings.today(guild_id, user_id, now)
-    return (
-        craving is not None
-        and craving.ended_at is None
-        and not is_idle(craving.last_at, now)
-    )
+    live = await bot.cravings.open_since(guild_id, user_id, now - CRAVING_TIMEOUT)
+    return live is not None
 
 
 # ---

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.craving import CravingButton
-from cogs.games import ROOM_BUSY, check_game, enter_room, reward_game, room_busy
+from cogs.games import ROOM_BUSY, check_game, craving_live, enter_room, reward_game
 from cogs.groups import play, require_guild
 from cogs.players import (
     FROZEN_REASON,
@@ -309,11 +309,15 @@ async def start_duel(interaction: discord.Interaction) -> None:
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True, thinking=True)
     key = (guild_id, interaction.user.id)
-    if await room_busy(bot, guild_id, interaction.user.id, discord.utils.utcnow()):
+    if key in bot.room_games:
         await say_privately(interaction, ROOM_BUSY)
         return
     bot.room_games.add(key)
     try:
+        now = discord.utils.utcnow()
+        if await craving_live(bot, guild_id, interaction.user.id, now):
+            await say_privately(interaction, ROOM_BUSY)
+            return
         await _host(interaction, guild_id)
     finally:
         bot.room_games.discard(key)

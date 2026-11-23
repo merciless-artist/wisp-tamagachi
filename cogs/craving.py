@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
-from cogs.games import ROOM_BUSY, check_game, enter_room, reward_game
+from cogs.games import ROOM_BUSY, check_game, craving_live, enter_room, reward_game
 from cogs.groups import play, require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -42,7 +42,7 @@ from wisp.craving import (
     pick_craving,
     snacks_left,
 )
-from wisp.life import Mood, Phase, mood
+from wisp.life import Life, Mood, Phase, mood
 from wisp.lines import Moment
 from wisp.rules import CRAVING_TIMEOUT, SNACK_BY_KEY
 from wisp.text import daily_reset
@@ -133,6 +133,11 @@ class _Ended:
     feeling: Mood
 
 
+def _feeling(life: Life | None) -> Mood:
+    """How Wisp feels in a Craving line; happy when there is no life to ask."""
+    return Mood.HAPPY if life is None else mood(life)
+
+
 def _note(snack_name: str, ending: Ending) -> str:
     if ending is Ending.WON:
         return f"I was craving a {snack_name} and they guessed it"
@@ -150,7 +155,10 @@ async def _end(
     """
     guild_id, user_id = round_.guild_id, round_.user_id
     won = ending is Ending.WON
-    if not await bot.cravings.end(guild_id, user_id, round_.day, won=won, now=now):
+    idle_before = now - CRAVING_TIMEOUT if ending is Ending.TIMED_OUT else None
+    if not await bot.cravings.end(
+        guild_id, user_id, round_.day, won=won, now=now, idle_before=idle_before
+    ):
         return None
     snack = SNACK_BY_KEY[round_.snack]
     if won:
@@ -169,8 +177,7 @@ async def _end(
             f"♪ Your Craving counted ・ {reward.wellbeing} ・ {bond} ・ {reward.coins}"
         )
     await bot.notes.add(guild_id, user_id, _note(snack.name, ending), now)
-    feeling = Mood.HAPPY if life is None else mood(life)
-    return _Ended(round_, ending, receipt, feeling)
+    return _Ended(round_, ending, receipt, _feeling(life))
 
 
 async def _announce(
@@ -252,7 +259,8 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     """Start or pick up the member's round for today, or say why they can't.
 
     A round left idle past CRAVING_TIMEOUT is ended as a loss first. The room
-    is held while the round is posted, so two starts at once post it once.
+    is held while the round is posted, so two starts at once post it once,
+    and a round from before midnight that is still live keeps it busy.
     """
     bot = bot_of(interaction)
     user = interaction.user
@@ -291,6 +299,9 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
         return
     bot.room_games.add(key)
     try:
+        if round_ is None and await craving_live(bot, guild_id, user.id, now):
+            await say_privately(interaction, ROOM_BUSY)
+            return
         line = (
             _STILL_ON
             if round_ is not None
@@ -397,7 +408,7 @@ async def _guess(
                 else:
                     line = bot.lines.pick(
                         Moment.CRAVING_NOPE,
-                        await _feeling(bot, guild_id),
+                        _feeling(await bot.lives.current(guild_id)),
                         snack=SNACK_BY_KEY[guess].name,
                     )
     if ended is not None:
@@ -406,11 +417,6 @@ async def _guess(
         await say_privately(interaction, _OVER)
     elif line is not None:
         await _post_round(bot, room, round_, line)
-
-
-async def _feeling(bot: "WispBot", guild_id: int) -> Mood:
-    life = await bot.lives.current(guild_id)
-    return Mood.HAPPY if life is None else mood(life)
 
 
 class GuessMenu(

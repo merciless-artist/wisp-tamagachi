@@ -338,10 +338,6 @@ class ActivityRepo:
         """Games the member has played with Wisp on the UTC day of `now`."""
         return await self._count_today(InteractionKind.PLAY, guild_id, user_id, now)
 
-    async def cravings_today(self, guild_id: int, user_id: int, now: datetime) -> int:
-        """Craving rounds the member has finished on the UTC day of `now`."""
-        return await self._count_today(InteractionKind.CRAVING, guild_id, user_id, now)
-
     async def _count_today(
         self, kind: InteractionKind, guild_id: int, user_id: int, now: datetime
     ) -> int:

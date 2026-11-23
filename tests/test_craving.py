@@ -16,7 +16,7 @@ from discord import app_commands
 import app
 from cogs import craving, groups, rhyme_duel
 from cogs.craving import CravingButton, GuessMenu, end_idle_cravings
-from cogs.games import room_busy
+from cogs.games import craving_live
 from db.activity import ActivityRepo, InteractionKind
 from db.cravings import CravingRepo
 from db.database import Database
@@ -250,6 +250,15 @@ def replies(interaction: MagicMock) -> list[str]:
         assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
         sent.append(str(call.args[0]))
     return sent
+
+
+async def cravings_counted(db: Database) -> int:
+    """How many Craving rounds were logged as interactions."""
+    rows = await db.fetchall(
+        f"SELECT kind FROM {db.t('interactions')} WHERE kind = %s",
+        (InteractionKind.CRAVING.value,),
+    )
+    return len(rows)
 
 
 async def lay(bot: app.WispBot, phase: Phase = Phase.ALIVE) -> Life:
@@ -622,7 +631,11 @@ async def test_starting_after_an_idle_round_ends_it_and_refuses(
     ],
 )
 async def test_every_finished_round_leaves_a_note_and_a_receipt(
-    bot: app.WispBot, server: FakeServer, picks: list[str], note: str
+    bot: app.WispBot,
+    db: Database,
+    server: FakeServer,
+    picks: list[str],
+    note: str,
 ) -> None:
     await lay(bot)
     await start(bot, server)
@@ -638,7 +651,7 @@ async def test_every_finished_round_leaves_a_note_and_a_receipt(
     assert receipt.endswith("+1 WC")
     life = await bot.lives.current(GUILD_ID)
     assert life is not None and life.wellbeing == 40.0 + WELLBEING_PER_PLAY
-    assert await bot.activity_log.cravings_today(GUILD_ID, USER_ID, NOW) == 1
+    assert await cravings_counted(db) == 1
 
 
 async def test_a_round_past_the_bond_cap_says_the_bond_is_full(
@@ -659,7 +672,7 @@ async def test_a_round_past_the_bond_cap_says_the_bond_is_full(
 
 
 async def test_a_round_ending_while_frozen_does_not_count(
-    bot: app.WispBot, server: FakeServer
+    bot: app.WispBot, db: Database, server: FakeServer
 ) -> None:
     await lay(bot)
     await start(bot, server)
@@ -669,7 +682,7 @@ async def test_a_round_ending_while_frozen_does_not_count(
 
     receipt = server.posts()[-1].splitlines()[-1]
     assert receipt.startswith("♪ This Craving didn't count toward his Wellbeing: ")
-    assert await bot.activity_log.cravings_today(GUILD_ID, USER_ID, NOW) == 0
+    assert await cravings_counted(db) == 0
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {CRAVED: 1}
 
 
@@ -741,10 +754,29 @@ async def test_an_idle_or_finished_craving_frees_the_room(
     await start(bot, server)
     later = NOW + CRAVING_TIMEOUT + timedelta(seconds=1)
 
-    assert await room_busy(bot, GUILD_ID, USER_ID, NOW) is True
-    assert await room_busy(bot, GUILD_ID, USER_ID, later) is False
+    assert await craving_live(bot, GUILD_ID, USER_ID, NOW) is True
+    assert await craving_live(bot, GUILD_ID, USER_ID, later) is False
     await guess(bot, server, CRAVED)
-    assert await room_busy(bot, GUILD_ID, USER_ID, NOW) is False
+    assert await craving_live(bot, GUILD_ID, USER_ID, NOW) is False
+
+
+async def test_a_round_from_before_midnight_keeps_the_room_busy(
+    bot: app.WispBot, server: FakeServer, clock: list[datetime]
+) -> None:
+    await lay(bot)
+    clock[0] = NOW.replace(hour=23, minute=58)
+    await start(bot, server)
+    clock[0] += timedelta(minutes=3)
+    duel = make_interaction(bot, server)
+    command: Any = rhyme_duel.play_rhyme
+
+    again = await start(bot, server)
+    await command.callback(duel)
+
+    assert replies(again) == [ROOM_BUSY]
+    assert replies(duel) == [ROOM_BUSY]
+    assert await bot.cravings.today(GUILD_ID, USER_ID, clock[0]) is None
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 async def test_no_room_refuses_with_the_reason(

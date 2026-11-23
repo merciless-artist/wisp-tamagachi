@@ -134,7 +134,8 @@ async def test_reward_game_records_the_kind_and_caps_the_bond(
     assert (await bot.players.get(GUILD_ID, USER_ID)).bond == 0
     saved = await bot.lives.current(GUILD_ID)
     assert saved is not None and saved.wellbeing == 40 + WELLBEING_PER_PLAY
-    assert await bot.activity_log.cravings_today(GUILD_ID, USER_ID, NOW) == 1
+    rows = await db.fetchall(f"SELECT kind FROM {db.t('interactions')} ORDER BY id")
+    assert [row["kind"] for row in rows] == ["snack", "craving"]
 
 
 # ---

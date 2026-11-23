@@ -123,8 +123,10 @@ they can look at their Snack Pack any time.
   `BOND_PER_PLAY`), and the receipt says so. The bond shares the daily casual
   bond cap with snacks and duels (`DAILY_CASUAL_BOND_CAP`); past the cap the
   receipt says the bond is full for today, and Wellbeing still rises.
-- **Numbers** (`wisp/rules.py`): `CRAVINGS_PER_DAY = 1`, `CRAVING_GUESSES = 3`,
-  `CRAVING_TIMEOUT = 5 minutes`.
+- **Numbers** (`wisp/rules.py`): `CRAVING_GUESSES = 3`,
+  `CRAVING_TIMEOUT = 5 minutes`. One round a day is enforced by the
+  `cravings` table's primary key `(guild_id, user_id, day)`, so there is no
+  `CRAVINGS_PER_DAY` constant (build note, 2026-11-23).
 
 ## The Rhyme Duel in the room
 

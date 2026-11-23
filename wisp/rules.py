@@ -358,8 +358,8 @@ RHYME_TIRING = 0.1
 
 # Each member's own daily snack guess, apart from their Rhyme Duel plays. A
 # round ends as a loss after CRAVING_GUESSES wrong guesses, or after
-# CRAVING_TIMEOUT with no guess, counted from the last one.
-CRAVINGS_PER_DAY = 1
+# CRAVING_TIMEOUT with no guess, counted from the last one. One round a day
+# is kept by the cravings table's key, so there is no count to tune.
 CRAVING_GUESSES = 3
 CRAVING_TIMEOUT = timedelta(minutes=5)
 

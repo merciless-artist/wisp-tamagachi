@@ -1399,6 +1399,38 @@ async def test_idle_rounds_are_found_and_ended_ones_are_not(db: Database) -> Non
     assert found == [idle]
 
 
+async def test_a_timeout_does_not_end_a_round_guessed_since(db: Database) -> None:
+    repo = CravingRepo(db)
+    day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
+    await repo.add_guess(GUILD, USER, day, "cheese", NOW + timedelta(minutes=4))
+
+    cutoff = NOW + timedelta(minutes=4)
+    assert (
+        await repo.end(GUILD, USER, day, won=False, now=NOW, idle_before=cutoff)
+        is False
+    )
+    later = cutoff + timedelta(seconds=1)
+    assert (
+        await repo.end(GUILD, USER, day, won=False, now=later, idle_before=later)
+        is True
+    )
+
+
+async def test_the_open_round_since_a_cutoff_is_found_across_days(
+    db: Database,
+) -> None:
+    repo = CravingRepo(db)
+    late = NOW.replace(hour=23, minute=58)
+    started = await repo.start(GUILD, USER, "jellywave", late)
+    after_midnight = late + timedelta(minutes=3)
+
+    assert await repo.open_since(GUILD, USER, late) == started
+    assert await repo.open_since(GUILD, USER, after_midnight) is None
+    assert await repo.open_since(GUILD, OTHER_USER, late) is None
+    await repo.end(GUILD, USER, started.day, won=True, now=after_midnight)
+    assert await repo.open_since(GUILD, USER, late) is None
+
+
 async def test_bought_is_marked_once_and_only_after_a_loss(db: Database) -> None:
     repo = CravingRepo(db)
     day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
@@ -1420,6 +1452,4 @@ async def test_craving_bond_counts_toward_the_casual_cap(db: Database) -> None:
     await log.record_interaction(GUILD, 1, USER, InteractionKind.PLAY, 2, 0, NOW)
 
     assert await log.casual_bond_today(GUILD, USER, NOW) == 5
-    assert await log.cravings_today(GUILD, USER, NOW) == 1
     assert await log.plays_today(GUILD, USER, NOW) == 1
-    assert await log.cravings_today(GUILD, USER, NOW + timedelta(days=1)) == 0

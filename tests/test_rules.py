@@ -14,7 +14,6 @@ from wisp.rules import (
     COLD_PICTURES,
     CRAVING_GUESSES,
     CRAVING_TIMEOUT,
-    CRAVINGS_PER_DAY,
     FAREWELL_AT_DAY,
     LIGHTS_WINDOW,
     MEAL_POINTS,
@@ -148,7 +147,7 @@ def test_the_cold_pool_is_the_cold_picture_and_the_sneeze() -> None:
 
 
 def test_craving_numbers() -> None:
-    assert (CRAVINGS_PER_DAY, CRAVING_GUESSES) == (1, 3)
+    assert CRAVING_GUESSES == 3
     assert CRAVING_TIMEOUT == timedelta(minutes=5)
 
 
