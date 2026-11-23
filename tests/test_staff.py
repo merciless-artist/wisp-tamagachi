@@ -1219,4 +1219,6 @@ def test_the_members_slash_commands_are_still_registered() -> None:
         "wisp lunchbox",
         "wisp play",
         "wisp play rhyme",
+        "wisp play craving",
+        "wisp feed",
     }

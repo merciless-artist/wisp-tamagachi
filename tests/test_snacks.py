@@ -1273,6 +1273,20 @@ async def test_pressing_feed_lists_inventory_and_the_free_sine(
     assert str(cheese.emoji) == emoji_text("snack_cheese")
 
 
+async def test_the_feed_command_offers_the_same_snacks_as_the_button(
+    bot: app.WispBot,
+) -> None:
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cheese", 2)
+    interaction = make_interaction(bot)
+
+    await run(snacks.wisp_feed, interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    kwargs = interaction.followup.send.await_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert option_values(kwargs["view"].children[0]) == ["sinewave", "cheese"]
+
+
 async def test_pressing_feed_with_nothing_to_feed_says_so(bot: app.WispBot) -> None:
     await lay(bot)
     await eat(bot, "sinewave")
@@ -2455,6 +2469,7 @@ async def test_a_failing_vault_menu_is_reported_where_it_was_used(
 
 def test_snack_pack_and_vault_hang_off_the_wisp_group() -> None:
     assert groups.wisp.get_command("snackpack") is snacks.wisp_snackpack
+    assert groups.wisp.get_command("feed") is snacks.wisp_feed
     assert groups.wisp.get_command("vault") is snacks.wisp_vault
     assert isinstance(snacks.wisp_snackpack, app_commands.Command)
     assert isinstance(snacks.wisp_vault, app_commands.Command)

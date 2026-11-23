@@ -66,7 +66,10 @@ _DROP_REASONS: Final = {
         "for {span}. Talk to him here or use {status}."
     ),
 }
-_GENERAL_NEWS: Final = "# Wisp just {news} today! Go give him a birthday poke!"
+_GENERAL_NEWS: Final = (
+    "@everyone\n# Wisp just {news} today! Go give him a birthday poke!"
+)
+_PING_EVERYONE: Final = discord.AllowedMentions(everyone=True, users=False, roles=False)
 _GENERAL_CONTEXT: Final = "sharing Wisp's new stage in general chat"
 _STAGE_KEEPSAKES: Final = {
     Stage.CHILD: KeepsakeKind.FIRST_SPARK,
@@ -470,7 +473,7 @@ def general_news(event: Event) -> str:
 
 
 async def _tell_general(bot: "WispBot", guild_id: int, event: Event) -> None:
-    """Share a new stage in general chat, with its picture, pinging nobody.
+    """Share a new stage in general chat, with its picture, pinging @everyone.
 
     Nothing is posted when staff set no general chat. One that cannot be
     seen, or a failed post, is reported in Wisp's House.
@@ -488,7 +491,9 @@ async def _tell_general(bot: "WispBot", guild_id: int, event: Event) -> None:
     art = None if image is None else discord.File(image)
     try:
         await channel.send(
-            general_news(event), allowed_mentions=_NO_PING, **art_kwargs("file", art)
+            general_news(event),
+            allowed_mentions=_PING_EVERYONE,
+            **art_kwargs("file", art),
         )
     except discord.DiscordException as error:
         await bot.report_error(guild, _GENERAL_CONTEXT, error)

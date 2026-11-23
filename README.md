@@ -27,7 +27,7 @@ time in their own time zone. A line under the card points at the
 buttons. There are six, three to a row. Menus and refusals are private; what
 you do to him shows in his House:
 
-- **Feed Wisp** opens the snack menu.
+- **Feed Wisp** opens the snack menu, as `/wisp feed` does.
 - **Poke Wisp** pokes him, as everywhere else.
 - **Vault** opens what `/wisp vault` opens.
 - **Snack Pack** opens what `/wisp snackpack` opens.
@@ -264,6 +264,7 @@ picture.
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.
   Manage Messages, to delete chat typed in the Status and Leaderboard posts.
+  Mention @everyone in the general chat, for the new-stage posts.
   Manage Channels, to show Wisp's Studio forum as a gallery; without it
   every setup posts an error.
   Add Reactions, to react on a track post that fed him.
@@ -295,8 +296,9 @@ where the command was used.
 - `!wisp setup #house #studio #tracks [#general]` (or `/wispadmin setup`) sets
   Wisp's House, the Studio forum, the track drop channel and, optionally, the
   server's general chat (mentions, ids or names). When he hatches or reaches a
-  new stage, he posts his stage picture in general chat with "# Wisp just
-  became a teen today! Go give him a birthday poke!"; leaving `#general` out
+  new stage, he posts his stage picture in general chat with "@everyone" and
+  "# Wisp just became a teen today! Go give him a birthday poke!", pinging
+  everyone (he needs Mention @everyone there); leaving `#general` out
   turns that off. Setup also creates the Studio threads that are missing (see
   Wisp's Studio). It also pins one Poke Wisp panel in the House: "♪ Poke Wisp"
   with the Poke Wisp button. The panel shows Wisp's current picture (the egg,
@@ -408,6 +410,8 @@ Member commands:
   your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
   any magazine covers you bought and how many drawings Wisp has made you, with
   a button to shop the Vault.
+- `/wisp feed` (also the **Feed Wisp** button) opens your snack menu: pick
+  a snack from your Snack Pack, or the free Sine Wave, to feed Wisp.
 
 Magazines: while the living Wisp is a Rockstar, the Vault has a Magazines
 section selling two covers, the VIIBRATIONS cover and the Music & Science

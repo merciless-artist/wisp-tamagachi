@@ -25,6 +25,12 @@
   `players.room_pack_message_id`, `inventory.won`, and a new `cravings` table
   keyed `(guild_id, user_id, day)`.
 - Setup's permission check gains Create Private Threads and Pin Messages.
+- **`/wisp feed`** opens the snack menu from anywhere, as the Feed Wisp
+  button on the status card does.
+- **New stage posts ping @everyone.** The hatching and new-stage posts in the
+  general chat (the bot news channel) now start with @everyone and ping it.
+  Wisp needs Mention @everyone in that channel. Test lives still post nothing
+  there.
 
 ## 2026-11-23 (A track feeds each Wisp once)
 

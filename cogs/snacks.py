@@ -1315,6 +1315,12 @@ async def wisp_snackpack(interaction: discord.Interaction["WispBot"]) -> None:
     await _open_snack_pack(interaction)
 
 
+@wisp.command(name="feed", description="Feed Wisp a snack from your Snack Pack.")
+async def wisp_feed(interaction: discord.Interaction["WispBot"]) -> None:
+    """Offer the member their snacks to feed Wisp, as the Feed Wisp button does."""
+    await _offer_snacks(interaction)
+
+
 class ShopButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_VAULT_ID),

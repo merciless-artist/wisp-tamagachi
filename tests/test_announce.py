@@ -1661,7 +1661,7 @@ async def test_a_failed_keepsake_never_stops_the_question(
 )
 def test_general_news_is_myras_line(event: Event, news: str) -> None:
     assert general_news(event) == (
-        f"# Wisp just {news} today! Go give him a birthday poke!"
+        f"@everyone\n# Wisp just {news} today! Go give him a birthday poke!"
     )
 
 
@@ -1677,10 +1677,11 @@ async def test_a_stage_up_is_shared_in_general_chat_with_its_picture(
     server.general.send.assert_awaited_once()
     call = server.general.send.await_args
     assert call.args == (
-        "# Wisp just became a teen today! Go give him a birthday poke!",
+        "@everyone\n# Wisp just became a teen today! Go give him a birthday poke!",
     )
     assert call.kwargs["file"].filename == "teen.png"
-    assert sends_without_pinging(call.kwargs)
+    mentions = call.kwargs["allowed_mentions"]
+    assert (mentions.everyone, mentions.users, mentions.roles) == (True, False, False)
     assert said(
         server.house.send.await_args_list[0].args[0], Moment.STAGE_UP, stage="teen"
     )
