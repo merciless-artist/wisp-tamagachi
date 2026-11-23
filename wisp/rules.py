@@ -324,9 +324,6 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 # Rhyme Duel
 # ---
 
-# Discord only allows 60, 1440, 4320 or 10080 minutes, here and for
-# STUDIO_THREAD_ARCHIVE_MINUTES and ROOM_ARCHIVE_MINUTES.
-RHYME_THREAD_ARCHIVE_MINUTES: Final = 60
 RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
 RHYME_SLANT_POINTS = 1
@@ -371,7 +368,8 @@ CRAVING_TIMEOUT = timedelta(minutes=5)
 # ---
 
 # Each member's private thread off his House. Discord caps a thread name at
-# ROOM_NAME_MAX characters.
+# ROOM_NAME_MAX characters, and only allows 60, 1440, 4320 or 10080 minutes
+# here and for STUDIO_THREAD_ARCHIVE_MINUTES.
 ROOM_ARCHIVE_MINUTES: Final = 10080
 ROOM_NAME_MAX: Final = 100
 

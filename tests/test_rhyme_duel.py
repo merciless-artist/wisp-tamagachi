@@ -1,5 +1,7 @@
 """Tests for the Rhyme Duel: /wisp play rhyme and the Status post's Play button.
 
+Duels run in the member's room, a private thread off Wisp's House.
+
 Discord objects and the turn-by-turn messages are fakes; the repositories are
 the real ones.
 """
@@ -18,7 +20,8 @@ from discord.ui.view import ViewStore
 
 import app
 from cogs import groups, rhyme_duel
-from cogs.rhyme_duel import NoHouseError, PlayButton, RhymeDuelButton
+from cogs.rhyme_duel import PlayButton, RhymeDuelButton
+from cogs.rooms import RoomError
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
@@ -34,6 +37,7 @@ from wisp.rules import (
     PLAY_POINTS,
     PLAYS_PER_DAY,
     RHYME_TURN,
+    ROOM_ARCHIVE_MINUTES,
     WELLBEING_PER_PLAY,
     Stage,
 )
@@ -56,6 +60,10 @@ USER_ID = 1
 OTHER_USER_ID = 2
 QUALIFYING_ROLE = 7
 NO_PING = discord.AllowedMentions.none().to_dict()
+WELCOME = "♪ This is your room with Wisp"
+ROOM_BUSY = "♪ You already have a game going in your room. Finish that one first."
+STARTED = f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
+NO_HOUSE = "♪ Wisp's House isn't set up, so he can't open your room yet."
 
 # ---
 # Fakes
@@ -63,28 +71,45 @@ NO_PING = discord.AllowedMentions.none().to_dict()
 
 
 class FakeServer:
-    """A guild with Wisp's House, which opens one duel thread."""
+    """A guild with Wisp's House, which makes the member's room once."""
 
     def __init__(self) -> None:
         self.thread = MagicMock(spec=discord.Thread)
         self.thread.id = THREAD_ID
+        self.thread.parent_id = HOUSE_ID
+        self.thread.archived = False
         self.thread.mention = f"<#{THREAD_ID}>"
         self.thread.send = AsyncMock()
         self.thread.edit = AsyncMock()
+        self.thread.add_user = AsyncMock()
+        self.made = False
         self.house = MagicMock(spec=discord.TextChannel)
-        self.house.create_thread = AsyncMock(return_value=self.thread)
+        self.house.id = HOUSE_ID
+        self.house.create_thread = AsyncMock(side_effect=self._create_thread)
         self.house.send = AsyncMock()
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
+    def _create_thread(self, **_kwargs: Any) -> MagicMock:
+        self.made = True
+        return self.thread
+
+    async def fetch_channel(self, channel_id: int) -> MagicMock:
+        if not self.made or channel_id != THREAD_ID:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
+        return self.thread
+
     def posts(self) -> list[str]:
-        """Everything posted in the duel thread, none of it able to ping."""
+        """Everything posted in the room but its welcome, none of it able to ping."""
         sent = []
         for call in self.thread.send.await_args_list:
+            text = cast(str, call.args[0])
+            if text.startswith(WELCOME):
+                continue
             assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-            sent.append(cast(str, call.args[0]))
+            sent.append(text)
         return sent
 
 
@@ -157,6 +182,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
+    monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     monkeypatch.setattr(wisp_bot, "wait_for", Turns())
     yield wisp_bot
 
@@ -305,9 +331,10 @@ async def test_duel_scores_perfect_and_slant(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
     server.house.create_thread.assert_awaited_once_with(
-        name="Rhyme Duel ・ Member1",
-        type=discord.ChannelType.public_thread,
-        auto_archive_duration=60,
+        name="♪ Member1's room",
+        type=discord.ChannelType.private_thread,
+        invitable=False,
+        auto_archive_duration=ROOM_ARCHIVE_MINUTES,
     )
     start, wisp_turn, summary, _receipt = server.posts()
     assert start in openers()
@@ -321,10 +348,10 @@ async def test_duel_scores_perfect_and_slant(
         ("choir", {"fire", "choir"}, Stage.BABY, 1),
         ("mine", {"fire", "choir", "higher", "mine"}, Stage.BABY, 2),
     ]
-    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+    server.thread.edit.assert_not_awaited()
 
 
-async def test_a_named_player_gets_their_name_on_the_thread(
+async def test_a_named_player_gets_their_name_on_the_room(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await lay(bot)
@@ -332,7 +359,37 @@ async def test_a_named_player_gets_their_name_on_the_thread(
 
     await duel(bot, server)
 
-    assert server.house.create_thread.await_args.kwargs["name"] == "Rhyme Duel ・ Zed"
+    assert server.house.create_thread.await_args is not None
+    assert server.house.create_thread.await_args.kwargs["name"] == "♪ Zed's room"
+
+
+async def test_a_second_duel_uses_the_same_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+
+    first = await duel(bot, server)
+    second = await duel(bot, server)
+
+    server.house.create_thread.assert_awaited_once()
+    assert server.thread.add_user.await_count == 2
+    assert replies(first) == replies(second) == [STARTED]
+    assert len(server.posts()) == 6
+    server.thread.edit.assert_not_awaited()
+
+
+async def test_a_duel_reopens_an_archived_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await duel(bot, server)
+    server.thread.archived = True
+    server.thread.edit.return_value = server.thread
+
+    await duel(bot, server)
+
+    server.house.create_thread.assert_awaited_once()
+    server.thread.edit.assert_awaited_once_with(archived=False)
 
 
 async def test_timeout_ends_duel(bot: app.WispBot, server: FakeServer) -> None:
@@ -345,7 +402,7 @@ async def test_timeout_ends_duel(bot: app.WispBot, server: FakeServer) -> None:
     ending, *rest = summary.splitlines()
     assert ending in lines_for(Moment.RHYME_PLAYER_STUCK)
     assert rest == [SEPARATOR, "・Time ran out", "・fire", "・Score: 0 points"]
-    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+    server.thread.edit.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
@@ -437,7 +494,7 @@ async def test_a_huge_answer_ends_the_duel_cleanly(
         "・fire",
         "・Score: 0 points",
     ]
-    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+    server.thread.edit.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
@@ -515,16 +572,14 @@ async def test_one_duel_per_player(
     again = make_interaction(bot, server)
     await start(again)
 
-    assert replies(again) == [
-        "♪ You already have a Rhyme Duel going. Finish that one first."
-    ]
-    assert server.house.create_thread.await_count == 2
+    assert replies(again) == [ROOM_BUSY]
     gate.opened.set()
     await asyncio.gather(first, other)
 
-    await start(make_interaction(bot, server))
+    later = make_interaction(bot, server)
+    await start(later)
 
-    assert server.house.create_thread.await_count == 3
+    assert replies(later) == [STARTED]
 
 
 async def test_banned_player_cannot_duel(bot: app.WispBot, server: FakeServer) -> None:
@@ -564,13 +619,34 @@ async def test_no_duel_before_any_life(bot: app.WispBot, server: FakeServer) -> 
     server.house.create_thread.assert_not_awaited()
 
 
-async def test_missing_house_fails_and_frees_the_player(
-    bot: app.WispBot, server: FakeServer
+async def test_missing_house_refuses_with_the_reason_and_frees_the_player(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await lay(bot)
     await bot.settings.update(GUILD_ID, house_channel_id=None)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
 
-    with pytest.raises(NoHouseError):
+    interaction = await duel(bot, server)
+
+    assert replies(interaction) == [NO_HOUSE]
+    assert reported.await_args is not None
+    guild, context, error = reported.await_args.args
+    assert (guild, context) == (server.guild, "opening a room")
+    assert isinstance(error, RoomError)
+    server.house.create_thread.assert_not_awaited()
+    assert await bot.players.top_rhyme(GUILD_ID, 5) == []
+    assert (GUILD_ID, USER_ID) not in bot.room_games
+
+
+async def test_a_room_discord_refuses_fails_and_frees_the_player(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    refused = discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+    server.house.create_thread.side_effect = refused
+
+    with pytest.raises(discord.Forbidden):
         await duel(bot, server)
 
     assert (GUILD_ID, USER_ID) not in bot.room_games
@@ -834,28 +910,6 @@ async def test_new_best_goes_on_the_vault(
 
     vault.assert_awaited_once()
     assert (await bot.players.get(GUILD_ID, USER_ID)).best_rhyme_score == 2
-
-
-async def test_a_thread_that_cannot_close_still_finishes_the_duel(
-    bot: app.WispBot,
-    server: FakeServer,
-    vault: AsyncMock,
-    meeting: AsyncMock,
-    wisp_says: Callable[..., list[Any]],
-) -> None:
-    await lay(bot)
-    wisp_says(None)
-    server.thread.edit.side_effect = discord.Forbidden(
-        MagicMock(status=403, reason="Forbidden"), "Missing Permissions"
-    )
-
-    await duel(bot, server, said("choir"))
-
-    vault.assert_awaited_once_with(bot, GUILD_ID)
-    meeting.assert_awaited_once()
-    report = server.posts()[-1]
-    assert report.startswith("Error in closing a Rhyme Duel thread: Forbidden")
-    server.house.send.assert_not_awaited()
 
 
 # ---
@@ -1139,7 +1193,7 @@ async def test_the_rhyme_duel_button_plays_a_duel_like_the_command(
     _, wisp_turn, summary, _receipt = server.posts()
     assert wisp_turn == "♪ higher"
     assert summary.splitlines()[-1] == "・Score: 3 points"
-    server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
+    server.thread.edit.assert_not_awaited()
     assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
@@ -1207,9 +1261,7 @@ async def test_the_button_and_the_command_share_one_duel_per_player(
     again = make_interaction(bot, server)
     await press_rhyme_duel(again)
 
-    assert replies(again) == [
-        "♪ You already have a Rhyme Duel going. Finish that one first."
-    ]
+    assert replies(again) == [ROOM_BUSY]
     gate.opened.set()
     await first
     assert server.house.create_thread.await_count == 1
@@ -1229,14 +1281,34 @@ async def test_a_rhyme_duel_button_with_no_house_is_reported_where_pressed(
 
     assert reported.await_args is not None
     guild, context, error = reported.await_args.args
-    assert (guild, context) == (server.guild, "the Rhyme Duel button")
-    assert isinstance(error, NoHouseError)
+    assert (guild, context) == (server.guild, "opening a room")
+    assert isinstance(error, RoomError)
     assert reported.await_args.kwargs == {"where": interaction.channel}
+    assert replies(interaction) == [NO_HOUSE]
+    assert (GUILD_ID, USER_ID) not in bot.room_games
+
+
+async def test_a_rhyme_duel_button_discord_refuses_is_reported_where_pressed(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    refused = discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+    server.house.create_thread.side_effect = refused
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    interaction = make_interaction(bot, server)
+    interaction.channel = MagicMock(spec=discord.Thread)
+
+    await press_rhyme_duel(interaction)
+
+    reported.assert_awaited_once_with(
+        server.guild, "the Rhyme Duel button", refused, where=interaction.channel
+    )
     interaction.followup.send.assert_awaited_with(USER_ERROR, ephemeral=True)
     assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
-async def test_the_rhyme_duel_button_catches_only_a_missing_house(
+async def test_the_rhyme_duel_button_lets_bugs_through(
     bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await lay(bot)

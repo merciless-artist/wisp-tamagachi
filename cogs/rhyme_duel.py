@@ -1,4 +1,4 @@
-"""Rhyme Duel: one member and Wisp trade rhymes in a thread off his House.
+"""Rhyme Duel: one member and Wisp trade rhymes in the member's room.
 
 A duel starts from /wisp play rhyme, or from the Rhyme Duel button in the
 private games menu the Status post's Play button opens.
@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from cogs.games import ROOM_BUSY, enter_room, reward_game
 from cogs.groups import play, require_guild
 from cogs.players import (
-    EXPECTED_FAILURES,
     FROZEN_REASON,
     NOT_ALIVE_REASON,
     blocker_reason,
@@ -28,20 +28,11 @@ from cogs.players import (
 )
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
-from wisp.bond import casual_bond_grant
 from wisp.chores import is_napping, nap_ends_at
-from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
+from wisp.life import Life, Phase, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
-from wisp.rules import (
-    BOND_PER_PLAY,
-    GROWTH_PER_PLAY,
-    PLAY_POINTS,
-    PLAYS_PER_DAY,
-    RHYME_THREAD_ARCHIVE_MINUTES,
-    RHYME_TURN,
-    WELLBEING_PER_PLAY,
-)
+from wisp.rules import PLAYS_PER_DAY, RHYME_TURN
 from wisp.text import (
     MESSAGE_LIMIT,
     SEPARATOR,
@@ -49,12 +40,9 @@ from wisp.text import (
     count,
     daily_reset,
     frame_of,
-    meter_receipt,
     text_length,
     timestamp,
-    with_emoji,
 )
-from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -66,9 +54,6 @@ _RHYME_DUEL_ID: Final = "wisp:play:rhyme"
 _PICK_A_GAME: Final = "♪ Pick a game to play with Wisp."
 
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
-_ALREADY_DUELING: Final = (
-    "♪ You already have a Rhyme Duel going. Finish that one first."
-)
 _NOT_COUNTED: Final = "♪ This duel didn't count toward his Wellbeing: "
 _NO_RHYME: Final = "you didn't score a rhyme."
 _TIMED_OUT: Final = "Time ran out"
@@ -182,34 +167,6 @@ def summary_text(
 # ---
 
 
-class NoHouseError(LookupError):
-    """Wisp's House is not set, cannot be seen or is not a text channel."""
-
-
-async def _open_thread(
-    bot: "WispBot", guild_id: int, guild: discord.Guild | None, name: str
-) -> discord.Thread:
-    """Open the duel's public thread off Wisp's House.
-
-    Raises:
-        NoHouseError: The House is not set, cannot be seen or is not a text
-            channel.
-    """
-    channel_id = (await bot.settings.get(guild_id)).house_channel_id
-    house = (
-        guild.get_channel_or_thread(channel_id)
-        if guild is not None and channel_id is not None
-        else None
-    )
-    if not isinstance(house, discord.TextChannel):
-        raise NoHouseError("Wisp's House is not set or is not a text channel")
-    return await house.create_thread(
-        name=f"Rhyme Duel ・ {name}",
-        type=discord.ChannelType.public_thread,
-        auto_archive_duration=RHYME_THREAD_ARCHIVE_MINUTES,
-    )
-
-
 @dataclass(frozen=True)
 class _Played:
     """What a finished duel did: the best score and what to tell the player."""
@@ -244,31 +201,6 @@ def _verdict(
     return life, life.id
 
 
-async def _count_play(
-    bot: "WispBot", guild_id: int, user_id: int, life: Life, life_id: int, plays: int
-) -> str:
-    """Give the play's bond, growth, care, Wellbeing and point; return the receipt."""
-    now = discord.utils.utcnow()
-    log = bot.activity_log
-    bond = casual_bond_grant(
-        await log.casual_bond_today(guild_id, user_id, now), BOND_PER_PLAY
-    )
-    if bond:
-        await bot.players.add_bond(guild_id, user_id, bond)
-    await log.record_interaction(
-        guild_id, life_id, user_id, InteractionKind.PLAY, bond, 0, now
-    )
-    await bot.players.add_points(guild_id, user_id, PLAY_POINTS)
-    add_growth(life, GROWTH_PER_PLAY)
-    before = life.wellbeing
-    change_meter(life, Meter.WELLBEING, WELLBEING_PER_PLAY, ends_stretch=True)
-    await bot.lives.save(guild_id, life)
-    wellbeing = meter_receipt("Wellbeing", before, life.wellbeing)
-    coins = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"+{PLAY_POINTS} WC")
-    left = count(PLAYS_PER_DAY - plays - 1, "counted game")
-    return f"♪ Your duel counted. {wellbeing}. {coins}. {left} left today."
-
-
 async def _record_play(
     bot: "WispBot",
     guild_id: int,
@@ -300,7 +232,14 @@ async def _record_play(
             receipt = _NOT_COUNTED + verdict
         else:
             life, life_id = verdict
-            receipt = await _count_play(bot, guild_id, user_id, life, life_id, plays)
+            reward = await reward_game(
+                bot, guild_id, user_id, life, life_id, InteractionKind.PLAY, now
+            )
+            left = count(PLAYS_PER_DAY - plays - 1, "counted game")
+            receipt = (
+                f"♪ Your duel counted. {reward.wellbeing}. {reward.coins}. "
+                f"{left} left today."
+            )
         best = await bot.players.record_rhyme_score(guild_id, user_id, points)
     return _Played(best, receipt)
 
@@ -309,8 +248,9 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     """Run one duel for the member, or say why they cannot have one.
 
     The command and the Rhyme Duel button both come here, so both refuse the
-    same way, a freeze and a nap included. A freeze that starts during the
-    duel keeps it from counting instead.
+    same way, a freeze, a nap and a room that can't open included. A freeze
+    that starts during the duel keeps it from counting instead. The duel
+    leaves the room open for the member's next game.
     """
     bot = bot_of(interaction)
     user = interaction.user
@@ -332,9 +272,9 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
             interaction, f"♪ Wisp is napping until {until}. Poke him awake first."
         )
         return
-    thread = await _open_thread(
-        bot, guild_id, interaction.guild, player.name or user.display_name
-    )
+    thread = await enter_room(interaction)
+    if thread is None:
+        return
     started = f"♪ Your Rhyme Duel is on in {thread.mention}."
     await say_privately(interaction, started)
     outcome = await _duel(bot, thread, user.id, life, random.Random())
@@ -356,12 +296,6 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
         await bot.report_error(
             interaction.guild, "sending a Rhyme Duel receipt", error, where=thread
         )
-    try:
-        await thread.edit(archived=True, locked=True)
-    except discord.HTTPException as error:
-        await bot.report_error(
-            interaction.guild, "closing a Rhyme Duel thread", error, where=thread
-        )
     if played.new_best:
         await refresh_vault(bot, guild_id)
     await maybe_meet(bot, guild_id, user.id, display_name=user.display_name)
@@ -373,7 +307,7 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
 
 
 async def start_duel(interaction: discord.Interaction) -> None:
-    """Start a Rhyme Duel; each member can only have one going at a time.
+    """Start a Rhyme Duel; a member's room runs one game at a time.
 
     The answer is private. It is a new message even when a button was
     pressed, so the duel's receipt is added under it as for the command.
@@ -383,7 +317,7 @@ async def start_duel(interaction: discord.Interaction) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
     key = (guild_id, interaction.user.id)
     if key in bot.room_games:
-        await say_privately(interaction, _ALREADY_DUELING)
+        await say_privately(interaction, ROOM_BUSY)
         return
     bot.room_games.add(key)
     try:
@@ -429,12 +363,7 @@ class RhymeDuelButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Start a Rhyme Duel for whoever pressed it."""
-        await press(
-            interaction,
-            "the Rhyme Duel button",
-            start_duel,
-            (*EXPECTED_FAILURES, NoHouseError),
-        )
+        await press(interaction, "the Rhyme Duel button", start_duel)
 
 
 # ---
