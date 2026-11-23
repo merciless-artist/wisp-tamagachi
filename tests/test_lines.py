@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from wisp.life import Mood
-from wisp.lines import FIELDS, LINES, LinePicker, Moment, lines_for
-from wisp.rules import Stage
+from wisp.lines import CRAVING_HINTS, FIELDS, LINES, LinePicker, Moment, lines_for
+from wisp.rules import PAID_SNACKS, SNACK_BY_KEY, SNACKS, Stage
 
 SAMPLE_FIELDS = {
     "name": "Myra",
@@ -20,6 +20,7 @@ SAMPLE_FIELDS = {
     "word": "fire",
     "gift": "Blue Alien Doll",
     "collection": "Alien Dolls",
+    "snack": "Jelly Wave",
 }
 LONGEST_FIELDS = {
     "name": "W" * 32,
@@ -28,6 +29,7 @@ LONGEST_FIELDS = {
     "word": "w" * 40,
     "gift": "Future Is Bright Affirmation Card",
     "collection": "Affirmation Cards",
+    "snack": "Glitter Wave",
 }
 COLD_WORDS = (
     "cold",
@@ -82,6 +84,12 @@ ONE_MOOD_MOMENTS = {
     Moment.DRAWING_BOND,
     Moment.DRAWING_TOP_FEEDER,
     Moment.DRAWING_LIKE,
+    Moment.CRAVING_START,
+    Moment.CRAVING_NOPE,
+    Moment.CRAVING_WON,
+    Moment.CRAVING_LOST,
+    Moment.CRAVING_TIMED_OUT,
+    Moment.SNACK_WON,
 }
 CHORE_AND_COLD_MOMENTS = [
     Moment.MESS,
@@ -475,6 +483,81 @@ def test_gift_moments_take_their_fields(moment: Moment, fields: set[str]) -> Non
 def test_farewell_moment_lines_have_no_numbers(moment: Moment) -> None:
     for line in LINES[(moment, Mood.HAPPY)]:
         assert not re.search(r"\d", line), line
+
+
+# ---
+# Wisp's Craving
+# ---
+
+CRAVING_MOMENTS = [
+    (Moment.CRAVING_START, {"name"}),
+    (Moment.CRAVING_NOPE, {"snack"}),
+    (Moment.CRAVING_WON, {"name", "snack"}),
+    (Moment.CRAVING_LOST, {"snack"}),
+    (Moment.CRAVING_TIMED_OUT, {"snack"}),
+    (Moment.SNACK_WON, {"name", "snack"}),
+]
+SNACK_WORDS = {
+    word.rstrip("s")
+    for snack in SNACKS
+    for word in snack.name.lower().split()
+    if word != "wave"
+}
+ALL_HINTS = [hint for hints in CRAVING_HINTS.values() for hint in hints]
+
+
+@pytest.mark.parametrize(("moment", "fields"), CRAVING_MOMENTS)
+def test_craving_moments_take_their_fields(moment: Moment, fields: set[str]) -> None:
+    assert FIELDS[moment] == fields
+    assert len(LINES[(moment, Mood.HAPPY)]) >= 6
+
+
+@pytest.mark.parametrize(
+    "moment", [Moment.CRAVING_NOPE, Moment.CRAVING_LOST, Moment.CRAVING_TIMED_OUT]
+)
+def test_craving_lines_name_the_snack(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        assert "snack" in placeholders(line), line
+
+
+def names_a_snack(text: str) -> bool:
+    return any(re.search(rf"\b{word}", text.lower()) for word in SNACK_WORDS)
+
+
+def test_craving_start_lines_give_nothing_away() -> None:
+    for line in LINES[(Moment.CRAVING_START, Mood.HAPPY)]:
+        assert not names_a_snack(line), line
+
+
+def test_snack_lines_never_put_an_article_before_the_snack() -> None:
+    """Snacks like Cheese and Pickles read wrong after "a"."""
+    for moment, line in every_line():
+        if "snack" in FIELDS[moment]:
+            assert not re.search(r"\ban? \{snack\}", line, re.IGNORECASE), line
+
+
+def test_every_paid_snack_has_three_craving_hints() -> None:
+    assert set(CRAVING_HINTS) == {snack.key for snack in PAID_SNACKS}
+    assert all(len(hints) == 3 for hints in CRAVING_HINTS.values())
+
+
+def test_no_hint_names_any_snack() -> None:
+    for key, hints in CRAVING_HINTS.items():
+        name = SNACK_BY_KEY[key].name.lower()
+        for hint in hints:
+            assert name not in hint.lower(), hint
+            assert not names_a_snack(hint), hint
+
+
+def test_hints_follow_the_line_rules() -> None:
+    assert len(ALL_HINTS) == len(set(ALL_HINTS))
+    assert not set(ALL_HINTS) & {line for _, line in every_line()}
+    for hint in ALL_HINTS:
+        assert "\n" not in hint and "{" not in hint, hint
+        assert "—" not in hint and "–" not in hint, hint
+        assert "‍" not in hint and "️" not in hint, hint
+        for char in hint:
+            assert unicodedata.category(char) != "So", hint
 
 
 # ---

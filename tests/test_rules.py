@@ -12,6 +12,9 @@ from wisp.rules import (
     BOND_TIERS,
     CHORE_POINTS,
     COLD_PICTURES,
+    CRAVING_GUESSES,
+    CRAVING_TIMEOUT,
+    CRAVINGS_PER_DAY,
     FAREWELL_AT_DAY,
     LIGHTS_WINDOW,
     MEAL_POINTS,
@@ -20,6 +23,8 @@ from wisp.rules import (
     POX_PICTURES,
     RHYME_SKILL,
     RHYME_SURE_TURNS,
+    ROOM_ARCHIVE_MINUTES,
+    ROOM_NAME_MAX,
     SICK_PICTURES,
     SNACKS,
     STAGE_MIN_TIME,
@@ -132,7 +137,7 @@ def test_a_badge_no_longer_sold_still_has_a_readable_name(key: str, name: str) -
 
 @pytest.mark.parametrize("stage", list(Stage))
 def test_the_pox_pool_is_his_sick_picture_and_the_sneeze(stage: Stage) -> None:
-    expected = ("sneeze.gif",)
+    expected: tuple[str, ...] = ("sneeze.gif",)
     if stage in SICK_PICTURES:
         expected = (SICK_PICTURES[stage], "sneeze.gif")
     assert POX_PICTURES[stage] == expected
@@ -140,3 +145,13 @@ def test_the_pox_pool_is_his_sick_picture_and_the_sneeze(stage: Stage) -> None:
 
 def test_the_cold_pool_is_the_cold_picture_and_the_sneeze() -> None:
     assert COLD_PICTURES == ("wispsick.gif", "sneeze.gif")
+
+
+def test_craving_numbers() -> None:
+    assert (CRAVINGS_PER_DAY, CRAVING_GUESSES) == (1, 3)
+    assert CRAVING_TIMEOUT == timedelta(minutes=5)
+
+
+def test_rooms_fit_what_discord_allows() -> None:
+    assert ROOM_ARCHIVE_MINUTES in (60, 1440, 4320, 10080)
+    assert ROOM_NAME_MAX == 100

@@ -325,7 +325,7 @@ BAN_LADDER: tuple[timedelta | None, ...] = (
 # ---
 
 # Discord only allows 60, 1440, 4320 or 10080 minutes, here and for
-# STUDIO_THREAD_ARCHIVE_MINUTES.
+# STUDIO_THREAD_ARCHIVE_MINUTES and ROOM_ARCHIVE_MINUTES.
 RHYME_THREAD_ARCHIVE_MINUTES: Final = 60
 RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
@@ -354,6 +354,26 @@ RHYME_SKILL: dict[Stage, float] = {
     Stage.OLD_FOGEY: 0.9,
 }
 RHYME_TIRING = 0.1
+
+# ---
+# Wisp's Craving
+# ---
+
+# Each member's own daily snack guess, apart from their Rhyme Duel plays. A
+# round ends as a loss after CRAVING_GUESSES wrong guesses, or after
+# CRAVING_TIMEOUT with no guess, counted from the last one.
+CRAVINGS_PER_DAY = 1
+CRAVING_GUESSES = 3
+CRAVING_TIMEOUT = timedelta(minutes=5)
+
+# ---
+# Rooms
+# ---
+
+# Each member's private thread off his House. Discord caps a thread name at
+# ROOM_NAME_MAX characters.
+ROOM_ARCHIVE_MINUTES: Final = 10080
+ROOM_NAME_MAX: Final = 100
 
 # ---
 # Studio

@@ -2,6 +2,7 @@
 
 import random
 from enum import StrEnum, auto
+from typing import Final
 
 from wisp.life import Mood
 
@@ -78,11 +79,19 @@ class Moment(StrEnum):
     DRAWING_BOND = auto()
     DRAWING_TOP_FEEDER = auto()
     DRAWING_LIKE = auto()
+    CRAVING_START = auto()
+    CRAVING_NOPE = auto()
+    CRAVING_WON = auto()
+    CRAVING_LOST = auto()
+    CRAVING_TIMED_OUT = auto()
+    SNACK_WON = auto()
 
 
 _NAME = frozenset({"name"})
 _GIFT = frozenset({"name", "gift"})
 _VERSION = frozenset({"version"})
+_SNACK = frozenset({"snack"})
+_NAME_SNACK = frozenset({"name", "snack"})
 _NONE: frozenset[str] = frozenset()
 
 FIELDS: dict[Moment, frozenset[str]] = {
@@ -151,13 +160,20 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.DRAWING_BOND: _NAME,
     Moment.DRAWING_TOP_FEEDER: _NAME,
     Moment.DRAWING_LIKE: _NAME,
+    Moment.CRAVING_START: _NAME,
+    Moment.CRAVING_NOPE: _SNACK,
+    Moment.CRAVING_WON: _NAME_SNACK,
+    Moment.CRAVING_LOST: _SNACK,
+    Moment.CRAVING_TIMED_OUT: _SNACK,
+    Moment.SNACK_WON: _NAME_SNACK,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
 `name` is the member's display name, `version` is Wisp's version number,
 `stage` is the lowercase stage word (child, teen, adult, rockstar), `word`
 is the word Wisp opens a Rhyme Duel with, `gift` is a gift's title such as
-"Blue Alien Doll" and `collection` is a collection's name such as "Books".
+"Blue Alien Doll", `collection` is a collection's name such as "Books" and
+`snack` is a snack's name such as "Jelly Wave".
 """
 
 # ---
@@ -955,6 +971,108 @@ _RHYME_PLAYER_STUCK_HANGRY = (
 )
 
 # ---
+# Wisp's Craving
+# ---
+
+_CRAVING_START = (
+    "{name}, I'm craving something. bad. guess what it is",
+    "ok {name}, my stomach has a very specific wish today. read my mind",
+    "I want one thing and one thing only, {name}. you get to figure out what",
+    "guessing game! I'm thinking of a snack. no peeking in my lunchbox, {name}",
+    "{name}. I've been daydreaming about a snack all day. can you tell which",
+    "my flame keeps flickering toward one snack. take a guess, {name}",
+)
+
+_CRAVING_NOPE = (
+    "{snack}? nah, not today",
+    "{snack}? I like it, but that's not the one",
+    "nope, not {snack}. my stomach just shook its head",
+    "{snack} is nice. {snack} is not what I'm dreaming about",
+    "not {snack}. keep going, you're warming up",
+    "{snack}? cute guess. wrong though",
+)
+
+_CRAVING_WON = (
+    "YES. {snack}! {name}, you get me. it's yours now, and I'll be waiting for it",
+    "{snack}!! {name}, you read my whole mind. I'll be waiting for that one",
+    "that's it, {snack}! {name}, it's in your Snack Pack now. no pressure. ok, some",
+    "{name} got it. {snack}. I'm already drooling a little. I'll be waiting",
+    "how did you KNOW. {snack}, {name}. keep it safe for me, I'll be right here",
+    "{snack}, exactly {snack}. {name}, you're a mind reader. feed it to me soon",
+)
+
+_CRAVING_LOST = (
+    "it was {snack}! I was dreaming about {snack} all day",
+    "so close. it was {snack}. my stomach forgives you. mostly",
+    "the answer was {snack}. I'll be thinking about it all night",
+    "{snack}. it was {snack} the whole time. good try though",
+    "nope, out of guesses. I was craving {snack}. tomorrow's a new snack",
+    "aw. it was {snack}. I'm gonna go stare at a picture of it now",
+)
+
+_CRAVING_TIMED_OUT = (
+    "you went quiet on me. it was {snack}, by the way",
+    "I waited and waited. it was {snack}. maybe tomorrow",
+    "guessing's over, my stomach got bored. it was {snack}",
+    "hello? nobody? fine. I was craving {snack}",
+    "time's up. it was {snack}, and now I want it even more",
+    "you wandered off. the answer was {snack}. I'll survive",
+)
+
+_SNACK_WON = (
+    "this is the one you won for me! {snack}, finally. thank you, {name}",
+    "{name}! the {snack} you won for me! I've been waiting",
+    "you guessed it AND you brought it. {snack}, {name}. best day",
+    "my {snack}, the one you won! {name}, I knew you'd come back with it",
+    "I told you I'd be waiting, {name}. this {snack} tastes like winning",
+    "{name} kept their promise. the {snack} I was craving. nom",
+)
+
+CRAVING_HINTS: Final[dict[str, tuple[str, str, str]]] = {
+    "cloudwave": (
+        "something... soft",
+        "it's so light it almost floats off the plate",
+        "white and fluffy, like the sky left some behind",
+    ),
+    "jellywave": (
+        "something... wobbly",
+        "it jiggles every time the bass hits",
+        "squishy, see-through, and it wiggles right off the spoon",
+    ),
+    "juicewave": (
+        "something wet. I know, fire sprite. I want it anyway",
+        "it's sweet and it makes me hiss a little when I sip it",
+        "fruity and cold, and you drink it through a straw",
+    ),
+    "spicywave": (
+        "something that bites back",
+        "it makes my headphones fog up",
+        "hot hot hot, my tongue's sweating just thinking about it",
+    ),
+    "cheese": (
+        "something... melty",
+        "it stretches out all long when you pull it apart",
+        "yellow, full of holes, and mice would fight me for it",
+    ),
+    "pickles": (
+        "something crunchy, and a little sour",
+        "it sat in a jar for weeks thinking about its life",
+        "green and briny, and everybody's got an opinion on it",
+    ),
+    "glitterwave": (
+        "something... shiny",
+        "it sparkles so hard it gets everywhere after",
+        "it leaves little twinkly bits on my face for a week",
+    ),
+    "viibrwave": (
+        "something fancy. like, really fancy",
+        "it tastes like the whole server humming at once",
+        "the priciest one in the Vault, named after where we all hang out",
+    ),
+}
+"""Wisp's Craving hints for each snack he can crave, clearer each time."""
+
+# ---
 # Talking
 # ---
 
@@ -1234,6 +1352,12 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.DRAWING_BOND, _DRAWING_BOND),
     **_either_mood(Moment.DRAWING_TOP_FEEDER, _DRAWING_TOP_FEEDER),
     **_either_mood(Moment.DRAWING_LIKE, _DRAWING_LIKE),
+    **_either_mood(Moment.CRAVING_START, _CRAVING_START),
+    **_either_mood(Moment.CRAVING_NOPE, _CRAVING_NOPE),
+    **_either_mood(Moment.CRAVING_WON, _CRAVING_WON),
+    **_either_mood(Moment.CRAVING_LOST, _CRAVING_LOST),
+    **_either_mood(Moment.CRAVING_TIMED_OUT, _CRAVING_TIMED_OUT),
+    **_either_mood(Moment.SNACK_WON, _SNACK_WON),
 }
 """Every moment has happy and hangry lines. One without lonely lines of its own
 says its happy lines when he is lonely; see `lines_for`."""
