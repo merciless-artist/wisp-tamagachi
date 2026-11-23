@@ -49,6 +49,9 @@ class FakeServer:
 
     def __init__(self) -> None:
         self.threads: dict[int, MagicMock] = {}
+        self.add_user_error: discord.HTTPException | None = None
+        self.welcome_error: discord.HTTPException | None = None
+        self.delete_error: discord.HTTPException | None = None
         self._next_id = 5000
         self.house = self.make_house(HOUSE_ID)
         self.channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
@@ -74,11 +77,25 @@ class FakeServer:
         thread.archived = False
         thread.mention = f"<#{thread.id}>"
         thread.create_kwargs = kwargs
-        thread.add_user = AsyncMock()
-        thread.send = AsyncMock()
+        thread.add_user = AsyncMock(side_effect=lambda _user: self._add_user())
+        thread.send = AsyncMock(side_effect=lambda *_a, **_k: self._welcome())
+        thread.delete = AsyncMock(side_effect=lambda: self._delete(thread))
         thread.edit = AsyncMock(side_effect=lambda **fields: self._edit(thread, fields))
         self.threads[thread.id] = thread
         return thread
+
+    def _add_user(self) -> None:
+        if self.add_user_error is not None:
+            raise self.add_user_error
+
+    def _welcome(self) -> None:
+        if self.welcome_error is not None:
+            raise self.welcome_error
+
+    def _delete(self, thread: MagicMock) -> None:
+        if self.delete_error is not None:
+            raise self.delete_error
+        del self.threads[thread.id]
 
     def _edit(self, thread: MagicMock, fields: dict[str, Any]) -> MagicMock:
         for name, value in fields.items():
@@ -242,6 +259,62 @@ async def test_two_members_get_their_own_rooms(
         mine.id,
         theirs.id,
     )
+
+
+def forbidden() -> discord.Forbidden:
+    return discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+
+
+async def test_a_reused_room_adds_the_member_back(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    member = make_member()
+    room = await open_room(bot, server.guild, member)
+
+    await open_room(bot, server.guild, member)
+
+    assert room.add_user.await_args_list == [((member,),), ((member,),)]
+
+
+@pytest.mark.parametrize("failing", ["add_user_error", "welcome_error"])
+async def test_a_half_made_room_is_deleted_and_made_again(
+    bot: app.WispBot, server: FakeServer, failing: str
+) -> None:
+    await configure(bot)
+    setattr(server, failing, forbidden())
+
+    with pytest.raises(discord.Forbidden):
+        await open_room(bot, server.guild, make_member())
+
+    assert server.threads == {}
+    assert await stored_room(bot) is None
+
+    setattr(server, failing, None)
+    room = await open_room(bot, server.guild, make_member())
+
+    assert server.only_room() is room
+    assert await stored_room(bot) == room.id
+
+
+async def test_a_half_made_room_that_cannot_be_deleted_is_reused(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    server.add_user_error = forbidden()
+    server.delete_error = forbidden()
+    member = make_member()
+
+    for _ in range(2):
+        with pytest.raises(discord.Forbidden):
+            await open_room(bot, server.guild, member)
+
+    room = server.only_room()
+    server.house.create_thread.assert_awaited_once()
+    assert await stored_room(bot) == room.id
+
+    server.add_user_error = None
+    assert await open_room(bot, server.guild, member) is room
 
 
 async def test_an_archived_room_is_reopened(

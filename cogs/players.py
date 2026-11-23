@@ -437,8 +437,13 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        """Save the trimmed name and rename their room, or say why it cannot be used."""
+        """Save the trimmed name and rename their room, or say why it cannot be used.
+
+        The room is renamed after the answer, so a slow rename cannot make the
+        form's answer late.
+        """
         name = self.name.value.strip()
+        saved = False
         if (refusal := await _name_refusal(interaction)) is not None:
             reply = refusal
         elif not name:
@@ -449,11 +454,18 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
             bot = bot_of(interaction)
             guild_id = require_guild(interaction)
             await bot.players.set_name(guild_id, interaction.user.id, name)
-            await rename_room(bot, guild_id, interaction.user.id, name)
             reply = f"♪ Wisp will call you {name} from now on."
+            saved = True
         await interaction.response.send_message(
             reply, ephemeral=True, allowed_mentions=_NO_PING
         )
+        if saved:
+            await rename_room(
+                bot_of(interaction),
+                require_guild(interaction),
+                interaction.user.id,
+                name,
+            )
 
     async def on_error(  # type: ignore[override]
         self, interaction: discord.Interaction, error: Exception

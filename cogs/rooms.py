@@ -77,52 +77,78 @@ async def open_room(
 ) -> discord.Thread:
     """Return the member's room, ready to post in, making it when needed.
 
-    A stored room that is archived is reopened. One that was deleted, or sits
-    under an old House, is made again: a private thread off the House that
-    only the member is added to, with a welcome post. Two calls at once make
-    one room. Discord's refusals are raised as they come.
+    A stored room that is archived is reopened, and the member is added back
+    in case they left it. One that was deleted, or sits under an old House, is
+    made again: a private thread off the House that only the member is added
+    to, with a welcome post. Two calls at once make one room. Discord's
+    refusals are raised as they come.
+
+    A new room is stored as soon as it is made. When adding the member or the
+    welcome post fails, the room is deleted and forgotten so the next call
+    starts clean; when it cannot be deleted, it stays stored and is reused.
 
     Raises:
         RoomError: The House is not set, cannot be seen or is not a text channel.
     """
-    key = (guild.id, member.id)
-    async with bot.room_locks.setdefault(key, asyncio.Lock()):
+    async with bot.room_locks.setdefault((guild.id, member.id), asyncio.Lock()):
         house = await _house(bot, guild)
         player = await bot.players.get(guild.id, member.id)
         room = await _stored_room(bot, house.id, player.room_thread_id)
         if room is not None:
-            return await room.edit(archived=False) if room.archived else room
+            if room.archived:
+                room = await room.edit(archived=False)
+            await room.add_user(member)
+            return room
         room = await house.create_thread(
             name=room_name(player.name or member.display_name),
             type=discord.ChannelType.private_thread,
             invitable=False,
             auto_archive_duration=ROOM_ARCHIVE_MINUTES,
         )
-        await room.add_user(member)
-        await room.send(
-            _welcome(member),
-            allowed_mentions=discord.AllowedMentions(
-                everyone=False, roles=False, users=[member], replied_user=False
-            ),
-        )
         await bot.players.set_room(guild.id, member.id, room.id)
+        try:
+            await room.add_user(member)
+            await room.send(
+                _welcome(member),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, roles=False, users=[member], replied_user=False
+                ),
+            )
+        except discord.HTTPException:
+            await _discard(bot, guild.id, member.id, room)
+            raise
         return room
+
+
+async def _discard(
+    bot: "WispBot", guild_id: int, user_id: int, room: discord.Thread
+) -> None:
+    """Delete a half-made room and forget it; when it cannot be deleted, keep it."""
+    try:
+        await room.delete()
+    except discord.HTTPException:
+        return
+    await bot.players.set_room(guild_id, user_id, None)
 
 
 async def rename_room(bot: "WispBot", guild_id: int, user_id: int, name: str) -> None:
     """Rename the member's room for the name Wisp now calls them.
 
     A room that is not stored or no longer reachable is left alone; it gets
-    the right name when it is made again. A failure is reported, never raised.
+    the right name when it is made again. A Discord failure is reported, not
+    raised; a database failure is raised.
     """
     guild = bot.get_guild(guild_id)
-    try:
+    async with bot.room_locks.setdefault((guild_id, user_id), asyncio.Lock()):
         settings = await bot.settings.get(guild_id)
-        player = await bot.players.get(guild_id, user_id)
         if settings.house_channel_id is None:
             return
-        room = await _stored_room(bot, settings.house_channel_id, player.room_thread_id)
-        if room is not None:
-            await room.edit(name=room_name(name), archived=False)
-    except discord.HTTPException as error:
-        await bot.report_error(guild, "renaming a room", error)
+        player = await bot.players.get(guild_id, user_id)
+        try:
+            room = await _stored_room(
+                bot, settings.house_channel_id, player.room_thread_id
+            )
+            if room is not None:
+                await room.edit(name=room_name(name), archived=False)
+        except discord.HTTPException as error:
+            await bot.report_error(guild, "renaming a room", error)
