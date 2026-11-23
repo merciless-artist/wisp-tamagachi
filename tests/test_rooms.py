@@ -35,7 +35,7 @@ WELCOME = "\n".join(
     [
         f"♪ This is your room with Wisp, <@{USER_ID}>.",
         "・Your games with him happen here.",
-        "・Your Snack Pack is pinned here. Open it any time with /wisp snackpack.",
+        "・Your Snack Pack gets pinned here each time you open it with /wisp snackpack.",
     ]
 )
 
@@ -172,7 +172,8 @@ async def board(bot: app.WispBot, server: FakeServer) -> MagicMock:
 async def open_room(
     bot: app.WispBot, guild: discord.Guild, member: discord.abc.User
 ) -> MagicMock:
-    """`rooms.open_room`, returning the fake thread it found or made."""
+    """`rooms.open_room` for a member who joined, returning the fake thread."""
+    await bot.players.activate(GUILD_ID, member.id, NOW)
     return cast(MagicMock, await rooms.open_room(bot, guild, member))
 
 
@@ -373,6 +374,18 @@ async def test_a_new_room_forgets_the_old_rooms_snack_pack(
     await open_room(bot, server.guild, make_member())
 
     assert (await bot.players.get(GUILD_ID, USER_ID)).room_pack_message_id is None
+
+
+async def test_a_member_who_has_not_joined_gets_no_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+
+    with pytest.raises(RoomError, match=rooms.NOT_JOINED):
+        await rooms.open_room(bot, server.guild, make_member())
+
+    server.house.create_thread.assert_not_awaited()
+    assert await stored_room(bot) is None
 
 
 @pytest.mark.parametrize("house_id", [None, 999])

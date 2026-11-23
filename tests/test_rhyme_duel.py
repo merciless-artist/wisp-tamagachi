@@ -22,7 +22,7 @@ import app
 from cogs import groups, rhyme_duel
 from cogs.craving import CravingButton
 from cogs.rhyme_duel import PlayButton, RhymeDuelButton
-from cogs.rooms import RoomError
+from cogs.rooms import NOT_JOINED, RoomError
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
 from db.cravings import CravingRepo
@@ -689,25 +689,19 @@ async def test_duel_counts_as_play(
     meeting.assert_awaited_once_with(bot, GUILD_ID, USER_ID, display_name="Member1")
 
 
-@pytest.mark.parametrize(
-    ("roles", "activated"), [((), True), ((QUALIFYING_ROLE,), False)]
-)
 async def test_a_duel_by_someone_who_cannot_feed_keeps_only_the_score(
     bot: app.WispBot,
     server: FakeServer,
     db: Database,
     wisp_says: Callable[..., list[Any]],
-    roles: tuple[int, ...],
-    activated: bool,
 ) -> None:
     life = await lay(bot)
     wisp_says(None)
     newcomer = OTHER_USER_ID + 1
-    if activated:
-        await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
     cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
 
-    await start(make_interaction(bot, server, newcomer, roles=roles))
+    await start(make_interaction(bot, server, newcomer, roles=()))
 
     assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
     player = await bot.players.get(GUILD_ID, newcomer)
@@ -974,34 +968,40 @@ async def test_a_duel_past_the_daily_limit_says_so(
     )
 
 
-@pytest.mark.parametrize(
-    ("roles", "activated", "reason"),
-    [
-        ((), True, f"you don't have a role that can feed Wisp: <@&{QUALIFYING_ROLE}>."),
-        ((QUALIFYING_ROLE,), False, "you haven't opened /wisp board yet."),
-    ],
-)
-async def test_a_duel_by_someone_who_cannot_feed_says_why(
+async def test_a_duel_by_someone_without_a_feeding_role_says_why(
     bot: app.WispBot,
     server: FakeServer,
     wisp_says: Callable[..., list[Any]],
-    roles: tuple[int, ...],
-    activated: bool,
-    reason: str,
 ) -> None:
     await lay(bot)
     wisp_says(None)
     newcomer = OTHER_USER_ID + 1
-    if activated:
-        await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
     cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
-    interaction = make_interaction(bot, server, newcomer, roles=roles)
+    interaction = make_interaction(bot, server, newcomer, roles=())
 
     await start(interaction)
 
     assert receipt(interaction) == (
-        f"♪ This duel didn't count toward his Wellbeing: {reason}"
+        "♪ This duel didn't count toward his Wellbeing: "
+        f"you don't have a role that can feed Wisp: <@&{QUALIFYING_ROLE}>."
     )
+
+
+async def test_a_duel_by_someone_who_has_not_joined_is_refused_without_a_room(
+    bot: app.WispBot, server: FakeServer, db: Database
+) -> None:
+    await lay(bot)
+    newcomer = OTHER_USER_ID + 1
+    interaction = make_interaction(bot, server, newcomer, roles=(QUALIFYING_ROLE,))
+
+    await start(interaction)
+
+    assert replies(interaction) == [f"♪ {NOT_JOINED}"]
+    server.house.create_thread.assert_not_awaited()
+    assert (await bot.players.get(GUILD_ID, newcomer)).room_thread_id is None
+    assert await bot.players.top_rhyme(GUILD_ID, 5) == []
+    assert await db.fetchall(f"SELECT id FROM {db.t('interactions')}") == []
 
 
 async def test_a_duel_when_wisp_died_says_he_isnt_alive(

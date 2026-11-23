@@ -31,8 +31,9 @@ you do to him shows in his House:
 - **Poke Wisp** pokes him, as everywhere else.
 - **Vault** opens what `/wisp vault` opens.
 - **Snack Pack** opens what `/wisp snackpack` opens.
-- **Play** opens a games menu, with one game for now, **Rhyme Duel**. It
-  starts a duel exactly as `/wisp play rhyme` does.
+- **Play** opens a games menu with two games, **Rhyme Duel** and
+  **Wisp's Craving**. They start exactly as `/wisp play rhyme` and
+  `/wisp play craving` do.
 - **Lunchbox** shows his lunchbox to you alone. `/wisp lunchbox` still posts
   it in the channel.
 
@@ -195,9 +196,9 @@ picture.
 - **Receipts.** What you do to him says what it did where everyone can see:
   on his House post for a snack (`Wellbeing +8 (now 66)`), a gift (that, and
   the bond if he kept it), a counted poke (and how many pokes are left today)
-  and a chore (its wisp coins, and Health for a cleanup), and in its thread
-  for a Rhyme Duel (Wellbeing, the Vault point and games left today). His
-  House is told who started a duel.
+  and a chore (its wisp coins, and Health for a cleanup), and in your room
+  for a Rhyme Duel (Wellbeing, the Vault point and games left today) or a
+  Wisp's Craving (Wellbeing, bond and wisp coins).
 - **Reasons.** When you press a button or use a command and it cannot work,
   you are told the exact reason in a private message: banned, no feeding role
   (naming the server's feeding roles), the board not opened with `/wisp board`,
@@ -441,9 +442,46 @@ the purchase is undone and the points come back.
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
 - `/wisp play rhyme` (also Play, then **Rhyme Duel**, on the Status post)
-  starts a Rhyme Duel with Wisp. A duel that counts as play
+  starts a Rhyme Duel with Wisp in your room. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his
   Wellbeing and pays 1 Vault point.
+- `/wisp play craving` (also Play, then **Wisp's Craving**) starts today's
+  Wisp's Craving in your room (see below).
+
+## Rooms
+
+Each member gets one private thread off Wisp's House, their room, made the
+first time they run `/wisp board` (members who joined earlier get theirs the
+next time they run it). It is named `♪ <name>'s room` for the name Wisp
+knows them by, and renamed when he learns a new one. Only the member, Wisp
+and staff who can manage threads see it. Every game happens there, one at a
+time: starting a duel or a Craving while one is running is refused. The room
+is reused forever; one that was deleted, or sits under an old House, is made
+again on next use, and an archived one is reopened. Someone who has not run
+`/wisp board` never gets a room, and games tell them to open it first.
+
+Opening your Snack Pack anywhere (`/wisp snackpack` or a Snack Pack button)
+also posts it in your room and pins it, deleting the last one. So each open
+adds a new message and a pin notice to the room (see the build notes in
+`DOCS/specs/2026-11-23-rooms-and-wisps-craving-design.md`). When a room
+cannot be made, the error is posted and the room is tried again next time.
+
+## Wisp's Craving
+
+Once a day (UTC), Wisp craves one of the snacks you can buy, never the free
+Sine Wave. He posts a hint and a menu of those snacks in your room. You get
+3 guesses (`CRAVING_GUESSES`); each wrong one leaves the menu and gets a
+"nope" and a clearer hint. A right guess wins: the snack goes into your Snack
+Pack free, and when you feed it to him he knows it is the one you won for
+him. Three misses, or 5 minutes without a guess (`CRAVING_TIMEOUT`), lose,
+and he says what it was. The snack and the guesses used are stored when the
+round starts, so starting again (or a bot restart) picks up the same round.
+Win or lose, a finished round raises his Wellbeing and bond like a counted
+duel and pays its wisp coins, sharing the daily bond cap. He notes what he
+craved and whether you guessed it, and, if you lost and then buy that snack
+yourself the same UTC day, that you bought it anyway. The same refusals as
+the duel apply: banned, not joined, no living Wisp, frozen, napping, or no
+feeding role.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
 its threads). He never answers in the Studio. He answers with AI at every stage: the egg wobbles or crackles in

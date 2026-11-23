@@ -44,7 +44,7 @@ from wisp.craving import (
 )
 from wisp.life import Life, Mood, Phase, mood
 from wisp.lines import Moment
-from wisp.rules import CRAVING_TIMEOUT, SNACK_BY_KEY
+from wisp.rules import CRAVING_TIMEOUT, SNACK_BY_KEY, Snack
 from wisp.text import daily_reset
 
 if TYPE_CHECKING:
@@ -138,10 +138,11 @@ def _feeling(life: Life | None) -> Mood:
     return Mood.HAPPY if life is None else mood(life)
 
 
-def _note(snack_name: str, ending: Ending) -> str:
+def _note(snack: Snack, ending: Ending) -> str:
+    craved = f"I was craving {snack.article} {snack.name}"
     if ending is Ending.WON:
-        return f"I was craving a {snack_name} and they guessed it"
-    return f"I was craving a {snack_name} and they couldn't guess it"
+        return f"{craved} and they guessed it"
+    return f"{craved} and they couldn't guess it"
 
 
 async def _end(
@@ -176,7 +177,7 @@ async def _end(
         receipt = (
             f"♪ Your Craving counted ・ {reward.wellbeing} ・ {bond} ・ {reward.coins}"
         )
-    await bot.notes.add(guild_id, user_id, _note(snack.name, ending), now)
+    await bot.notes.add(guild_id, user_id, _note(snack, ending), now)
     return _Ended(round_, ending, receipt, _feeling(life))
 
 
@@ -217,14 +218,18 @@ async def end_idle_cravings(bot: "WispBot", now: datetime) -> None:
         guild = bot.get_guild(round_.guild_id)
         if ended is None or guild is None:
             continue
+        member = guild.get_member(round_.user_id)
         try:
-            member = guild.get_member(round_.user_id)
             if member is None:
                 member = await guild.fetch_member(round_.user_id)
-            room = await open_room(bot, guild, member)
-            await _announce(bot, room, member, ended)
         except discord.NotFound:
             continue
+        except discord.HTTPException as error:
+            await bot.report_error(guild, "ending an idle Craving", error)
+            continue
+        try:
+            room = await open_room(bot, guild, member)
+            await _announce(bot, room, member, ended)
         except (RoomError, discord.HTTPException) as error:
             await bot.report_error(guild, "ending an idle Craving", error)
 

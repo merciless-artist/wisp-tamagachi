@@ -13,7 +13,7 @@ from discord import app_commands
 
 from cogs.channels import where_of
 from cogs.players import FROZEN_REASON, bot_of, is_frozen, no_wisp_text, say_privately
-from cogs.rooms import RoomError, open_room
+from cogs.rooms import NOT_JOINED, RoomError, open_room
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import casual_bond_grant
@@ -52,12 +52,16 @@ async def check_game(
 ) -> Life | str:
     """The living Wisp a game can start with, or what to tell the member.
 
-    A ban comes first, with `banned`; then no living Wisp, named as `things`
-    (capitalised and plural, such as "Rhymes"); then a freeze; then a nap.
+    A ban comes first, with `banned`; then not having joined with /wisp
+    board, since a game needs the member's room; then no living Wisp, named
+    as `things` (capitalised and plural, such as "Rhymes"); then a freeze;
+    then a nap.
     """
     life = await bot.lives.current(guild_id)
     if player.is_banned(now):
         return banned
+    if player.activated_at is None:
+        return f"♪ {NOT_JOINED}"
     if life is None or life.phase is not Phase.ALIVE:
         return no_wisp_text(life, things)
     if await is_frozen(bot, guild_id):

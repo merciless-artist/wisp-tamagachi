@@ -73,6 +73,14 @@ they can look at their Snack Pack any time.
   (`/wisp snackpack` or a Snack Pack button) and after they win a Craving.
   It is not redrawn on every coin change, which would mean an edit on every
   feed.
+- **Build note (2026-11-23), for Myra:** "redrawn" is a repost: the new pack
+  is posted and pinned, then the old one deleted. Editing the old message in
+  place would need its header picture re-sent on every edit. The trade-off:
+  each open adds a "Wisp pinned a message" notice and a new message to the
+  room, so the member sees an unread badge on their room after opening their
+  pack privately. Say if you would rather have it edited in place.
+- **Build note (2026-11-23):** the welcome post says the pack gets pinned
+  each time they open it, since a new room has no pack until then.
 
 ## Wisp's Craving
 

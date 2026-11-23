@@ -568,12 +568,21 @@ async def test_an_idle_round_of_a_member_who_left_ends_quietly(
     assert stored is not None and stored.ended_at is not None
 
 
+@pytest.mark.parametrize(
+    "refused",
+    [
+        discord.Forbidden(MagicMock(status=403), "Missing Access"),
+        discord.NotFound(MagicMock(status=404), "Unknown Channel"),
+    ],
+)
 async def test_an_idle_round_that_cannot_be_posted_is_reported(
-    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    refused: discord.HTTPException,
 ) -> None:
     await lay(bot)
     await start(bot, server)
-    refused = discord.Forbidden(MagicMock(status=403), "Missing Access")
     server.thread.send.side_effect = refused
     reported = AsyncMock()
     monkeypatch.setattr(bot, "report_error", reported)

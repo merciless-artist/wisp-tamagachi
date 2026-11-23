@@ -7,7 +7,7 @@ import asyncio
 import logging
 import re
 from collections.abc import Iterator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -974,6 +974,23 @@ async def test_a_room_pack_deleted_by_hand_is_simply_replaced(
     assert player.room_pack_message_id == server.packs()[-1].id
 
 
+@pytest.mark.parametrize("opener", [snackpack_command, snack_pack_button])
+async def test_a_member_who_has_not_joined_gets_no_room(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch, opener: Any
+) -> None:
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    interaction = make_interaction(bot, OTHER_USER_ID + 1)
+
+    await opener(interaction)
+
+    assert pack_text(interaction)
+    assert server.made == 0
+    assert not server.packs()
+    reported.assert_not_awaited()
+    assert (await bot.players.get(GUILD_ID, OTHER_USER_ID + 1)).room_thread_id is None
+
+
 async def test_a_room_that_fails_still_shows_the_private_pack(
     bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1397,6 +1414,21 @@ async def test_buying_after_a_win_or_mid_round_leaves_no_note(
     await buy(bot, "jellywave")
 
     assert await notes(bot) == []
+
+
+async def test_buying_after_a_round_lost_past_midnight_leaves_a_note(
+    bot: app.WispBot,
+) -> None:
+    midnight = datetime.combine(discord.utils.utcnow().date(), time(), tzinfo=UTC)
+    round_ = await bot.cravings.start(
+        GUILD_ID, USER_ID, "jellywave", midnight - timedelta(minutes=2)
+    )
+    await bot.cravings.end(GUILD_ID, USER_ID, round_.day, won=False, now=midnight)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+
+    await buy(bot, "jellywave")
+
+    assert await notes(bot) == [BOUGHT_ANYWAY]
 
 
 async def test_buying_the_day_after_losing_leaves_no_note(bot: app.WispBot) -> None:

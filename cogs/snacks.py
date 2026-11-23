@@ -848,15 +848,10 @@ async def buy_snack(interaction: discord.Interaction, snack: Snack) -> None:
 async def _note_craving_bought(
     bot: "WispBot", guild_id: int, user_id: int, snack: Snack
 ) -> None:
-    """Note it once when the member buys the snack he craved today after losing."""
+    """Note it once when the member buys the snack he craved, on the day they lost."""
     now = discord.utils.utcnow()
-    craving = await bot.cravings.today(guild_id, user_id, now)
-    if (
-        craving is None
-        or craving.ended_at is None
-        or craving.won
-        or craving.snack != snack.key
-    ):
+    craving = await bot.cravings.lost_today(guild_id, user_id, now)
+    if craving is None or craving.snack != snack.key:
         return
     if await bot.cravings.mark_bought(guild_id, user_id, craving.day, now):
         await bot.notes.add(
@@ -1277,9 +1272,13 @@ async def show_pack_in_room(
     """Post the member's Snack Pack in their room, pinned, in place of the last one.
 
     The new pack is posted and stored before the old one is deleted, so the
-    room is never left without one. A failure is reported in `where` (Wisp's
-    House without one), never raised; a pack whose pin failed is still kept.
+    room is never left without one. A member who has not joined with /wisp
+    board has no room, so nothing is posted. A failure is reported in `where`
+    (Wisp's House without one), never raised; a pack whose pin failed is
+    still kept.
     """
+    if (await bot.players.get(guild.id, member.id)).activated_at is None:
+        return
     try:
         room = await open_room(bot, guild, member)
         async with bot.room_locks.setdefault((guild.id, member.id), asyncio.Lock()):

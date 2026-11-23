@@ -6,7 +6,7 @@ an old House.
 """
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import discord
 
@@ -21,8 +21,12 @@ if TYPE_CHECKING:
 # ---
 
 
+NOT_JOINED: Final = "Open /wisp board first so Wisp can give you a room."
+
+
 class RoomError(LookupError):
-    """Wisp's House is not set, cannot be seen or is not a text channel.
+    """The member has not joined, or Wisp's House is not set, cannot be seen
+    or is not a text channel.
 
     Its message can be shown to the member.
     """
@@ -38,8 +42,8 @@ def _welcome(member: discord.abc.User) -> str:
         [
             f"♪ This is your room with Wisp, {member.mention}.",
             "・Your games with him happen here.",
-            "・Your Snack Pack is pinned here. "
-            "Open it any time with /wisp snackpack.",
+            "・Your Snack Pack gets pinned here each time you open it "
+            "with /wisp snackpack.",
         ]
     )
 
@@ -88,11 +92,14 @@ async def open_room(
     starts clean; when it cannot be deleted, it stays stored and is reused.
 
     Raises:
-        RoomError: The House is not set, cannot be seen or is not a text channel.
+        RoomError: The member has not joined with /wisp board, or the House is
+            not set, cannot be seen or is not a text channel.
     """
     async with bot.room_locks.setdefault((guild.id, member.id), asyncio.Lock()):
-        house = await _house(bot, guild)
         player = await bot.players.get(guild.id, member.id)
+        if player.activated_at is None:
+            raise RoomError(NOT_JOINED)
+        house = await _house(bot, guild)
         room = await _stored_room(bot, house.id, player.room_thread_id)
         if room is not None:
             if room.archived:

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-11-23 (Rooms and Wisp's Craving)
+
+- **Rooms.** Each member gets one private thread off Wisp's House, made the
+  first time they run `/wisp board` (or on next use for earlier members),
+  named `♪ <name>'s room` and renamed when Wisp learns their name. A deleted
+  room, or one under an old House, is made again; an archived one is
+  reopened. Nobody who has not run `/wisp board` gets a room: games refuse
+  with "Open /wisp board first so Wisp can give you a room." and opening the
+  Snack Pack posts nothing in a room. One game at a time per room.
+- **The Rhyme Duel** runs in the member's room instead of a new public thread.
+- **The Snack Pack in the room.** Opening it anywhere also posts it in the
+  room and pins it, deleting the last one; it is posted again after a
+  Craving win.
+- **Wisp's Craving** (`/wisp play craving`, or Play then Wisp's Craving): a
+  once-a-day snack guess in the room, 3 guesses (`CRAVING_GUESSES`), 5
+  minutes without a guess loses (`CRAVING_TIMEOUT`). A win puts the snack in
+  the Snack Pack free, marked as won, and feeding it gets his "you won this
+  for me" line. Win or lose, a round raises Wellbeing and bond like a counted
+  duel (`InteractionKind.CRAVING`). Wisp notes what he craved and whether
+  they guessed it, and a loss followed by buying that snack the same UTC day.
+  Idle rounds are ended by the life loop and announced in the room.
+- **Storage (all additive):** `players.room_thread_id`,
+  `players.room_pack_message_id`, `inventory.won`, and a new `cravings` table
+  keyed `(guild_id, user_id, day)`.
+- Setup's permission check gains Create Private Threads and Pin Messages.
+
 ## 2026-11-23 (A track feeds each Wisp once)
 
 - A track used to feed the server once, ever, so tracks fed to test lives

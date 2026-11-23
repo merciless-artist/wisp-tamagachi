@@ -408,13 +408,18 @@ NAP_STAGES: Final = frozenset({Stage.BABY, Stage.CHILD})
 
 @dataclass(frozen=True)
 class Snack:
-    """A snack in the Snack Box."""
+    """A snack in the Snack Box.
+
+    `article` goes before its name in a sentence, such as "a Jelly Wave" or
+    "some Cheese".
+    """
 
     key: str
     name: str
     cost: int
     meal: int
     growth: int
+    article: str = "a"
 
     @property
     def emoji_name(self) -> str:
@@ -435,8 +440,8 @@ SNACKS: tuple[Snack, ...] = (
     Snack("jellywave", "Jelly Wave", 6, 5, 1),
     Snack("juicewave", "Juice Wave", 6, 5, 1),
     Snack("spicywave", "Spicy Wave", 5, 8, 2),
-    Snack("cheese", "Cheese", 6, 8, 2),
-    Snack("pickles", "Pickles", 6, 8, 2),
+    Snack("cheese", "Cheese", 6, 8, 2, article="some"),
+    Snack("pickles", "Pickles", 6, 8, 2, article="some"),
     Snack("glitterwave", "Glitter Wave", 6, 12, 3),
     Snack("viibrwave", "ViiBR Wave", 10, 15, 3),
 )
