@@ -264,13 +264,19 @@ async def say_in_mealtime(
 
 
 def _fields(
-    moment: Moment, version: int, event: Event | None, name: str | None
+    moment: Moment,
+    version: int,
+    event: Event | None,
+    name: str | None,
+    snack: str | None,
 ) -> dict[str, str]:
     available = {"version": str(version)}
     if event is not None and event.stage is not None:
         available["stage"] = event.stage.value
     if name is not None:
         available["name"] = name
+    if snack is not None:
+        available["snack"] = snack
     return {field: available[field] for field in FIELDS[moment]}
 
 
@@ -280,9 +286,10 @@ def _line(
     life: Life,
     event: Event | None = None,
     name: str | None = None,
+    snack: str | None = None,
 ) -> str:
     return bot.lines.pick(
-        moment, mood(life), **_fields(moment, life.version, event, name)
+        moment, mood(life), **_fields(moment, life.version, event, name, snack)
     )
 
 
@@ -293,6 +300,7 @@ async def say_in_house(
     life: Life,
     *,
     name: str | None = None,
+    snack: str | None = None,
     prefix: str = "",
     image: Path | None = None,
     view: discord.ui.View | None = None,
@@ -300,15 +308,16 @@ async def say_in_house(
 ) -> discord.Message | None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
-    `name` fills the line's name when the moment has one, `prefix` goes in front
-    of the line, `image` attaches a file, `view` adds buttons and `ping` is the
-    one member the post may ping. Returns the post, or None when the House is
-    missing or the post failed; either is reported.
+    `name` and `snack` fill the line's name and snack when the moment has
+    them, `prefix` goes in front of the line, `image` attaches a file, `view`
+    adds buttons and `ping` is the one member the post may ping. Returns the
+    post, or None when the House is missing or the post failed; either is
+    reported.
     """
     return await post_in_house(
         bot,
         guild_id,
-        prefix + _line(bot, moment, life, name=name),
+        prefix + _line(bot, moment, life, name=name, snack=snack),
         image,
         view,
         ping,

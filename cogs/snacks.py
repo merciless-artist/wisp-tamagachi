@@ -1,5 +1,6 @@
 """The ViiBR Vault, Snack Packs and the Feed button: snacks and gifts for Wisp."""
 
+import asyncio
 import contextlib
 import functools
 import re
@@ -64,6 +65,7 @@ from cogs.players import (
     say_privately,
     too_poor_text,
 )
+from cogs.rooms import RoomError, open_room
 from db.activity import InteractionKind
 from db.keepsakes import Keepsake
 from db.players import Player
@@ -840,6 +842,29 @@ async def buy_snack(interaction: discord.Interaction, snack: Snack) -> None:
             f"♪ Bought {snack.name} for {snack.cost} WC.",
             "confirming a snack purchase (the purchase went through)",
         )
+        await _note_craving_bought(bot, guild_id, user.id, snack)
+
+
+async def _note_craving_bought(
+    bot: "WispBot", guild_id: int, user_id: int, snack: Snack
+) -> None:
+    """Note it once when the member buys the snack he craved today after losing."""
+    now = discord.utils.utcnow()
+    craving = await bot.cravings.today(guild_id, user_id, now)
+    if (
+        craving is None
+        or craving.ended_at is None
+        or craving.won
+        or craving.snack != snack.key
+    ):
+        return
+    if await bot.cravings.mark_bought(guild_id, user_id, craving.day, now):
+        await bot.notes.add(
+            guild_id,
+            user_id,
+            f"they lost my Craving but bought me the {snack.name} anyway",
+            now,
+        )
 
 
 async def get_badge(interaction: discord.Interaction, badge: Badge) -> None:
@@ -1222,20 +1247,59 @@ async def _open_snack_pack(interaction: discord.Interaction) -> None:
     """Show the member's own snacks and keepsakes, with a button to the shop.
 
     It is one Components V2 message: the header picture, the Snack Pack, then
-    the Shop the Vault button.
+    the Shop the Vault button. The copy pinned in the member's room is then
+    redrawn.
     """
     if not await _admit(interaction):
         return
+    bot = bot_of(interaction)
     await send_framed(
         functools.partial(interaction.followup.send, ephemeral=True),
         _PACK_HEADER,
-        await _snack_pack_text(
-            bot_of(interaction), require_guild(interaction), interaction.user.id
-        ),
+        await _snack_pack_text(bot, require_guild(interaction), interaction.user.id),
         [[ShopButton()]],
         allowed_mentions=_NO_PING,
         wait=True,
     )
+    if interaction.guild is not None:
+        await show_pack_in_room(
+            bot, interaction.guild, interaction.user, where=where_of(interaction)
+        )
+
+
+async def show_pack_in_room(
+    bot: "WispBot",
+    guild: discord.Guild,
+    member: discord.abc.User,
+    *,
+    where: discord.abc.Messageable | None = None,
+) -> None:
+    """Post the member's Snack Pack in their room, pinned, in place of the last one.
+
+    The new pack is posted and stored before the old one is deleted, so the
+    room is never left without one. A failure is reported in `where` (Wisp's
+    House without one), never raised; a pack whose pin failed is still kept.
+    """
+    try:
+        room = await open_room(bot, guild, member)
+        async with bot.room_locks.setdefault((guild.id, member.id), asyncio.Lock()):
+            player = await bot.players.get(guild.id, member.id)
+            posted = await send_framed(
+                room.send,
+                _PACK_HEADER,
+                await _snack_pack_text(bot, guild.id, member.id),
+                [[ShopButton()]],
+                allowed_mentions=_NO_PING,
+            )
+            await bot.players.set_room_pack(guild.id, member.id, posted.id)
+            if player.room_pack_message_id is not None:
+                with contextlib.suppress(discord.NotFound):
+                    await room.get_partial_message(player.room_pack_message_id).delete()
+            await posted.pin()
+    except (RoomError, discord.HTTPException) as error:
+        await bot.report_error(
+            guild, "showing the Snack Pack in a room", error, where=where
+        )
 
 
 @wisp.command(
@@ -1339,6 +1403,7 @@ class _Meal:
     life: Life
     player: Player
     wellbeing_before: float
+    won: bool
 
 
 async def _eat(
@@ -1369,8 +1434,12 @@ async def _eat(
     points = meal_grant(eaten, snack.meal, DAILY_SNACK_CAP)
     if points == 0:
         raise Refusal(full_text(now))
+    won = False
     if snack == _FREE:
         kind = InteractionKind.FREE_SNACK
+    elif await log.take_won_snack(guild_id, user_id, snack.key):
+        kind = InteractionKind.SNACK
+        won = True
     elif await log.take_snack(guild_id, user_id, snack.key):
         kind = InteractionKind.SNACK
     else:
@@ -1385,7 +1454,7 @@ async def _eat(
         await bot.players.add_bond(guild_id, user_id, bond)
     await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
     await bot.lives.save(guild_id, life)
-    return _Meal(life, player, before)
+    return _Meal(life, player, before, won)
 
 
 def full_text(now: datetime) -> str:
@@ -1403,13 +1472,20 @@ def _moment(snack: Snack) -> Moment:
 
 
 def _reaction(
-    snack: Snack, stance: PickleStance | None, favorite: str | None
+    snack: Snack,
+    stance: PickleStance | None,
+    favorite: str | None,
+    *,
+    won: bool = False,
 ) -> tuple[Moment, str]:
     """The moment Wisp reacts with and the name of his eating GIF.
 
-    His favorite snack always gets its own line. Otherwise pickles go the other
-    way from the member's stance; every other snack ignores it.
+    A snack the member won for him always gets its own line, even in his
+    sleep, then his favorite snack. Otherwise pickles go the other way from
+    the member's stance; every other snack ignores it.
     """
+    if won:
+        return Moment.SNACK_WON, snack.gif_name
     if snack.key == favorite:
         return Moment.SNACK_FAVORITE, snack.gif_name
     if snack.key == _PICKLES and stance is not None:
@@ -1426,7 +1502,8 @@ def _eating_gif(gif_name: str) -> Path | None:
 async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     """Feed Wisp the chosen snack, tell the member, then show it in his House.
 
-    While he naps he eats in his sleep, and his line is a sleepy one.
+    While he naps he eats in his sleep, and his line is a sleepy one, unless
+    it is a snack the member won for him.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -1443,9 +1520,9 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     emoji = bot.emoji(snack.emoji_name)
     wellbeing = meter_receipt("Wellbeing", meal.wellbeing_before, meal.life.wellbeing)
     moment, gif_name = _reaction(
-        snack, meal.player.pickle_stance, meal.life.favorite_snack
+        snack, meal.player.pickle_stance, meal.life.favorite_snack, won=meal.won
     )
-    if is_napping(meal.life):
+    if is_napping(meal.life) and not meal.won:
         moment = Moment.SNACK_ASLEEP
     await say_in_house(
         bot,
@@ -1453,6 +1530,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
         moment,
         meal.life,
         name=meal.player.name or user.display_name,
+        snack=snack.name,
         prefix=(
             f"♪ <@{user.id}> fed Wisp {snack.name} ・ {wellbeing}\n"
             f"{f'{emoji} ' if emoji else ''}"

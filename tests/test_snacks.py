@@ -33,12 +33,14 @@ from cogs.status_card import status_buttons
 from cogs.wisp_lunchbox import LunchboxButton
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
+from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
 from db.magazines import MagazineRepo
+from db.notes import NoteRepo
 from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
@@ -69,6 +71,8 @@ GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 STATUS_ID = 40
+ROOM_ID = 50
+FIRST_POST_ID = 500
 USER_ID = 1
 OTHER_USER_ID = 2
 NEWCOMER_ID = 3
@@ -88,11 +92,25 @@ NO_PING = discord.AllowedMentions.none().to_dict()
 
 
 class FakeServer:
-    """A guild with Wisp's House and the Status thread."""
+    """A guild with Wisp's House, the Status thread and the member's room.
+
+    Every post in the room is a fake message with its own id, kept in `posted`.
+    """
 
     def __init__(self) -> None:
+        self.room = MagicMock(spec=discord.Thread)
+        self.room.id = ROOM_ID
+        self.room.parent_id = HOUSE_ID
+        self.room.archived = False
+        self.room.add_user = AsyncMock()
+        self.room.send = AsyncMock(side_effect=self._post)
+        self.room.get_partial_message.side_effect = self._partial
+        self.posted: dict[int, MagicMock] = {}
+        self.made = 0
         self.house = MagicMock(spec=discord.TextChannel)
+        self.house.id = HOUSE_ID
         self.house.send = AsyncMock()
+        self.house.create_thread = AsyncMock(side_effect=self._create_thread)
         self.status = MagicMock(spec=discord.Thread)
         self.status.id = STATUS_ID
         self.status.parent_id = FORUM_ID
@@ -101,6 +119,38 @@ class FakeServer:
         self.guild.id = GUILD_ID
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
+
+    def _create_thread(self, **_kwargs: Any) -> MagicMock:
+        self.made += 1
+        return self.room
+
+    def _post(self, *_args: Any, **kwargs: Any) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.id = FIRST_POST_ID + len(self.posted)
+        message.view = kwargs.get("view")
+        message.allowed_mentions = kwargs.get("allowed_mentions")
+        message.pin = AsyncMock()
+        message.delete = AsyncMock()
+        self.posted[message.id] = message
+        return message
+
+    def _partial(self, message_id: int) -> MagicMock:
+        if message_id in self.posted:
+            return self.posted[message_id]
+        gone = MagicMock(spec=discord.PartialMessage)
+        gone.delete = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404), "Unknown Message")
+        )
+        return gone
+
+    async def fetch_channel(self, channel_id: int) -> MagicMock:
+        if not self.made or channel_id != ROOM_ID:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
+        return self.room
+
+    def packs(self) -> list[MagicMock]:
+        """The Snack Packs posted in the room, oldest first."""
+        return [message for message in self.posted.values() if message.view]
 
 
 @pytest.fixture
@@ -123,7 +173,10 @@ def bot(
     wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
+    wisp_bot.cravings = CravingRepo(db)
+    wisp_bot.notes = NoteRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
+    monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
 
 
@@ -154,12 +207,13 @@ def make_interaction(
 ) -> MagicMock:
     interaction = MagicMock(spec=discord.Interaction)
     interaction.client = bot
-    interaction.guild = MagicMock(spec=discord.Guild)
+    interaction.guild = bot.get_guild(GUILD_ID)
     interaction.guild_id = GUILD_ID
     interaction.channel = MagicMock(spec=discord.Thread)
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id
     interaction.user.display_name = display_name
+    interaction.user.mention = f"<@{user_id}>"
     interaction.user.roles = [
         MagicMock(spec=discord.Role, id=role_id) for role_id in roles
     ]
@@ -868,6 +922,105 @@ async def test_a_vault_button_that_cannot_acknowledge_is_reported(
 
 
 # ---
+# The Snack Pack in the room
+# ---
+
+
+@pytest.mark.parametrize("opener", [snackpack_command, snack_pack_button])
+async def test_opening_the_snack_pack_also_pins_it_in_the_room(
+    bot: app.WispBot, server: FakeServer, opener: Any
+) -> None:
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave")
+    interaction = make_interaction(bot)
+
+    await opener(interaction)
+
+    (pack,) = server.packs()
+    assert layout_text(pack.view) == pack_text(interaction)
+    assert pack.allowed_mentions.to_dict() == NO_PING
+    pack.pin.assert_awaited_once_with()
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert (player.room_thread_id, player.room_pack_message_id) == (ROOM_ID, pack.id)
+
+
+async def test_the_room_pack_is_reposted_not_duplicated(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await open_my_snack_pack(bot)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave")
+
+    interaction = await open_my_snack_pack(bot)
+
+    first, second = server.packs()
+    first.delete.assert_awaited_once_with()
+    second.delete.assert_not_awaited()
+    second.pin.assert_awaited_once_with()
+    assert layout_text(second.view) == pack_text(interaction)
+    assert server.made == 1
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert player.room_pack_message_id == second.id
+
+
+async def test_a_room_pack_deleted_by_hand_is_simply_replaced(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await open_my_snack_pack(bot)
+    await bot.players.set_room_pack(GUILD_ID, USER_ID, 999)
+
+    await open_my_snack_pack(bot)
+
+    assert len(server.packs()) == 2
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert player.room_pack_message_id == server.packs()[-1].id
+
+
+async def test_a_room_that_fails_still_shows_the_private_pack(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    error = discord.Forbidden(MagicMock(status=403), "Missing Access")
+    server.house.create_thread.side_effect = error
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    interaction = await open_my_snack_pack(bot)
+
+    assert pack_text(interaction)
+    assert not server.packs()
+    reported.assert_awaited_once_with(
+        server.guild,
+        "showing the Snack Pack in a room",
+        error,
+        where=interaction.channel,
+    )
+
+
+async def test_a_failed_pin_keeps_the_room_pack(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    error = discord.Forbidden(MagicMock(status=403), "Missing Permissions")
+    real_post = server.room.send.side_effect
+
+    def unpinnable(*args: Any, **kwargs: Any) -> MagicMock:
+        message = cast(MagicMock, real_post(*args, **kwargs))
+        message.pin.side_effect = error
+        return message
+
+    server.room.send.side_effect = unpinnable
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+
+    await open_my_snack_pack(bot)
+
+    (pack,) = server.packs()
+    pack.delete.assert_not_awaited()
+    player = await bot.players.get(GUILD_ID, USER_ID)
+    assert player.room_pack_message_id == pack.id
+    report = reported.await_args
+    assert report is not None
+    assert report.args[1:] == ("showing the Snack Pack in a room", error)
+
+
+# ---
 # Buying
 # ---
 
@@ -1184,6 +1337,77 @@ async def test_losing_the_role_after_the_menu_opened_blocks_eating(
     assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"cloudwave": 1}
     assert (await current_life(bot)).growth == 0
     server.house.send.assert_not_awaited()
+
+
+# ---
+# Buying the snack he craved
+# ---
+
+BOUGHT_ANYWAY = "they lost my Craving but bought me the Jelly Wave anyway"
+
+
+async def craving(
+    bot: app.WispBot, snack: str, *, won: bool, at: datetime | None = None
+) -> None:
+    now = at or discord.utils.utcnow()
+    round_ = await bot.cravings.start(GUILD_ID, USER_ID, snack, now)
+    await bot.cravings.end(GUILD_ID, USER_ID, round_.day, won=won, now=now)
+
+
+async def notes(bot: app.WispBot) -> list[str]:
+    return await bot.notes.recent(GUILD_ID, USER_ID)
+
+
+async def test_buying_the_craved_snack_after_losing_leaves_one_note(
+    bot: app.WispBot,
+) -> None:
+    await craving(bot, "jellywave", won=False)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+    _, select = await open_vault(bot)
+
+    await choose(bot, select, "jellywave")
+    await choose(bot, select, "jellywave")
+
+    assert await notes(bot) == [BOUGHT_ANYWAY]
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {"jellywave": 2}
+
+
+async def test_buying_another_snack_after_losing_leaves_no_note(
+    bot: app.WispBot,
+) -> None:
+    await craving(bot, "jellywave", won=False)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+
+    await buy(bot, "cloudwave")
+
+    assert await notes(bot) == []
+
+
+@pytest.mark.parametrize("ended", [True, False])
+async def test_buying_after_a_win_or_mid_round_leaves_no_note(
+    bot: app.WispBot, ended: bool
+) -> None:
+    now = discord.utils.utcnow()
+    if ended:
+        await craving(bot, "jellywave", won=True)
+    else:
+        await bot.cravings.start(GUILD_ID, USER_ID, "jellywave", now)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+
+    await buy(bot, "jellywave")
+
+    assert await notes(bot) == []
+
+
+async def test_buying_the_day_after_losing_leaves_no_note(bot: app.WispBot) -> None:
+    await craving(
+        bot, "jellywave", won=False, at=discord.utils.utcnow() - timedelta(days=1)
+    )
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+
+    await buy(bot, "jellywave")
+
+    assert await notes(bot) == []
 
 
 # ---
@@ -1816,6 +2040,40 @@ async def test_his_favorite_snack_line_follows_his_mood(bot: app.WispBot) -> Non
     await eat(bot, "cloudwave")
 
     pick.assert_called_once_with(Moment.SNACK_FAVORITE, Mood.HANGRY, name="Member1")
+
+
+async def test_a_won_snack_is_eaten_first_then_it_is_ordinary(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot, health=50.0)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave")
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave", won=True)
+    pick = say(bot, "the one you won!")
+
+    await eat(bot, "jellywave")
+    await eat(bot, "jellywave")
+
+    assert [(said.args, said.kwargs) for said in pick.call_args_list] == [
+        ((Moment.SNACK_WON, Mood.HAPPY), {"name": "Member1", "snack": "Jelly Wave"}),
+        ((Moment.SNACK, Mood.HAPPY), {"name": "Member1"}),
+    ]
+    assert await bot.activity_log.inventory(GUILD_ID, USER_ID) == {}
+    assert server.house.send.await_args_list[0].args[0].endswith("the one you won!")
+
+
+async def test_a_won_snack_beats_his_favorite_and_his_nap(bot: app.WispBot) -> None:
+    life = await lay(bot, health=50.0)
+    life.favorite_snack = "jellywave"
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave", won=True)
+    pick = say(bot)
+
+    await eat(bot, "jellywave")
+
+    pick.assert_called_once_with(
+        Moment.SNACK_WON, Mood.HAPPY, name="Member1", snack="Jelly Wave"
+    )
 
 
 def test_fancy_starts_at_the_fancy_cost() -> None:

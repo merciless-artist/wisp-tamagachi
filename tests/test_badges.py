@@ -179,6 +179,12 @@ def no_meeting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(snacks, "maybe_meet", AsyncMock())
 
 
+@pytest.fixture(autouse=True)
+def no_room_pack(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The room's copy of the Snack Pack is tested in tests/test_snacks.py."""
+    monkeypatch.setattr(snacks, "show_pack_in_room", AsyncMock())
+
+
 def give_emojis(bot: app.WispBot, *names: str) -> None:
     bot.emojis_by_name = {
         name: cast(discord.Emoji, discord.PartialEmoji(name=name, id=index))
