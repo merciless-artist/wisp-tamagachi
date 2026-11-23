@@ -24,9 +24,15 @@ class InteractionKind(StrEnum):
     GIFT = "gift"
     CHAT = "chat"
     POKE = "poke"
+    CRAVING = "craving"
 
 
-_CASUAL = (InteractionKind.SNACK, InteractionKind.FREE_SNACK, InteractionKind.PLAY)
+_CASUAL = (
+    InteractionKind.SNACK,
+    InteractionKind.FREE_SNACK,
+    InteractionKind.PLAY,
+    InteractionKind.CRAVING,
+)
 _TALK = (InteractionKind.CHAT, InteractionKind.POKE)
 _SNACKS = (InteractionKind.SNACK, InteractionKind.FREE_SNACK)
 _FEEDING = (InteractionKind.FEED, *_SNACKS)
@@ -111,7 +117,7 @@ class ActivityRepo:
     async def casual_bond_today(
         self, guild_id: int, user_id: int, now: datetime
     ) -> int:
-        """Bond earned from snacks and play on the UTC day of `now`."""
+        """Bond earned from snacks, play and Cravings on the UTC day of `now`."""
         return await self._sum_today("bond", _CASUAL, guild_id, user_id, now)
 
     async def distinct_days(self, guild_id: int, user_id: int) -> int:
@@ -248,20 +254,42 @@ class ActivityRepo:
         return {row["snack"]: row["qty"] for row in rows}
 
     async def add_snack(
-        self, guild_id: int, user_id: int, snack: str, quantity: int = 1
+        self,
+        guild_id: int,
+        user_id: int,
+        snack: str,
+        quantity: int = 1,
+        *,
+        won: bool = False,
     ) -> None:
-        """Add snacks to the member's inventory."""
+        """Add snacks to the member's inventory; `won` marks them won for Wisp."""
+        won_quantity = quantity if won else 0
         await self._db.execute(
-            f"INSERT INTO {self._db.t('inventory')} (guild_id, user_id, snack, qty) "
-            "VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE qty = qty + %s",
-            (guild_id, user_id, snack, quantity, quantity),
+            f"INSERT INTO {self._db.t('inventory')} "
+            "(guild_id, user_id, snack, qty, won) VALUES (%s, %s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE qty = qty + %s, won = won + %s",
+            (guild_id, user_id, snack, quantity, won_quantity, quantity, won_quantity),
         )
 
     async def take_snack(self, guild_id: int, user_id: int, snack: str) -> bool:
-        """Take one snack from the inventory; False when the member has none."""
+        """Take one snack from the inventory; False when the member has none.
+
+        The won count never ends up above what is left.
+        """
         changed = await self._db.execute(
-            f"UPDATE {self._db.t('inventory')} SET qty = qty - 1 "
+            f"UPDATE {self._db.t('inventory')} "
+            "SET won = LEAST(won, qty - 1), qty = qty - 1 "
             "WHERE guild_id = %s AND user_id = %s AND snack = %s AND qty > 0",
+            (guild_id, user_id, snack),
+        )
+        return changed == 1
+
+    async def take_won_snack(self, guild_id: int, user_id: int, snack: str) -> bool:
+        """Take one won snack from the inventory; False when none is held."""
+        changed = await self._db.execute(
+            f"UPDATE {self._db.t('inventory')} SET qty = qty - 1, won = won - 1 "
+            "WHERE guild_id = %s AND user_id = %s AND snack = %s "
+            "AND won > 0 AND qty > 0",
             (guild_id, user_id, snack),
         )
         return changed == 1
@@ -309,6 +337,10 @@ class ActivityRepo:
     async def plays_today(self, guild_id: int, user_id: int, now: datetime) -> int:
         """Games the member has played with Wisp on the UTC day of `now`."""
         return await self._count_today(InteractionKind.PLAY, guild_id, user_id, now)
+
+    async def cravings_today(self, guild_id: int, user_id: int, now: datetime) -> int:
+        """Craving rounds the member has finished on the UTC day of `now`."""
+        return await self._count_today(InteractionKind.CRAVING, guild_id, user_id, now)
 
     async def _count_today(
         self, kind: InteractionKind, guild_id: int, user_id: int, now: datetime

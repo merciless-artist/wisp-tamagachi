@@ -32,6 +32,7 @@ from cogs.staff import (
 )
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
+from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
@@ -201,6 +202,7 @@ class WispBot(commands.Bot):
         self.badges = BadgeRepo(self.db)
         self.magazines = MagazineRepo(self.db)
         self.drawings = DrawingRepo(self.db)
+        self.cravings = CravingRepo(self.db)
         self.ai = chain_from_config()
         self.vision = vision_from_config()
         self.embedder = embedder_from_config()

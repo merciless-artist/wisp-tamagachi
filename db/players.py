@@ -1,4 +1,4 @@
-"""Storage for players: activation, points, bond, names, bans and rhyme scores."""
+"""Storage for players: activation, points, bond, names, bans, rhyme scores, rooms."""
 
 from dataclasses import dataclass, fields
 from datetime import datetime
@@ -23,6 +23,8 @@ class Player:
     banned_until: datetime | None = None
     banned_forever: bool = False
     best_rhyme_score: int = 0
+    room_thread_id: int | None = None
+    room_pack_message_id: int | None = None
 
     def is_banned(self, now: datetime) -> bool:
         """Whether the player is banned from Wisp at `now`."""
@@ -186,6 +188,28 @@ class PlayerRepo:
             (guild_id, limit),
         )
         return [_from_row(row) for row in rows]
+
+    async def set_room(
+        self, guild_id: int, user_id: int, thread_id: int | None
+    ) -> None:
+        """Set the player's room thread; None clears it.
+
+        The pinned Snack Pack belonged to the old room, so it is forgotten too.
+        """
+        await self._update(
+            guild_id,
+            user_id,
+            "room_thread_id = %s, room_pack_message_id = NULL",
+            (thread_id,),
+        )
+
+    async def set_room_pack(
+        self, guild_id: int, user_id: int, message_id: int | None
+    ) -> None:
+        """Set the Snack Pack message pinned in the player's room; None clears it."""
+        await self._update(
+            guild_id, user_id, "room_pack_message_id = %s", (message_id,)
+        )
 
     async def _ensure(self, guild_id: int, user_id: int) -> None:
         await self._db.execute(

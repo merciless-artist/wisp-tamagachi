@@ -11,6 +11,7 @@ import pytest
 
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo, OwnedBadge, PendingBadge
+from db.cravings import CravingRepo
 from db.database import Database, to_db_time
 from db.keepsakes import KeepsakeKind, KeepsakeRepo
 from db.lives import LifeRepo
@@ -1298,3 +1299,127 @@ async def test_a_test_life_is_stored_as_one(db: Database) -> None:
     stored = await repo.current(GUILD)
 
     assert stored is not None and stored.is_test
+
+
+# ---
+# Rooms, won snacks and Craving rounds
+# ---
+
+
+async def test_set_room_stores_the_thread_and_forgets_the_old_pack(
+    db: Database,
+) -> None:
+    repo = PlayerRepo(db)
+    assert (await repo.get(GUILD, USER)).room_thread_id is None
+    await repo.set_room_pack(GUILD, USER, 55)
+    assert (await repo.get(GUILD, USER)).room_pack_message_id == 55
+
+    await repo.set_room(GUILD, USER, 77)
+
+    player = await repo.get(GUILD, USER)
+    assert (player.room_thread_id, player.room_pack_message_id) == (77, None)
+    await repo.set_room(GUILD, USER, None)
+    assert (await repo.get(GUILD, USER)).room_thread_id is None
+
+
+async def test_won_snacks_are_taken_first_and_only_while_held(db: Database) -> None:
+    log = ActivityRepo(db)
+    await log.add_snack(GUILD, USER, "jellywave")
+    await log.add_snack(GUILD, USER, "jellywave", won=True)
+
+    assert await log.take_won_snack(GUILD, USER, "jellywave") is True
+    assert await log.take_won_snack(GUILD, USER, "jellywave") is False
+    assert await log.take_won_snack(GUILD, OTHER_USER, "jellywave") is False
+    assert await log.inventory(GUILD, USER) == {"jellywave": 1}
+
+
+async def test_an_ordinary_take_never_leaves_more_won_than_held(
+    db: Database,
+) -> None:
+    log = ActivityRepo(db)
+    await log.add_snack(GUILD, USER, "jellywave", 2, won=True)
+
+    assert await log.take_snack(GUILD, USER, "jellywave") is True
+    assert await log.take_snack(GUILD, USER, "jellywave") is True
+
+    row = await db.fetchone(f"SELECT qty, won FROM {db.t('inventory')}")
+    assert row == {"qty": 0, "won": 0}
+    assert await log.take_won_snack(GUILD, USER, "jellywave") is False
+
+
+async def test_a_craving_round_cannot_be_started_twice_a_day(db: Database) -> None:
+    repo = CravingRepo(db)
+    assert await repo.today(GUILD, USER, NOW) is None
+
+    first = await repo.start(GUILD, USER, "jellywave", NOW)
+    again = await repo.start(GUILD, USER, "cheese", NOW + timedelta(hours=1))
+
+    assert again == first
+    assert (first.snack, first.day, first.guesses) == (
+        "jellywave",
+        NOW.date(),
+        (),
+    )
+    assert (first.last_at, first.ended_at, first.won) == (NOW, None, False)
+    assert await repo.today(GUILD, USER, NOW) == first
+    assert await repo.today(GUILD, OTHER_USER, NOW) is None
+    tomorrow = await repo.start(GUILD, USER, "cheese", NOW + timedelta(days=1))
+    assert tomorrow.snack == "cheese"
+
+
+async def test_a_round_keeps_its_guesses_and_ends_once(db: Database) -> None:
+    repo = CravingRepo(db)
+    day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
+    later = NOW + timedelta(minutes=2)
+
+    await repo.add_guess(GUILD, USER, day, "cheese", NOW)
+    guessed = await repo.add_guess(GUILD, USER, day, "pickles", later)
+    again = await repo.add_guess(GUILD, USER, day, "pickles", later)
+
+    assert guessed.guesses == again.guesses == ("cheese", "pickles")
+    assert guessed.last_at == later
+    assert await repo.end(GUILD, USER, day, won=False, now=later) is True
+    assert await repo.end(GUILD, USER, day, won=True, now=later) is False
+    ended = await repo.today(GUILD, USER, NOW)
+    assert ended is not None
+    assert (ended.ended_at, ended.won) == (later, False)
+    after = await repo.add_guess(GUILD, USER, day, "cheese", later)
+    assert after.guesses == ("cheese", "pickles")
+
+
+async def test_idle_rounds_are_found_and_ended_ones_are_not(db: Database) -> None:
+    repo = CravingRepo(db)
+    idle = await repo.start(GUILD, USER, "jellywave", NOW)
+    ended = await repo.start(GUILD, OTHER_USER, "cheese", NOW)
+    await repo.end(GUILD, OTHER_USER, ended.day, won=True, now=NOW)
+    await repo.start(OTHER_GUILD, USER, "cheese", NOW + timedelta(minutes=4))
+
+    found = await repo.idle_since(NOW + timedelta(minutes=3))
+
+    assert found == [idle]
+
+
+async def test_bought_is_marked_once_and_only_after_a_loss(db: Database) -> None:
+    repo = CravingRepo(db)
+    day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
+    won_day = (await repo.start(GUILD, OTHER_USER, "cheese", NOW)).day
+    await repo.end(GUILD, OTHER_USER, won_day, won=True, now=NOW)
+
+    assert await repo.mark_bought(GUILD, USER, day, NOW) is False
+    await repo.end(GUILD, USER, day, won=False, now=NOW)
+    assert await repo.mark_bought(GUILD, USER, day, NOW) is True
+    assert await repo.mark_bought(GUILD, USER, day, NOW) is False
+    assert await repo.mark_bought(GUILD, OTHER_USER, won_day, NOW) is False
+    bought = await repo.today(GUILD, USER, NOW)
+    assert bought is not None and bought.bought_at == NOW
+
+
+async def test_craving_bond_counts_toward_the_casual_cap(db: Database) -> None:
+    log = ActivityRepo(db)
+    await log.record_interaction(GUILD, 1, USER, InteractionKind.CRAVING, 3, 0, NOW)
+    await log.record_interaction(GUILD, 1, USER, InteractionKind.PLAY, 2, 0, NOW)
+
+    assert await log.casual_bond_today(GUILD, USER, NOW) == 5
+    assert await log.cravings_today(GUILD, USER, NOW) == 1
+    assert await log.plays_today(GUILD, USER, NOW) == 1
+    assert await log.cravings_today(GUILD, USER, NOW + timedelta(days=1)) == 0

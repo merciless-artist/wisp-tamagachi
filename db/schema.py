@@ -109,6 +109,8 @@ _DEFINITIONS: dict[str, str] = {
         offenses INT NOT NULL DEFAULT 0,
         banned_until DATETIME NULL,
         banned_forever BOOL NOT NULL DEFAULT 0,
+        room_thread_id BIGINT NULL,
+        room_pack_message_id BIGINT NULL,
         PRIMARY KEY (guild_id, user_id)
     """,
     "feeds": """
@@ -141,6 +143,7 @@ _DEFINITIONS: dict[str, str] = {
         user_id BIGINT NOT NULL,
         snack VARCHAR(20) NOT NULL,
         qty INT NOT NULL DEFAULT 0,
+        won INT NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id, user_id, snack)
     """,
     "keepsakes": """
@@ -236,6 +239,19 @@ _DEFINITIONS: dict[str, str] = {
         INDEX idx_guild_at (guild_id, at),
         INDEX idx_guild_user (guild_id, user_id)
     """,
+    "cravings": """
+        guild_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        day DATE NOT NULL,
+        snack VARCHAR(20) NOT NULL,
+        guesses VARCHAR(200) NOT NULL DEFAULT '',
+        last_at DATETIME NOT NULL,
+        ended_at DATETIME NULL,
+        won BOOL NOT NULL DEFAULT 0,
+        bought_at DATETIME NULL,
+        PRIMARY KEY (guild_id, user_id, day),
+        INDEX idx_open (guild_id, ended_at)
+    """,
     "data_fixes": """
         name VARCHAR(40) NOT NULL,
         applied_at DATETIME NOT NULL,
@@ -250,7 +266,12 @@ _DEFINITIONS: dict[str, str] = {
 # `settings.burrito_thread_id`, Burrito's old Studio post, stay defined though
 # nothing reads them any more.
 _ADDED_COLUMNS: dict[str, dict[str, str]] = {
-    "players": {"best_rhyme_score": "INT NOT NULL DEFAULT 0"},
+    "players": {
+        "best_rhyme_score": "INT NOT NULL DEFAULT 0",
+        "room_thread_id": "BIGINT NULL",
+        "room_pack_message_id": "BIGINT NULL",
+    },
+    "inventory": {"won": "INT NOT NULL DEFAULT 0"},
     "settings": {
         "faq_message_ids": "TEXT NULL",
         "lay_eggs": "BOOL NOT NULL DEFAULT 1",

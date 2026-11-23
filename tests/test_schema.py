@@ -489,3 +489,79 @@ async def test_create_tables_adds_meters_and_chores_to_a_live_lives_table(
                 await db.execute(
                     f"ALTER TABLE {lives} ADD COLUMN {column} {column_type}"
                 )
+
+
+async def test_create_tables_adds_room_columns_to_a_live_players_table(
+    db: Database,
+) -> None:
+    players = db.t("players")
+    await db.execute(f"INSERT INTO {players} (guild_id, user_id) VALUES (1, 1)")
+    await db.execute(
+        f"ALTER TABLE {players} "
+        "DROP COLUMN room_thread_id, DROP COLUMN room_pack_message_id"
+    )
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(
+            f"SELECT room_thread_id, room_pack_message_id FROM {players}"
+        )
+        assert row == {"room_thread_id": None, "room_pack_message_id": None}
+    finally:
+        present = {
+            column["Field"]
+            for column in await db.fetchall(f"SHOW COLUMNS FROM {players}")
+        }
+        for column, column_type in schema._ADDED_COLUMNS["players"].items():
+            if column not in present:
+                await db.execute(
+                    f"ALTER TABLE {players} ADD COLUMN {column} {column_type}"
+                )
+
+
+async def test_create_tables_adds_won_to_a_live_inventory_table(
+    db: Database,
+) -> None:
+    inventory = db.t("inventory")
+    await db.execute(
+        f"INSERT INTO {inventory} (guild_id, user_id, snack, qty) "
+        "VALUES (1, 1, 'cheese', 2)"
+    )
+    await db.execute(f"ALTER TABLE {inventory} DROP COLUMN won")
+    try:
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT qty, won FROM {inventory}")
+        assert row == {"qty": 2, "won": 0}
+    finally:
+        present = {
+            column["Field"]
+            for column in await db.fetchall(f"SHOW COLUMNS FROM {inventory}")
+        }
+        if "won" not in present:
+            await db.execute(
+                f"ALTER TABLE {inventory} ADD COLUMN won INT NOT NULL DEFAULT 0"
+            )
+
+
+async def test_create_tables_adds_cravings_beside_live_tables(db: Database) -> None:
+    settings = db.t("settings")
+    cravings = db.t("cravings")
+    await db.execute(f"INSERT INTO {settings} (guild_id) VALUES (1)")
+    await db.execute(f"DROP TABLE {cravings}")
+
+    await create_tables(db)
+
+    assert await db.fetchone(f"SELECT guild_id FROM {settings}") == {"guild_id": 1}
+    insert = (
+        f"INSERT INTO {cravings} (guild_id, user_id, day, snack, last_at) "
+        "VALUES (1, 2, %s, 'cheese', '2026-11-23 12:00:00')"
+    )
+    await db.execute(insert, ("2026-11-23",))
+    await db.execute(insert, ("2026-11-24",))
+    with pytest.raises(pymysql.err.IntegrityError):
+        await db.execute(insert, ("2026-11-23",))
+    row = await db.fetchone(
+        f"SELECT guesses, ended_at, won, bought_at FROM {cravings} LIMIT 1"
+    )
+    assert row == {"guesses": "", "ended_at": None, "won": 0, "bought_at": None}
