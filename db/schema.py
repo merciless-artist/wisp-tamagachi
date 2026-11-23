@@ -122,7 +122,7 @@ _DEFINITIONS: dict[str, str] = {
         message_id BIGINT NOT NULL,
         fed_at DATETIME NOT NULL,
         PRIMARY KEY (id),
-        UNIQUE KEY uq_guild_track (guild_id, track_key)
+        UNIQUE KEY uq_life_track (guild_id, life_id, track_key)
     """,
     "interactions": """
         id BIGINT NOT NULL AUTO_INCREMENT,
@@ -298,6 +298,14 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
 _ADDED_INDEXES: dict[str, dict[str, str]] = {
     "badges": {"idx_guild_removed": "guild_id, removed_at"},
 }
+# Unique keys added after their table first went live, the same way.
+_ADDED_UNIQUE_KEYS: dict[str, dict[str, str]] = {
+    "feeds": {"uq_life_track": "guild_id, life_id, track_key"},
+}
+# Indexes dropped after going live, by table. A track fed the server once ever
+# until 2026-11-23; since then it feeds each Wisp once, so a new Wisp can eat
+# the tracks an earlier one ate.
+_DROPPED_INDEXES: dict[str, tuple[str, ...]] = {"feeds": ("uq_guild_track",)}
 
 # Badge keys renamed after going live, old key to new, in the tables that
 # store badge keys. Renaming again finds nothing, so startup can repeat it.
@@ -352,10 +360,11 @@ async def _indexes(db: Database, name: str) -> set[str]:
 
 async def create_tables(db: Database) -> None:
     """Create every table that does not exist yet, then add missing columns and
-    indexes.
+    indexes and drop retired ones.
 
     Columns and indexes that are already there are skipped, so a normal startup
-    does not draw a duplicate note from the server. Afterwards every table is
+    does not draw a duplicate note from the server. A retired index is dropped
+    only after its replacement is in place. Afterwards every table is
     checked against its definition: extra columns are logged as a warning.
     Then rows stored under a renamed badge key move to the new key, and last
     each one-time data fix the database has not had yet runs.
@@ -383,16 +392,29 @@ async def create_tables(db: Database) -> None:
                     f"ALTER TABLE {db.t(name)} "
                     f"ADD COLUMN IF NOT EXISTS {column} {definition}"
                 )
-    for name, indexes in _ADDED_INDEXES.items():
+    await _add_indexes(db, _ADDED_INDEXES, "INDEX")
+    await _add_indexes(db, _ADDED_UNIQUE_KEYS, "UNIQUE INDEX")
+    for name, dropped in _DROPPED_INDEXES.items():
+        present = await _indexes(db, name)
+        for index in dropped:
+            if index in present:
+                await db.execute(f"DROP INDEX {index} ON {db.t(name)}")
+    await _check_columns(db)
+    await _rename_badges(db)
+    await _apply_data_fixes(db)
+
+
+async def _add_indexes(
+    db: Database, added: dict[str, dict[str, str]], kind: str
+) -> None:
+    """Create each index in `added` that its table lacks, as a `kind`."""
+    for name, indexes in added.items():
         present = await _indexes(db, name)
         for index, columns in indexes.items():
             if index not in present:
                 await db.execute(
-                    f"CREATE INDEX IF NOT EXISTS {index} ON {db.t(name)} ({columns})"
+                    f"CREATE {kind} IF NOT EXISTS {index} ON {db.t(name)} ({columns})"
                 )
-    await _check_columns(db)
-    await _rename_badges(db)
-    await _apply_data_fixes(db)
 
 
 async def _apply_data_fixes(db: Database) -> None:

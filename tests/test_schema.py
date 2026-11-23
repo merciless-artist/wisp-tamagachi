@@ -320,15 +320,39 @@ async def test_create_tables_adds_magazines_beside_live_tables(db: Database) -> 
         await db.execute(insert, (3, 3))
 
 
-async def test_track_key_is_unique_per_guild(db: Database) -> None:
-    insert = (
-        f"INSERT INTO {db.t('feeds')} "
-        "(guild_id, life_id, user_id, track_key, url, meal_points, message_id, "
-        "fed_at) VALUES (1, 1, 1, 'suno:a', 'u', 1, 1, UTC_TIMESTAMP())"
-    )
-    await db.insert(insert)
+_FEED = (
+    "INSERT INTO {feeds} "
+    "(guild_id, life_id, user_id, track_key, url, meal_points, message_id, "
+    "fed_at) VALUES (1, %s, 1, 'suno:a', 'u', 1, 1, UTC_TIMESTAMP())"
+)
+
+
+async def test_track_key_is_unique_per_life(db: Database) -> None:
+    insert = _FEED.format(feeds=db.t("feeds"))
+    await db.insert(insert, (1,))
+    await db.insert(insert, (2,))
     with pytest.raises(pymysql.err.IntegrityError):
-        await db.insert(insert)
+        await db.insert(insert, (1,))
+
+
+async def test_a_live_feeds_table_moves_to_one_feed_per_life(db: Database) -> None:
+    feeds = db.t("feeds")
+    await db.execute(f"DROP INDEX uq_life_track ON {feeds}")
+    await db.execute(
+        f"CREATE UNIQUE INDEX uq_guild_track ON {feeds} (guild_id, track_key)"
+    )
+    await db.insert(_FEED.format(feeds=feeds), (1,))
+
+    await create_tables(db)
+    await create_tables(db)
+
+    rows = await db.fetchall(f"SHOW INDEX FROM {feeds}")
+    names = {row["Key_name"] for row in rows}
+    assert "uq_life_track" in names
+    assert "uq_guild_track" not in names
+    await db.insert(_FEED.format(feeds=feeds), (2,))
+    with pytest.raises(pymysql.err.IntegrityError):
+        await db.insert(_FEED.format(feeds=feeds), (1,))
 
 
 async def test_matching_tables_pass_the_column_check(

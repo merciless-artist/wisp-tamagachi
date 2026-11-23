@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-23 (A track feeds each Wisp once)
+
+- A track used to feed the server once, ever, so tracks fed to test lives
+  could never feed a real Wisp. Now it feeds each Wisp once: reposting it
+  to the same Wisp still does nothing, but a new Wisp can eat it again. The
+  feeds table's unique key is now `uq_life_track (guild_id, life_id,
+  track_key)`; startup adds it to the live table, then drops the old
+  `uq_guild_track`. The refusal reads "that track already fed this Wisp."
+
 ## 2026-11-21 (The ViiBR Vault post, beta audit fixes, new FAQ pictures)
 
 - **The ViiBR Vault post.** Wisp's Studio has a sixth post, `🛍️ | ViiBR

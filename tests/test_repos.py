@@ -687,7 +687,7 @@ async def test_tracks_fed_today_counts_only_the_members_tracks_today(
     assert await repo.tracks_fed_today(OTHER_GUILD, OTHER_USER, NOW) == 0
 
 
-async def test_duplicate_track_feeds_once(db: Database) -> None:
+async def test_duplicate_track_feeds_each_life_once(db: Database) -> None:
     repo = ActivityRepo(db)
     assert await repo.record_feed(GUILD, 1, USER, track("a"), 1, 900, NOW) is True
     assert (
@@ -695,6 +695,8 @@ async def test_duplicate_track_feeds_once(db: Database) -> None:
     )
     assert await repo.record_feed(GUILD, 1, USER, track("b"), 1, 902, NOW) is True
     assert await repo.record_feed(OTHER_GUILD, 1, USER, track("a"), 1, 903, NOW) is True
+    assert await repo.record_feed(GUILD, 2, USER, track("a"), 1, 904, NOW) is True
+    assert await repo.record_feed(GUILD, 2, USER, track("a"), 1, 905, NOW) is False
 
 
 async def test_other_integrity_errors_are_not_reported_as_duplicates(

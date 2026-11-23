@@ -507,7 +507,8 @@ track. A share link for no song is explained in Wisp's House. If the site
 cannot be reached the post is not fed and the error goes to Wisp's House. A fed
 track gets his `wisp_happy` reaction and is forwarded to Mealtime; a track that
 did not feed him gets a note in his House with the reason (see Meter drop
-posts, receipts and reasons).
+posts, receipts and reasons). A track feeds each Wisp once: reposting it does
+nothing, but a new Wisp can eat the tracks an earlier one ate.
 
 ## Keepsakes
 

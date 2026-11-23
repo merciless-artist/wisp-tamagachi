@@ -54,7 +54,7 @@ class ActivityRepo:
         message_id: int,
         at: datetime,
     ) -> bool:
-        """Record a track feed; False when the guild already fed that track."""
+        """Record a track feed; False when this life already ate that track."""
         try:
             await self._db.insert(
                 f"INSERT INTO {self._db.t('feeds')} (guild_id, life_id, user_id, "

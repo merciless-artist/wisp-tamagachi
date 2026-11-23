@@ -50,7 +50,7 @@ _MOOD_EMOJIS: Final = {
     Mood.LONELY: "wisp_sad",
 }
 _NO_WISP: Final = "there's no living Wisp to feed right now."
-_REPEAT: Final = "that track was already fed."
+_REPEAT: Final = "that track already fed this Wisp."
 _NO_SONG: Final = "that viibrmusic.com share link names no song."
 _WORTHLESS: Final = "staff have set that kind of track to 0 meal points."
 
@@ -262,7 +262,7 @@ async def credit_feed(
     guild lock; `life` is saved.
 
     Raises:
-        NotFed: The life is not stored, or the guild already fed that track.
+        NotFed: The life is not stored, or it already ate that track.
     """
     if life.id is None:
         raise NotFed(_NO_WISP)
