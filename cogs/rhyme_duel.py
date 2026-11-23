@@ -382,14 +382,14 @@ async def start_duel(interaction: discord.Interaction) -> None:
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True, thinking=True)
     key = (guild_id, interaction.user.id)
-    if key in bot.rhyme_duels:
+    if key in bot.room_games:
         await say_privately(interaction, _ALREADY_DUELING)
         return
-    bot.rhyme_duels.add(key)
+    bot.room_games.add(key)
     try:
         await _host(interaction, guild_id)
     finally:
-        bot.rhyme_duels.discard(key)
+        bot.room_games.discard(key)
 
 
 @play.command(name="rhyme", description="Trade rhymes with Wisp in a Rhyme Duel.")

@@ -14,6 +14,7 @@ import pymysql
 from cogs.announce import say_in_house
 from cogs.channels import where_of
 from cogs.groups import require_guild
+from cogs.rooms import rename_room
 from db.activity import InteractionKind
 from db.players import Player
 from wisp.bond import should_meet
@@ -436,7 +437,7 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        """Save the trimmed name, or say why it cannot be used."""
+        """Save the trimmed name and rename their room, or say why it cannot be used."""
         name = self.name.value.strip()
         if (refusal := await _name_refusal(interaction)) is not None:
             reply = refusal
@@ -445,9 +446,10 @@ class NameModal(discord.ui.Modal, title="Tell Wisp your name"):
         elif len(name) > NAME_MAX:
             reply = f"♪ Wisp only remembers names up to {count(NAME_MAX, 'character')}."
         else:
-            await bot_of(interaction).players.set_name(
-                require_guild(interaction), interaction.user.id, name
-            )
+            bot = bot_of(interaction)
+            guild_id = require_guild(interaction)
+            await bot.players.set_name(guild_id, interaction.user.id, name)
+            await rename_room(bot, guild_id, interaction.user.id, name)
             reply = f"♪ Wisp will call you {name} from now on."
         await interaction.response.send_message(
             reply, ephemeral=True, allowed_mentions=_NO_PING

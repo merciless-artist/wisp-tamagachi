@@ -9,6 +9,7 @@ from discord.ext import commands
 from cogs.announce import post_in_house, say_in_house
 from cogs.assets import moment_image
 from cogs.players import NameButton
+from cogs.rooms import rename_room
 from cogs.staff import StaffContext, guild_of, reply
 from wisp.life import is_over
 from wisp.lines import Moment
@@ -139,6 +140,8 @@ async def strip(
 async def resetname(ctx: StaffContext, member: discord.Member) -> None:
     """Clear the member's name and post a new name button for them in the House.
 
+    Their room goes back to their display name.
+
     The post pings only that member. When it cannot be posted, the failure is
     reported and the answer says so.
     """
@@ -146,6 +149,7 @@ async def resetname(ctx: StaffContext, member: discord.Member) -> None:
         return
     guild_id = guild_of(ctx).id
     await ctx.bot.players.set_name(guild_id, member.id, None)
+    await rename_room(ctx.bot, guild_id, member.id, member.display_name)
     view = discord.ui.View(timeout=None)
     view.add_item(NameButton(member.id))
     posted = await post_in_house(

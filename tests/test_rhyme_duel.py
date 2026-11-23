@@ -238,7 +238,8 @@ def make_interaction(
 def receipt(interaction: MagicMock) -> str:
     """The receipt, the last thing the duel posts in its thread."""
     interaction.edit_original_response.assert_not_awaited()
-    return interaction.duel_server.posts()[-1]
+    last: str = interaction.duel_server.posts()[-1]
+    return last
 
 
 def openers(feeling: Mood = Mood.HAPPY) -> list[str]:
@@ -572,7 +573,7 @@ async def test_missing_house_fails_and_frees_the_player(
     with pytest.raises(NoHouseError):
         await duel(bot, server)
 
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 # ---
@@ -1015,7 +1016,7 @@ async def test_a_duel_while_frozen_is_refused_before_it_starts(
         "♪ Wisp is frozen right now, so nothing can change until staff unfreeze him."
     ]
     server.house.create_thread.assert_not_awaited()
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 async def test_a_freeze_during_a_duel_keeps_it_from_counting(
@@ -1139,7 +1140,7 @@ async def test_the_rhyme_duel_button_plays_a_duel_like_the_command(
     assert wisp_turn == "♪ higher"
     assert summary.splitlines()[-1] == "・Score: 3 points"
     server.thread.edit.assert_awaited_once_with(archived=True, locked=True)
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 @pytest.mark.parametrize(
@@ -1190,7 +1191,7 @@ async def test_a_duel_while_he_naps_is_refused_until_he_wakes(
         f"♪ Wisp is napping until {wakes}. Poke him awake first."
     ]
     server.house.create_thread.assert_not_awaited()
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 async def test_the_button_and_the_command_share_one_duel_per_player(
@@ -1226,12 +1227,13 @@ async def test_a_rhyme_duel_button_with_no_house_is_reported_where_pressed(
 
     await press_rhyme_duel(interaction)
 
+    assert reported.await_args is not None
     guild, context, error = reported.await_args.args
     assert (guild, context) == (server.guild, "the Rhyme Duel button")
     assert isinstance(error, NoHouseError)
     assert reported.await_args.kwargs == {"where": interaction.channel}
     interaction.followup.send.assert_awaited_with(USER_ERROR, ephemeral=True)
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 async def test_the_rhyme_duel_button_catches_only_a_missing_house(
@@ -1246,7 +1248,7 @@ async def test_the_rhyme_duel_button_catches_only_a_missing_house(
         await press_rhyme_duel(make_interaction(bot, server))
 
     reported.assert_not_awaited()
-    assert (GUILD_ID, USER_ID) not in bot.rhyme_duels
+    assert (GUILD_ID, USER_ID) not in bot.room_games
 
 
 async def test_a_play_button_that_cannot_answer_is_reported(

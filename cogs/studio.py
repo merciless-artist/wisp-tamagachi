@@ -693,6 +693,29 @@ async def refresh_house_panel(bot: "WispBot", guild_id: int, life: Life) -> None
 # Setup and FAQ, shared by both ways staff run them
 # ---
 
+_PIN_MESSAGES: Final = discord.Permissions(1 << 51)
+"""Discord's Pin Messages permission, which this discord.py has no name for."""
+_HOUSE_PERMISSIONS: Final = (
+    ("Create Private Threads", discord.Permissions(create_private_threads=True)),
+    ("Send Messages in Threads", discord.Permissions(send_messages_in_threads=True)),
+    ("Manage Threads", discord.Permissions(manage_threads=True)),
+    ("Pin Messages", _PIN_MESSAGES),
+)
+
+
+def missing_house_permissions(
+    house: discord.TextChannel, me: discord.Member
+) -> list[str]:
+    """The permissions members' rooms need that Wisp lacks in his House, by name.
+
+    An administrator has them all, Pin Messages included, though discord.py's
+    administrator permissions leave its bit out.
+    """
+    have = house.permissions_for(me)
+    if have.administrator:
+        return []
+    return [name for name, needed in _HOUSE_PERMISSIONS if not needed <= have]
+
 
 async def set_up(
     bot: "WispBot",
@@ -710,7 +733,8 @@ async def set_up(
     without one he shares it only in his House. Failures along the way are
     reported in `where`. A House or general chat that is also the track drop
     is refused, since Wisp never posts there. Returns the answer for staff,
-    which says when no feeding role is set yet, since nobody can feed him then.
+    which says when no feeding role is set yet, since nobody can feed him then,
+    and which House permissions members' rooms still need.
     """
     if house.id == tracks.id:
         return _HOUSE_IS_TRACKS
@@ -741,6 +765,10 @@ async def set_up(
     )
     badge_lines = await ensure_badge_roles(bot, guild, where)
     roles_line = [] if await bot.settings.roles(guild.id) else [_NO_FEEDING_ROLES]
+    missing = missing_house_permissions(house, guild.me)
+    permissions_line = (
+        [f"・Wisp needs these in his House: {', '.join(missing)}"] if missing else []
+    )
     return "\n".join(
         [
             "♪ Wisp is set up.",
@@ -750,6 +778,7 @@ async def set_up(
             f"・General chat: {'off' if general is None else general.mention}",
             f"・{threads}",
             *roles_line,
+            *permissions_line,
             *badge_lines,
         ]
     )

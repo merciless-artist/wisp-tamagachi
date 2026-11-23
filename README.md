@@ -257,7 +257,8 @@ picture.
 - Developer Portal, Bot tab: turn on the Message Content intent.
 - Developer Portal, Installation: User Install off. Public Bot off.
 - Bot permissions: Send Messages, Send Messages in Threads, Create Public
-  Threads, Manage Threads, Pin Messages, Read Message History, Attach Files
+  Threads, Create Private Threads (each member's room off his House), Manage
+  Threads, Pin Messages, Read Message History, Attach Files
   (event art, eating GIFs, Studio thumbnails, the status card's
   picture, the FAQ pictures) and Embed Links (the "no u" GIF, track previews).
   Manage Threads also lets Wisp post in the Wisp FAQ thread he locks.

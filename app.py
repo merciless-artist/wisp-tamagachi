@@ -216,7 +216,8 @@ class WispBot(commands.Bot):
         self.failing_displays: set[tuple[int, str]] = set()
         self.display_locks: dict[tuple[int, str], asyncio.Lock] = {}
         self.shown_images: dict[tuple[int, str], tuple[int, str]] = {}
-        self.rhyme_duels: set[tuple[int, int]] = set()
+        self.room_games: set[tuple[int, int]] = set()
+        self.room_locks: dict[tuple[int, int], asyncio.Lock] = {}
         self.test_runs: dict[int, LifeTestRun] = {}
         self._guild_locks: dict[int, asyncio.Lock] = {}
         self._drawing_locks: dict[int, asyncio.Lock] = {}

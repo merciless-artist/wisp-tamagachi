@@ -22,6 +22,7 @@ from cogs.studio import (
     HOUSE_PANEL,
     StudioError,
     ensure_studio,
+    missing_house_permissions,
     rules_text,
     studio_thread,
 )
@@ -665,6 +666,57 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     assert house_posts(server) == []
+
+
+ROOM_PERMISSIONS = discord.Permissions(
+    create_private_threads=True,
+    send_messages_in_threads=True,
+    manage_threads=True,
+)
+PIN_MESSAGES = discord.Permissions(1 << 51)
+
+
+def test_missing_house_permissions_lists_what_is_missing() -> None:
+    house = MagicMock(spec=discord.TextChannel)
+    me = MagicMock(spec=discord.Member)
+
+    house.permissions_for.return_value = discord.Permissions(
+        send_messages_in_threads=True
+    )
+    assert missing_house_permissions(house, me) == [
+        "Create Private Threads",
+        "Manage Threads",
+        "Pin Messages",
+    ]
+    house.permissions_for.assert_called_once_with(me)
+
+    house.permissions_for.return_value = ROOM_PERMISSIONS | PIN_MESSAGES
+    assert missing_house_permissions(house, me) == []
+
+    house.permissions_for.return_value = discord.Permissions(administrator=True)
+    assert missing_house_permissions(house, me) == []
+
+
+async def test_setup_names_the_house_permissions_rooms_still_need(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.house.permissions_for.return_value = ROOM_PERMISSIONS
+
+    ctx = await run_setup(bot, server)
+
+    text = sent_text(ctx)
+    assert text.startswith("♪ Wisp is set up.")
+    assert "・Wisp needs these in his House: Pin Messages" in text.splitlines()
+
+
+async def test_setup_with_every_house_permission_names_none(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.house.permissions_for.return_value = ROOM_PERMISSIONS | PIN_MESSAGES
+
+    ctx = await run_setup(bot, server)
+
+    assert "needs these" not in sent_text(ctx)
 
 
 async def test_setup_pins_the_status_post_to_the_top_once(

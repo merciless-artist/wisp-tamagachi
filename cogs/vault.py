@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from cogs.channels import where_of
 from cogs.groups import require_guild, wisp
 from cogs.headers import (
     HeadedCard,
@@ -13,6 +14,7 @@ from cogs.headers import (
     send_framed,
 )
 from cogs.players import say_privately
+from cogs.rooms import RoomError, open_room
 from cogs.snacks import vault_buttons
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
@@ -154,7 +156,11 @@ async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
 
 @wisp.command(name="board", description="See the leaderboard and Wisp's versions.")
 async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
-    """Show the Vault card to the member who asked, and join them in on first use."""
+    """Show the Vault card to the member who asked, and join them in on first use.
+
+    Every run also makes sure the member has their room. A room that cannot
+    be made is reported and tried again next time; the board still shows.
+    """
     bot = interaction.client
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
@@ -162,6 +168,16 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
         await bot.players.activate(guild_id, interaction.user.id, now)
         await say_privately(interaction, "♪ You're on Wisp's radar now.")
+    if interaction.guild is not None:
+        try:
+            await open_room(bot, interaction.guild, interaction.user)
+        except (RoomError, discord.HTTPException) as error:
+            await bot.report_error(
+                interaction.guild,
+                "making a room",
+                error,
+                where=where_of(interaction),
+            )
     await send_framed(
         functools.partial(interaction.followup.send, ephemeral=True),
         _HEADER,
