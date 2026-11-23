@@ -12,13 +12,16 @@ import discord
 from discord import app_commands
 
 from cogs.channels import where_of
-from cogs.players import bot_of, say_privately
+from cogs.players import FROZEN_REASON, bot_of, is_frozen, no_wisp_text, say_privately
 from cogs.rooms import RoomError, open_room
 from db.activity import InteractionKind
+from db.players import Player
 from wisp.bond import casual_bond_grant
-from wisp.life import Life, Meter, add_growth, change_meter
+from wisp.chores import is_napping, nap_ends_at
+from wisp.craving import is_idle
+from wisp.life import Life, Meter, Phase, add_growth, change_meter
 from wisp.rules import BOND_PER_PLAY, GROWTH_PER_PLAY, PLAY_POINTS, WELLBEING_PER_PLAY
-from wisp.text import meter_receipt, with_emoji
+from wisp.text import meter_receipt, timestamp, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
@@ -27,6 +30,54 @@ if TYPE_CHECKING:
 ROOM_BUSY: Final = (
     "♪ You already have a game going in your room. Finish that one first."
 )
+
+# ---
+# Before a game
+# ---
+
+
+async def check_game(
+    bot: "WispBot",
+    guild_id: int,
+    player: Player,
+    now: datetime,
+    *,
+    banned: str,
+    things: str,
+) -> Life | str:
+    """The living Wisp a game can start with, or what to tell the member.
+
+    A ban comes first, with `banned`; then no living Wisp, named as `things`
+    (capitalised and plural, such as "Rhymes"); then a freeze; then a nap.
+    """
+    life = await bot.lives.current(guild_id)
+    if player.is_banned(now):
+        return banned
+    if life is None or life.phase is not Phase.ALIVE:
+        return no_wisp_text(life, things)
+    if await is_frozen(bot, guild_id):
+        return f"♪ {FROZEN_REASON}"
+    if is_napping(life):
+        until = timestamp(nap_ends_at(life, now))
+        return f"♪ Wisp is napping until {until}. Poke him awake first."
+    return life
+
+
+async def room_busy(bot: "WispBot", guild_id: int, user_id: int, now: datetime) -> bool:
+    """Whether the member's room has a game going: a duel, or a live Craving.
+
+    A Craving round that has gone idle no longer holds the room; it ends as a
+    timeout when it is next touched.
+    """
+    if (guild_id, user_id) in bot.room_games:
+        return True
+    craving = await bot.cravings.today(guild_id, user_id, now)
+    return (
+        craving is not None
+        and craving.ended_at is None
+        and not is_idle(craving.last_at, now)
+    )
+
 
 # ---
 # The room

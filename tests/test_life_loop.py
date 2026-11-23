@@ -11,7 +11,7 @@ import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import call as sent_call
 
@@ -31,6 +31,7 @@ from cogs.staff import staff_check
 from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
+from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
 from db.keepsakes import KeepsakeRepo
@@ -178,6 +179,7 @@ def bot(
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
+    wisp_bot.cravings = CravingRepo(db)
     wisp_bot.owner_id = OWNER_ID
     monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
@@ -1030,7 +1032,7 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
     def record(*args: Any, **kwargs: Any) -> MagicMock:
         if "view" in kwargs:
             order.append("vault")
-        return vault_send(*args, **kwargs)
+        return cast(MagicMock, vault_send(*args, **kwargs))
 
     server.vault.send.side_effect = record
 
@@ -2076,3 +2078,34 @@ async def test_a_restart_between_the_egg_and_the_badges_is_healed_on_the_next_ti
     member.remove_roles.assert_awaited_once_with(role, reason="Wisp v1's life ended")
     assert await bot.badges.pending(GUILD_ID) == []
     assert house_reports(server) == []
+
+
+# ---
+# Wisp's Craving
+# ---
+
+
+async def test_each_tick_ends_idle_cravings(
+    bot: app.WispBot, cog: LifeLoop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    sweep = AsyncMock()
+    monkeypatch.setattr(life_loop, "end_idle_cravings", sweep)
+
+    await cog.run_tick(NOW)
+
+    sweep.assert_awaited_once_with(bot, NOW)
+
+
+async def test_a_craving_sweep_the_database_fails_is_reported_once(
+    bot: app.WispBot, cog: LifeLoop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await configure(bot)
+    failure = pymysql.err.OperationalError(2013, "Lost connection")
+    monkeypatch.setattr(life_loop, "end_idle_cravings", AsyncMock(side_effect=failure))
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error_everywhere", reported)
+
+    await cog.run_tick(NOW)
+
+    reported.assert_awaited_once_with("ending idle Cravings", failure)

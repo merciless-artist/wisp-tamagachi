@@ -20,10 +20,12 @@ from discord.ui.view import ViewStore
 
 import app
 from cogs import groups, rhyme_duel
+from cogs.craving import CravingButton
 from cogs.rhyme_duel import PlayButton, RhymeDuelButton
 from cogs.rooms import RoomError
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
+from db.cravings import CravingRepo
 from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
@@ -181,6 +183,7 @@ def bot(
     wisp_bot.story = LifeStoryRepo(db)
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
+    wisp_bot.cravings = CravingRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     monkeypatch.setattr(wisp_bot, "wait_for", Turns())
@@ -1148,9 +1151,14 @@ async def test_play_opens_a_private_menu_of_the_games(
     assert call.kwargs["ephemeral"] is True
     assert call.kwargs["wait"] is True
     assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
-    (game,) = call.kwargs["view"].children
-    assert isinstance(game, RhymeDuelButton)
-    assert (game.item.label, game.item.custom_id) == ("Rhyme Duel", "wisp:play:rhyme")
+    duel, craving = call.kwargs["view"].children
+    assert isinstance(duel, RhymeDuelButton)
+    assert (duel.item.label, duel.item.custom_id) == ("Rhyme Duel", "wisp:play:rhyme")
+    assert isinstance(craving, CravingButton)
+    assert (craving.item.label, craving.item.custom_id) == (
+        "Wisp's Craving",
+        "wisp:play:craving",
+    )
     server.house.create_thread.assert_not_awaited()
 
 

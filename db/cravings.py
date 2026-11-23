@@ -57,7 +57,7 @@ class CravingRepo:
 
     async def today(self, guild_id: int, user_id: int, now: datetime) -> Round | None:
         """Return the member's round for the UTC day of `now`, or None."""
-        return await self._get(guild_id, user_id, _utc_date(now))
+        return await self.get(guild_id, user_id, _utc_date(now))
 
     async def start(
         self, guild_id: int, user_id: int, snack: str, now: datetime
@@ -132,7 +132,8 @@ class CravingRepo:
         )
         return changed == 1
 
-    async def _get(self, guild_id: int, user_id: int, day: date) -> Round | None:
+    async def get(self, guild_id: int, user_id: int, day: date) -> Round | None:
+        """Return the member's round for the UTC date `day`, or None."""
         row = await self._db.fetchone(
             f"SELECT {_COLUMNS} FROM {self._db.t('cravings')} WHERE {_KEY}",
             (guild_id, user_id, day),
@@ -140,7 +141,7 @@ class CravingRepo:
         return None if row is None else _from_row(row)
 
     async def _stored(self, guild_id: int, user_id: int, day: date) -> Round:
-        found = await self._get(guild_id, user_id, day)
+        found = await self.get(guild_id, user_id, day)
         if found is None:
             raise LookupError(
                 f"No Craving round for member {user_id} in guild {guild_id} on {day}"

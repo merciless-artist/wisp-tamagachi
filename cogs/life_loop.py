@@ -28,6 +28,7 @@ from cogs.assets import nap_image
 from cogs.badges import sweep_badges
 from cogs.channels import where_of
 from cogs.chores import post_chores
+from cogs.craving import end_idle_cravings
 from cogs.drawings import DailyDrawings
 from cogs.feeding import refresh_rules
 from cogs.groups import require_guild
@@ -119,7 +120,9 @@ class LifeLoop(commands.Cog):
         Guilds without a House channel or a Status thread, and guilds the bot
         can no longer see, are skipped, and so is a guild with a staff test
         life running: its steps tick it themselves. A database or Discord
-        failure in one guild is reported with that guild.
+        failure in one guild is reported with that guild. Then every Craving
+        round left idle is ended; a database failure there is reported once,
+        in every guild.
         """
         for guild_id in await self.bot.settings.guilds():
             if guild_id in self.bot.test_runs:
@@ -130,6 +133,10 @@ class LifeLoop(commands.Cog):
                 await self.bot.report_error(
                     self.bot.get_guild(guild_id), "life loop", error
                 )
+        try:
+            await end_idle_cravings(self.bot, now)
+        except pymysql.err.Error as error:
+            await self.bot.report_error_everywhere("ending idle Cravings", error)
 
     # ---
     # One guild

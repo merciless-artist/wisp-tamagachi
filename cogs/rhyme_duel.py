@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.games import ROOM_BUSY, enter_room, reward_game
+from cogs.craving import CravingButton
+from cogs.games import ROOM_BUSY, check_game, enter_room, reward_game, room_busy
 from cogs.groups import play, require_guild
 from cogs.players import (
     FROZEN_REASON,
@@ -22,13 +23,11 @@ from cogs.players import (
     is_frozen,
     maybe_meet,
     member_blocker,
-    no_wisp_text,
     press,
     say_privately,
 )
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
-from wisp.chores import is_napping, nap_ends_at
 from wisp.life import Life, Phase, mood
 from wisp.lines import Moment
 from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
@@ -41,7 +40,6 @@ from wisp.text import (
     daily_reset,
     frame_of,
     text_length,
-    timestamp,
 )
 
 if TYPE_CHECKING:
@@ -254,23 +252,17 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     """
     bot = bot_of(interaction)
     user = interaction.user
-    now = discord.utils.utcnow()
     player = await bot.players.get(guild_id, user.id)
-    life = await bot.lives.current(guild_id)
-    if player.is_banned(now):
-        await say_privately(interaction, _BANNED)
-        return
-    if life is None or life.phase is not Phase.ALIVE:
-        await say_privately(interaction, no_wisp_text(life, "Rhymes"))
-        return
-    if await is_frozen(bot, guild_id):
-        await say_privately(interaction, f"♪ {FROZEN_REASON}")
-        return
-    if is_napping(life):
-        until = timestamp(nap_ends_at(life, now))
-        await say_privately(
-            interaction, f"♪ Wisp is napping until {until}. Poke him awake first."
-        )
+    life = await check_game(
+        bot,
+        guild_id,
+        player,
+        discord.utils.utcnow(),
+        banned=_BANNED,
+        things="Rhymes",
+    )
+    if isinstance(life, str):
+        await say_privately(interaction, life)
         return
     thread = await enter_room(interaction)
     if thread is None:
@@ -307,7 +299,8 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
 
 
 async def start_duel(interaction: discord.Interaction) -> None:
-    """Start a Rhyme Duel; a member's room runs one game at a time.
+    """Start a Rhyme Duel; a member's room runs one game at a time, a live
+    Wisp's Craving included.
 
     The answer is private. It is a new message even when a button was
     pressed, so the duel's receipt is added under it as for the command.
@@ -316,7 +309,7 @@ async def start_duel(interaction: discord.Interaction) -> None:
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True, thinking=True)
     key = (guild_id, interaction.user.id)
-    if key in bot.room_games:
+    if await room_busy(bot, guild_id, interaction.user.id, discord.utils.utcnow()):
         await say_privately(interaction, ROOM_BUSY)
         return
     bot.room_games.add(key)
@@ -382,6 +375,7 @@ async def _offer_games(interaction: discord.Interaction) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
     view = discord.ui.View(timeout=None)
     view.add_item(RhymeDuelButton())
+    view.add_item(CravingButton())
     await interaction.followup.send(
         _PICK_A_GAME, view=view, ephemeral=True, allowed_mentions=_NO_PING, wait=True
     )
