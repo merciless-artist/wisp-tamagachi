@@ -21,7 +21,12 @@ from discord.ui.view import ViewStore
 import app
 from cogs import groups, rhyme_duel
 from cogs.craving import CravingButton
-from cogs.rhyme_duel import PlayButton, RhymeDuelButton
+from cogs.rhyme_duel import (
+    PlayButton,
+    RhymeDuelButton,
+    RhymeLanguageButton,
+    language_picker,
+)
 from cogs.rooms import NOT_JOINED, RoomError
 from cogs.vault import render_leaderboard
 from db.activity import ActivityRepo, InteractionKind
@@ -31,9 +36,10 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
+from wisp.duel_text import DUEL_TEXT, LANGUAGE_PICKER
 from wisp.language import Language
 from wisp.life import Life, Mood, Phase, new_egg
-from wisp.lines import LINES, Moment
+from wisp.lines import LINES, RHYME_MOMENTS, Moment
 from wisp.rules import (
     BOND_PER_PLAY,
     GROWTH_PER_PLAY,
@@ -61,6 +67,10 @@ THREAD_ID = 70
 OTHER_CHANNEL_ID = 71
 USER_ID = 1
 OTHER_USER_ID = 2
+FIRST_TIMER = 4
+OPENERS = {Language.EN: "fire", Language.ES: "fuego", Language.FR: "maison"}
+ENGLISH = DUEL_TEXT[Language.EN]
+PICK = f"♪ Pick a language for your Rhyme Duel in <#{THREAD_ID}>."
 QUALIFYING_ROLE = 7
 NO_PING = discord.AllowedMentions.none().to_dict()
 WELCOME = "♪ This is your room with Wisp"
@@ -197,6 +207,7 @@ async def configured(bot: app.WispBot) -> None:
     await bot.settings.add_role(GUILD_ID, QUALIFYING_ROLE)
     for user_id in (USER_ID, OTHER_USER_ID):
         await bot.players.activate(GUILD_ID, user_id, discord.utils.utcnow())
+        await bot.players.set_rhyme_language(GUILD_ID, user_id, Language.EN)
 
 
 @pytest.fixture(autouse=True)
@@ -215,7 +226,9 @@ def vault(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 @pytest.fixture(autouse=True)
 def opener(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(rhyme_duel, "opening_word", lambda _rng, *, language: "fire")
+    monkeypatch.setattr(
+        rhyme_duel, "opening_word", lambda _rng, *, language: OPENERS[language]
+    )
 
 
 @pytest.fixture
@@ -514,13 +527,15 @@ async def test_a_huge_answer_ends_the_duel_cleanly(
 def test_an_over_long_summary_is_still_returned_in_one_message(
     line: str, reason: str | None
 ) -> None:
-    summary = rhyme_duel.summary_text(line, reason, ["fire", "choir"], 2)
+    summary = rhyme_duel.summary_text(line, reason, ["fire", "choir"], 2, text=ENGLISH)
 
     assert text_length(summary) == MESSAGE_LIMIT
 
 
 def test_an_over_long_reason_is_cut_but_the_score_stays() -> None:
-    summary = rhyme_duel.summary_text("good game", "x" * 2500, ["fire"], 2)
+    summary = rhyme_duel.summary_text(
+        "good game", "x" * 2500, ["fire"], 2, text=ENGLISH
+    )
 
     lines = summary.splitlines()
     assert lines[2].startswith("・xxx") and lines[2].endswith("...")
@@ -530,7 +545,9 @@ def test_an_over_long_reason_is_cut_but_the_score_stays() -> None:
 def test_a_long_chain_still_fits_one_message() -> None:
     chain = ["fire", *(f"word{index}" for index in range(400))]
 
-    summary = rhyme_duel.summary_text("good game", "Time ran out", chain, 9)
+    summary = rhyme_duel.summary_text(
+        "good game", "Time ran out", chain, 9, text=ENGLISH
+    )
 
     assert len(summary) <= 2000
     lines = summary.splitlines()
@@ -543,7 +560,9 @@ def test_a_long_chain_still_fits_one_message() -> None:
 def test_a_chain_of_wide_characters_fits_by_utf16_units() -> None:
     chain = [SEPARATOR * 2 for _ in range(60)]
 
-    summary = rhyme_duel.summary_text("good game", "Time ran out", chain, 9)
+    summary = rhyme_duel.summary_text(
+        "good game", "Time ran out", chain, 9, text=ENGLISH
+    )
 
     assert text_length(summary) <= MESSAGE_LIMIT
     assert len(summary) < MESSAGE_LIMIT // 2 + 100
@@ -556,7 +575,7 @@ def test_a_chain_of_wide_characters_fits_by_utf16_units() -> None:
 def test_the_last_resort_cut_keeps_wide_characters_whole() -> None:
     line = SEPARATOR * 100
 
-    summary = rhyme_duel.summary_text(line, None, [], 0)
+    summary = rhyme_duel.summary_text(line, None, [], 0, text=ENGLISH)
 
     assert text_length(summary) == MESSAGE_LIMIT
     whole, half = divmod(MESSAGE_LIMIT, text_length(SEPARATOR))
@@ -706,6 +725,7 @@ async def test_a_duel_by_someone_who_cannot_feed_keeps_only_the_score(
     wisp_says(None)
     newcomer = OTHER_USER_ID + 1
     await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    await bot.players.set_rhyme_language(GUILD_ID, newcomer, Language.EN)
     cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
 
     await start(make_interaction(bot, server, newcomer, roles=()))
@@ -984,6 +1004,7 @@ async def test_a_duel_by_someone_without_a_feeding_role_says_why(
     wisp_says(None)
     newcomer = OTHER_USER_ID + 1
     await bot.players.activate(GUILD_ID, newcomer, discord.utils.utcnow())
+    await bot.players.set_rhyme_language(GUILD_ID, newcomer, Language.EN)
     cast(Turns, bot.wait_for).load(said("choir", user_id=newcomer))
     interaction = make_interaction(bot, server, newcomer, roles=())
 
@@ -1405,7 +1426,401 @@ async def test_the_play_buttons_are_registered_at_startup(bot: app.WispBot) -> N
 
     await rhyme_duel.setup(bot)
 
-    bot.add_dynamic_items.assert_called_once_with(PlayButton, RhymeDuelButton)
+    bot.add_dynamic_items.assert_called_once_with(
+        PlayButton, RhymeDuelButton, RhymeLanguageButton
+    )
+
+
+# ---
+# The language picker
+# ---
+
+LANGUAGE_IDS = [f"wisp:rhyme:lang:{FIRST_TIMER}:{code}" for code in ("en", "es", "fr")]
+
+
+async def first_timer(bot: app.WispBot) -> None:
+    """A member who has joined but never picked a duel language."""
+    await bot.players.activate(GUILD_ID, FIRST_TIMER, discord.utils.utcnow())
+
+
+async def language_of(bot: app.WispBot, user_id: int) -> Language | None:
+    return (await bot.players.get(GUILD_ID, user_id)).rhyme_language
+
+
+def a_picker() -> MagicMock:
+    """The language picker post a member presses a button on."""
+    picker = MagicMock(spec=discord.Message)
+    picker.edit = AsyncMock()
+    return picker
+
+
+async def pick(
+    bot: app.WispBot,
+    server: FakeServer,
+    language: Language,
+    picker: MagicMock,
+    user_id: int = FIRST_TIMER,
+) -> MagicMock:
+    """Press `language` on the member's picker, as `user_id`."""
+    interaction = make_interaction(bot, server, user_id)
+    interaction.message = picker
+    await RhymeLanguageButton(FIRST_TIMER, language).callback(interaction)
+    return interaction
+
+
+def opener_lines(language: Language, feeling: Mood = Mood.HAPPY) -> list[str]:
+    word = f"**{OPENERS[language]}**"
+    word_line = DUEL_TEXT[language].word_line.format(word=word)
+    start_moment = RHYME_MOMENTS[language].start
+    return [
+        f"{line}\n{word_line}" for line in lines_for(start_moment, feeling, word=word)
+    ]
+
+
+def picker_posts(server: FakeServer) -> list[list[str]]:
+    """The custom ids on every language picker posted in the room."""
+    return [
+        [item.custom_id for item in call.kwargs["view"].children]
+        for call in server.thread.send.await_args_list
+        if call.args[0] == LANGUAGE_PICKER
+    ]
+
+
+async def test_a_first_duel_posts_the_picker_and_frees_the_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await first_timer(bot)
+    cast(Turns, bot.wait_for).load(said("choir", user_id=FIRST_TIMER))
+    interaction = make_interaction(bot, server, FIRST_TIMER)
+
+    await start(interaction)
+
+    assert server.posts() == [LANGUAGE_PICKER]
+    assert picker_posts(server) == [LANGUAGE_IDS]
+    assert replies(interaction) == [PICK]
+    assert bot.room_games == set()
+    assert await language_of(bot, FIRST_TIMER) is None
+
+
+async def test_language_picker_buttons() -> None:
+    view = language_picker(FIRST_TIMER)
+    buttons = cast(list[RhymeLanguageButton], view.children)
+
+    assert view.timeout is None
+    assert [button.item.label for button in buttons] == [
+        "English",
+        "Español",
+        "Français",
+    ]
+    assert [button.item.custom_id for button in buttons] == LANGUAGE_IDS
+
+
+async def test_without_a_pick_the_picker_comes_again(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await first_timer(bot)
+
+    first = make_interaction(bot, server, FIRST_TIMER)
+    await start(first)
+    second = make_interaction(bot, server, FIRST_TIMER)
+    await RhymeDuelButton().callback(second)
+
+    assert picker_posts(server) == [LANGUAGE_IDS, LANGUAGE_IDS]
+    assert replies(first) == replies(second) == [PICK]
+    assert await language_of(bot, FIRST_TIMER) is None
+
+
+@pytest.mark.parametrize("language", [Language.ES, Language.FR])
+async def test_picking_a_language_saves_it_and_starts_the_duel_in_it(
+    bot: app.WispBot, server: FakeServer, language: Language
+) -> None:
+    await lay(bot)
+    await first_timer(bot)
+    picker = a_picker()
+    order = MagicMock()
+    order.attach_mock(picker.edit, "edit")
+    order.attach_mock(server.thread.send, "send")
+
+    interaction = await pick(bot, server, language, picker)
+
+    assert await language_of(bot, FIRST_TIMER) is language
+    picker.edit.assert_awaited_once_with(content=DUEL_TEXT[language].picked, view=None)
+    steps = [
+        name
+        for name, args, _kwargs in order.mock_calls
+        if name == "edit" or not args[0].startswith(WELCOME)
+    ]
+    assert steps[:2] == ["edit", "send"]
+    assert server.posts()[0] in opener_lines(language)
+    assert replies(interaction) == [STARTED]
+    assert bot.room_games == set()
+
+
+async def test_a_failed_picker_edit_is_reported_and_the_duel_still_runs(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await lay(bot)
+    await first_timer(bot)
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    picker = a_picker()
+    failure = discord.HTTPException(MagicMock(status=500), "oops")
+    picker.edit.side_effect = failure
+
+    await pick(bot, server, Language.ES, picker)
+
+    reported.assert_awaited_once_with(
+        server.guild,
+        "tidying the Rhyme Duel language picker",
+        failure,
+        where=server.thread,
+    )
+    assert server.posts()[0] in opener_lines(Language.ES)
+    assert await language_of(bot, FIRST_TIMER) is Language.ES
+
+
+async def test_a_saved_language_skips_the_picker(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, Language.FR)
+
+    interaction = await duel(bot, server)
+
+    assert picker_posts(server) == []
+    start_post, summary, _receipt = server.posts()
+    assert start_post in opener_lines(Language.FR)
+    assert summary.splitlines()[2:] == [
+        "・Le temps est écoulé",
+        "・maison",
+        "・Score : 0 point",
+    ]
+    assert replies(interaction) == [STARTED]
+
+
+async def test_the_command_option_changes_the_language(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    interaction = make_interaction(bot, server)
+    command: Any = rhyme_duel.play_rhyme
+
+    await command.callback(
+        interaction, language=app_commands.Choice(name="Français", value="fr")
+    )
+
+    assert await language_of(bot, USER_ID) is Language.FR
+    assert server.posts()[0] in opener_lines(Language.FR)
+    assert picker_posts(server) == []
+
+
+@pytest.mark.parametrize("opener", ["command", "picker"])
+async def test_a_refused_start_saves_no_language(
+    bot: app.WispBot, server: FakeServer, opener: str
+) -> None:
+    life = await lay(bot)
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    await first_timer(bot)
+    picker = a_picker()
+
+    if opener == "command":
+        interaction = make_interaction(bot, server, FIRST_TIMER)
+        command: Any = rhyme_duel.play_rhyme
+        await command.callback(
+            interaction, language=app_commands.Choice(name="Español", value="es")
+        )
+    else:
+        interaction = await pick(bot, server, Language.ES, picker)
+
+    [refusal] = replies(interaction)
+    assert refusal.startswith("♪ Wisp is napping until")
+    assert await language_of(bot, FIRST_TIMER) is None
+    picker.edit.assert_not_awaited()
+    server.house.create_thread.assert_not_awaited()
+    assert server.posts() == []
+
+
+async def test_only_the_member_can_press_their_language_buttons(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    await first_timer(bot)
+    button = RhymeLanguageButton(FIRST_TIMER, Language.ES)
+    stranger = make_interaction(bot, server, USER_ID)
+    stranger.response.send_message = AsyncMock()
+    owner = make_interaction(bot, server, FIRST_TIMER)
+
+    assert await button.interaction_check(stranger) is False
+    assert await button.interaction_check(owner) is True
+
+    stranger.response.send_message.assert_awaited_once_with(
+        "♪ That button is for someone else.", ephemeral=True
+    )
+    assert await language_of(bot, FIRST_TIMER) is None
+    assert await language_of(bot, USER_ID) is Language.EN
+    server.thread.send.assert_not_awaited()
+
+
+async def test_a_language_button_that_cannot_answer_a_stranger_is_reported(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reported = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", reported)
+    stranger = make_interaction(bot, server, USER_ID)
+    stranger.channel = MagicMock(spec=discord.Thread)
+    expired = discord.NotFound(MagicMock(status=404), "Unknown interaction")
+    stranger.response.send_message = AsyncMock(side_effect=expired)
+    stranger.response.is_done = MagicMock(return_value=False)
+
+    button = RhymeLanguageButton(FIRST_TIMER, Language.FR)
+
+    assert await button.interaction_check(stranger) is False
+    reported.assert_awaited_once_with(
+        server.guild,
+        "the Rhyme Duel language button",
+        expired,
+        where=stranger.channel,
+    )
+
+
+async def test_a_spanish_duel_runs_entirely_in_spanish(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, Language.ES)
+    asked = wisp_says("luego", "peso")
+
+    await duel(bot, server, said("Juego"), said("beso"))
+
+    start_post, first_turn, second_turn, summary, _receipt = server.posts()
+    assert start_post in opener_lines(Language.ES)
+    assert (first_turn, second_turn) == ("♪ luego", "♪ peso")
+    ending, _divider, *rest = summary.splitlines()
+    assert ending in lines_for(Moment.RHYME_PLAYER_STUCK_ES)
+    assert rest == [
+        "・Se acabó el tiempo",
+        "・fuego ・ juego ・ luego ・ beso ・ peso",
+        "・Puntuación: 3 puntos",
+    ]
+    assert [language for *_rest, language in asked] == [Language.ES, Language.ES]
+
+
+async def test_wisp_stuck_in_french_uses_his_french_line(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, Language.FR)
+    wisp_says(None)
+
+    await duel(bot, server, said("raison"))
+
+    ending, _divider, *rest = server.posts()[1].splitlines()
+    assert ending in lines_for(Moment.RHYME_WISP_STUCK_FR)
+    assert rest == ["・maison ・ raison", "・Score : 2 points"]
+
+
+@pytest.mark.parametrize(
+    ("language", "answers", "reason"),
+    [
+        (Language.ES, ["xuego"], "・xuego no rima con fuego"),
+        (Language.ES, ["dos palabras"], "・Eso no era una sola palabra"),
+        (Language.FR, ["blorp'aison"], "・blorp'aison ne rime pas avec maison"),
+        (Language.FR, ["raison", "l'maison"], "・l'maison a déjà été dit"),
+    ],
+)
+async def test_a_wrong_answer_says_why_in_the_duel_language(
+    bot: app.WispBot,
+    server: FakeServer,
+    wisp_says: Callable[..., list[Any]],
+    language: Language,
+    answers: list[str],
+    reason: str,
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, language)
+    wisp_says("saison")
+
+    await duel(bot, server, *(said(answer) for answer in answers))
+
+    summary = server.posts()[-2]
+    assert summary.splitlines()[2] == reason
+
+
+async def test_an_unaccented_repeat_counts_as_used(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    wisp_says: Callable[..., list[Any]],
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, Language.ES)
+    monkeypatch.setattr(rhyme_duel, "opening_word", lambda _rng, *, language: "canción")
+    wisp_says("razón")
+
+    await duel(bot, server, said("corazón"), said("cancion"))
+
+    summary = server.posts()[-2]
+    assert summary.splitlines()[2:] == [
+        "・cancion ya se usó",
+        "・canción ・ corazón ・ razón",
+        "・Puntuación: 2 puntos",
+    ]
+
+
+async def test_the_receipt_stays_english_in_any_language(
+    bot: app.WispBot, server: FakeServer, wisp_says: Callable[..., list[Any]]
+) -> None:
+    await lay(bot)
+    await bot.players.set_rhyme_language(GUILD_ID, USER_ID, Language.FR)
+    wisp_says(None)
+
+    interaction = await duel(bot, server, said("raison"))
+
+    assert receipt(interaction).startswith("♪ Your duel counted.")
+
+
+@pytest.mark.parametrize("language", list(Language))
+async def test_language_buttons_survive_a_restart(
+    bot: app.WispBot, server: FakeServer, language: Language
+) -> None:
+    custom_id = f"wisp:rhyme:lang:{FIRST_TIMER}:{language.value}"
+    match = RhymeLanguageButton.__discord_ui_compiled_template__.fullmatch(custom_id)
+    assert match is not None
+
+    restored = await RhymeLanguageButton.from_custom_id(
+        make_interaction(bot, server), MagicMock(spec=discord.ui.Button), match
+    )
+
+    assert (restored.user_id, restored.language) == (FIRST_TIMER, language)
+    assert restored.item.custom_id == custom_id
+
+
+def test_the_language_ids_never_match_the_play_ids() -> None:
+    template = RhymeLanguageButton.__discord_ui_compiled_template__
+    for custom_id in ("wisp:play", "wisp:play:rhyme", "wisp:play:craving"):
+        assert template.fullmatch(custom_id) is None
+    for custom_id in LANGUAGE_IDS:
+        assert PlayButton.__discord_ui_compiled_template__.fullmatch(custom_id) is None
+        assert (
+            RhymeDuelButton.__discord_ui_compiled_template__.fullmatch(custom_id)
+            is None
+        )
+    assert template.fullmatch(f"wisp:rhyme:lang:{FIRST_TIMER}:de") is None
+
+
+def test_play_rhyme_has_a_language_option() -> None:
+    [option] = rhyme_duel.play_rhyme.parameters
+
+    assert (option.name, option.required) == ("language", False)
+    assert option.description == "The language to rhyme in."
+    assert [(choice.name, choice.value) for choice in option.choices] == [
+        ("English", "en"),
+        ("Español", "es"),
+        ("Français", "fr"),
+    ]
 
 
 # ---

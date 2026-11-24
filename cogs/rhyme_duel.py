@@ -1,21 +1,26 @@
 """Rhyme Duel: one member and Wisp trade rhymes in the member's room.
 
 A duel starts from /wisp play rhyme, or from the Rhyme Duel button in the
-private games menu the Status post's Play button opens.
+private games menu the Status post's Play button opens. It is played in the
+member's language: English, Spanish or French. Until they pick one, a start
+posts the language picker in their room instead.
 """
 
 import random
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import discord
+from discord import app_commands
 
 from cogs.craving import CravingButton
 from cogs.games import ROOM_BUSY, check_game, craving_live, enter_room, reward_game
 from cogs.groups import play, require_guild
 from cogs.players import (
+    EXPECTED_FAILURES,
     FROZEN_REASON,
     NOT_ALIVE_REASON,
     blocker_reason,
@@ -24,13 +29,15 @@ from cogs.players import (
     maybe_meet,
     member_blocker,
     press,
+    report_failure,
     say_privately,
 )
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
-from wisp.language import Language
+from wisp.duel_text import DUEL_TEXT, LANGUAGE_PICKER, DuelText
+from wisp.language import LANGUAGE_NAMES, Language
 from wisp.life import Life, Phase, mood
-from wisp.lines import Moment
+from wisp.lines import RHYME_MOMENTS, Moment
 from wisp.rhymes import (
     clean_word,
     opening_word,
@@ -62,8 +69,10 @@ _PICK_A_GAME: Final = "♪ Pick a game to play with Wisp."
 _BANNED: Final = "♪ Wisp is not dueling with you right now."
 _NOT_COUNTED: Final = "♪ This duel didn't count toward his Wellbeing: "
 _NO_RHYME: Final = "you didn't score a rhyme."
-_TIMED_OUT: Final = "Time ran out"
-_NOT_ONE_WORD: Final = "That wasn't one word"
+_LANGUAGE_ID: Final = re.compile(
+    r"wisp:rhyme:lang:(?P<user_id>[0-9]+):(?P<lang>en|es|fr)"
+)
+_NOT_YOURS: Final = "♪ That button is for someone else."
 
 # ---
 # The duel
@@ -97,13 +106,16 @@ async def _duel(
 
     Wisp opens with a word, then each turn the player must answer with one
     unused word that rhymes with the last one, within RHYME_TURN. A word is
-    used when any spelling of it was said.
+    used when any spelling of it was said. Wisp's lines and the verdicts are
+    in `language` too.
     """
+    moments = RHYME_MOMENTS[language]
+    text = DUEL_TEXT[language]
     chain = [opening_word(rng, language=language)]
     points = 0
-    opener = bot.lines.pick(Moment.RHYME_START, mood(life), word=_bold(chain[0]))
+    opener = bot.lines.pick(moments.start, mood(life), word=_bold(chain[0]))
     await thread.send(
-        f"{opener}\n・The word to rhyme is: {_bold(chain[0])}",
+        f"{opener}\n{text.word_line.format(word=_bold(chain[0]))}",
         allowed_mentions=_NO_PING,
     )
 
@@ -116,25 +128,25 @@ async def _duel(
                 "message", check=is_turn, timeout=RHYME_TURN.total_seconds()
             )
         except TimeoutError:
-            return _Outcome(Moment.RHYME_PLAYER_STUCK, _TIMED_OUT, chain, points)
+            return _Outcome(moments.player_stuck, text.timed_out, chain, points)
         answer = clean_word(message.content, language=language)
         if answer is None:
-            return _Outcome(Moment.RHYME_PLAYER_STUCK, _NOT_ONE_WORD, chain, points)
+            return _Outcome(moments.player_stuck, text.not_one_word, chain, points)
         said = {same_word_key(word, language=language) for word in chain}
         if same_word_key(answer, language=language) in said:
-            reason = f"{answer} was already used"
-            return _Outcome(Moment.RHYME_PLAYER_STUCK, reason, chain, points)
+            reason = text.already_used.format(answer=answer)
+            return _Outcome(moments.player_stuck, reason, chain, points)
         kind = rhyme_kind(chain[-1], answer, language=language)
         if kind is None:
-            reason = f"{answer} doesn't rhyme with {chain[-1]}"
-            return _Outcome(Moment.RHYME_PLAYER_STUCK, reason, chain, points)
+            reason = text.no_rhyme_with.format(answer=answer, word=chain[-1])
+            return _Outcome(moments.player_stuck, reason, chain, points)
         chain.append(answer)
         points += score(kind)
         reply = wisp_reply(
             answer, set(chain), life.stage, len(chain) // 2, rng, language=language
         )
         if reply is None:
-            return _Outcome(Moment.RHYME_WISP_STUCK, None, chain, points)
+            return _Outcome(moments.wisp_stuck, None, chain, points)
         chain.append(reply)
         await thread.send(f"♪ {reply}", allowed_mentions=_NO_PING)
 
@@ -145,10 +157,11 @@ def summary_text(
     chain: list[str],
     points: int,
     *,
+    text: DuelText,
     divider: str = SEPARATOR,
 ) -> str:
     """The end of a duel: Wisp's line, `divider`, why it ended, the chain and
-    the score.
+    the score line in `text`'s language.
 
     The oldest words are left out of the chain when it would not fit one message.
     If it still does not fit, the reason is cut short, and as a last resort the
@@ -156,22 +169,22 @@ def summary_text(
     inside a character.
     """
     reasons = [f"・{reason}"] if reason else []
-    score_line = f"・Score: {count(points, 'point')}"
+    score_line = text.score_line.format(points=text.points(points))
     shown = chain
     while True:
         trimmed = "... " if len(shown) < len(chain) else ""
         chain_line = f"・{trimmed}{' ・ '.join(shown)}"
-        text = "\n".join([line, divider, *reasons, chain_line, score_line])
-        overflow = text_length(text) - MESSAGE_LIMIT
+        summary = "\n".join([line, divider, *reasons, chain_line, score_line])
+        overflow = text_length(summary) - MESSAGE_LIMIT
         if overflow <= 0:
-            return text
+            return summary
         kept = text_length(reasons[0]) - overflow - len(_CUT) if reasons else 0
         if shown:
             shown = shown[1:]
         elif kept > 0:
             reasons = [clip(reasons[0], kept) + _CUT]
         else:
-            return clip(text, MESSAGE_LIMIT)
+            return clip(summary, MESSAGE_LIMIT)
 
 
 # ---
@@ -256,13 +269,42 @@ async def _record_play(
     return _Played(best, receipt)
 
 
-async def _host(interaction: discord.Interaction, guild_id: int) -> None:
+async def _close_picker(
+    interaction: discord.Interaction,
+    picker: discord.Message,
+    language: Language,
+    thread: discord.Thread,
+) -> None:
+    """Turn the pressed language picker into a note of the choice, with no
+    buttons left; a failure is reported and the duel goes on."""
+    try:
+        await picker.edit(content=DUEL_TEXT[language].picked, view=None)
+    except discord.HTTPException as error:
+        await bot_of(interaction).report_error(
+            interaction.guild,
+            "tidying the Rhyme Duel language picker",
+            error,
+            where=thread,
+        )
+
+
+async def _host(
+    interaction: discord.Interaction,
+    guild_id: int,
+    chosen: Language | None,
+    picker: discord.Message | None,
+) -> None:
     """Run one duel for the member, or say why they cannot have one.
 
-    The command and the Rhyme Duel button both come here, so both refuse the
-    same way, a freeze, a nap and a room that can't open included. A freeze
-    that starts during the duel keeps it from counting instead. The duel
-    leaves the room open for the member's next game.
+    The command, the Rhyme Duel button and the language buttons all come here,
+    so all refuse the same way, a freeze, a nap and a room that can't open
+    included. A freeze that starts during the duel keeps it from counting
+    instead. The duel leaves the room open for the member's next game.
+
+    Only once every check passes is a `chosen` language saved and the pressed
+    `picker` closed. With nothing chosen the saved language is used, and a
+    member who has none yet gets the language picker in their room instead of
+    a duel.
     """
     bot = bot_of(interaction)
     user = interaction.user
@@ -281,9 +323,23 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
     thread = await enter_room(interaction)
     if thread is None:
         return
+    if chosen is not None:
+        await bot.players.set_rhyme_language(guild_id, user.id, chosen)
+        if picker is not None:
+            await _close_picker(interaction, picker, chosen, thread)
+        language = chosen
+    elif player.rhyme_language is None:
+        await thread.send(
+            LANGUAGE_PICKER, view=language_picker(user.id), allowed_mentions=_NO_PING
+        )
+        pick = f"♪ Pick a language for your Rhyme Duel in {thread.mention}."
+        await say_privately(interaction, pick)
+        return
+    else:
+        language = player.rhyme_language
     started = f"♪ Your Rhyme Duel is on in {thread.mention}."
     await say_privately(interaction, started)
-    outcome = await _duel(bot, thread, user.id, life, random.Random(), Language.EN)
+    outcome = await _duel(bot, thread, user.id, life, random.Random(), language)
     line = bot.lines.pick(outcome.ending, mood(life))
     await thread.send(
         summary_text(
@@ -291,6 +347,7 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
             outcome.reason,
             outcome.chain,
             outcome.points,
+            text=DUEL_TEXT[language],
             divider=frame_of(bot.emoji).divider,
         ),
         allowed_mentions=_NO_PING,
@@ -312,9 +369,16 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
 # ---
 
 
-async def start_duel(interaction: discord.Interaction) -> None:
+async def start_duel(
+    interaction: discord.Interaction,
+    language: Language | None = None,
+    picker: discord.Message | None = None,
+) -> None:
     """Start a Rhyme Duel; a member's room runs one game at a time, a live
     Wisp's Craving included.
+
+    `language` is one the member just chose, saved once the duel may start,
+    and `picker` is the language picker they chose it on.
 
     The answer is private. It is a new message even when a button was
     pressed, so the duel's receipt is added under it as for the command.
@@ -332,15 +396,26 @@ async def start_duel(interaction: discord.Interaction) -> None:
         if await craving_live(bot, guild_id, interaction.user.id, now):
             await say_privately(interaction, ROOM_BUSY)
             return
-        await _host(interaction, guild_id)
+        await _host(interaction, guild_id, language, picker)
     finally:
         bot.room_games.discard(key)
 
 
 @play.command(name="rhyme", description="Trade rhymes with Wisp in a Rhyme Duel.")
-async def play_rhyme(interaction: discord.Interaction["WispBot"]) -> None:
-    """Start a Rhyme Duel for the member."""
-    await start_duel(interaction)
+@app_commands.describe(language="The language to rhyme in.")
+@app_commands.choices(
+    language=[
+        app_commands.Choice(name=LANGUAGE_NAMES[choice], value=choice.value)
+        for choice in Language
+    ]
+)
+async def play_rhyme(
+    interaction: discord.Interaction["WispBot"],
+    language: app_commands.Choice[str] | None = None,
+) -> None:
+    """Start a Rhyme Duel for the member, in `language` from now on if given."""
+    chosen = None if language is None else Language(language.value)
+    await start_duel(interaction, chosen)
 
 
 class RhymeDuelButton(
@@ -375,6 +450,72 @@ class RhymeDuelButton(
     async def callback(self, interaction: discord.Interaction) -> None:
         """Start a Rhyme Duel for whoever pressed it."""
         await press(interaction, "the Rhyme Duel button", start_duel)
+
+
+# ---
+# The language picker
+# ---
+
+
+class RhymeLanguageButton(
+    discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
+    template=_LANGUAGE_ID,
+):
+    """One language on a member's language picker, which only they can press.
+
+    Pressing it starts a duel in that language, saved once the duel may start.
+    The member's id and the language are in the custom id, so the button keeps
+    working after the bot restarts.
+    """
+
+    def __init__(self, user_id: int, language: Language) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label=LANGUAGE_NAMES[language],
+                style=discord.ButtonStyle.primary,
+                custom_id=f"wisp:rhyme:lang:{user_id}:{language.value}",
+            )
+        )
+        self.user_id = user_id
+        self.language = language
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+        /,
+    ) -> "RhymeLanguageButton":
+        """Rebuild the button from the member id and language in its custom id."""
+        return cls(int(match["user_id"]), Language(match["lang"]))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Turn away anyone but its member; a failure is reported."""
+        if interaction.user.id == self.user_id:
+            return True
+        try:
+            await interaction.response.send_message(_NOT_YOURS, ephemeral=True)
+        except EXPECTED_FAILURES as error:
+            await report_failure(interaction, "the Rhyme Duel language button", error)
+        return False
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Start a duel in this language for the member."""
+        await press(
+            interaction,
+            "the Rhyme Duel language button",
+            partial(start_duel, language=self.language, picker=interaction.message),
+        )
+
+
+def language_picker(user_id: int) -> discord.ui.View:
+    """The member's language picker: one button per language, in `Language`
+    order."""
+    view = discord.ui.View(timeout=None)
+    for language in Language:
+        view.add_item(RhymeLanguageButton(user_id, language))
+    return view
 
 
 # ---
@@ -438,4 +579,4 @@ async def setup(bot: "WispBot") -> None:
 
     The command joins the shared groups on import.
     """
-    bot.add_dynamic_items(PlayButton, RhymeDuelButton)
+    bot.add_dynamic_items(PlayButton, RhymeDuelButton, RhymeLanguageButton)
