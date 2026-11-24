@@ -1,8 +1,8 @@
 """Rooms: each member's one private thread off Wisp's House.
 
-A member's games and their pinned Snack Pack live in their room. It is made
-once, reused forever, and made again only when it was deleted or sits under
-an old House.
+Members know a room as their storage locker, which is its name. A member's
+games and their pinned Snack Pack live in their room. It is made once, reused
+forever, and made again only when it was deleted or sits under an old House.
 """
 
 import asyncio
@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 # ---
 
 
-NOT_JOINED: Final = "Open /wisp board first so Wisp can give you a room."
+NOT_JOINED: Final = "Open /wisp board first so Wisp can give you a storage locker."
+_RENAME_CONTEXT: Final = "renaming a room"
 
 
 class RoomError(LookupError):
@@ -34,13 +35,13 @@ class RoomError(LookupError):
 
 def room_name(name: str) -> str:
     """The room's thread name for a member Wisp calls `name`, cut to fit Discord."""
-    return clip(f"♪ {name}'s room", ROOM_NAME_MAX)
+    return clip(f"{name}'s Storage Locker", ROOM_NAME_MAX)
 
 
 def _welcome(member: discord.abc.User) -> str:
     return "\n".join(
         [
-            f"♪ This is your room with Wisp, {member.mention}.",
+            f"♪ This is your storage locker with Wisp, {member.mention}.",
             "・Your games with him happen here.",
             "・Your Snack Pack gets pinned here each time you open it "
             "with /wisp snackpack.",
@@ -57,7 +58,9 @@ async def _house(bot: "WispBot", guild: discord.Guild) -> discord.TextChannel:
     house_id = (await bot.settings.get(guild.id)).house_channel_id
     house = None if house_id is None else guild.get_channel_or_thread(house_id)
     if not isinstance(house, discord.TextChannel):
-        raise RoomError("Wisp's House isn't set up, so he can't open your room yet.")
+        raise RoomError(
+            "Wisp's House isn't set up, so he can't open your storage locker yet."
+        )
     return house
 
 
@@ -81,8 +84,10 @@ async def open_room(
 ) -> discord.Thread:
     """Return the member's room, ready to post in, making it when needed.
 
-    A stored room that is archived is reopened, and the member is added back
-    in case they left it. One that was deleted, or sits under an old House, is
+    A stored room is reopened when archived, the member is added back in case
+    they left it, and it is renamed when its name is not `room_name`'s, as a
+    room from before storage lockers is; a failed rename is reported and the
+    room is still returned. One that was deleted, or sits under an old House, is
     made again: a private thread off the House that only the member is added
     to, with a welcome post. Two calls at once make one room. Discord's
     refusals are raised as they come.
@@ -100,14 +105,17 @@ async def open_room(
         if player.activated_at is None:
             raise RoomError(NOT_JOINED)
         house = await _house(bot, guild)
+        name = room_name(player.name or member.display_name)
         room = await _stored_room(bot, house.id, player.room_thread_id)
         if room is not None:
             if room.archived:
                 room = await room.edit(archived=False)
             await room.add_user(member)
+            if room.name != name:
+                await _rename(bot, guild, room, name)
             return room
         room = await house.create_thread(
-            name=room_name(player.name or member.display_name),
+            name=name,
             type=discord.ChannelType.private_thread,
             invitable=False,
             auto_archive_duration=ROOM_ARCHIVE_MINUTES,
@@ -125,6 +133,16 @@ async def open_room(
             await _discard(bot, guild.id, member.id, room)
             raise
         return room
+
+
+async def _rename(
+    bot: "WispBot", guild: discord.Guild, room: discord.Thread, name: str
+) -> None:
+    """Give an open room the name it should have; a failure is reported, not raised."""
+    try:
+        await room.edit(name=name)
+    except discord.HTTPException as error:
+        await bot.report_error(guild, _RENAME_CONTEXT, error)
 
 
 async def _discard(
@@ -158,4 +176,4 @@ async def rename_room(bot: "WispBot", guild_id: int, user_id: int, name: str) ->
             if room is not None:
                 await room.edit(name=room_name(name), archived=False)
         except discord.HTTPException as error:
-            await bot.report_error(guild, "renaming a room", error)
+            await bot.report_error(guild, _RENAME_CONTEXT, error)

@@ -41,14 +41,14 @@ _NO_PING: Final = discord.AllowedMentions.none()
 
 
 def _intro(
-    frame: Frame, status_thread_id: int | None, private: bool
+    frame: Frame, interaction_thread_id: int | None, private: bool
 ) -> tuple[str, ...]:
     """The card's opening lines in `frame`.
 
     The posted card says where to shop the Vault; the private one answering
     `/wisp board` has the buttons under it.
     """
-    where = channel_or("the Status post", status_thread_id)
+    where = channel_or("the Interaction post", interaction_thread_id)
     shop = (
         "Shop or open your Snack Pack with the buttons below."
         if private
@@ -128,7 +128,7 @@ async def render_leaderboard(
     ] or [frame.item("Nobody has dueled him yet")]
     head = frame.wrapped(
         frame.sections(
-            _intro(frame, settings.status_thread_id, private),
+            _intro(frame, settings.interaction_thread_id, private),
             [frame.heading("This life"), *this_life_lines, frame.blank],
             [frame.heading("All time"), *all_time_lines, frame.blank],
             [frame.heading("Rhyme Duel"), *rhyme_lines, frame.blank],

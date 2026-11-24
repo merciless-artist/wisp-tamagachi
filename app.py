@@ -65,6 +65,7 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.wisp_lunchbox",
     "cogs.craving",
     "cogs.rhyme_duel",
+    "cogs.interaction",
     "cogs.feeding",
     "cogs.conversation",
     "cogs.chores",

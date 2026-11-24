@@ -141,7 +141,7 @@ def tail(
         frame.blank,
         frame.item(f"Poke {poke} or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!"),
         frame.blank,
-        frame.item("feed Wisp, shop the Vault and play with the buttons below!"),
+        frame.item("feed Wisp, shop the Vault and play: tap Interaction below!"),
         frame.blank,
         frame.blank,
         stage_line(stage, frame),

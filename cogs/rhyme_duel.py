@@ -1,7 +1,7 @@
 """Rhyme Duel: one member and Wisp trade rhymes in the member's room.
 
 A duel starts from /wisp play rhyme, or from the Rhyme Duel button in the
-private games menu the Status post's Play button opens.
+private games menu the Interaction post's Games button opens.
 """
 
 import random
@@ -389,7 +389,7 @@ class PlayButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_PLAY_ID),
 ):
-    """The Play button on the status card, which opens the games menu privately.
+    """The Games button on the Interaction post; it opens the games menu privately.
 
     Its custom id is fixed, so the button keeps working after the bot restarts.
     """
@@ -397,7 +397,7 @@ class PlayButton(
     def __init__(self) -> None:
         super().__init__(
             discord.ui.Button(
-                label="Play",
+                label="Games",
                 style=discord.ButtonStyle.primary,
                 custom_id=_PLAY_ID,
             )
@@ -416,7 +416,7 @@ class PlayButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Open the games menu for whoever pressed it."""
-        await press(interaction, "the Play button", _offer_games)
+        await press(interaction, "the Games button", _offer_games)
 
 
 async def setup(bot: "WispBot") -> None:

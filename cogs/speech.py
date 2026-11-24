@@ -138,10 +138,10 @@ class HouseTalk:
         return streak
 
 
-def poke_button() -> "discord.ui.Button[discord.ui.View]":
+def poke_button(label: str = "Poke Wisp") -> "discord.ui.Button[discord.ui.View]":
     """The Poke Wisp button. Presses reach `PokeButton` by its custom id."""
     return discord.ui.Button(
-        label="Poke Wisp", style=discord.ButtonStyle.secondary, custom_id=POKE_ID
+        label=label, style=discord.ButtonStyle.secondary, custom_id=POKE_ID
     )
 
 

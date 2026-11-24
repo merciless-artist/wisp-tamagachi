@@ -20,8 +20,8 @@ from discord import app_commands
 import app
 from cogs import groups, snacks
 from cogs.conversation import PokeButton
+from cogs.interaction import interaction_lines
 from cogs.menus import ClosedMenu, menu_id
-from cogs.rhyme_duel import PlayButton
 from cogs.snacks import (
     FeedButton,
     ShopButton,
@@ -29,8 +29,6 @@ from cogs.snacks import (
     full_text,
     vault_buttons,
 )
-from cogs.status_card import status_buttons
-from cogs.wisp_lunchbox import LunchboxButton
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.cravings import CravingRepo
@@ -1117,37 +1115,11 @@ async def test_ban_issued_after_opening_blocks_buying(bot: app.WispBot) -> None:
 # ---
 
 
-async def test_the_status_buttons_are_every_persistent_button_three_to_a_row() -> None:
-    rows = status_buttons()
-
-    assert all(
-        isinstance(button, discord.ui.DynamicItem) for row in rows for button in row
-    )
-    assert [
-        [
-            (type(button), button.item.label, button.item.custom_id)
-            for button in cast(list[discord.ui.DynamicItem[Any]], row)
-        ]
-        for row in rows
-    ] == [
-        [
-            (FeedButton, "Feed Wisp", "wisp:feed"),
-            (PokeButton, "Poke Wisp", "wisp:poke"),
-            (ShopButton, "Vault", "wisp:vault"),
-        ],
-        [
-            (SnackPackButton, "Snack Pack", "wisp:snackpack"),
-            (PlayButton, "Play", "wisp:play"),
-            (LunchboxButton, "Lunchbox", "wisp:lunchbox"),
-        ],
-    ]
-
-
-async def test_the_status_vault_button_answers_like_wisp_vault(
+async def test_the_interaction_vault_button_answers_like_wisp_vault(
     bot: app.WispBot,
 ) -> None:
     await bot.players.add_points(GUILD_ID, USER_ID, 12)
-    vault = status_buttons()[0][2]
+    _, vault = interaction_lines(None)[2]
     pressed = make_interaction(bot)
     asked = make_interaction(bot)
 
@@ -1159,11 +1131,11 @@ async def test_the_status_vault_button_answers_like_wisp_vault(
     assert vault_text(pressed) == vault_text(asked)
 
 
-async def test_the_status_snack_pack_button_answers_like_wisp_snackpack(
+async def test_the_interaction_snack_pack_button_answers_like_wisp_snackpack(
     bot: app.WispBot,
 ) -> None:
     await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cloudwave", 2)
-    pack = status_buttons()[1][0]
+    _, pack = interaction_lines(None)[3]
     pressed = make_interaction(bot)
     asked = make_interaction(bot)
 
@@ -1176,13 +1148,14 @@ async def test_the_status_snack_pack_button_answers_like_wisp_snackpack(
     assert FRAME.item("Cloud Wave x2") in pack_text(pressed)
 
 
-async def test_a_banned_member_pressing_the_status_vault_is_told_why(
+async def test_a_banned_member_pressing_the_interaction_vault_is_told_why(
     bot: app.WispBot,
 ) -> None:
     await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
     interaction = make_interaction(bot)
 
-    await status_buttons()[0][2].callback(interaction)
+    _, vault = interaction_lines(None)[2]
+    await vault.callback(interaction)
 
     assert reply_text(interaction) == (
         "♪ Wisp is not taking snacks or gifts from you right now."
@@ -2343,7 +2316,7 @@ async def test_a_failing_feed_button_reports_where_it_was_pressed(
     await FeedButton().callback(interaction)
 
     reported.assert_awaited_once_with(
-        interaction.guild, "the Feed Wisp button", error, where=interaction.channel
+        interaction.guild, "the Feed WiSP button", error, where=interaction.channel
     )
     interaction.followup.send.assert_awaited_once_with(USER_ERROR, ephemeral=True)
 
@@ -2362,7 +2335,7 @@ async def test_a_feed_button_failure_is_posted_in_the_status_thread(
     server.status.send.assert_awaited_once()
     report = server.status.send.await_args
     assert report.args == (
-        "Error in the Feed Wisp button: OperationalError: (2013, 'Lost connection')",
+        "Error in the Feed WiSP button: OperationalError: (2013, 'Lost connection')",
     )
     assert report.kwargs["allowed_mentions"].to_dict() == NO_PING
     server.house.send.assert_not_awaited()
@@ -2381,7 +2354,7 @@ async def test_a_feed_button_that_cannot_even_acknowledge_is_reported(
     await FeedButton().callback(interaction)
 
     reported.assert_awaited_once_with(
-        interaction.guild, "the Feed Wisp button", expired, where=interaction.channel
+        interaction.guild, "the Feed WiSP button", expired, where=interaction.channel
     )
 
 

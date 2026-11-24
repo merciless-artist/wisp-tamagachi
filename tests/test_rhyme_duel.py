@@ -62,10 +62,12 @@ USER_ID = 1
 OTHER_USER_ID = 2
 QUALIFYING_ROLE = 7
 NO_PING = discord.AllowedMentions.none().to_dict()
-WELCOME = "♪ This is your room with Wisp"
-ROOM_BUSY = "♪ You already have a game going in your room. Finish that one first."
+WELCOME = "♪ This is your storage locker with Wisp"
+ROOM_BUSY = (
+    "♪ You already have a game going in your storage locker. Finish that one first."
+)
 STARTED = f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."
-NO_HOUSE = "♪ Wisp's House isn't set up, so he can't open your room yet."
+NO_HOUSE = "♪ Wisp's House isn't set up, so he can't open your storage locker yet."
 
 # ---
 # Fakes
@@ -334,7 +336,7 @@ async def test_duel_scores_perfect_and_slant(
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     assert replies(interaction) == [f"♪ Your Rhyme Duel is on in <#{THREAD_ID}>."]
     server.house.create_thread.assert_awaited_once_with(
-        name="♪ Member1's room",
+        name="Member1's Storage Locker",
         type=discord.ChannelType.private_thread,
         invitable=False,
         auto_archive_duration=ROOM_ARCHIVE_MINUTES,
@@ -363,7 +365,9 @@ async def test_a_named_player_gets_their_name_on_the_room(
     await duel(bot, server)
 
     assert server.house.create_thread.await_args is not None
-    assert server.house.create_thread.await_args.kwargs["name"] == "♪ Zed's room"
+    assert (
+        server.house.create_thread.await_args.kwargs["name"] == "Zed's Storage Locker"
+    )
 
 
 async def test_a_second_duel_uses_the_same_room(
@@ -1363,7 +1367,7 @@ async def test_a_play_button_that_cannot_answer_is_reported(
     await PlayButton().callback(interaction)
 
     reported.assert_awaited_once_with(
-        server.guild, "the Play button", expired, where=interaction.channel
+        server.guild, "the Games button", expired, where=interaction.channel
     )
 
 

@@ -56,6 +56,7 @@ FORUM_ID = 10
 HOUSE_ID = 20
 GENERAL_ID = 21
 STATUS_ID = 60
+INTERACTION_ID = 64
 TRACKS_ID = 22
 BOARD_ID = 61
 STATUS_MESSAGE_ID = 777
@@ -156,6 +157,7 @@ async def configured(bot: app.WispBot) -> None:
         status_message_id=STATUS_MESSAGE_ID,
         vault_thread_id=BOARD_ID,
         vault_message_id=BOARD_MESSAGE_ID,
+        interaction_thread_id=INTERACTION_ID,
     )
 
 
@@ -1788,7 +1790,7 @@ async def test_one_tick_with_two_drops_makes_one_house_post_with_two_lines(
         "・Health -8 (now 42): nobody fed him a track for 6 hours. "
         f"Drop a track in <#{TRACKS_ID}>.\n"
         "・Wellbeing -10 (now 40): nobody chatted, played or poked him, or gave him "
-        f"a snack or gift, for 6 hours. Talk to him here or use <#{STATUS_ID}>."
+        f"a snack or gift, for 6 hours. Talk to him here or use <#{INTERACTION_ID}>."
     )
     assert sends_without_pinging(post.kwargs)
 
@@ -1836,14 +1838,14 @@ async def test_a_stretch_is_worded_with_the_right_plural_and_minutes(
 async def test_a_drop_without_channels_set_uses_plain_words(
     bot: app.WispBot, server: FakeServer
 ) -> None:
-    await bot.settings.update(GUILD_ID, status_thread_id=None)
+    await bot.settings.update(GUILD_ID, interaction_thread_id=None)
     await growing_life(bot)
 
     await post_events(bot, GUILD_ID, [health_drop(), wellbeing_drop()])
 
     text = server.house.send.await_args.args[0]
     assert "Drop a track in the track drop." in text
-    assert "or use the Status post." in text
+    assert "or use the Interaction post." in text
 
 
 async def test_the_sick_multiplier_shows_in_the_post(

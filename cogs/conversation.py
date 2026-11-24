@@ -797,13 +797,15 @@ class PokeButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(POKE_ID),
 ):
-    """The Poke Wisp button, on the status card and the House's new-egg posts.
+    """The Poke Wisp button, on the House's new-egg posts and, as Poke, on the
+    Interaction post.
 
-    Its custom id is fixed, so the button keeps working after the bot restarts.
+    Its custom id is fixed, so the button keeps working after the bot restarts,
+    whatever its label.
     """
 
-    def __init__(self) -> None:
-        super().__init__(poke_button())
+    def __init__(self, label: str = "Poke Wisp") -> None:
+        super().__init__(poke_button(label))
 
     @classmethod
     async def from_custom_id(

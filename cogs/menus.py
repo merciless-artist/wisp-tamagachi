@@ -17,7 +17,7 @@ import discord
 
 RUN: Final = secrets.token_hex(4)
 CLOSED: Final = (
-    "♪ This menu closed when Wisp restarted. Open it again from the Status post."
+    "♪ This menu closed when Wisp restarted. Open it again from the Interaction post."
 )
 
 

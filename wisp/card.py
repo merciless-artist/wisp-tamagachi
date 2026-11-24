@@ -165,7 +165,7 @@ def _card(
         frame.blank,
         frame.item(f"Poke {poke} or tag <@{facts.wisp_id}> in {house} to say hi!!"),
         frame.blank,
-        frame.item("feed Wisp, shop the Vault and play with the buttons below!"),
+        frame.item("feed Wisp, shop the Vault and play: tap Interaction below!"),
         frame.blank,
         frame.blank,
         frame.heading(f"Life stage ・ {stage}"),

@@ -23,22 +23,34 @@ then a **right now** heading: what he needs, worst first, one line each.
 When there is nothing to do it says `happy`. The last line is his next nap,
 such as `next nap 2:00 PM`, or, while he naps, when he wakes, such as
 `napping until 2:00 PM`. Both are Discord timestamps, so each member sees the
-time in their own time zone. A line under the card points at the
-buttons. There are six, three to a row. Menus and refusals are private; what
-you do to him shows in his House:
+time in their own time zone. A line under the card points at its one
+button, **Interaction**, which jumps to the Interaction post. Before that post
+exists (on an existing server, until staff run `/wispadmin setup` once more) the
+card has no button. While no Wisp is here the card carries only **Begin
+again** (see below).
 
-- **Feed Wisp** opens the snack menu, as `/wisp feed` does.
-- **Poke Wisp** pokes him, as everywhere else.
-- **Vault** opens what `/wisp vault` opens.
+## The Interaction post
+
+The Interaction post in the Studio holds everything a member can do with
+Wisp: one message of Myra's lines, each with its button on the row under it.
+Menus and refusals are private; what you do to him shows in his House:
+
+- **Feed WiSP** opens the snack menu, as `/wisp feed` does.
+- **Poke** pokes him, as everywhere else.
+- **ViiBR Vault** jumps to the ViiBR Vault post; before there is one it opens
+  what `/wisp vault` opens.
 - **Snack Pack** opens what `/wisp snackpack` opens.
-- **Play** opens a games menu with two games, **Rhyme Duel** and
+- **Games** opens a games menu with two games, **Rhyme Duel** and
   **Wisp's Craving**. They start exactly as `/wisp play rhyme` and
   `/wisp play craving` do.
 - **Lunchbox** shows his lunchbox to you alone. `/wisp lunchbox` still posts
   it in the channel.
 
-The buttons work on old cards after a restart. While no Wisp is here the card
-carries only **Begin again** (see below).
+The buttons keep the custom ids the status card's buttons had, so they work
+after a restart and on old status cards still in a thread. Setup draws the
+post (`cogs/interaction.py`): each time the Studio is ensured the card is
+edited in place, so a new ViiBR Vault link shows, and a card that is gone is
+posted again (`settings.interaction_message_id`).
 
 Menus the buttons open never time out on their own. After the bot restarts, a
 press on a menu opened before the restart gets
@@ -399,7 +411,7 @@ Member commands:
 
 - `/wisp board` shows the leaderboard and Wisp's past versions, privately,
   with the shop and Snack Pack buttons. Open it once to join in.
-- `/wisp vault` (also the Status post's **Vault** button) is the shop: buy
+- `/wisp vault` (also the Interaction post's **ViiBR Vault** button) is the shop: buy
   snacks with your wisp coins (WC, the points you can spend), get a badge, or
   give Wisp a gift from one of four collections: pick a collection, then a
   gift. He might not like it. It is three private Components V2 messages,
@@ -410,7 +422,7 @@ Member commands:
   your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
   any magazine covers you bought and how many drawings Wisp has made you, with
   a button to shop the Vault.
-- `/wisp feed` (also the **Feed Wisp** button) opens your snack menu: pick
+- `/wisp feed` (also the **Feed WiSP** button) opens your snack menu: pick
   a snack from your Snack Pack, or the free Sine Wave, to feed Wisp.
 
 Magazines: while the living Wisp is a Rockstar, the Vault has a Magazines
@@ -445,19 +457,22 @@ the purchase is undone and the points come back.
   where it was asked for, pinging nobody; asked for in the track drop,
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
-- `/wisp play rhyme` (also Play, then **Rhyme Duel**, on the Status post)
-  starts a Rhyme Duel with Wisp in your room. A duel that counts as play
+- `/wisp play rhyme` (also Games, then **Rhyme Duel**, on the Interaction
+  post) starts a Rhyme Duel with Wisp in your storage locker. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his
   Wellbeing and pays 1 Vault point.
-- `/wisp play craving` (also Play, then **Wisp's Craving**) starts today's
-  Wisp's Craving in your room (see below).
+- `/wisp play craving` (also Games, then **Wisp's Craving**) starts today's
+  Wisp's Craving in your storage locker (see below).
 
-## Rooms
+## Storage lockers (rooms)
 
-Each member gets one private thread off Wisp's House, their room, made the
-first time they run `/wisp board` (members who joined earlier get theirs the
-next time they run it). It is named `♪ <name>'s room` for the name Wisp
-knows them by, and renamed when he learns a new one. Only the member, Wisp
+Each member gets one private thread off Wisp's House, their storage locker
+(a "room" in the code), made the first time they run `/wisp board` (members
+who joined earlier get theirs the next time they run it). It is named
+`<name>'s Storage Locker` for the name Wisp knows them by, and renamed when
+he learns a new one. A room from before storage lockers (`♪ <name>'s room`)
+is renamed the next time Wisp opens it; a failed rename is reported and the
+game goes on. Only the member, Wisp
 and staff who can manage threads see it. Every game happens there, one at a
 time: starting a duel or a Craving while one is running is refused. The room
 is reused forever; one that was deleted, or sits under an old House, is made
@@ -604,24 +619,25 @@ into the Cloudflare dashboard.
 
 ## Wisp's Studio
 
-The Studio forum holds six threads, named exactly:
+The Studio forum holds seven threads, named exactly:
 
-- `☀️ | Status`: the live status card and its six buttons (see The Status
-  post), which shows Wisp's current picture (the egg, the coal egg, then his
-  stage).
+- `☀️ | Status`: the live status card and its Interaction button (see The
+  Status post), which shows Wisp's current picture (the egg, the coal egg,
+  then his stage).
 - `🧡 | Mealtime`: every track that feeds him.
 - `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last
-  post). Its card has no buttons; the Vault (shop) button is on the Status
-  post. When the board's text changes, Wisp posts a fresh header and card at
+  post). Its card has no buttons; the ViiBR Vault button is on the
+  Interaction post. When the board's text changes, Wisp posts a fresh header and card at
   the bottom of the thread and deletes the old pair, so the thread always ends
   with the current board; text that did not change posts nothing, and a
   delete that fails is reported in the thread. The post was
   `🔒| The ViiBR Vault`; setup renames it in place.
 
-Status and the Leaderboard stay unlocked, since a locked post's buttons and
-menus don't work for members. Wisp deletes anything a member types in them
-and posts "This post is just for buttons" (Status) or "just for the
-leaderboard" for a few seconds; staff and bots may post there.
+Status, the Leaderboard, the ViiBR Vault and Interaction stay unlocked, since
+a locked post's buttons and menus don't work for members. Wisp deletes
+anything a member types in them and posts "This post is just for Wisp's
+status" (Status), "just for the leaderboard", "just for shopping" or "just
+for buttons" (Interaction) for a few seconds; staff and bots may post there.
 
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `🛍️ | ViiBR Vault`: the shop (`cogs/shop.py`). Its first post is Myra's
@@ -635,8 +651,11 @@ leaderboard" for a few seconds; staff and bots may post there.
   only the member, with the result and their wisp coins; the post never
   changes. The menus are persistent (`ShelfMenu`, custom ids
   `wisp:shelf:<menu>`), and a pick of something no longer sold is told so.
-  The Status card's Vault button jumps to this post; `/wisp vault` still
+  The Interaction post's ViiBR Vault button jumps to this post; `/wisp vault` still
   opens the private Vault. Member chat here is deleted like on Status.
+- `🕹️ | Interaction`: the members' buttons (see The Interaction post). Its
+  first post says what is below; the card is the message under it. It has no
+  picture.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
   linking to each section's first picture, then one banner picture per
   question, each in a message of its own, and its last post is the quick rules

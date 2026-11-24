@@ -208,7 +208,8 @@ async def test_the_closed_menu_turns_away_this_runs_menus_only() -> None:
 
 def test_the_closed_menu_line() -> None:
     assert CLOSED == (
-        "♪ This menu closed when Wisp restarted. Open it again from the Status post."
+        "♪ This menu closed when Wisp restarted. "
+        "Open it again from the Interaction post."
     )
 
 

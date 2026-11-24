@@ -34,7 +34,7 @@ GUILD_ID = 100
 FORUM_ID = 10
 HOUSE_ID = 20
 VAULT_ID = 61
-STATUS_ID = 60
+INTERACTION_ID = 64
 VAULT_MESSAGE_ID = 778
 VAULT_TITLE_ID = 777
 POSTED_ID = 779
@@ -49,7 +49,7 @@ INTRO = [
     FRAME.sub("The leaderboard."),
     BLANK,
     "║𝄡 Shop the Vault with the button on",
-    "║ the Status post.",
+    "║ the Interaction post.",
     BLANK,
 ]
 HEADER = "leaderboard_title.png"
@@ -810,15 +810,15 @@ async def test_the_intro_says_where_to_shop(bot: app.WispBot) -> None:
     assert "Snack Pack" not in text
 
 
-async def test_the_intro_links_the_status_post_when_it_is_set(
+async def test_the_intro_links_the_interaction_post_when_it_is_set(
     bot: app.WispBot,
 ) -> None:
     await lay(bot)
-    await bot.settings.update(GUILD_ID, status_thread_id=STATUS_ID)
+    await bot.settings.update(GUILD_ID, interaction_thread_id=INTERACTION_ID)
 
     text = await current_text(bot)
 
-    assert f"<#{STATUS_ID}>" in text
+    assert f"<#{INTERACTION_ID}>" in text
 
 
 def test_board_command_hangs_off_the_wisp_group() -> None:

@@ -24,9 +24,7 @@ import app
 from cogs import announce, assets, life_loop, pictures
 from cogs.announce import BEGIN_AGAIN
 from cogs.chores import ChoreButton
-from cogs.conversation import PokeButton
 from cogs.life_loop import BeginButton, LifeLoop
-from cogs.snacks import FeedButton
 from cogs.staff import staff_check
 from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
@@ -63,6 +61,8 @@ VAULT_POSTED_ID = 9000
 VAULT_MESSAGE_ID = 778
 RULES_ID = 63
 RULES_MESSAGE_ID = 779
+INTERACTION_ID = 64
+INTERACTION_URL = f"https://discord.com/channels/{GUILD_ID}/{INTERACTION_ID}"
 REPOSTED_CARD_ID = 888
 TITLE_ID = 889
 PANEL_ID = 999
@@ -202,6 +202,7 @@ async def configure(bot: app.WispBot, *, frozen: bool = False) -> None:
         vault_thread_id=VAULT_ID,
         vault_message_id=VAULT_MESSAGE_ID,
         mealtime_thread_id=MEALTIME_ID,
+        interaction_thread_id=INTERACTION_ID,
         frozen=frozen,
     )
 
@@ -257,16 +258,6 @@ def card_facts(fed: int, viibr: int = 0, suno: int = 0) -> CardFacts:
         house_id=HOUSE_ID,
         tracks_id=None,
     )
-
-
-STATUS_BUTTON_IDS = [
-    "wisp:feed",
-    "wisp:poke",
-    "wisp:vault",
-    "wisp:snackpack",
-    "wisp:play",
-    "wisp:lunchbox",
-]
 
 
 def posted_cards(server: FakeServer) -> list[Any]:
@@ -698,7 +689,7 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
     assert len(posted_cards(server)) == 1
 
 
-async def test_edited_status_keeps_its_buttons(
+async def test_edited_status_keeps_its_interaction_button(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -707,14 +698,23 @@ async def test_edited_status_keeps_its_buttons(
     await cog.run_tick(NOW)
 
     kwargs = server.card_edit.await_args.kwargs
-    feed, poke, *_ = card_buttons(kwargs)
-    assert isinstance(feed, FeedButton)
-    assert isinstance(poke, PokeButton)
-    assert button_ids(kwargs["view"]) == STATUS_BUTTON_IDS
+    assert_interaction_button(kwargs["view"])
     assert kwargs["view"].timeout is None
 
 
-async def test_reposted_status_keeps_its_buttons(
+async def test_before_the_interaction_post_the_status_card_has_no_button(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, interaction_thread_id=None)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    assert card_buttons(server.card_edit.await_args.kwargs) == []
+
+
+async def test_reposted_status_keeps_its_interaction_button(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer
 ) -> None:
     await configure(bot)
@@ -726,10 +726,7 @@ async def test_reposted_status_keeps_its_buttons(
     await cog.run_tick(NOW)
 
     kwargs = server.status.send.await_args.kwargs
-    feed, poke, *_ = card_buttons(kwargs)
-    assert isinstance(feed, FeedButton)
-    assert isinstance(poke, PokeButton)
-    assert button_ids(kwargs["view"]) == STATUS_BUTTON_IDS
+    assert_interaction_button(kwargs["view"])
     assert kwargs["view"].timeout is None
 
 
@@ -1113,7 +1110,7 @@ async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card
     card.edit.assert_not_awaited()
     shown = server.card_edit.await_args.kwargs
     assert "LIFE STAGE ・ EGG" in card_text(shown)
-    assert button_ids(shown["view"]) == STATUS_BUTTON_IDS
+    assert_interaction_button(shown["view"])
 
 
 async def test_a_waiting_card_without_its_ending_picture_shows_none(
@@ -1784,6 +1781,14 @@ def retired(question: MagicMock) -> bool:
     return bool(edits)
 
 
+def assert_interaction_button(view: discord.ui.LayoutView) -> None:
+    """The live status card's only button jumps to the Interaction post."""
+    (button,) = card_buttons({"view": view})
+    assert isinstance(button, discord.ui.Button)
+    assert (button.label, button.url) == ("Interaction", INTERACTION_URL)
+    assert button.style is discord.ButtonStyle.link
+
+
 def button_ids(view: discord.ui.View | discord.ui.LayoutView) -> list[str | None]:
     """The custom ids of a view's buttons, in its rows too, persistent ones included."""
     ids: list[str | None] = []
@@ -1827,7 +1832,7 @@ async def test_a_staff_press_after_a_farewell_lays_the_coal_egg_halfway_hatched(
     assert private_reply(pressed) == "♪ A new egg is on its way."
     card = server.card_edit.await_args.kwargs
     assert "LIFE STAGE ・ EGG" in card_text(card)
-    assert button_ids(card["view"]) == STATUS_BUTTON_IDS
+    assert_interaction_button(card["view"])
     assert post_pictures(server) == [["egg.png"]]
     assert panel_pictures(panel) == [["egg.png"]]
     assert house_reports(server) == []
@@ -2023,7 +2028,7 @@ async def test_typing_begin_lays_the_next_egg(
     }
     assert answer == "♪ A new egg is on its way."
     card = server.card_edit.await_args.kwargs
-    assert button_ids(card["view"]) == STATUS_BUTTON_IDS
+    assert_interaction_button(card["view"])
 
 
 async def test_typing_begin_while_he_lives_lays_nothing(

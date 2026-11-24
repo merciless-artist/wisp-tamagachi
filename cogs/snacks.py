@@ -1317,7 +1317,7 @@ async def wisp_snackpack(interaction: discord.Interaction["WispBot"]) -> None:
 
 @wisp.command(name="feed", description="Feed Wisp a snack from your Snack Pack.")
 async def wisp_feed(interaction: discord.Interaction["WispBot"]) -> None:
-    """Offer the member their snacks to feed Wisp, as the Feed Wisp button does."""
+    """Offer the member their snacks to feed Wisp, as the Feed WiSP button does."""
     await _offer_snacks(interaction)
 
 
@@ -1327,8 +1327,9 @@ class ShopButton(
 ):
     """The Shop the Vault button, which opens the shop for whoever presses it.
 
-    The status card shows it as Vault. Its custom id is fixed, so the button
-    keeps working after the bot restarts, whatever its label.
+    The Interaction post shows it as ViiBR Vault before there is a ViiBR Vault
+    post to jump to. Its custom id is fixed, so the button keeps working after
+    the bot restarts, whatever its label.
     """
 
     def __init__(self, label: str = "Shop the Vault") -> None:
@@ -1362,7 +1363,7 @@ class SnackPackButton(
 ):
     """The Open my Snack Pack button, which shows the presser their own Snack Pack.
 
-    The status card shows it as Snack Pack. Its custom id is fixed, so the
+    The Interaction post shows it as Snack Pack. Its custom id is fixed, so the
     button keeps working after the bot restarts, whatever its label.
     """
 
@@ -1588,7 +1589,8 @@ class FeedButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_FEED_ID),
 ):
-    """The Feed Wisp button on the status card, for every member who can feed Wisp.
+    """The Feed WiSP button on the Interaction post, for every member who can
+    feed Wisp.
 
     Its custom id is fixed, so the button keeps working after the bot restarts.
     """
@@ -1596,7 +1598,7 @@ class FeedButton(
     def __init__(self) -> None:
         super().__init__(
             discord.ui.Button(
-                label="Feed Wisp",
+                label="Feed WiSP",
                 style=discord.ButtonStyle.success,
                 custom_id=_FEED_ID,
             )
@@ -1615,7 +1617,7 @@ class FeedButton(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         """Offer the snacks the member can feed Wisp right now."""
-        await press(interaction, "the Feed Wisp button", _offer_snacks)
+        await press(interaction, "the Feed WiSP button", _offer_snacks)
 
 
 async def setup(bot: "WispBot") -> None:
