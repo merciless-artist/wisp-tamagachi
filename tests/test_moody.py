@@ -11,13 +11,14 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 from discord import app_commands
 
 import app
 from cogs import moody, moody_staff
 from cogs.conversation import Conversation
-from cogs.moody import MoodyMenu, draw
+from cogs.moody import MoodyMenu, draw, moody_round, post
 from cogs.moody_staff import list_messages
 from db.activity import ActivityRepo
 from db.database import Database
@@ -103,6 +104,8 @@ class FixedRandom(random.Random):
     [
         ("Phrase One", "Artist A", "Song A", 1999, None),
         ("", "Artist A", "Song A", 1999, "♪ The phrase can't be empty."),
+        ("...!!!", "Artist A", "Song A", 1999, "♪ The phrase needs at least one word."),
+        ("♪ ♪ ♪", "Artist A", "Song A", 1999, "♪ The phrase needs at least one word."),
         ("Phrase One", "", "Song A", 1999, "♪ The artist can't be empty."),
         ("Phrase One", "Artist A", "", 1999, "♪ The song can't be empty."),
         (
@@ -191,6 +194,17 @@ def test_a_long_reply_is_cut_never_the_phrase_and_leaves_room_to_win() -> None:
     assert text_length(f"{text}\n{winner}") <= MESSAGE_LIMIT
 
 
+def test_a_long_reply_opening_with_the_phrase_is_cut_without_a_second_copy() -> None:
+    phrase = Phrase(1, "teen", PHRASE_ONE, "Artist A", "Song A", 1999)
+
+    text = with_phrase(f"{PHRASE_ONE}! " + "word " * 600, phrase, MESSAGE_LIMIT)
+
+    assert text.startswith(f"{PHRASE_ONE}! word")
+    assert text.count(PHRASE_ONE) == 1
+    winner = won_line(2**64 - 1, phrase)
+    assert text_length(f"{text}\n{winner}") <= MESSAGE_LIMIT
+
+
 def test_option_labels_fit_discords_limit() -> None:
     phrase = Phrase(1, "teen", "Phrase One", "A" * 100, "S" * 100, 1999)
 
@@ -258,6 +272,13 @@ def test_he_is_moody_when_hangry_lonely_or_feeling_anything() -> None:
     poxy = make_life()
     poxy.cold_left = 60.0
     assert is_moody(poxy, NOW)
+
+
+@pytest.mark.parametrize("chore", ["tantrum_left", "mess_left"])
+def test_he_is_moody_while_a_tantrum_or_a_mess_waits(chore: str) -> None:
+    life = make_life()
+    setattr(life, chore, 60.0)
+    assert is_moody(life, NOW)
 
 
 @pytest.mark.parametrize("stage", [Stage.BABY, Stage.CHILD, Stage.OLD_FOGEY])
@@ -705,6 +726,56 @@ async def test_a_failed_ai_answer_drops_its_round(
 
     assert "view" not in message.reply.await_args.kwargs
     assert await bot.moody.last_round(GUILD_ID) is None
+
+
+async def test_a_round_whose_answer_never_went_out_is_dropped(
+    cog: Conversation,
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await lay(bot)
+    await add_songs(bot)
+    broken = AsyncMock(side_effect=pymysql.err.OperationalError(2003, "down"))
+    monkeypatch.setattr("cogs.conversation._story", broken)
+
+    with pytest.raises(pymysql.err.OperationalError):
+        await cog.on_message(to_wisp(server, "hi"))
+
+    broken.assert_awaited_once()
+    assert await bot.moody.last_round(GUILD_ID) is None
+
+
+async def test_a_refused_answer_drops_its_round(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    await add_songs(bot)
+    refused = discord.HTTPException(MagicMock(status=400), "refused")
+
+    async def send(_text: str, _view: discord.ui.View | None) -> discord.Message:
+        raise refused
+
+    with pytest.raises(discord.HTTPException):
+        async with moody_round(bot, GUILD_ID, life, NOW, FixedRandom(0.0)) as drawn:
+            assert drawn is not None
+            await post(bot, drawn, "grr", send)
+
+    assert await bot.moody.last_round(GUILD_ID) is None
+
+
+async def test_a_posted_round_is_kept(bot: app.WispBot) -> None:
+    life = await lay(bot)
+    await add_songs(bot)
+    posted = MagicMock(spec=discord.Message)
+    posted.id = POSTED_ID
+
+    async def send(_text: str, _view: discord.ui.View | None) -> discord.Message:
+        return posted
+
+    async with moody_round(bot, GUILD_ID, life, NOW, FixedRandom(0.0)) as drawn:
+        await post(bot, drawn, "grr", send)
+
+    stored = await bot.moody.last_round(GUILD_ID)
+    assert stored is not None and stored.message_id == POSTED_ID
 
 
 async def test_a_happy_answer_has_no_phrase(

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
+from wisp.chores import is_open
 from wisp.life import Life, Mood, mood
 from wisp.rules import (
     MOODY_CREDIT_MAX,
@@ -19,6 +20,7 @@ from wisp.rules import (
     MOODY_STAGES,
     MOODY_YEAR_MAX,
     MOODY_YEAR_MIN,
+    Chore,
 )
 from wisp.text import clip, text_length
 from wisp.voice import feelings_of
@@ -76,6 +78,8 @@ def problem(text: str, artist: str, song: str, year: int) -> str | None:
             return f"♪ The {name} can't be empty."
         if text_length(value) > limit:
             return f"♪ The {name} can be at most {limit} characters."
+    if not _plain(text):
+        return "♪ The phrase needs at least one word."
     if not MOODY_YEAR_MIN <= year <= MOODY_YEAR_MAX:
         return f"♪ The year must be from {MOODY_YEAR_MIN} to {MOODY_YEAR_MAX}."
     return None
@@ -94,12 +98,17 @@ def songs_short(phrases: Sequence[Phrase]) -> int:
 def is_moody(life: Life, now: datetime) -> bool:
     """Whether Wisp is in a bad way at a stage that plays the game.
 
-    He is when hangry or lonely, or when he feels anything at all: Monster
-    Pox, a cold, spoiled or cranky.
+    He is when hangry or lonely, when he feels anything at all (Monster Pox,
+    a cold, spoiled or cranky) and while a tantrum or a mess of his waits.
     """
     if life.stage not in MOODY_STAGES:
         return False
-    return mood(life) in _BAD_MOODS or bool(feelings_of(life, now))
+    return (
+        mood(life) in _BAD_MOODS
+        or bool(feelings_of(life, now))
+        or is_open(life, Chore.TANTRUM)
+        or is_open(life, Chore.MESS)
+    )
 
 
 def pick_phrase(
@@ -161,10 +170,12 @@ def with_phrase(reply: str, phrase: Phrase, limit: int) -> str:
     """The reply carrying the phrase, with room left for its `won_line`.
 
     A reply that does not say the phrase gets it as its last line. When the
-    whole would pass `limit`, the AI's words are cut, never the phrase.
+    whole would pass `limit`, the AI's words are cut, never the phrase; a
+    reply that still says it once cut gets no second copy.
     """
     room = limit - text_length(won_line(_LONGEST_ID, phrase)) - 1
-    if has_phrase(reply, phrase.text) and text_length(reply) <= room:
-        return reply
+    kept = clip(reply, room)
+    if has_phrase(kept, phrase.text):
+        return kept
     words = clip(reply, room - text_length(phrase.text) - 1).rstrip()
     return f"{words}\n{phrase.text}" if words else phrase.text

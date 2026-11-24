@@ -23,7 +23,7 @@ from cogs.channels import where_of
 from cogs.chores import wake_by_poke
 from cogs.groups import require_guild
 from cogs.house_memory import keep, recall
-from cogs.moody import abandon, draw, post, view_kwargs
+from cogs.moody import moody_round, post, view_kwargs
 from cogs.pictures import art_kwargs, sick_talk_image
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -535,42 +535,41 @@ class Conversation(commands.Cog):
         his long memory, a pickle stance in the answer is saved and the
         expressions it used count toward his favorite emoji; a note is saved
         only from Adult on. From Child on, a moody Wisp may work a moody
-        phrase into the answer, with its menu (see `cogs.moody.draw`).
+        phrase into the answer, with its menu (see `cogs.moody.moody_round`).
         """
         bot = self.bot
-        drawn = (
-            await draw(bot, guild.id, life, now, self.rng) if level is Talk.AI else None
-        )
         emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
         track_drop = await _track_drop(bot, guild)
-        async with message.channel.typing():
-            prompt = await _prompt(
-                bot,
-                guild.id,
-                life,
-                level,
-                player,
-                player.name or message.author.display_name,
-                earlier,
-                text,
-                now,
-                emojis=emojis,
-                track_drop=track_drop is not None,
-                sight=None if level is Talk.EGG else await _sight(bot, message),
-                moody_phrase=None if drawn is None else drawn.phrase.text,
-            )
-            reply = await ai_reply(bot, guild, prompt)
-        picture = sick_talk_image(life, bot.talk.rng)
-        if reply is None:
-            await abandon(bot, drawn)
-            moment = _sick_moment(life, level) or _FALLBACK[level]
-            await _reply(bot, message, bot.lines.pick(moment, mood(life)), picture)
-            return
+        async with moody_round(
+            bot, guild.id, life, now, self.rng, playing=level is Talk.AI
+        ) as drawn:
+            async with message.channel.typing():
+                prompt = await _prompt(
+                    bot,
+                    guild.id,
+                    life,
+                    level,
+                    player,
+                    player.name or message.author.display_name,
+                    earlier,
+                    text,
+                    now,
+                    emojis=emojis,
+                    track_drop=track_drop is not None,
+                    sight=None if level is Talk.EGG else await _sight(bot, message),
+                    moody_phrase=None if drawn is None else drawn.phrase.text,
+                )
+                reply = await ai_reply(bot, guild, prompt)
+            picture = sick_talk_image(life, bot.talk.rng)
+            if reply is None:
+                moment = _sick_moment(life, level) or _FALLBACK[level]
+                await _reply(bot, message, bot.lines.pick(moment, mood(life)), picture)
+                return
 
-        async def send(text: str, view: discord.ui.View | None) -> discord.Message:
-            return await _reply(bot, message, text, picture, view)
+            async def send(text: str, view: discord.ui.View | None) -> discord.Message:
+                return await _reply(bot, message, text, picture, view)
 
-        await post(bot, drawn, link_track_drop(reply.text, track_drop), send)
+            await post(bot, drawn, link_track_drop(reply.text, track_drop), send)
         if level is Talk.EGG:
             return
         await keep(
@@ -625,40 +624,43 @@ class Conversation(commands.Cog):
         if not self._chime_in_due(guild.id, now):
             return
         self._chimed_at[guild.id] = now
-        drawn = await draw(self.bot, guild.id, life, now, self.rng)
         track_drop = await _track_drop(self.bot, guild)
-        prompt = build_prompt(
-            life.stage,
-            mood(life),
-            None,
-            chat,
-            None,
-            expressions=expressions(self.bot, life.stage),
-            dances=dances(self.bot, life.stage),
-            feelings=feelings_of(life, now),
-            sickness_hours=sick_hours(life),
-            track_drop=track_drop is not None,
-            story=await _story(self.bot, guild.id, life, now),
-            memories=await recall(
-                self.bot, guild.id, life, chat[-1].text if chat else "", None, now
-            ),
-            moody_phrase=None if drawn is None else drawn.phrase.text,
-        )
-        reply = await ai_reply(self.bot, guild, prompt)
-        if reply is None:
-            await abandon(self.bot, drawn)
-            return
-
-        async def send(text: str, view: discord.ui.View | None) -> discord.Message:
-            return await message.channel.send(
-                text, allowed_mentions=_NO_PING, **view_kwargs(view)
+        async with moody_round(self.bot, guild.id, life, now, self.rng) as drawn:
+            prompt = build_prompt(
+                life.stage,
+                mood(life),
+                None,
+                chat,
+                None,
+                expressions=expressions(self.bot, life.stage),
+                dances=dances(self.bot, life.stage),
+                feelings=feelings_of(life, now),
+                sickness_hours=sick_hours(life),
+                track_drop=track_drop is not None,
+                story=await _story(self.bot, guild.id, life, now),
+                memories=await recall(
+                    self.bot, guild.id, life, chat[-1].text if chat else "", None, now
+                ),
+                moody_phrase=None if drawn is None else drawn.phrase.text,
             )
+            reply = await ai_reply(self.bot, guild, prompt)
+            if reply is None:
+                return
 
-        try:
-            await post(self.bot, drawn, link_track_drop(reply.text, track_drop), send)
-        except discord.HTTPException as error:
-            await self.bot.report_error(guild, _CONTEXT, error, where=message.channel)
-            return
+            async def send(text: str, view: discord.ui.View | None) -> discord.Message:
+                return await message.channel.send(
+                    text, allowed_mentions=_NO_PING, **view_kwargs(view)
+                )
+
+            try:
+                await post(
+                    self.bot, drawn, link_track_drop(reply.text, track_drop), send
+                )
+            except discord.HTTPException as error:
+                await self.bot.report_error(
+                    guild, _CONTEXT, error, where=message.channel
+                )
+                return
         await self.bot.wisp_lunchbox.record_expressions(guild.id, reply.expressions)
 
 

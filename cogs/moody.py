@@ -10,7 +10,8 @@ restart.
 import asyncio
 import random
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Final
@@ -114,11 +115,35 @@ def view_kwargs(view: discord.ui.View | None) -> dict[str, Any]:
 Send = Callable[[str, discord.ui.View | None], Awaitable[discord.Message]]
 
 
+@asynccontextmanager
+async def moody_round(
+    bot: "WispBot",
+    guild_id: int,
+    life: Life,
+    now: datetime,
+    rng: random.Random,
+    *,
+    playing: bool = True,
+) -> AsyncIterator[Draw | None]:
+    """Maybe a round (see `draw`) for the AI answer made and posted in the block.
+
+    None when `playing` is False. A round whose answer was not posted by the
+    end of the block is deleted, whatever stopped it (no AI answer, Discord
+    refusing it, an error or a cancellation), so it never holds back the
+    next one.
+    """
+    drawn = await draw(bot, guild_id, life, now, rng) if playing else None
+    try:
+        yield drawn
+    finally:
+        if drawn is not None:
+            await bot.moody.drop_unposted(drawn.round_id)
+
+
 async def post(bot: "WispBot", drawn: Draw | None, text: str, send: Send) -> None:
     """Send Wisp's answer through `send`, with the round's phrase and menu.
 
-    Without a round the text goes as it is. A round whose answer Discord
-    refused is deleted, so it never holds back the next one.
+    Without a round the text goes as it is.
 
     Raises:
         discord.HTTPException: Discord refused the answer.
@@ -126,21 +151,11 @@ async def post(bot: "WispBot", drawn: Draw | None, text: str, send: Send) -> Non
     if drawn is None:
         await send(text, None)
         return
-    try:
-        sent = await send(
-            with_phrase(text, drawn.phrase, MESSAGE_LIMIT),
-            _menu(drawn.round_id, drawn.options),
-        )
-    except discord.HTTPException:
-        await bot.moody.drop_round(drawn.round_id)
-        raise
+    sent = await send(
+        with_phrase(text, drawn.phrase, MESSAGE_LIMIT),
+        _menu(drawn.round_id, drawn.options),
+    )
     await bot.moody.set_message(drawn.round_id, sent.id)
-
-
-async def abandon(bot: "WispBot", drawn: Draw | None) -> None:
-    """Delete a round whose AI answer never came."""
-    if drawn is not None:
-        await bot.moody.drop_round(drawn.round_id)
 
 
 # ---

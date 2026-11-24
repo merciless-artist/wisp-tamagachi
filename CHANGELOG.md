@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-24 (Moody phrases review fixes)
+
+- **No stuck rounds.** The round now lives in `cogs.moody.moody_round`, a
+  block around the whole answer: if the answer never went out for any
+  reason (no AI answer, Discord refusing it, a database error while building
+  the prompt, a cancellation), the round is deleted on the way out
+  (`MoodyRepo.drop_unposted`), so it never blocks the next one for 30
+  minutes. `abandon` and `drop_round` are gone.
+- **No double phrase.** A long reply that already says the phrase near its
+  start is cut without adding the phrase again.
+- **Phrases need a word.** `/wispadmin moody add` refuses a phrase made only
+  of punctuation or symbols ("♪ The phrase needs at least one word."), which
+  would have matched every reply.
+- **Tantrums and messes count.** An open tantrum or mess now makes Wisp
+  moody too (`wisp.chores.is_open`), as the design asked.
+
 ## 2026-11-24 (Moody phrases)
 
 - **Name that song.** Staff add song lines per stage (Child to Old Fogey)

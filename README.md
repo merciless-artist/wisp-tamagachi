@@ -572,7 +572,8 @@ An Easter egg: name the song Wisp just grumbled. Staff write the content with
 
 - `/wispadmin moody add stage phrase artist song year` saves a song line for
   Child, Teen, Adult, Rockstar or Old Fogey and answers with its id. A phrase
-  is at most 300 characters, an artist or song 100, the year 1000 to 2100
+  is at most 300 characters and needs at least one word (not only
+  punctuation or symbols), an artist or song 100, the year 1000 to 2100
   (`MOODY_PHRASE_MAX`, `MOODY_CREDIT_MAX`, `MOODY_YEAR_MIN`/`MAX`).
 - `/wispadmin moody list stage` lists them as `#id ・ phrase ・ Artist, Song
   (Year)`, split over several messages when long, and says when the stage
@@ -580,12 +581,15 @@ An Easter egg: name the song Wisp just grumbled. Staff write the content with
 - `/wispadmin moody remove id` deletes one.
 
 When Wisp answers someone through his AI (or chimes in) while he is in a bad
-way, hangry, lonely, sick with Monster Pox or a cold, spoiled or cranky, and
-his stage has at least 3 phrases from different songs, there is a 25% chance
-(`MOODY_PHRASE_CHANCE`) he works one of them into the answer word for word,
-at most once every 30 minutes per server (`MOODY_PHRASE_GAP`) and never the
-same phrase twice in a row. If the AI leaves it out, it is added as the last
-line. A menu, "♪ Name that song", sits under the answer with that song and
+way, hangry, lonely, sick with Monster Pox or a cold, spoiled, cranky, or
+with a tantrum or a mess waiting, and his stage has at least 3 phrases from
+different songs, there is a 25% chance (`MOODY_PHRASE_CHANCE`) he works one
+of them into the answer word for word, at most once every 30 minutes per
+server (`MOODY_PHRASE_GAP`) and never the same phrase twice in a row. If the
+AI leaves it out, it is added as the last line; a long answer is cut, never
+the phrase, and never says it twice. A round whose answer never goes out
+(the AI failed, Discord refused it, or anything else stopped it) is deleted
+(`cogs.moody.moody_round`), so it holds back nothing. A menu, "♪ Name that song", sits under the answer with that song and
 two others from the stage, shuffled. Anyone who opened /wisp board gets one
 guess per round; the first right one wins 3 wisp coins
 (`MOODY_PHRASE_REWARD`), the menu is shut and the answer shows

@@ -139,10 +139,12 @@ class MoodyRepo:
             (message_id, round_id),
         )
 
-    async def drop_round(self, round_id: int) -> None:
-        """Delete a round whose reply never went out."""
+    async def drop_unposted(self, round_id: int) -> None:
+        """Delete a round unless its reply went out (see `set_message`)."""
         await self._db.execute(
-            f"DELETE FROM {self._db.t('moody_rounds')} WHERE id = %s", (round_id,)
+            f"DELETE FROM {self._db.t('moody_rounds')} "
+            "WHERE id = %s AND message_id IS NULL",
+            (round_id,),
         )
 
     async def last_round(self, guild_id: int) -> MoodyRound | None:
