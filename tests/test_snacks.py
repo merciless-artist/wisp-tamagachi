@@ -43,7 +43,8 @@ from db.players import Player, PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from tests.layout import (
-    assert_fits_its_frame,
+    STYLE_EMOJIS,
+    assert_is_a_menu,
     layout_order,
     layout_selects,
     layout_text,
@@ -56,12 +57,12 @@ from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import SNACK_BY_KEY, SNACKS, Stage
 from wisp.text import (
-    FRAME_EMOJIS,
     LAYOUT_TEXT_LIMIT,
+    TITLE_BAR,
     UNICODE_FRAME,
     USER_ERROR,
     daily_reset,
-    emoji_frame,
+    frame_of,
     text_length,
 )
 
@@ -80,7 +81,7 @@ NO_ROLE = (
     f"<@&{QUALIFYING_ROLE}>."
 )
 NOT_OPENED = "♪ Wisp can't take that from you: you haven't opened /wisp board yet."
-# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+# Without the style's emojis uploaded, every menu is plain text.
 FRAME = UNICODE_FRAME
 NO_PING = discord.AllowedMentions.none().to_dict()
 
@@ -413,14 +414,15 @@ def pack_text(interaction: MagicMock) -> str:
 
 
 def pack_sections(text: str) -> list[list[str]]:
-    """A Snack Pack's sections inside its frame: head, snacks, keepsakes, badges."""
-    lines = text.splitlines()
-    assert lines[-2:] == [FRAME.blank, FRAME.bottom]
-    assert_fits_its_frame(text, FRAME)
-    return [
-        section.splitlines()
-        for section in "\n".join(lines[:-2]).split(FRAME.section_break + "\n")
-    ]
+    """A Snack Pack's parts: the head under its title, then each section from
+    its heading (snacks, keepsakes, badges); the footer is left out."""
+    assert_is_a_menu(text, FRAME, "Snack Pack")
+    sections: list[list[str]] = [[]]
+    for line in text.splitlines()[1:-1]:
+        if line.startswith("## "):
+            sections.append([])
+        sections[-1].append(line)
+    return sections
 
 
 def vault_snack(key: str, emoji: str, price: str) -> str:
@@ -447,10 +449,10 @@ async def test_vault_is_three_layouts_in_the_house_frame(bot: app.WispBot) -> No
     lines = text.splitlines()
     mini = emoji_text("wisp_coin_mini", 4)
     paid = [snack for snack in SNACKS if snack.cost > 0]
-    assert lines[: 7 + len(paid)] == [
-        FRAME.sub(f"wisp coins: {emoji_text('wisp_coin')} 12"),
-        FRAME.section_break,
-        FRAME.heading("Snacks"),
+    assert lines[: 5 + len(paid)] == [
+        FRAME.title("ViiBR Vault"),
+        FRAME.note(f"wisp coins: {emoji_text('wisp_coin')} 12"),
+        FRAME.heading("Snacks", 0),
         vault_snack("sinewave", emoji_text("snack_sinewave", 3), "free once a day"),
         *(
             vault_snack(
@@ -460,12 +462,10 @@ async def test_vault_is_three_layouts_in_the_house_frame(bot: app.WispBot) -> No
             )
             for snack in paid
         ),
-        FRAME.blank,
-        FRAME.section_break,
-        FRAME.heading("Badges"),
+        FRAME.heading("Badges", 2),
     ]
-    assert lines[-2:] == [FRAME.blank, FRAME.bottom]
-    assert_fits_its_frame(text, FRAME)
+    assert lines[-1] == FRAME.footer
+    assert_is_a_menu(text, FRAME, "ViiBR Vault")
     assert "x2" not in text
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     assert option_values(select) == [snack.key for snack in paid]
@@ -475,25 +475,26 @@ async def test_vault_is_three_layouts_in_the_house_frame(bot: app.WispBot) -> No
     ]
 
 
-async def test_the_vault_is_in_myras_emoji_frame_once_its_emojis_are_up(
+async def test_the_vault_is_in_the_favorites_style_once_its_emojis_are_up(
     bot: app.WispBot,
 ) -> None:
-    give_emojis(bot, *FRAME_EMOJIS)
-    pieces = [emoji_text(name, index) for index, name in enumerate(FRAME_EMOJIS, 1)]
-    frame = emoji_frame(*pieces)
+    give_emojis(bot, *STYLE_EMOJIS)
+    frame = frame_of(bot.emoji)
 
     interaction, _ = await open_vault(bot)
 
     text = vault_text(interaction)
     lines = text.splitlines()
+    bar = "".join(bot.emoji(name) for name in TITLE_BAR)
     assert lines[:3] == [
-        frame.sub("wisp coins: 0"),
-        frame.section_break,
-        frame.heading("Snacks"),
+        f"# {bar} **ViiBR VAULT** {bar}",
+        frame.note("wisp coins: 0"),
+        f"## {bot.emoji('boing_bass')} **SNACKS**",
     ]
-    assert frame.heading("Badges") in lines
-    assert lines[-2:] == [frame.blank, frame.bottom]
-    assert_fits_its_frame(text, frame)
+    assert f"## {bot.emoji('wisp_pause')} **BADGES**" in lines
+    assert lines[-1] == frame.footer
+    assert lines[-1].startswith(f"### ・{bot.emoji('headerbarright')}")
+    assert_is_a_menu(text, frame, "ViiBR Vault")
     assert not any(mark in text for mark in "║╠═╚│𝄡𝄚𝄂𝄆")
 
 
@@ -513,17 +514,11 @@ async def test_the_vaults_menus_sit_between_its_sections(bot: app.WispBot) -> No
         if isinstance(child, discord.ui.TextDisplay)
     )
     last = SNACKS[-1]
-    assert snacks_part.splitlines()[-2] == vault_snack(last.key, "", f"{last.cost} WC")
-    assert snacks_part.splitlines()[-1] == FRAME.blank
-    assert badges_part.splitlines()[:2] == [
-        FRAME.section_break,
-        FRAME.heading("Badges"),
-    ]
-    assert gifts_part.splitlines()[:2] == [
-        FRAME.section_break,
-        f"{FRAME.heading('Gifts')} ・ 15 WC each",
-    ]
-    assert closing.splitlines() == [FRAME.blank, FRAME.bottom]
+    assert snacks_part.splitlines()[0] == FRAME.title("ViiBR Vault")
+    assert snacks_part.splitlines()[-1] == vault_snack(last.key, "", f"{last.cost} WC")
+    assert badges_part.splitlines()[0] == FRAME.heading("Badges", 2)
+    assert gifts_part.splitlines()[0] == f"{FRAME.heading('Gifts', 4)} ・ 15 WC each"
+    assert closing.splitlines() == [FRAME.footer]
 
 
 async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
@@ -532,7 +527,11 @@ async def test_the_vaults_note_comes_before_the_frame(bot: app.WispBot) -> None:
     interaction = await buy(bot, "cheese")
 
     lines = reply_text(interaction).splitlines()
-    assert lines[:2] == ["♪ Bought Cheese for 6 WC.", FRAME.sub("wisp coins: 4")]
+    assert lines[:3] == [
+        "♪ Bought Cheese for 6 WC.",
+        FRAME.title("ViiBR Vault"),
+        FRAME.note("wisp coins: 4"),
+    ]
     view = interaction.edit_original_response.await_args.kwargs["view"]
     note, header = view.children[:2]
     assert isinstance(note, discord.ui.TextDisplay)
@@ -570,19 +569,19 @@ async def test_the_vault_opens_with_myras_header_and_closes_with_the_frame(
     assert isinstance(header, discord.ui.MediaGallery)
     assert [item.media.url for item in header.items] == ["attachment://vault_title.png"]
     assert isinstance(closing, discord.ui.TextDisplay)
-    assert closing.content.splitlines()[-1] == FRAME.bottom
+    assert closing.content.splitlines()[-1] == FRAME.footer
 
 
 async def test_vault_without_emojis_stays_tidy(bot: app.WispBot) -> None:
     interaction, _ = await open_vault(bot)
 
     text = vault_text(interaction)
-    assert FRAME.sub("wisp coins: 0") in text.splitlines()
+    assert FRAME.note("wisp coins: 0") in text.splitlines()
     assert vault_snack("sinewave", "", "free once a day") in text.splitlines()
     assert vault_snack("cheese", "", "6 WC") in text.splitlines()
     assert "<:" not in text
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, FRAME)
+    assert_is_a_menu(text, FRAME)
 
 
 # ---
@@ -610,17 +609,20 @@ async def test_snack_pack_shows_snacks_keepsakes_and_shop_button(
     text = pack_text(interaction)
     head, snack_lines, keepsakes, badges = pack_sections(text)
     assert head == [
-        FRAME.sub(f"<@{USER_ID}> snack pack"),
-        FRAME.sub(f"{emoji_text('wisp_coin_mini', 1)} 12 WC (wisp coins)"),
-        FRAME.sub("Drawings from Wisp: 0"),
+        FRAME.note(f"<@{USER_ID}> snack pack"),
+        FRAME.note(f"{emoji_text('wisp_coin_mini', 1)} 12 WC (wisp coins)"),
+        FRAME.note("Drawings from Wisp: 0"),
     ]
     assert snack_lines == [
-        FRAME.heading("Snacks"),
+        FRAME.heading("Snacks", 0),
         FRAME.item(f"{emoji_text('snack_cloudwave', 2)} Cloud Wave x2"),
         FRAME.item(f"{emoji_text('snack_sinewave', 3)} Sine Wave free today"),
     ]
-    assert keepsakes == [FRAME.heading("Keepsakes"), FRAME.item("Wisp v3's Last Ember")]
-    assert badges == [FRAME.heading("Badges"), FRAME.item("none yet")]
+    assert keepsakes == [
+        FRAME.heading("Keepsakes", 0),
+        FRAME.item("Wisp v3's Last Ember"),
+    ]
+    assert badges == [FRAME.heading("Badges", 0), FRAME.item("none yet")]
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
     header, _, row = kwargs["view"].children
     assert isinstance(header, discord.ui.MediaGallery)
@@ -638,7 +640,7 @@ async def test_snack_pack_lists_paid_snacks_in_menu_order(bot: app.WispBot) -> N
 
     snack_lines = pack_sections(pack_text(interaction))[1]
     assert snack_lines == [
-        FRAME.heading("Snacks"),
+        FRAME.heading("Snacks", 0),
         FRAME.item("Jelly Wave x3"),
         FRAME.item("Cheese x1"),
         FRAME.item("Sine Wave free today"),
@@ -661,7 +663,7 @@ async def test_snack_pack_shows_each_keepsakes_emoji_in_place_of_its_name(
 
     keepsakes = pack_sections(pack_text(interaction))[2]
     assert keepsakes == [
-        FRAME.heading("Keepsakes"),
+        FRAME.heading("Keepsakes", 0),
         FRAME.item(f"Wisp v3's {emoji_text('keepsake_eggshell', 1)}"),
         FRAME.item(f"Wisp v3's {emoji_text('keepsake_last_ember', 2)}"),
         FRAME.item("Wisp v3's Teen Spark"),
@@ -686,7 +688,7 @@ async def test_snack_pack_lists_the_newest_life_first_in_the_order_given(
 
     keepsakes = pack_sections(pack_text(interaction))[2]
     assert keepsakes == [
-        FRAME.heading("Keepsakes"),
+        FRAME.heading("Keepsakes", 0),
         FRAME.item("Wisp v4's Eggshell"),
         FRAME.item("Wisp v4's First Spark"),
         FRAME.item("Wisp v4's Teen Spark"),
@@ -710,7 +712,7 @@ async def test_a_long_keepsake_list_is_cut_to_one_message(bot: app.WispBot) -> N
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
     keepsakes = pack_sections(text)[2]
     shown = keepsakes[1:-1]
-    assert keepsakes[0] == FRAME.heading("Keepsakes")
+    assert keepsakes[0] == FRAME.heading("Keepsakes", 1)
     assert keepsakes[-1] == FRAME.item(
         f"and {lives * len(KeepsakeKind) - len(shown)} more"
     )
@@ -734,13 +736,13 @@ async def test_empty_snack_pack_says_so(bot: app.WispBot) -> None:
     text = pack_text(interaction)
     head, snack_lines, keepsakes, badges = pack_sections(text)
     assert head == [
-        FRAME.sub(f"<@{USER_ID}> snack pack"),
-        FRAME.sub("0 WC (wisp coins)"),
-        FRAME.sub("Drawings from Wisp: 0"),
+        FRAME.note(f"<@{USER_ID}> snack pack"),
+        FRAME.note("0 WC (wisp coins)"),
+        FRAME.note("Drawings from Wisp: 0"),
     ]
-    assert snack_lines == [FRAME.heading("Snacks"), FRAME.item("nothing saved yet")]
-    assert keepsakes == [FRAME.heading("Keepsakes"), FRAME.item("none yet")]
-    assert badges == [FRAME.heading("Badges"), FRAME.item("none yet")]
+    assert snack_lines == [FRAME.heading("Snacks", 0), FRAME.item("nothing saved yet")]
+    assert keepsakes == [FRAME.heading("Keepsakes", 0), FRAME.item("none yet")]
+    assert badges == [FRAME.heading("Badges", 0), FRAME.item("none yet")]
     assert "free today" not in text
 
 
@@ -755,7 +757,7 @@ async def test_snack_pack_counts_the_drawings_wisp_made_for_the_member(
     interaction = await open_my_snack_pack(bot)
 
     head = pack_sections(pack_text(interaction))[0]
-    assert head[2] == FRAME.sub("Drawings from Wisp: 2")
+    assert head[2] == FRAME.note("Drawings from Wisp: 2")
 
 
 async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:
@@ -767,7 +769,7 @@ async def test_snack_pack_is_the_members_own(bot: app.WispBot) -> None:
     interaction = await open_my_snack_pack(bot)
 
     text = pack_text(interaction)
-    assert pack_sections(text)[0][0] == FRAME.sub(f"<@{USER_ID}> snack pack")
+    assert pack_sections(text)[0][0] == FRAME.note(f"<@{USER_ID}> snack pack")
     assert f"<@{OTHER_USER_ID}>" not in text
     assert "cheese" not in text
     assert "Last Ember" not in text
@@ -809,7 +811,7 @@ async def test_shop_button_opens_the_vault_privately(bot: app.WispBot) -> None:
     kwargs = interaction.followup.send.await_args.kwargs
     assert kwargs["ephemeral"] is True
     assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert vault_text(interaction).splitlines()[0] == FRAME.sub("wisp coins: 12")
+    assert vault_text(interaction).splitlines()[1] == FRAME.note("wisp coins: 12")
 
 
 async def test_snack_pack_button_opens_the_members_own_snack_pack(
@@ -828,7 +830,7 @@ async def test_snack_pack_button_opens_the_members_own_snack_pack(
     (button,) = kwargs["view"].children[-1].children
     assert isinstance(button, ShopButton)
     text = pack_text(interaction)
-    assert pack_sections(text)[0][0] == FRAME.sub(f"<@{USER_ID}> snack pack")
+    assert pack_sections(text)[0][0] == FRAME.note(f"<@{USER_ID}> snack pack")
     assert FRAME.item("Cloud Wave x2") in text
     assert "cheese" not in text
 
@@ -1054,7 +1056,7 @@ async def test_buy_spends_balance_not_lifetime(bot: app.WispBot) -> None:
     interaction.followup.send.assert_not_awaited()
     text = reply_text(interaction)
     assert text.startswith("♪ Bought Cloud Wave for 6 WC.")
-    assert FRAME.sub("wisp coins: 4") in text.splitlines()
+    assert FRAME.note("wisp coins: 4") in text.splitlines()
     assert isinstance(
         interaction.edit_original_response.await_args.kwargs["view"],
         snacks.VaultLayout,
@@ -1855,12 +1857,10 @@ async def test_medicine_shows_in_the_vault_only_while_he_has_a_cold(
     assert "Medicine" not in layout_text(well_view)
     assert "Give Wisp medicine" not in layout_order(well_view)
     sections = [
-        line
-        for line in layout_text(sick_view).splitlines()
-        if line.startswith(FRAME.heading_mark)
+        line for line in layout_text(sick_view).splitlines() if line.startswith("## ")
     ]
-    assert sections.index(FRAME.heading("Medicine")) == 1
-    assert sections[0] == FRAME.heading("Snacks")
+    assert sections.index(FRAME.heading("Medicine", 1)) == 1
+    assert sections[0] == FRAME.heading("Snacks", 0)
     order = layout_order(sick_view)
     assert order.index("Buy a snack") + 2 == order.index("Give Wisp medicine")
     select = next(

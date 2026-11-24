@@ -147,8 +147,8 @@ def _stock(
 ) -> str:
     """A collection's Vault entry: what is left of it, or why it is shut.
 
-    When `rich`, its gifts go on the line under its name, split by `・`;
-    otherwise one line says how many are left.
+    When `rich`, its gifts follow its name, split by `・`; otherwise the line
+    says how many are left.
     """
     in_stock = [gift for gift in collection.gifts if state.in_stock(gift)]
     if not in_stock:
@@ -158,30 +158,29 @@ def _stock(
     if not rich:
         return frame.item(f"{collection.name}: {len(in_stock)} left")
     gifts = " ・ ".join(_label(bot, state, gift) for gift in in_stock)
-    return f"{frame.item(f'{collection.name}:')}\n{frame.note(gifts)}"
+    return frame.item(f"{collection.name}: {gifts}")
 
 
 def gift_section(
-    bot: "WispBot", frame: Frame, state: GiftState | None, room: int
+    bot: "WispBot", frame: Frame, state: GiftState | None, room: int, place: int
 ) -> list[str]:
-    """The Vault's Gifts lines in `frame`: each collection's stock, or why it is shut.
+    """The Vault's Gifts lines in `frame`, under its heading of `place`: each
+    collection's stock, or why it is shut.
 
     Once he has kept a gift today, a line says so before anyone pays. The
-    lines are wrapped to fit the frame and take at most `room`, counted by
-    `text_length`: a collection shows each gift while there is room, else how
-    many are left.
+    lines take at most `room`, counted by `text_length`: a collection shows
+    each gift while there is room, else how many are left.
     """
     price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{GIFT_COST} WC each")
-    head = [f"{frame.heading('Gifts')} ・ {price}", frame.note(_GAMBLE)]
+    head = [f"{frame.heading('Gifts', place)} ・ {price}", frame.note(_GAMBLE)]
     if state is None:
-        return frame.wrapped([*head, frame.item(_HATCH_FIRST)])
+        return [*head, frame.item(_HATCH_FIRST)]
     if state.kept_today:
         head.append(frame.note(_KEPT_TODAY))
-    head = frame.wrapped(head)
 
     def lines(rich: bool) -> list[str]:
         return [
-            frame.wrap(_stock(bot, frame, state, collection, rich=rich))
+            _stock(bot, frame, state, collection, rich=rich)
             for collection in GIFT_COLLECTIONS
         ]
 

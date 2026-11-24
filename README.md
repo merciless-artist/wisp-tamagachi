@@ -433,8 +433,9 @@ Member commands:
   give Wisp a gift from one of four collections: pick a collection, then a
   gift. He might not like it. It is three private Components V2 messages,
   one under the other (snacks and medicine, then badges and magazines, then
-  gifts), with each menu under its section: in Myra's emoji frame it is too
-  long for one message, and the gifts need a whole one to show every emoji.
+  gifts), with each menu under its section: with every emoji up it can run
+  past one message's 4,000 characters, and the gifts need a whole one to
+  show every emoji.
 - `/wisp snackpack` (also the **Snack Pack** button) shows your Snack Pack:
   your saved snacks, keepsakes like a Last Ember, every badge you ever wore,
   any magazine covers you bought and how many drawings Wisp has made you, with
@@ -860,8 +861,8 @@ posts text only.
 - `stats_title.png`, `leaderboard_title.png`, `snack_pack_title.png` and
   `vault_title.png`, Myra's header pictures above the status card, the
   Leaderboard, the Snack Pack and the Vault. Each menu is one message: its
-  header picture, then the menu in the emoji frame, closed by the frame's
-  `clef` line, then its buttons. The old footer picture, `box_footer.png`,
+  header picture, then the menu in WiSP's Favorites style (its title line,
+  its sections, then the footer line with the site), then its buttons. The old footer picture, `box_footer.png`,
   and the old lunchbox header, `lunchbox_title.png`, are no longer used.
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
@@ -888,11 +889,14 @@ is `gift_tech_tv_<stage>` for each stage from `baby` to `old_fogey`),
 medicine option), the status card's meters
 `full_full` / `full_left` (Health) and `care_full` / `care_left` (Wellbeing),
 `happiness_full` / `happiness_left` (the egg's Hatching and Emerging bars),
-`wisp_happy`, `wisp_hangry`, `wisp_sad`, and the emoji frame's
-`header_edge`, `header`, `header2`, `header3`, `rest_bar` and `clef` (with
-any of the six missing, a menu falls back to the old Unicode frame). The
-layouts are Myra's house style, `DOCS/specs/2026-10-27-house-style.md`, with
-the v3 emoji frame in `DOCS/specs/2026-11-11-house-style-v3-emoji-frame.md`.
+`wisp_happy`, `wisp_hangry`, `wisp_sad`, and the menu style's
+`headerbarright`, `wisp_waveform`, `headerbarleft`, `headerbar`, `mic2`,
+`boing_bass`, `wisp_play`, `wisp_pause` and `wisp_stop` (one not uploaded is
+left out of its line; with none, a menu is plain text). The layouts are
+Myra's house style v4, WiSP's Favorites style, in
+`DOCS/specs/2026-11-24-house-style-v4-favorites.md`. The v3 emoji frame's
+`header_edge`, `header`, `header2`, `header3`, `rest_bar` and `clef` are no
+longer used.
 
 ## Testing
 

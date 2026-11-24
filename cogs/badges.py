@@ -266,13 +266,15 @@ async def badge_offers(
     return offers
 
 
-def badge_section(bot: "WispBot", frame: Frame, offers: list[Offer]) -> list[str]:
+def badge_section(
+    bot: "WispBot", frame: Frame, offers: list[Offer], place: int
+) -> list[str]:
     """The Vault's Badges lines in `frame`: each badge's emoji, name, price and
-    any reason.
+    any reason, under its heading of `place`.
 
     A badge whose emoji is not uploaded shows only its name.
     """
-    lines = [frame.heading("Badges")]
+    lines = [frame.heading("Badges", place)]
     for offer in offers:
         badge = offer.badge
         price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{badge.cost} WC")

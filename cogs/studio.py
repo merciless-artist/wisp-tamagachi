@@ -211,9 +211,9 @@ async def rules_post(bot: "WispBot", guild_id: int) -> str:
     """The Wisp FAQ's rules post with the guild's own food values and roles,
     and today's (UTC) nap times.
 
-    The divider is the bot's frame's, unless that takes the post over one
-    message: then it is a blank line. The emoji divider is about 300
-    characters, which the plain post has no room for.
+    The divider is the house style's footer bar, unless that takes the post
+    over one message: then it is a blank line. The bar is five app emojis,
+    about 150 characters, which a long post may have no room for.
     """
     values = meal_points(await bot.settings.get(guild_id))
     roles = await bot.settings.roles(guild_id)

@@ -1,8 +1,8 @@
 """Myra's header pictures over the menus, and the pinned cards in Studio threads.
 
-Every menu is in the v3 emoji frame (`send_framed`): one Components V2
-message of its header picture, then its text, closed by the frame's bottom
-line, then any buttons. A pinned card in a Studio thread is one such message
+Every menu is in WiSP's Favorites style (`send_framed`): one Components V2
+message of its header picture, then its text, from its title line to its
+footer line, then any buttons. A pinned card in a Studio thread is one such message
 too. Cards from before v3 were two messages, a header picture and the card
 under it; the header's id is still kept in the settings so that old header
 is deleted when the card is next posted.
@@ -76,7 +76,7 @@ def layout_text(message: discord.Message) -> str:
 
 
 # ---
-# The emoji frame (house style v3)
+# Menus (house style v4)
 # ---
 
 
@@ -85,7 +85,7 @@ def framed_layout(header: str, text: str, rows: Buttons = ()) -> discord.ui.Layo
 
     Each of `rows` follows as an action row of its buttons. A missing header
     picture is left out. There is no container and no footer picture: the
-    frame's bottom line closes the box.
+    text's own footer line closes the menu.
     """
     layout = discord.ui.LayoutView(timeout=None)
     if (top := gallery(header)) is not None:

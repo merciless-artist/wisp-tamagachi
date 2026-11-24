@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-11-24 (Every menu in the Favorites style)
+
+- **House style v4** (`DOCS/specs/2026-11-24-house-style-v4-favorites.md`):
+  the status card, the ViiBR Vault (all three messages), the Snack Pack, the
+  Leaderboard and the lunchbox now look like WiSP's Favorites. Testers found
+  the v3 emoji frame (an edge emoji on every line, bar rows between
+  sections) louder than the information.
+  - A title line between two of Myra's bars (`# bar **TITLE** bar`), right
+    under the header picture, which stays: WiSP STATS, ViiBR VAULT, SNACK
+    PACK, LEADERBOARD. Headings keep Myra's spellings WiSP and ViiBR.
+  - `## icon **NAME**` section headings, the icons `boing_bass`,
+    `wisp_play`, `wisp_pause`, `wisp_stop` in turn.
+  - Items are plain ` ・` lines; only the lunchbox keeps its large `### ・`
+    lines. No edge emojis, no bar rows, no blank edge lines.
+  - Every menu closes with the Favorites footer line and the site.
+  - The status card's meters are two lines each (name, bar) between
+    `** **` lines, as the Favorites' songs are. The day's facts and the
+    buttons' hints sit under their own TODAY heading, before LIFE STAGE.
+  - Lines are no longer wrapped by the bot: with no edge emoji on every row,
+    Discord's own wrapping reads right. The 4,000-character fitting is kept.
+  - With none of the style's emojis uploaded a menu is plain readable text;
+    a missing one is simply left out.
+- **One shared style helper**, `wisp.text.Frame` from `frame_of(bot.emoji)`,
+  used by every menu and the lunchbox (its own title, heading and footer
+  helpers are gone). The width estimates and the frame's line wrapping are
+  removed with the v3 frame.
+- **Short posts** (the rules post, the Rhyme Duel summary): the divider is
+  the Favorites footer bar, the plain `SEPARATOR` without the emojis; the
+  rules post still falls back to a blank line when the bar would not fit.
+
 ## 2026-11-24 (Talk as Wisp)
 
 - **`!wisp say [#channel] <words>`** (staff): Wisp posts the words, and any

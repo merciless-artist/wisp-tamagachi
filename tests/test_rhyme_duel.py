@@ -933,7 +933,7 @@ async def test_new_best_goes_on_the_vault(
     vault.assert_awaited_once_with(bot, GUILD_ID)
     board = await render_leaderboard(bot, GUILD_ID, discord.utils.utcnow())
     best = UNICODE_FRAME.item(f"1. <@{USER_ID}> ・ 2 points")
-    assert f"{UNICODE_FRAME.heading('Rhyme Duel')}\n{best}" in board
+    assert f"{UNICODE_FRAME.heading('Rhyme Duel', 2)}\n{best}" in board
 
     await duel(bot, server)
 

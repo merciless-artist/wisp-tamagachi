@@ -79,7 +79,7 @@ FULL_GAP = rules.MAX_CREDITED_GAP
 NAP_TIME = datetime(2026, 10, 22, 5, 0, tzinfo=UTC)
 # Every tick in these tests comes before it, so no tantrum interrupts them.
 LATE_TANTRUM = datetime(2026, 10, 22, 23, 59, tzinfo=UTC)
-# Without the frame emojis uploaded, the card is in the Unicode frame.
+# Without the style's emojis uploaded, the card is plain text.
 FRAME = UNICODE_FRAME
 WAITING = waiting(FRAME)
 
@@ -1117,7 +1117,7 @@ async def test_tick_refreshes_the_vault_after_the_status_card(
 
     assert order == ["card", "vault"]
     board = card_text(server.vault.send.await_args.kwargs)
-    assert board.splitlines()[-1] == FRAME.bottom
+    assert board.splitlines()[-1] == FRAME.footer
     assert f"<@{USER_ID}>" in board
 
 

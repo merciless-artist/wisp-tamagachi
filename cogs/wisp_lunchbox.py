@@ -22,25 +22,22 @@ from db.lunchbox import Favorite
 from wisp.life import Life, mood
 from wisp.lines import Moment
 from wisp.rules import FAVORITE_SONGS_SHOWN, GIFT_BY_KEY, SNACK_BY_KEY
-from wisp.text import LAYOUT_TEXT_LIMIT, heading_case, text_length, with_emoji
+from wisp.text import (
+    LAYOUT_TEXT_LIMIT,
+    SPACER,
+    Frame,
+    frame_of,
+    text_length,
+    with_emoji,
+)
 
 if TYPE_CHECKING:
     from app import WispBot
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _LUNCHBOX_ID: Final = "wisp:lunchbox"
-_BLANK: Final = "** **"
-_NOTHING_YET: Final = "### ・none yet"
-_ITEM: Final = "### ・"
-_SITE: Final = "https://viibrmusic.com"
-_TITLE_BAR: Final = ("headerbarright", "wisp_waveform", "headerbarleft")
-_FOOTER_BAR: Final = (
-    "headerbarright",
-    "headerbar",
-    "wisp_waveform",
-    "headerbar",
-    "headerbarleft",
-)
+_TITLE: Final = "Wisp's favorites"
+_NOTHING_YET: Final = "none yet"
 
 # ---
 # Song titles
@@ -120,36 +117,12 @@ async def pick_favorite_song(
 # ---
 
 
-def _heading(marks: str, emoji: str, words: str, gap: str = " ") -> str:
-    """A bold heading after its emoji and `gap`, as Myra drew it."""
-    bold = f"**{heading_case(words)}**"
-    return f"{marks} {emoji}{gap}{bold}" if emoji else f"{marks} {bold}"
-
-
-def _bar(bot: "WispBot", names: Sequence[str]) -> str:
-    """Myra's bar of the app emojis `names`; any not uploaded is left out."""
-    return "".join(bot.emoji(name) for name in names)
-
-
-def _title_line(bot: "WispBot") -> str:
-    """The header: WiSP'S FAVORITES between two of Myra's bars."""
-    bar = _bar(bot, _TITLE_BAR)
-    title = f"**{heading_case("Wisp's favorites")}**"
-    return f"# {bar}{title} {bar}" if bar else f"# {title}"
-
-
-def _footer(bot: "WispBot") -> str:
-    """The closing line: the site between two of Myra's longer bars."""
-    bar = _bar(bot, _FOOTER_BAR)
-    return f"{_ITEM}{bar}{bot.emoji('mic2')}{_SITE} {bar}・"
-
-
-def _songs(bot: "WispBot", favorites: Sequence[Favorite]) -> list[str]:
-    """The songs: two lines each, `** **` before each one and after the last."""
+def _songs(bot: "WispBot", frame: Frame, favorites: Sequence[Favorite]) -> list[str]:
+    """The songs: two lines each, `SPACER` before each one and after the last."""
     shown = f"Top {len(favorites)} songs" if favorites else "Top songs"
-    lines = [_heading("##", bot.emoji("boing_bass"), shown), _BLANK]
+    lines = [frame.heading(shown, 0), SPACER]
     if not favorites:
-        return [*lines, _NOTHING_YET, _BLANK]
+        return [*lines, frame.big_item(_NOTHING_YET), SPACER]
     speaker = bot.emoji("portable_speaker")
     for number, favorite in enumerate(favorites, start=1):
         day = f"{favorite.day:%b}".upper() + f" {favorite.day.day}"
@@ -157,36 +130,38 @@ def _songs(bot: "WispBot", favorites: Sequence[Favorite]) -> list[str]:
         named = f"{title}・" if title else ""
         listen = with_emoji(speaker, f"{named}[♫ listen here]({favorite.url})")
         lines += [
-            f" **{number:02d} · {day}** — <@{favorite.user_id}>",
-            f" {listen}",
-            _BLANK,
+            frame.note(f"**{number:02d} · {day}** — <@{favorite.user_id}>"),
+            frame.note(listen),
+            SPACER,
         ]
     return lines
 
 
-async def _snacks(bot: "WispBot", guild_id: int, life: Life | None) -> list[str]:
+async def _snacks(
+    bot: "WispBot", frame: Frame, guild_id: int, life: Life | None
+) -> list[str]:
     """His favorite snack this life, then the one he ate most if it differs."""
-    heading = _heading("###", bot.emoji("wisp_play"), "Favorite snacks", gap="")
+    heading = frame.heading("Favorite snacks", 1, size="###", gap="")
     if life is None or life.id is None:
-        return [heading, _NOTHING_YET]
+        return [heading, frame.big_item(_NOTHING_YET)]
     most = await bot.activity_log.most_eaten_snack(guild_id, life.id)
     keys = dict.fromkeys(key for key in (life.favorite_snack, most) if key)
     items = [
-        f"{_ITEM}{snack.name} {emoji}".rstrip()
+        frame.big_item(f"{snack.name} {emoji}".rstrip())
         for key in keys
         if (snack := SNACK_BY_KEY.get(key)) is not None
         for emoji in [bot.emoji(snack.emoji_name)]
     ]
-    return [heading, *(items or [_NOTHING_YET])]
+    return [heading, *(items or [frame.big_item(_NOTHING_YET)])]
 
 
-async def _emoji(bot: "WispBot", guild_id: int) -> list[str]:
+async def _emoji(bot: "WispBot", frame: Frame, guild_id: int) -> list[str]:
     """His most used expression that is still uploaded, then its name in code."""
-    heading = _heading("##", bot.emoji("wisp_pause"), "Favorite emoji")
+    heading = frame.heading("Favorite emoji", 2)
     for name in await bot.wisp_lunchbox.favorite_expressions(guild_id):
         if name in bot.emojis_by_name:
-            return [heading, f"{_ITEM}{bot.emoji(name)} `:{name}:`"]
-    return [heading, _NOTHING_YET]
+            return [heading, frame.big_item(f"{bot.emoji(name)} `:{name}:`")]
+    return [heading, frame.big_item(_NOTHING_YET)]
 
 
 async def _gifts(bot: "WispBot", guild_id: int, life: Life | None) -> list[str]:
@@ -203,11 +178,11 @@ async def _gifts(bot: "WispBot", guild_id: int, life: Life | None) -> list[str]:
     ]
 
 
-def _gift_line(gifts: Sequence[str], room: int) -> str:
+def _gift_line(frame: Frame, gifts: Sequence[str], room: int) -> str:
     """The gifts on one line joined by `・`, as many as fit in `room`."""
-    line = _NOTHING_YET
+    line = frame.big_item(_NOTHING_YET)
     for shown in range(1, len(gifts) + 1):
-        tried = _ITEM + "・".join(gifts[:shown])
+        tried = frame.big_item("・".join(gifts[:shown]))
         if text_length(tried) > room:
             break
         line = tried
@@ -219,9 +194,11 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
 
     His newest favorite songs, each named when its page names it; his
     favorite snacks; his favorite emoji; and the gifts this life kept,
-    trimmed to fit the message. An emoji of the layout that is not uploaded
-    is left out.
+    trimmed to fit the message. Its title, headings and footer are the
+    shared house style's (`wisp.text.Frame`); an emoji of the layout that is
+    not uploaded is left out.
     """
+    frame = frame_of(bot.emoji)
     favorites = await with_titles(
         bot,
         guild_id,
@@ -229,15 +206,15 @@ async def lunchbox_text(bot: "WispBot", guild_id: int) -> str:
     )
     life = await bot.lives.current(guild_id)
     before = [
-        _title_line(bot),
-        *_songs(bot, favorites),
-        *await _snacks(bot, guild_id, life),
-        *await _emoji(bot, guild_id),
-        _heading("##", bot.emoji("wisp_stop"), "Favorite gifts", gap="  "),
+        frame.title(_TITLE),
+        *_songs(bot, frame, favorites),
+        *await _snacks(bot, frame, guild_id, life),
+        *await _emoji(bot, frame, guild_id),
+        frame.heading("Favorite gifts", 3, gap="  "),
     ]
-    after = [_footer(bot)]
+    after = [frame.footer]
     room = LAYOUT_TEXT_LIMIT - text_length("\n".join([*before, *after])) - 2
-    gifts = _gift_line(await _gifts(bot, guild_id, life), room)
+    gifts = _gift_line(frame, await _gifts(bot, guild_id, life), room)
     return "\n".join([*before, gifts, *after])
 
 

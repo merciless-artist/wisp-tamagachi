@@ -52,11 +52,13 @@ async def magazines_owned(
 # ---
 
 
-def magazine_section(bot: "WispBot", frame: Frame, owned: set[str]) -> list[str]:
-    """The Vault's Magazines lines in `frame`: each cover's name and price, then
-    any owned."""
+def magazine_section(
+    bot: "WispBot", frame: Frame, owned: set[str], place: int
+) -> list[str]:
+    """The Vault's Magazines lines in `frame`, under its heading of `place`:
+    each cover's name and price, then any owned."""
     price = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{MAGAZINE_COST} WC")
-    lines = [frame.heading("Magazines")]
+    lines = [frame.heading("Magazines", place)]
     for magazine in MAGAZINES:
         line = frame.item(f"{magazine.name} ・ {price}")
         lines.append(f"{line} ・ {OWNED}" if magazine.key in owned else line)

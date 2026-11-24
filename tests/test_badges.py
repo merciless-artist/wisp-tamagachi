@@ -30,19 +30,19 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from tests.layout import (
-    assert_fits_its_frame,
+    STYLE_EMOJIS,
+    assert_is_a_menu,
     layout_order,
     layout_text,
-    rows,
-    vault_opened,
-    vault_parts,
 )
+from tests.layout import section as menu_section
+from tests.layout import vault_opened, vault_parts
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import BADGE_BY_KEY, BADGES, BOND_TIERS, GIFT_BY_KEY, SNACKS, Stage
-from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, text_length
+from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, frame_of, text_length
 
-# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+# Without the style's emojis uploaded, every menu is plain text.
 FRAME = UNICODE_FRAME
 
 GUILD_ID = 100
@@ -280,15 +280,8 @@ def shown_lines(interaction: MagicMock) -> list[str]:
 
 
 def vault_section(text: str, heading: str) -> list[str]:
-    """The Vault's lines under a `#` heading, up to the next break."""
-    lines = text.splitlines()
-    start = lines.index(FRAME.heading(heading)) + 1
-    end = next(
-        index
-        for index in range(start, len(lines))
-        if lines[index] in (FRAME.section_break, FRAME.blank, FRAME.bottom)
-    )
-    return lines[start:end]
+    """The lines under a section heading, up to the next heading or the footer."""
+    return menu_section(text.splitlines(), FRAME.heading(heading, 0))
 
 
 def house_posts(server: FakeServer) -> list[str]:
@@ -548,13 +541,12 @@ async def test_the_vault_lists_every_badge_with_its_price(
 
     text, selects = await open_vault(bot, server)
 
-    assert vault_section(text, "Badges") == rows(
-        FRAME,
+    assert vault_section(text, "Badges") == [
         FRAME.item("Pickle Diplomat ・ 25 WC"),
         FRAME.item("Flame Keeper ・ 100 WC"),
         FRAME.item("<:badge_team_viibr:1> Team ViiBR ・ 175 WC"),
         FRAME.item("Bandmate ・ 250 WC ・ Bandmates only"),
-    )
+    ]
     select = badge_select(selects)
     assert select is not None
     assert [option.value for option in select.options] == [
@@ -588,7 +580,7 @@ async def test_owned_badges_are_marked_and_left_out_of_the_select(
 
     text, selects = await open_vault(bot, server)
 
-    assert f"\n{FRAME.wrap(FRAME.item('Pickle Diplomat ・ 25 WC ・ owned'))}\n" in text
+    assert f"\n{FRAME.item('Pickle Diplomat ・ 25 WC ・ owned')}\n" in text
     select = badge_select(selects)
     assert select is not None
     assert "pickle_diplomat" not in [option.value for option in select.options]
@@ -602,7 +594,7 @@ async def test_badges_without_a_role_cannot_be_bought_yet(
 
     text, selects = await open_vault(bot, server)
 
-    assert FRAME.wrap(FRAME.item("Team ViiBR ・ 175 WC ・ coming soon")) in text
+    assert FRAME.item("Team ViiBR ・ 175 WC ・ coming soon") in text
     assert badge_select(selects) is None
 
 
@@ -642,6 +634,7 @@ async def test_the_fullest_vault_stays_within_the_layout_text_limit(
     await lay(bot)
     await set_up_roles(bot, server)
     names = [
+        *STYLE_EMOJIS,
         "wisp_coin",
         "wisp_coin_mini",
         "viibr_logo",
@@ -663,9 +656,14 @@ async def test_the_fullest_vault_stays_within_the_layout_text_limit(
     await command.callback(interaction)
 
     text, selects = vault_opened(interaction.followup.send)
-    for part in vault_parts(interaction.followup.send):
+    parts = vault_parts(interaction.followup.send)
+    for part in parts:
         assert text_length(layout_text(part)) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, FRAME)
+    frame = frame_of(bot.emoji)
+    assert frame.title_bar.count("<a:") == 3
+    assert_is_a_menu(text, frame, "ViiBR Vault")
+    assert layout_text(parts[2]).splitlines()[-1] == frame.footer
+    assert frame.footer not in layout_text(parts[0]) + layout_text(parts[1])
     assert all(len(select.options) <= 25 for select in selects)
     assert len(selects) <= 4
     for gift in GIFT_BY_KEY.values():
@@ -1188,7 +1186,7 @@ async def test_a_snack_pack_without_badges_says_so(
     text = await snack_pack(bot, server)
 
     assert vault_section(text, "Badges") == [FRAME.item("none yet")]
-    assert text.splitlines()[-1] == FRAME.bottom
+    assert text.splitlines()[-1] == FRAME.footer
 
 
 async def test_the_fullest_snack_pack_still_fits_one_message(
@@ -1196,6 +1194,7 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
 ) -> None:
     give_emojis(
         bot,
+        *STYLE_EMOJIS,
         "wisp_coin",
         *(badge.emoji_name for badge in BADGES),
         *(f"keepsake_{kind.value}" for kind in KeepsakeKind),
@@ -1213,11 +1212,12 @@ async def test_the_fullest_snack_pack_still_fits_one_message(
     text = await snack_pack(bot, server)
 
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, FRAME)
-    keepsakes = vault_section(text, "Keepsakes")
-    badge_lines = vault_section(text, "Badges")
+    frame = frame_of(bot.emoji)
+    assert_is_a_menu(text, frame, "Snack Pack")
+    keepsakes = menu_section(text.splitlines(), frame.heading("Keepsakes", 1), frame)
+    badge_lines = menu_section(text.splitlines(), frame.heading("Badges", 2), frame)
     more = FRAME.item("and ")
     assert keepsakes[-1].startswith(more) and keepsakes[-1].endswith(" more")
     assert badge_lines[-1].startswith(more) and badge_lines[-1].endswith(" more")
     assert len(keepsakes) > 2 and len(badge_lines) > 2
-    assert badge_lines[0] == FRAME.item("Wisp v1029's <:badge_bandmate:5>")
+    assert badge_lines[0] == FRAME.item(f"Wisp v1029's {bot.emoji('badge_bandmate')}")

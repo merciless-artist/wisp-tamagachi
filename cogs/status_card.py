@@ -3,7 +3,7 @@ title.
 
 The post's first message shows only Myra's Status banner for Wisp's stage,
 which the Studio's gallery shows. Under it is the card, one Components V2
-message: Myra's Wisp Stats title picture, the card in her emoji frame, then
+message: Myra's Wisp Stats title picture, the card in WiSP's Favorites style, then
 its Interaction button, which jumps to the Interaction post where the
 members' buttons are. The card is pinned and edited in place.
 """

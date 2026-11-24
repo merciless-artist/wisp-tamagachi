@@ -69,7 +69,7 @@ FOOTER_BAR = (
     "<:headerbarright:1><:headerbar:9><:wisp_waveform:2>"
     "<:headerbar:9><:headerbarleft:3>"
 )
-TITLE = f"# {TITLE_BAR}**WiSP'S FAVORITES** {TITLE_BAR}"
+TITLE = f"# {TITLE_BAR} **WiSP'S FAVORITES** {TITLE_BAR}"
 SPEAKER = "<:portable_speaker:5>"
 SNACKS = "### <:wisp_play:6>**FAVORITE SNACKS**"
 EMOJI = "## <:wisp_pause:7> **FAVORITE EMOJI**"
@@ -841,7 +841,7 @@ async def test_a_song_name_cannot_break_the_layout(
 
 async def test_the_title_spells_him_wisp(bot: app.WispBot) -> None:
     assert (await lunchbox_text(bot, GUILD_ID)).startswith(
-        "# <:headerbarright:1><:wisp_waveform:2><:headerbarleft:3>**WiSP'S FAVORITES**"
+        "# <:headerbarright:1><:wisp_waveform:2><:headerbarleft:3> **WiSP'S FAVORITES**"
     )
 
 
@@ -862,7 +862,7 @@ async def test_missing_layout_emojis_are_left_out_cleanly(bot: app.WispBot) -> N
         NONE_YET,
         "## <:wisp_stop:1>  **FAVORITE GIFTS**",
         NONE_YET,
-        "### ・https://viibrmusic.com ・",
+        "### ・https://viibrmusic.com",
     ]
 
 

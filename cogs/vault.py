@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from app import WispBot
 
 _HEADER: Final = "leaderboard_title.png"
+_TITLE: Final = "Leaderboard"
 _CARD: Final = HeadedCard(
     header=_HEADER,
     title_attr="vault_title_message_id",
@@ -40,10 +41,8 @@ _NO_PING: Final = discord.AllowedMentions.none()
 # ---
 
 
-def _intro(
-    frame: Frame, interaction_thread_id: int | None, private: bool
-) -> tuple[str, ...]:
-    """The card's opening lines in `frame`.
+def _intro(frame: Frame, interaction_thread_id: int | None, private: bool) -> str:
+    """The card's line under its title, in `frame`.
 
     The posted card says where to shop the Vault; the private one answering
     `/wisp board` has the buttons under it.
@@ -54,7 +53,7 @@ def _intro(
         if private
         else f"Shop the Vault with the button on {where}."
     )
-    return (frame.sub("The leaderboard."), frame.blank, frame.item(shop), frame.blank)
+    return frame.note(shop)
 
 
 def version_line(life: Life, now: datetime) -> str:
@@ -90,13 +89,12 @@ def version_line(life: Life, now: datetime) -> str:
 async def render_leaderboard(
     bot: "WispBot", guild_id: int, now: datetime, *, private: bool = False
 ) -> str:
-    """Build the Leaderboard card in Myra's emoji frame: two top tens, top
+    """Build the Leaderboard card in WiSP's Favorites style: two top tens, top
     rhymers, then every version but staff test lives.
 
     The history is trimmed from the oldest end so the text fits one layout
-    message; the box always closes. Each list ends with a blank line, as in
-    Myra's draft, and every line is wrapped to fit the frame. `private` is
-    the copy `/wisp board` sends, whose intro points at its own buttons.
+    message; the footer line always closes it. `private` is the copy
+    `/wisp board` sends, whose intro points at its own buttons.
     """
     frame = frame_of(bot.emoji)
     settings = await bot.settings.get(guild_id)
@@ -126,21 +124,21 @@ async def render_leaderboard(
         )
         for place, player in enumerate(rhymers, start=1)
     ] or [frame.item("Nobody has dueled him yet")]
-    head = frame.wrapped(
-        frame.sections(
-            _intro(frame, settings.interaction_thread_id, private),
-            [frame.heading("This life"), *this_life_lines, frame.blank],
-            [frame.heading("All time"), *all_time_lines, frame.blank],
-            [frame.heading("Rhyme Duel"), *rhyme_lines, frame.blank],
-            [frame.heading("Versions")],
-        )
-    )
+    head = [
+        frame.title(_TITLE),
+        _intro(frame, settings.interaction_thread_id, private),
+        frame.heading("This life", 0),
+        *this_life_lines,
+        frame.heading("All time", 1),
+        *all_time_lines,
+        frame.heading("Rhyme Duel", 2),
+        *rhyme_lines,
+        frame.heading("Versions", 3),
+    ]
     versions = [
-        frame.wrap(frame.item(version_line(life, now)))
-        for life in history
-        if not life.is_test
+        frame.item(version_line(life, now)) for life in history if not life.is_test
     ] or [frame.item("None yet")]
-    return fit(head, versions, [frame.blank, frame.bottom], LAYOUT_TEXT_LIMIT)
+    return fit(head, versions, [frame.footer], LAYOUT_TEXT_LIMIT)
 
 
 async def refresh_vault(bot: "WispBot", guild_id: int) -> None:

@@ -38,7 +38,7 @@ QUALIFYING_ROLE = 555
 WISP_ID = 5000
 WISP = MagicMock(spec=discord.ClientUser, id=WISP_ID)
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-# Without the frame emojis uploaded, the card is in the Unicode frame.
+# Without the style's emojis uploaded, the card is plain text.
 FRAME = UNICODE_FRAME
 
 
@@ -177,7 +177,7 @@ async def test_status_text_shows_the_card(bot: app.WispBot) -> None:
 
     assert "LIFE STAGE ・ BABY" in text
     poke = f"Poke him or tag <@{WISP_ID}> in his House to say hi!!"
-    assert FRAME.wrap(FRAME.item(poke)) in text
+    assert FRAME.item(poke) in text.splitlines()
 
 
 async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) -> None:
@@ -211,10 +211,11 @@ async def test_status_text_counts_todays_feeders_and_tracks(bot: app.WispBot) ->
 
     text = await players.status_text(bot, GUILD_ID, life, now)
 
-    assert FRAME.wrap(FRAME.sub("Fed by 02 people today")) in text
-    assert FRAME.wrap(FRAME.sub("1 ViiBR track and 2 Suno tracks")) in text
+    lines = text.splitlines()
+    assert FRAME.item("Fed by 02 people today") in lines
+    assert FRAME.item("1 ViiBR track and 2 Suno tracks") in lines
     poke = f"Poke him or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!"
-    assert FRAME.wrap(FRAME.item(poke)) in text
+    assert FRAME.item(poke) in lines
 
 
 async def test_status_text_points_a_hungry_wisp_at_the_track_drop(
@@ -227,7 +228,7 @@ async def test_status_text_points_a_hungry_wisp_at_the_track_drop(
 
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
-    assert FRAME.wrap(FRAME.item(f"hungry: drop a track in <#{tracks_id}>")) in text
+    assert FRAME.item(f"hungry: drop a track in <#{tracks_id}>") in text.splitlines()
 
 
 # ---
@@ -455,9 +456,9 @@ async def test_the_status_card_shows_health_and_wellbeing_only(
     text = await players.status_text(bot, GUILD_ID, life, discord.utils.utcnow())
 
     lines = text.splitlines()
-    wellbeing_bar = lines[lines.index(FRAME.item("Wellbeing")) + 1]
-    assert wellbeing_bar == f"{FRAME.blank}{bar(35.0, '', '')}"
-    assert FRAME.item("Health") in lines
+    wellbeing_bar = lines[lines.index(FRAME.note("**Wellbeing**")) + 1]
+    assert wellbeing_bar == FRAME.note(bar(35.0, "", ""))
+    assert FRAME.note("**Health**") in lines
     assert "Mood" not in text
 
 
