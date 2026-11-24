@@ -21,10 +21,11 @@ import pytest
 from discord.ext import commands
 
 import app
-from cogs import announce, assets, life_loop, pictures, status_card
+from cogs import announce, assets, life_loop, pictures
 from cogs.announce import BEGIN_AGAIN
 from cogs.chores import ChoreButton
 from cogs.life_loop import BeginButton, LifeLoop
+from cogs.pictures import status_banner
 from cogs.staff import staff_check
 from cogs.studio import HOUSE_PANEL
 from db.activity import ActivityRepo, InteractionKind
@@ -166,12 +167,8 @@ def house_reports(server: FakeServer) -> list[str]:
 
 @pytest.fixture
 def bot(
-    db: Database,
-    server: FakeServer,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    db: Database, server: FakeServer, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[app.WispBot]:
-    monkeypatch.setattr(status_card, "STATUS_BANNER", tmp_path / "status.png")
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
@@ -696,59 +693,76 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
     assert len(posted_cards(server)) == 1
 
 
-async def test_the_status_banner_goes_first_above_wisps_picture(
-    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
-) -> None:
-    status_card.STATUS_BANNER.write_bytes(b"png")
-    await configure(bot)
-    await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
-    await lay(bot)
-
-    await cog.run_tick(NOW)
-
-    assert post_pictures(server) == [["status.png", "baby.png"]]
-    assert server.starter_edit.await_args.kwargs["content"] is None
+def add_banners(assets_dir: Path, *names: str) -> Path:
+    """Myra's Status banners, by stage, in a stand-in ASSETS folder."""
+    banners = assets_dir / "wisp-studio-rooms" / "status"
+    banners.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        (banners / f"{name}.png").write_bytes(b"png")
+    return banners
 
 
-async def test_with_no_picture_of_wisp_the_banner_still_shows(
-    cog: LifeLoop,
-    bot: app.WispBot,
-    server: FakeServer,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+@pytest.fixture
+def banner_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A stand-in ASSETS folder with every Status banner and nothing else."""
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
-    status_card.STATUS_BANNER.write_bytes(b"png")
-    await configure(bot)
-    await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
-    await lay(bot)
-
-    await cog.run_tick(NOW)
-
-    assert post_pictures(server) == [["status.png"]]
-    assert server.starter_edit.await_args.kwargs["content"] is None
+    add_banners(tmp_path, *(stage.value for stage in Stage))
+    (tmp_path / "wisp-studio-rooms" / "status.png").write_bytes(b"png")
+    return tmp_path
 
 
-async def test_a_refused_picture_keeps_the_banner_and_closes_every_file(
-    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+@pytest.mark.parametrize("stage", list(Stage))
+def test_a_living_wisp_shows_his_stages_status_banner(
+    banner_dir: Path, stage: Stage
 ) -> None:
-    status_card.STATUS_BANNER.write_bytes(b"png")
-    server.starter_edit.side_effect = [
-        discord.Forbidden(MagicMock(status=403), "Missing Permissions"),
-        None,
-    ]
+    life = new_egg(1, NOW)
+    life.phase, life.stage = Phase.ALIVE, stage
+
+    assert status_banner(life) == (
+        banner_dir / "wisp-studio-rooms" / "status" / f"{stage.value}.png"
+    )
+
+
+@pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
+@pytest.mark.parametrize("from_coal", [False, True])
+def test_an_egg_shows_the_egg_status_banner(
+    banner_dir: Path, phase: Phase, from_coal: bool
+) -> None:
+    life = new_egg(1, NOW)
+    life.phase, life.from_coal = phase, from_coal
+
+    assert status_banner(life) == banner_dir / "wisp-studio-rooms/status/egg.png"
+
+
+@pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
+def test_an_ended_life_shows_the_plain_status_banner(
+    banner_dir: Path, phase: Phase
+) -> None:
+    life = new_egg(1, NOW)
+    life.phase, life.stage = phase, Stage.ADULT
+
+    assert status_banner(life) == banner_dir / "wisp-studio-rooms" / "status.png"
+
+
+def test_a_missing_status_banner_is_none(banner_dir: Path) -> None:
+    (banner_dir / "wisp-studio-rooms" / "status" / "teen.png").unlink()
+    life = new_egg(1, NOW)
+    life.phase, life.stage = Phase.ALIVE, Stage.TEEN
+
+    assert status_banner(life) is None
+
+
+async def test_the_status_post_shows_only_the_banner_for_his_stage(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, banner_dir: Path
+) -> None:
     await configure(bot)
     await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
-    await lay(bot)
+    await lay(bot, stage=Stage.TEEN)
 
     await cog.run_tick(NOW)
 
-    sent = [edit.kwargs["attachments"] for edit in server.starter_edit.await_args_list]
-    assert all(file.fp.closed for files in sent for file in files)
-    assert [[file.filename for file in files] for files in sent] == [
-        ["status.png", "baby.png"],
-        ["status.png"],
-    ]
+    assert post_pictures(server) == [["teen.png"]]
+    assert server.starter_edit.await_args.kwargs["content"] is None
 
 
 async def test_edited_status_keeps_its_interaction_button(
@@ -891,11 +905,12 @@ async def test_card_failure_is_reported_once_per_streak(
 
 @pytest.fixture
 def stage_art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Stage art with only the egg and the baby."""
+    """Stage art, and Status banners, with only the egg and the baby."""
     stages = tmp_path / "stages"
     stages.mkdir()
     for name in ("egg", "baby"):
         (stages / f"{name}.png").write_bytes(b"png")
+    add_banners(tmp_path, "egg", "baby")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
@@ -1237,9 +1252,10 @@ async def test_an_ended_life_waits_through_every_tick(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await configure(bot)
-    (tmp_path / "events").mkdir()
-    (tmp_path / "events" / "died.png").write_bytes(b"png")
+    (tmp_path / "wisp-studio-rooms").mkdir()
+    (tmp_path / "wisp-studio-rooms" / "status.png").write_bytes(b"png")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     await lay(bot, phase=Phase.DEAD, health=0.0)
 
     await cog.run_tick(NOW)
@@ -1252,7 +1268,7 @@ async def test_an_ended_life_waits_through_every_tick(
     edits = server.card_edit.await_args_list
     assert [card_text(edit.kwargs) for edit in edits] == [WAITING] * 3
     assert all(button_ids(edit.kwargs["view"]) == ["wisp:begin"] for edit in edits)
-    assert post_pictures(server) == [["died.png"], ["died.png"]]
+    assert post_pictures(server) == [["status.png"], ["status.png"]]
     assert not any("attachments" in edit.kwargs for edit in edits)
     server.vault.send.assert_awaited()
 
@@ -1317,6 +1333,7 @@ async def test_a_legacy_child_catches_his_cold_on_the_next_tick(
     await configure(bot)
     (stage_art.parent / "moments").mkdir()
     (stage_art.parent / "moments" / "sick_child.png").write_bytes(b"png")
+    add_banners(stage_art.parent, "child")
     await legacy_child(bot)
     cog.rng = LowRng()
 
@@ -1331,7 +1348,7 @@ async def test_a_legacy_child_catches_his_cold_on_the_next_tick(
         call for call in server.house.send.await_args_list if call.args[0] in sick_lines
     ]
     assert post.kwargs["file"].filename == "sick_child.png"
-    assert post_pictures(server) == [["sick_child.png"]]
+    assert post_pictures(server) == [["child.png"]]
 
 
 async def test_a_frozen_child_gets_his_cold_scheduled_but_not_started(

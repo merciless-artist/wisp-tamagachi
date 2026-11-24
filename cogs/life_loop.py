@@ -7,7 +7,6 @@ import asyncio
 import random
 import re
 from datetime import UTC, date, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
@@ -19,7 +18,6 @@ from cogs.announce import (
     begin_again,
     begin_button,
     begin_view,
-    ending_image,
     lay_first_egg,
     post_events,
     say_in_house,
@@ -33,7 +31,7 @@ from cogs.drawings import DailyDrawings
 from cogs.feeding import refresh_rules
 from cogs.groups import require_guild
 from cogs.headers import Buttons
-from cogs.pictures import life_image
+from cogs.pictures import status_banner
 from cogs.players import (
     EXPECTED_FAILURES,
     bot_of,
@@ -291,26 +289,25 @@ class LifeLoop(commands.Cog):
 async def show_status_card(
     bot: "WispBot", guild_id: int, life: Life, now: datetime
 ) -> None:
-    """Show `life` in the Status post: his picture first, then the card.
+    """Show `life` in the Status post: its Status banner first, then the card.
 
-    While he goes on it is his live card with its Interaction button
-    (`status_buttons`), under his current picture.
-    Once his life is over it says Wisp is waiting for staff to begin again
-    and carries only the Begin again button,
-    so staff always have one to press even when the House's question was never
-    posted or is gone; the post shows the picture of how his life ended, or no
-    picture when that is missing.
+    The banner is his stage's (`status_banner`), so the Studio's gallery shows
+    how far he has grown. While he goes on the card is his live card with its
+    Interaction button (`status_buttons`). Once his life is over the banner is
+    the plain one and the card says Wisp is waiting for staff to begin again
+    and carries only the Begin again button, so staff always have one to press
+    even when the House's question was never posted or is gone. With the
+    banner missing the post has no picture.
     """
     rows: Buttons
-    image: Path | None
+    image = status_banner(life)
     if is_over(life):
-        content, image = waiting(frame_of(bot.emoji)), ending_image(life)
+        content = waiting(frame_of(bot.emoji))
         rows = [[begin_button()]]
     else:
         content = await status_text(bot, guild_id, life, now)
         interaction_id = (await bot.settings.get(guild_id)).interaction_thread_id
         rows = status_buttons(post_url(guild_id, interaction_id))
-        image = life_image(life)
     await show_status(
         bot, guild_id, content, rows, image, clear_image=image is None and is_over(life)
     )

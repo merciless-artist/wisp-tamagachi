@@ -11,8 +11,16 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
-from cogs.assets import ASSETS_DIR, moment_image
-from wisp.life import Life, Phase, Sickness, has_sniffles, is_sick, sickness
+from cogs.assets import ASSETS_DIR, BANNERS, moment_image
+from wisp.life import (
+    Life,
+    Phase,
+    Sickness,
+    has_sniffles,
+    is_over,
+    is_sick,
+    sickness,
+)
 from wisp.rules import (
     COLD_PICTURES,
     POX_PICTURES,
@@ -47,6 +55,22 @@ def life_image(life: Life) -> Path | None:
                 return cold
             candidates.append(stages / f"{life.stage.value}.png")
     return next((path for path in candidates if path.is_file()), None)
+
+
+def status_banner(life: Life) -> Path | None:
+    """Myra's Status banner for `life`, the Status post's one picture, or None.
+
+    A life that goes on shows its stage's banner, an egg's (from coal or not)
+    the egg's. A life that is over shows the plain Status banner while he
+    waits to begin again. None when the file is missing.
+    """
+    folder = ASSETS_DIR / BANNERS
+    path = (
+        folder / "status.png"
+        if is_over(life)
+        else folder / "status" / f"{life.stage.value}.png"
+    )
+    return path if path.is_file() else None
 
 
 def sick_image(stage: Stage) -> Path | None:

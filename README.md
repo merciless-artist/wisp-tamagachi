@@ -11,8 +11,8 @@ him in Wisp's House.
 
 ## The Status post
 
-The Status post in the Studio is the control panel. Its live card shows his
-picture, the Health and Wellbeing bars, who fed him today and how many tracks,
+The Status post in the Studio is the control panel. Its first message is
+Myra's Status banner for his stage. Its live card shows the Health and Wellbeing bars, who fed him today and how many tracks,
 then a **right now** heading: what he needs, worst first, one line each.
 
 - hungry, with the track drop channel to post in
@@ -77,7 +77,7 @@ Menus opened before the update that added this fail once, with Discord's
   `♪ No Wisp right now. Waiting for staff to begin again.`, and
   tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
   The waiting status card carries its own Begin again button (and no Feed or
-  Poke buttons) with the picture of how he ended, so staff can always begin
+  Poke buttons) under the plain Status banner, so staff can always begin
   again even if the House question was never posted or was deleted; the
   life loop puts it back if the card is gone. A restart lays nothing and every
   button still works. No favorite song is picked and `!wisp punish` says
@@ -185,8 +185,8 @@ Health penalty is 1.5 times as big, but Health never drops below 1, so he
 cannot die of it; he can still be hangry and fading. Only Monster Pox (not a
 cold) raises each member's daily track limit from 15 to 30 meal points, room
 for about three extra songs; the snack limit stays at 15. He posts once when he catches it
-(with his sick picture) and once when he is better, and the status card and
-Poke Wisp panel show his sick picture meanwhile.
+(with his sick picture) and once when he is better, and the Poke Wisp panel
+shows his sick picture meanwhile.
 
 While he has Monster Pox or a cold, anyone who talks to him or pokes him gets a
 reply that says plainly what he has and how many hours are left, and that
@@ -684,8 +684,9 @@ into the Cloudflare dashboard.
 The Studio forum holds seven threads, named exactly:
 
 - `☀️ | Status`: the live status card and its Interaction button (see The
-  Status post), which shows Wisp's current picture (the egg, the coal egg,
-  then his stage).
+  Status post). Its first message is the Status banner for his stage
+  (`wisp-studio-rooms/status/<stage>.png`; the egg's for any egg), or the
+  plain `wisp-studio-rooms/status.png` once his life is over.
 - `🧡 | Mealtime`: every track that feeds him.
 - `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last
   post). Its card has no buttons; the ViiBR Vault button is on the
@@ -703,7 +704,7 @@ for buttons" (Interaction) for a few seconds; staff and bots may post there.
 
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `🛍️ | ViiBR Vault`: the shop (`cogs/shop.py`). Its first post is Myra's
-  Snacks shelf picture (`gifts/VV_Store/VV_Snacks.gif`); under it the life
+  ViiBR Vault banner; under it the life
   loop posts the shelves in order: the snack menu, the Tamagotchis and Tech
   picture with its gift menu, the Alien Dolls and Books picture with its gift
   menu, the Vanity Roles picture with the badge menu, then the medicine and
@@ -722,14 +723,15 @@ for buttons" (Interaction) for a few seconds; staff and bots may post there.
   question, each in a message of its own, and its last post is the quick rules
   with the current numbers.
 
-Each thread's first post carries Myra's banner for it
-(`ASSETS/wisp-studio-rooms/`), which the forum gallery shows as the thumbnail,
-then Wisp's own art for it. The Status post's pictures are the status card's:
-the banner, then Wisp's live picture, put back on each change of picture. The files are uploaded under
-their path in ASSETS with `_` for `/` (`thumbs_mealtime.png`), since a banner
-and an art file can share a name. Setup renames a thread whose name differs,
-gives a first post its pictures when it has others, none or the wrong order
-(replacing its attachments), and fills a Wisp FAQ whose stored pictures are not the
+Each thread's first post carries only Myra's banner for it
+(`ASSETS/wisp-studio-rooms/`), which the forum gallery shows as the thumbnail
+(Discord splits a post with two pictures, so there is one). The Status
+post's banner is the status card's, since it follows his stage. A banner is
+uploaded under its path in ASSETS with `_` for `/`
+(`wisp-studio-rooms_mealtime.png`), so it is never mistaken for the older
+art of the same file name (`mealtime.png`) it replaces. Setup renames a
+thread whose name differs, makes the banner a first post's only picture
+(replacing what else is there), and fills a Wisp FAQ whose stored pictures are not the
 current set (43), such as an older How Wisp Works thread or the earlier
 one-picture-per-section FAQ.
 
@@ -778,9 +780,10 @@ posts text only.
   magazine covers sent to their buyers (posting copies, 1200px tall, of the
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `wisp-studio-rooms/*.png`, Myra's banner for each Studio post, its
-  gallery thumbnail; then `vault.png`, `thumbs/mealtime.png`,
-  `thumbs/jam_space.png`, `thumbs/faq.png`, `thumbs/interaction.png` and
-  `gifts/VV_Store/VV_Snacks.gif`, Wisp's art under each banner.
+  gallery thumbnail, and `wisp-studio-rooms/status/<stage>.png` (egg, baby,
+  child, teen, adult, rockstar, old_fogey) with `wisp-studio-rooms/status.png`
+  for the Status post. `vault.png` and `thumbs/*.png`, the Studio posts' old
+  art, are no longer posted; Myra keeps them for promos.
 - `stats_title.png`, `leaderboard_title.png`, `snack_pack_title.png` and
   `vault_title.png`, Myra's header pictures above the status card, the
   Leaderboard, the Snack Pack and the Vault. Each menu is one message: its

@@ -44,11 +44,6 @@ if TYPE_CHECKING:
 
 _NO_PING: Final = discord.AllowedMentions.none()
 _ENDINGS: Final = frozenset({EventKind.DIED, EventKind.EGG_COLD, EventKind.FAREWELL})
-_ENDING_OF: Final = {
-    Phase.DEAD: EventKind.DIED,
-    Phase.COLD: EventKind.EGG_COLD,
-    Phase.PASSED: EventKind.FAREWELL,
-}
 BEGIN_ID: Final = "wisp:begin"
 BEGIN_AGAIN: Final = "♪ Do you want to begin again?"
 _BABY_STAGE: Final = "baby"
@@ -126,15 +121,6 @@ def _lonely_image(stage: Stage) -> Path | None:
         if (path := moments / name).is_file()
     ]
     return choice(pictures) if pictures else None
-
-
-def ending_image(life: Life) -> Path | None:
-    """The picture of how a life ended, as its ending post showed it.
-
-    None for a life that goes on, or when the picture is missing.
-    """
-    kind = _ENDING_OF.get(life.phase)
-    return None if kind is None else _image_for(Event(kind))
 
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:

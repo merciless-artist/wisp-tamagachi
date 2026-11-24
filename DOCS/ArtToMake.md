@@ -75,7 +75,7 @@ Use a still frame for the [ACTION] ones.
 
 | Save as | What |
 |---|---|
-| vault.png | DONE. Attached to the first post of The ViiBR Vault thread when the thread is created, so it becomes the forum thumbnail. |
+| vault.png | DONE. No longer posted: each Studio post's thumbnail is Myra's banner in `wisp-studio-rooms/`. Kept for promos. |
 
 ## For punishments
 

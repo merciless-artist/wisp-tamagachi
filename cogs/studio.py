@@ -2,12 +2,11 @@
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Collection, Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Final
+from typing import TYPE_CHECKING, Annotated, Final
 from urllib.parse import urlsplit
 
 import discord
@@ -224,12 +223,11 @@ class StudioThread:
 
     `name` is the thread's exact name in the forum, emoji included; `title` is
     the plain name Wisp uses for it in his messages. `content` is the first
-    post's text when the thread is created. `images` are the first post's
-    pictures, relative to the ASSETS folder, in order: Myra's banner for the
-    post, which the forum shows as the post's thumbnail, then Wisp's art for
-    it. The Status post has none here: its pictures are the status card's
-    (`cogs.status_card`), since Wisp's picture there changes. A
-    `pinned_post` stays at the top
+    post's text when the thread is created. `image` is the first post's one
+    picture, Myra's banner for the post, which the forum shows as the post's
+    thumbnail, relative to the ASSETS folder. The Status post has none here:
+    its banner follows Wisp's stage, so the status card shows it
+    (`cogs.status_card`). A `pinned_post` stays at the top
     of the forum; Discord pins one post per forum. The card in `message_attr`
     is pinned in its thread unless `pin_card` is False, as for the
     Leaderboard, whose card must stay the thread's last post.
@@ -241,7 +239,7 @@ class StudioThread:
     content: str
     message_attr: str | None = None
     locked: bool = False
-    images: tuple[str, ...] = ()
+    image: str | None = None
     pinned_post: bool = False
     pin_card: bool = True
 
@@ -260,7 +258,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "🧡 | Mealtime",
         "Mealtime",
         "Every track that feeds Wisp lands here.",
-        images=(f"{BANNERS}/mealtime.png", "thumbs/mealtime.png"),
+        image=f"{BANNERS}/mealtime.png",
     ),
     StudioThread(
         "vault_thread_id",
@@ -268,7 +266,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Leaderboard",
         "The Leaderboard is opening.",
         message_attr="vault_message_id",
-        images=(f"{BANNERS}/leaderboard.png", "vault.png"),
+        image=f"{BANNERS}/leaderboard.png",
         pin_card=False,
     ),
     StudioThread(
@@ -276,7 +274,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "⚡｜Jam Space",
         "Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
-        images=(f"{BANNERS}/jamespace.png", "thumbs/jam_space.png"),
+        image=f"{BANNERS}/jamespace.png",
     ),
     StudioThread(
         "rules_thread_id",
@@ -284,7 +282,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Wisp FAQ",
         "Loading the FAQ...",
         locked=True,
-        images=(f"{BANNERS}/wispfaq.png", "thumbs/faq.png"),
+        image=f"{BANNERS}/wispfaq.png",
     ),
     StudioThread(
         "shop_thread_id",
@@ -294,14 +292,14 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "・Pick something from a shelf's menu. Only you see your receipt.\n"
         "・Snacks go in your Snack Pack, to feed him later. Gifts, badges and "
         "medicine work right away.",
-        images=(f"{BANNERS}/viibrvault.png", "gifts/VV_Store/VV_Snacks.gif"),
+        image=f"{BANNERS}/viibrvault.png",
     ),
     StudioThread(
         "interaction_thread_id",
         "🕹️ | Interaction",
         "Interaction",
         "♪ Interaction\n・Feed, poke, shop and play with Wisp with the buttons below.",
-        images=(f"{BANNERS}/interaction.png", "thumbs/interaction.png"),
+        image=f"{BANNERS}/interaction.png",
     ),
 )
 
@@ -352,31 +350,26 @@ async def _open_thread(
     return channel
 
 
-def _pictures(spec: StudioThread) -> list[Path]:
-    """The thread's first-post pictures that exist, in order."""
-    return [path for image in spec.images if (path := ASSETS_DIR / image).is_file()]
+def _banner(spec: StudioThread) -> Path | None:
+    """The thread's banner, or None when it has none or it is missing."""
+    if spec.image is None or not (path := ASSETS_DIR / spec.image).is_file():
+        return None
+    return path
 
 
 def _upload_name(path: Path) -> str:
     """A picture's file name in Discord: its path under ASSETS with "_" for "/".
 
-    Two pictures in one post can share a file name, such as a banner and Wisp's
-    art both called mealtime.png, so the folder is kept in the name.
+    Older posts carry Wisp's art under the same file names as the banners,
+    such as thumbs/mealtime.png, so the folder is kept in the name to tell a
+    banner from the art it replaces.
     """
     return path.relative_to(ASSETS_DIR).as_posix().replace("/", "_")
 
 
-@contextmanager
-def _opened(paths: list[Path]) -> Iterator[list[discord.File]]:
-    """The pictures as Discord files under their upload names, closed afterwards."""
-    files: list[discord.File] = []
-    try:
-        for path in paths:
-            files.append(discord.File(path, filename=_upload_name(path)))
-        yield files
-    finally:
-        for file in files:
-            file.close()
+def _banner_file(path: Path) -> discord.File:
+    """The banner as a Discord file under its upload name."""
+    return discord.File(path, filename=_upload_name(path))
 
 
 async def _show_as_gallery(bot: "WispBot", forum: discord.ForumChannel) -> None:
@@ -396,16 +389,20 @@ async def _create_thread(
 ) -> tuple[discord.Thread, int]:
     """Create one Studio thread and remember it; return it and its first message id.
 
-    The pictures' files are closed once the thread is made, or has failed.
+    The banner's file is closed once the thread is made, or has failed.
     """
-    with _opened(_pictures(spec)) as files:
-        pictures: dict[str, Any] = {"files": files} if files else {}
+    path = _banner(spec)
+    banner = None if path is None else _banner_file(path)
+    try:
         created = await forum.create_thread(
             name=spec.name,
             content=spec.content,
             auto_archive_duration=rules.STUDIO_THREAD_ARCHIVE_MINUTES,
-            **pictures,
+            **art_kwargs("file", banner),
         )
+    finally:
+        if banner is not None:
+            banner.close()
     values = {spec.attr: created.thread.id}
     if spec.message_attr is not None:
         values[spec.message_attr] = created.message.id
@@ -421,7 +418,7 @@ async def _finish_thread(
     message_id: int | None,
 ) -> None:
     """Name the thread, lock or unlock it as its spec says, pin the post if it
-    should be, give the first post its pictures, pin the card if it should be.
+    should be, give the first post its banner, pin the card if it should be.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is
@@ -445,7 +442,7 @@ async def _finish_thread(
             await bot.report_error(
                 guild, f"pinning the {spec.title} post", error, where=thread
             )
-    await _set_pictures(bot, guild, thread, spec)
+    await _set_banner(bot, guild, thread, spec)
     if spec.message_attr is None or message_id is None or not spec.pin_card:
         return
     try:
@@ -460,31 +457,34 @@ async def _finish_thread(
         )
 
 
-async def _set_pictures(
+async def _set_banner(
     bot: "WispBot", guild: discord.Guild, thread: discord.Thread, spec: StudioThread
 ) -> None:
-    """Give the thread's first post its pictures when it has others or none.
+    """Make the banner the thread's first post's only picture.
 
-    A post whose attachments are already the pictures, by upload name and in
-    order, is left alone; otherwise its attachments are replaced. A forum
+    A post that already has just the banner, by upload name, is left alone;
+    otherwise its attachments, such as Wisp's older art, are replaced. A forum
     thread's first post has the thread's id. A post that is gone, or a thread
-    with no pictures that exist, is left alone. The files are closed once the
-    edit is done or failed.
+    with no banner, is left alone. The file is closed once the edit is done or
+    failed.
     """
-    if not (paths := _pictures(spec)):
+    if (path := _banner(spec)) is None:
         return
     try:
         starter = await thread.fetch_message(thread.id)
         have = [attachment.filename for attachment in starter.attachments]
-        if have == [_upload_name(path) for path in paths]:
+        if have == [_upload_name(path)]:
             return
-        with _opened(paths) as files:
-            await starter.edit(attachments=files)
+        banner = _banner_file(path)
+        try:
+            await starter.edit(attachments=[banner])
+        finally:
+            banner.close()
     except discord.NotFound:
         return
     except discord.HTTPException as error:
         await bot.report_error(
-            guild, f"adding the pictures to {spec.title}", error, where=thread
+            guild, f"adding the banner to {spec.title}", error, where=thread
         )
 
 
@@ -504,8 +504,8 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
 
     The forum is set to show as a gallery when it does not already. Threads
     that already exist are left alone apart from reopening an archived
-    one, renaming one whose name has changed, giving a first post its
-    pictures when it has others or none, locking or unlocking it as its spec says and
+    one, renaming one whose name has changed, making the banner a first
+    post's only picture, locking or unlocking it as its spec says and
     finishing any pin that is still missing. Only the FAQ is locked: a locked
     post's buttons and menus don't work for members. Threads that were stored
     but have been deleted are recreated, and Wisp's House is told about them.

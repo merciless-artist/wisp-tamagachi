@@ -26,7 +26,6 @@ from cogs.announce import (
     begin_again,
     begin_view,
     edit_in_house,
-    ending_image,
     general_news,
     lay_first_egg,
     post_events,
@@ -838,29 +837,6 @@ async def test_the_begin_again_button_can_be_shown_used() -> None:
         True,
     )
     assert BEGIN_ID == "wisp:begin"
-
-
-@pytest.mark.parametrize(
-    ("phase", "picture"),
-    [
-        (Phase.DEAD, "died.png"),
-        (Phase.COLD, "egg_cold.png"),
-        (Phase.PASSED, "farewell.png"),
-        (Phase.ALIVE, None),
-        (Phase.EGG, None),
-    ],
-)
-def test_an_ended_life_shows_the_picture_of_its_ending(
-    assets: Path, phase: Phase, picture: str | None
-) -> None:
-    for name in ("died", "egg_cold", "farewell"):
-        add_image(assets, "events", name)
-    life = new_egg(1, discord.utils.utcnow())
-    life.phase = phase
-
-    image = ending_image(life)
-
-    assert (None if image is None else image.name) == picture
 
 
 async def test_begin_again_after_farewell_lays_one_coal_egg_halfway_hatched(

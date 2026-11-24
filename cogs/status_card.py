@@ -1,7 +1,8 @@
-"""Wisp's Status post: his picture, then his live card under the Wisp Stats title.
+"""Wisp's Status post: his stage's banner, then his live card under the Wisp Stats
+title.
 
-The post's first message shows Myra's Status banner, which the Studio's
-gallery shows, then Wisp's picture. Under it is the card, one Components V2
+The post's first message shows only Myra's Status banner for Wisp's stage,
+which the Studio's gallery shows. Under it is the card, one Components V2
 message: Myra's Wisp Stats title picture, the card in her emoji frame, then
 its Interaction button, which jumps to the Interaction post where the
 members' buttons are. The card is pinned and edited in place.
@@ -12,7 +13,6 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.assets import ASSETS_DIR, BANNERS
 from cogs.headers import Buttons, HeadedCard, show_headed_card
 from cogs.pictures import Picture
 from cogs.studio import StudioError, studio_thread
@@ -26,8 +26,6 @@ _LABEL: Final = "status card"
 _PICTURE_KEY: Final = "status picture"
 _NO_PICTURE: Final = "♪ Wisp's status"
 _NO_PING: Final = discord.AllowedMentions.none()
-STATUS_BANNER: Final = ASSETS_DIR / BANNERS / "status.png"
-"""Myra's banner, the Status post's first picture; left out while missing."""
 _CARD: Final = HeadedCard(
     header=_TITLE_NAME,
     title_attr="status_title_message_id",
@@ -74,20 +72,20 @@ async def show_status(
     *,
     clear_image: bool = False,
 ) -> None:
-    """Show Wisp's picture and `content` in the Status post.
+    """Show the Status banner and `content` in the Status post.
 
     Args:
         bot: The running bot.
         guild_id: The guild whose Studio to use.
         content: The card's text.
         rows: The card's rows of buttons.
-        image: Wisp's picture for the post's first message, or None to leave
-            it as it is.
-        clear_image: With no `image`, take the picture off instead.
+        image: The banner for the post's first message, or None to leave it
+            as it is.
+        clear_image: With no `image`, take the banner off instead.
 
     A post from before the card had a message of its own, whose first
     message is still the card, is brought over: its first message keeps only
-    the picture and the card is posted under it. A failure is
+    the banner and the card is posted under it. A failure is
     posted in the thread, or in Wisp's House when the thread cannot be
     reached, once per streak of failures. It is never raised.
     """
@@ -119,14 +117,12 @@ async def _show_picture(
     clear_image: bool,
     posted: bool,
 ) -> None:
-    """Keep the post's first message showing the banner, then Wisp's picture.
+    """Keep the post's first message showing only the Status banner.
 
-    It is edited only when Wisp's picture is not the one this process last
-    showed there, or while the card still lives in it (`posted` is False).
-    The banner goes on every edit, so the gallery always shows it. With no
-    picture at all it says "♪ Wisp's status", since a message needs text or a
-    picture. A first message that is gone is left alone. A refused picture is
-    sent again without Wisp's (see `Picture.attach`).
+    It is edited only when the banner is not the one this process last showed
+    there, or while the card still lives in it (`posted` is False). With no
+    banner it says "♪ Wisp's status", since a message needs text or a
+    picture. A first message that is gone is left alone.
     """
     key = (guild_id, _PICTURE_KEY)
     wanted = image.name if image is not None else ("" if clear_image else None)
@@ -135,22 +131,16 @@ async def _show_picture(
     starter = thread.get_partial_message(thread.id)
     picture = Picture(bot, guild_id, thread, _CARD_ATTR, _LABEL)
 
-    async def show(art: discord.File | None) -> discord.Message:
-        banner = discord.File(STATUS_BANNER) if STATUS_BANNER.is_file() else None
-        files = [file for file in (banner, art) if file is not None]
-        try:
-            return await starter.edit(
-                content=None if files else _NO_PICTURE,
-                view=None,
-                attachments=files,
-                allowed_mentions=_NO_PING,
-            )
-        finally:
-            if banner is not None:
-                banner.close()
-
     try:
-        _, attached = await picture.attach(image if wanted else None, show)
+        _, attached = await picture.attach(
+            image if wanted else None,
+            lambda art: starter.edit(
+                content=None if art is not None else _NO_PICTURE,
+                view=None,
+                attachments=[] if art is None else [art],
+                allowed_mentions=_NO_PING,
+            ),
+        )
     except discord.NotFound:
         return
     bot.shown_images[key] = (thread.id, attached or "")

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-24 (One banner per post, Status banners by stage)
+
+- **One picture per Studio post.** Discord shows two pictures in a post side
+  by side, so each post's first message now carries only Myra's banner
+  (`StudioThread.image` again, one banner). Setup replaces anything else
+  there (`_set_banner`), including the art the last release put under the
+  banners; the art stays in ASSETS for Myra's promos.
+- **The Status banner follows Wisp's stage.** The Status post's first message
+  shows only `wisp-studio-rooms/status/<stage>.png` (`status_banner` in
+  `cogs/pictures.py`; any egg shows the egg's), swapped on each new stage,
+  and the plain `wisp-studio-rooms/status.png` once his life is over. It no
+  longer shows his stage, sickness, cold or ending art. Myra's
+  `oldfogey.png` is renamed `old_fogey.png` to match the stage.
+- **Removed:** `ending_image`, only the Status post used it.
+
 ## 2026-11-24 (Studio banners)
 
 - **Myra's banners on every Studio post.** Each post's first message now
