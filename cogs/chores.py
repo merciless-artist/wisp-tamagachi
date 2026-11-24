@@ -32,7 +32,6 @@ from wisp.chores import (
     ChoreEventKind,
     do_chore,
     drop_chore,
-    is_napping,
     is_open,
     message_id,
     set_message_id,
@@ -246,28 +245,17 @@ async def _drop(bot: "WispBot", guild_id: int, life_id: int, chore: Chore) -> No
 # ---
 
 
-async def wake_by_poke(
-    bot: "WispBot", guild_id: int, user_id: int, now: datetime
-) -> Life | None:
-    """Wake him if he is napping, cranky and with no Wellbeing penalty.
+async def wake_by_poke(bot: "WispBot", guild_id: int, now: datetime) -> Life | None:
+    """Wake him for a while if he is napping, cranky and with no Wellbeing penalty.
 
-    When the lights were still on, the nap post says who woke him and loses
-    its button once the guild lock is released. Returns the woken life, or
-    None when he was not asleep.
+    The lights post keeps its button: the lights still need to go off. Returns
+    the woken life, or None when he was not asleep.
     """
     async with bot.guild_lock(guild_id):
         life = await bot.lives.current(guild_id)
-        if life is None or not is_napping(life):
+        if life is None or not wake(life, now):
             return None
-        lights_were_on = wake(life, now)
         await bot.lives.save(guild_id, life)
-    if lights_were_on and life.nap_message_id is not None:
-        await edit_in_house(
-            bot,
-            guild_id,
-            life.nap_message_id,
-            f"♪ <@{user_id}> woke Wisp up before the lights went off.",
-        )
     return life
 
 

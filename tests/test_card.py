@@ -8,6 +8,7 @@ import pytest
 
 from tests.layout import rows
 from wisp.card import CardFacts, bar, render_status, waiting
+from wisp.chores import next_nap_start
 from wisp.life import Life, Phase, new_egg
 from wisp.rules import (
     EGG_FOOD_NEEDED,
@@ -76,7 +77,7 @@ HUNGRY = need(f"hungry: drop a track in <#{TRACKS_ID}>")
 LONELY = need("lonely: chat, play, poke or give him a snack or gift")
 MESS = need("a mess is waiting in his House")
 TANTRUM = need("he's having a tantrum in his House")
-LIGHTS = need("he's asleep: turn the lights off in his House")
+LIGHTS = need("it's nap time: turn the lights off in his House")
 HAPPY = need("happy")
 
 
@@ -634,8 +635,8 @@ def test_the_card_says_when_his_next_nap_is(now: datetime, nap: datetime) -> Non
 @pytest.mark.parametrize(
     ("nap_left", "until"),
     [
-        # 6am and 5:02am Pacific: 90 seconds left rounds up to the minute.
-        (NAP_FOR.total_seconds(), october(20, 13)),
+        # 9:30am and 5:02am Pacific: 90 seconds left rounds up to the minute.
+        (NAP_FOR.total_seconds(), october(20, 16, 30)),
         (90.0, october(20, 12, 2)),
     ],
 )
@@ -652,6 +653,22 @@ def test_while_he_naps_the_card_says_when_he_wakes(
         FRAME.sub(f"napping until {timestamp(until)}"),
     ]
     assert not any("next nap" in line for line in lines)
+
+
+def test_while_a_poke_has_him_up_the_card_says_when_he_dozes_off() -> None:
+    life = alive_life(nap_left=3600.0, woken_left=600.0)
+    card = render_status(life, NOW, FACTS, emoji, FRAME)
+
+    lines = card.split("\n")
+    assert FRAME.sub(f"back to sleep {timestamp(october(20, 12, 10))}") in lines
+    assert not any("napping until" in line for line in lines)
+
+
+def test_a_poke_late_in_the_nap_shows_the_next_nap() -> None:
+    life = alive_life(nap_left=600.0, woken_left=600.0)
+    card = render_status(life, NOW, FACTS, emoji, FRAME)
+
+    assert FRAME.sub(f"next nap {timestamp(next_nap_start(NOW))}") in card.split("\n")
 
 
 def test_eggs_have_no_right_now_or_next_nap() -> None:

@@ -29,12 +29,25 @@ from wisp.rules import (
     TANTRUM_WELLBEING_PENALTY,
     TANTRUM_WINDOW,
     TICK_EVERY,
+    WOKEN_FOR,
     Chore,
 )
 
 _MICROSECOND = timedelta(microseconds=1)
+_MINUTE = timedelta(minutes=1)
 _QUIET_BEFORE_NAP = TANTRUM_WINDOW + TICK_EVERY
 _NAP_ZONE = ZoneInfo(NAP_TIMEZONE)
+
+
+def _quiet_times() -> tuple[timedelta, ...]:
+    """_QUIET_BEFORE_NAP, then halved while it is at least TICK_EVERY, then none."""
+    quiet = [_QUIET_BEFORE_NAP]
+    while quiet[-1] / 2 >= TICK_EVERY:
+        quiet.append(quiet[-1] / 2)
+    return (*quiet, timedelta())
+
+
+_QUIET_TIMES = _quiet_times()
 
 # ---
 # Types
@@ -78,8 +91,13 @@ def is_open(life: Life, chore: Chore) -> bool:
 
 
 def is_napping(life: Life) -> bool:
-    """Whether he is asleep right now."""
-    return life.nap_left > 0
+    """Whether he is asleep right now: in his nap's time and not woken from it."""
+    return life.nap_left > 0 and not is_woken(life)
+
+
+def is_woken(life: Life) -> bool:
+    """Whether a poke has him up in the middle of his nap's time."""
+    return life.woken_left > 0
 
 
 def message_id(life: Life, chore: Chore) -> int | None:
@@ -140,6 +158,7 @@ def start_nap(life: Life) -> ChoreEvent:
     """Doze off now, with the lights still on."""
     life.nap_left = NAP_FOR.total_seconds()
     life.lights_left = LIGHTS_WINDOW.total_seconds()
+    life.woken_left = 0.0
     life.nap_message_id = None
     return ChoreEvent(ChoreEventKind.NAP)
 
@@ -184,16 +203,19 @@ def drop_chore(life: Life, chore: Chore) -> bool:
 
 
 def wake(life: Life, now: datetime) -> bool:
-    """End his nap at once and leave him cranky, with no Wellbeing penalty.
+    """Wake him from his nap for WOKEN_FOR, cranky, with no Wellbeing penalty.
 
-    He stays cranky for at least CRANKY_FOR, longer when missed lights already
-    made him so. Returns whether the lights were still on.
+    His nap keeps counting down while he is up, and he dozes off again for
+    what is left of it; when less than WOKEN_FOR is left he stays up. The
+    lights keep their own window. He stays cranky for at least CRANKY_FOR,
+    longer when missed lights already made him so. Waking him again while he
+    is up changes nothing. Returns whether he was asleep.
     """
-    lights_were_on = is_open(life, Chore.NAP)
-    life.nap_left = 0.0
-    life.lights_left = 0.0
+    if not is_napping(life):
+        return False
+    life.woken_left = min(WOKEN_FOR.total_seconds(), life.nap_left)
     life.cranky_until = max(life.cranky_until or now, now + CRANKY_FOR)
-    return lights_were_on
+    return True
 
 
 # ---
@@ -234,9 +256,25 @@ def nap_ends_at(life: Life, now: datetime) -> datetime:
 
     His nap counts down on counted time, so it is `now` plus what is left.
     """
-    end = now + timedelta(seconds=life.nap_left)
+    return _in_counted_time(now, life.nap_left)
+
+
+def dozes_off_at(life: Life, now: datetime) -> datetime | None:
+    """When a woken Wisp falls back asleep, rounded up to the minute.
+
+    None when he is not woken, or when his nap runs out before he would doze
+    off, so he stays up.
+    """
+    if not is_woken(life) or life.woken_left >= life.nap_left:
+        return None
+    return _in_counted_time(now, life.woken_left)
+
+
+def _in_counted_time(now: datetime, seconds: float) -> datetime:
+    """`now` plus `seconds` of counted time, rounded up to the minute."""
+    end = now + timedelta(seconds=seconds)
     whole = end.replace(second=0, microsecond=0)
-    return whole if whole == end else whole + timedelta(minutes=1)
+    return whole if whole == end else whole + _MINUTE
 
 
 def _nap_starts_on(day: datetime) -> list[datetime]:
@@ -269,13 +307,28 @@ def _awake_windows(day: datetime) -> list[tuple[datetime, datetime]]:
 
     The quiet time, _QUIET_BEFORE_NAP, is TANTRUM_WINDOW plus TICK_EVERY: a
     tantrum opens on the first tick at or after its due time, up to TICK_EVERY
-    late, and must still close before the nap's first tick. Naps starting the
-    day before and the day after count too, clipped to the day.
+    late, and must still close before the nap's first tick. When the naps
+    leave the day no awake time around that, the quiet time halves until some
+    appears, down to none at all; a tantrum may then run into a nap, which is
+    skipped. Empty only when naps fill the whole day.
+    """
+    for quiet in _QUIET_TIMES:
+        windows = _windows_between_naps(day, quiet)
+        if windows:
+            return windows
+    return []
+
+
+def _windows_between_naps(
+    day: datetime, quiet: timedelta
+) -> list[tuple[datetime, datetime]]:
+    """The UTC day from `day`, minus every nap and the `quiet` time before it.
+
+    Naps starting the day before and the day after count too, clipped to the
+    day.
     """
     end_of_day = day + timedelta(days=1)
-    busy = sorted(
-        (start - _QUIET_BEFORE_NAP, start + NAP_FOR) for start in _nap_starts(day)
-    )
+    busy = sorted((start - quiet, start + NAP_FOR) for start in _nap_starts(day))
     windows: list[tuple[datetime, datetime]] = []
     cursor = day
     for begin, end in busy:
@@ -291,6 +344,8 @@ def next_tantrum(after: datetime, rng: random.Random) -> datetime:
     """A random awake moment of `after`'s UTC day from `after` on.
 
     When that day has no awake time left, a random awake moment of the next.
+    When neither has any, because naps fill whole days, the start of the day
+    after those two, where it waits to be rolled again.
     """
     day = _midnight(after)
     windows = [
@@ -298,6 +353,8 @@ def next_tantrum(after: datetime, rng: random.Random) -> datetime:
     ]
     if not windows:
         windows = _awake_windows(day + timedelta(days=1))
+    if not windows:
+        return day + timedelta(days=2)
     offset = rng.randrange(sum((end - begin) // _MICROSECOND for begin, end in windows))
     for begin, end in windows:
         length = (end - begin) // _MICROSECOND
@@ -313,10 +370,13 @@ def _is_awake(now: datetime) -> bool:
 
 
 def _is_nap_coming(now: datetime) -> bool:
-    """Whether `now` is in the quiet time just before a nap starts."""
-    return any(
-        start - _QUIET_BEFORE_NAP <= now < start
-        for start in _nap_starts(_midnight(now))
+    """Whether `now` is in the quiet time just before a nap starts.
+
+    That is every moment that is neither awake nor in a nap's time, whatever
+    quiet time its day ended up with.
+    """
+    return not _is_awake(now) and not any(
+        start <= now < start + NAP_FOR for start in _nap_starts(_midnight(now))
     )
 
 
@@ -338,8 +398,9 @@ def tick_chores(
     A nap start that falls while he is frozen, or more than MAX_CREDITED_GAP
     before this tick, is skipped. No nap starts over an open tantrum. A due
     tantrum opens only while he is awake and outside a nap's time; one due
-    during a nap waits for its end, and one that comes due in the quiet time
-    before a nap (after an outage) is rolled again for after it.
+    during a nap, asleep or woken, waits for its end, and one that comes due
+    in the quiet time before a nap (after an outage) is rolled again for after
+    it.
     """
     if life.phase is not Phase.ALIVE:
         return []
@@ -358,14 +419,14 @@ def tick_chores(
     if (
         new_slot
         and now - slot <= MAX_CREDITED_GAP
-        and not is_napping(life)
+        and life.nap_left == 0
         and not is_open(life, Chore.TANTRUM)
     ):
         events.append(start_nap(life))
     due = life.tantrum_due_at
     if due is None or due.date() < now.date():
         due = life.tantrum_due_at = next_tantrum(now, rng)
-    if due <= now and not is_napping(life) and not is_open(life, Chore.TANTRUM):
+    if due <= now and life.nap_left == 0 and not is_open(life, Chore.TANTRUM):
         if _is_awake(now):
             events.append(open_tantrum(life))
             life.tantrum_due_at = next_tantrum(_midnight(now) + timedelta(days=1), rng)
@@ -408,14 +469,16 @@ def _tick_tantrum(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]
 
 
 def _tick_nap(life: Life, now: datetime, seconds: float) -> list[ChoreEvent]:
-    """Count down his nap and its lights window, which closes by the nap's end.
+    """Count down his nap, any time woken from it and its lights window.
 
-    Posted lights nobody turned off cost Wellbeing and leave him cranky for
-    CRANKY_FOR after the rest of the nap.
+    The nap counts down whether he is asleep or woken, and the time woken and
+    the lights window close by its end. Posted lights nobody turned off cost
+    Wellbeing and leave him cranky for CRANKY_FOR after the rest of the nap.
     """
-    if not is_napping(life):
+    if life.nap_left == 0:
         return []
     life.nap_left = max(life.nap_left - seconds, 0.0)
+    life.woken_left = min(max(life.woken_left - seconds, 0.0), life.nap_left)
     if not is_open(life, Chore.NAP):
         return []
     life.lights_left = min(max(life.lights_left - seconds, 0.0), life.nap_left)

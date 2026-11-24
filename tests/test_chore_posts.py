@@ -24,7 +24,9 @@ from db.story import LifeStoryRepo
 from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
+    do_chore,
     is_open,
+    is_woken,
     latest_nap_start,
     message_id,
     open_mess,
@@ -399,7 +401,7 @@ async def test_a_post_for_a_chore_already_done_is_not_remembered(
     assert (await current_life(bot)).mess_message_id is None
 
 
-async def test_a_nap_a_poke_ends_right_after_the_post_leaves_no_button(
+async def test_a_poke_right_after_the_nap_post_keeps_its_button(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     life = await lay(bot)
@@ -410,11 +412,37 @@ async def test_a_nap_a_poke_ends_right_after_the_post_leaves_no_button(
     async def send_then_poke_awake(text: str, **kwargs: Any) -> Any:
         post = await send(text, **kwargs)
         napping = await current_life(bot)
-        wake(napping, discord.utils.utcnow())
+        assert wake(napping, discord.utils.utcnow()) is True
         await bot.lives.save(GUILD_ID, napping)
         return post
 
     server.house.send.side_effect = send_then_poke_awake
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.NAP)])
+
+    server.posts[FIRST_POST_ID].edit.assert_not_awaited()
+    woken = await current_life(bot)
+    assert woken.nap_message_id == FIRST_POST_ID
+    assert is_woken(woken)
+    assert is_open(woken, Chore.NAP)
+
+
+async def test_lights_off_right_after_the_nap_post_leaves_no_button(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    life = await lay(bot)
+    start_nap(life)
+    await bot.lives.save(GUILD_ID, life)
+    send = server.house.send.side_effect
+
+    async def send_then_lights_off(text: str, **kwargs: Any) -> Any:
+        post = await send(text, **kwargs)
+        napping = await current_life(bot)
+        assert do_chore(napping, Chore.NAP) is True
+        await bot.lives.save(GUILD_ID, napping)
+        return post
+
+    server.house.send.side_effect = send_then_lights_off
 
     await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.NAP)])
 

@@ -2168,7 +2168,7 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
         timestamp(datetime(2026, 11, day, hour, tzinfo=UTC))
         for day, hour in ((2, 15), (2, 21), (3, 6))
     )
-    assert f"Lights off at naps ({naps}) in 55 min" in section
+    assert f"Lights off at naps ({naps}) in 4 h" in section
     assert "UTC" not in section and "Pacific" not in section
 
 

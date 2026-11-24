@@ -161,8 +161,9 @@ class Life:
     spoiled until `spoiled_until`.
 
     The nap starts at `nap_slot`; `nap_left` and `lights_left` are counted
-    seconds, `nap_message_id` the post that shows it, and he is cranky until
-    `cranky_until`.
+    seconds, `woken_left` the counted seconds a poke has him up for before he
+    dozes off again, `nap_message_id` the post that shows it, and he is cranky
+    until `cranky_until`.
     """
 
     id: int | None
@@ -204,6 +205,7 @@ class Life:
     nap_slot: datetime | None = None
     nap_left: float = 0.0
     lights_left: float = 0.0
+    woken_left: float = 0.0
     nap_message_id: int | None = None
     cranky_until: datetime | None = None
     frozen_seconds: float = 0.0

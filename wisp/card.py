@@ -14,7 +14,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-from wisp.chores import is_napping, is_open, nap_ends_at, next_nap_start
+from wisp.chores import (
+    dozes_off_at,
+    is_napping,
+    is_open,
+    nap_ends_at,
+    next_nap_start,
+)
 from wisp.life import Life, Phase, age_days, has_sniffles, hours_left, is_sick
 from wisp.rules import (
     EGG_FOOD_NEEDED,
@@ -38,7 +44,7 @@ _LONELY: Final = "lonely: chat, play, poke or give him a snack or gift"
 _CHORE_NEEDS: Final = {
     Chore.MESS: "a mess is waiting in his House",
     Chore.TANTRUM: "he's having a tantrum in his House",
-    Chore.NAP: "he's asleep: turn the lights off in his House",
+    Chore.NAP: "it's nap time: turn the lights off in his House",
 }
 _POX_NEED: Final = "Monster Pox: feed him tracks in"
 _HAPPY: Final = "happy"
@@ -192,7 +198,8 @@ def _right_now(
     block always agrees with the bars; `health` and `wellbeing` are the bars'
     values from 0 to 100. Then each chore waiting in his House is named; with
     nothing to do he is happy. The last line is when he wakes while he naps,
-    else when his next nap starts.
+    when he dozes off again while a poke has him up, else when his next nap
+    starts.
     """
     track_drop = channel_or("the track drop", facts.tracks_id)
     if is_sick(life):
@@ -216,11 +223,15 @@ def _right_now(
 def _nap_line(life: Life, now: datetime) -> str:
     """What the Right now block's last line says about his nap.
 
-    While he naps it is when he wakes, otherwise when his next nap starts,
-    each a timestamp members see in their own time zone.
+    While he naps it is when he wakes, while a poke has him up when he dozes
+    off again, otherwise when his next nap starts, each a timestamp members
+    see in their own time zone.
     """
     if is_napping(life):
         return f"napping until {timestamp(nap_ends_at(life, now))}"
+    dozes = dozes_off_at(life, now)
+    if dozes is not None:
+        return f"back to sleep {timestamp(dozes)}"
     return f"next nap {timestamp(next_nap_start(now))}"
 
 

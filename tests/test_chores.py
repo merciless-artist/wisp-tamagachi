@@ -12,9 +12,12 @@ from wisp.chores import (
     ChoreEvent,
     ChoreEventKind,
     do_chore,
+    dozes_off_at,
     drop_chore,
     is_napping,
     is_open,
+    is_woken,
+    latest_nap_start,
     message_id,
     nap_ends_at,
     nap_starts_on,
@@ -40,6 +43,7 @@ from wisp.rules import (
     TANTRUM_WINDOW,
     TICK_EVERY,
     WELLBEING_START,
+    WOKEN_FOR,
     Chore,
     Stage,
 )
@@ -162,6 +166,13 @@ def test_start_nap_sets_only_the_nap() -> None:
             "nap_message_id": None,
         },
     )
+
+
+def test_a_new_nap_forgets_being_woken_from_the_last() -> None:
+    life = alive(woken_left=120.0)
+    start_nap(life)
+    assert not is_woken(life)
+    assert is_napping(life)
 
 
 def test_message_ids_are_kept_per_chore() -> None:
@@ -361,7 +372,7 @@ def test_next_tantrum_is_always_awake(after: datetime) -> None:
         due = next_tantrum(after, random.Random(seed))
         assert after <= due < after + timedelta(days=2)
         for nap in _naps_around(due):
-            assert not (nap - QUIET_BEFORE_NAP <= due < nap + timedelta(hours=1)), (
+            assert not (nap - QUIET_BEFORE_NAP <= due < nap + NAP_FOR), (
                 seed,
                 due,
             )
@@ -371,17 +382,73 @@ def test_next_tantrum_moves_to_the_next_day_when_today_has_no_awake_time_left(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("wisp.chores.NAP_LOCAL_HOURS", (7, 13, 15))
+    tomorrow = timedelta(days=1)
     for seed in range(50):
         due = next_tantrum(utc(23, 30), random.Random(seed))
-        assert (
-            datetime(2026, 11, 3, tzinfo=UTC) <= due < utc(22, 40) + timedelta(days=1)
-        )
+        assert utc(3, 30) + tomorrow <= due < utc(10, 55) + tomorrow
+
+
+@pytest.mark.parametrize("year", [2026, 2027])
+def test_with_the_real_rules_every_utc_day_gets_a_tantrum_clear_of_naps(
+    year: int,
+) -> None:
+    day = datetime(year, 1, 1, tzinfo=UTC)
+    while day.year == year:
+        for seed in range(3):
+            due = next_tantrum(day, random.Random(seed))
+            assert due.date() == day.date(), due
+            assert latest_nap_start(due) + NAP_FOR <= due, due
+            assert due + QUIET_BEFORE_NAP <= next_nap_start(due), due
+        day += timedelta(days=1)
+
+
+def test_with_the_real_rules_he_throws_a_tantrum_every_day() -> None:
+    life = alive(at=DAY, nap_slot=None, tantrum_due_at=None)
+    days = 4
+    tantrums: list[datetime] = []
+    naps = 0
+    now = DAY
+    while now < DAY + timedelta(days=days):
+        now += TICK_EVERY
+        events = tick_at(life, now)
+        if event(ChoreEventKind.TANTRUM) in events:
+            tantrums.append(now)
+            do_chore(life, Chore.TANTRUM)
+        if event(ChoreEventKind.NAP) in events:
+            naps += 1
+            do_chore(life, Chore.NAP)
+    assert len({moment.date() for moment in tantrums}) == days
+    assert naps == 3 * days
+
+
+def test_when_naps_crowd_the_day_the_quiet_time_shrinks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wisp.chores.NAP_FOR", timedelta(hours=8))
+    # Naps then run 15:00-23:00, 21:00-5:00 and 6:00-14:00 UTC.
+    for seed in range(50):
+        due = next_tantrum(DAY, random.Random(seed))
+        assert utc(5) <= due < utc(6) or utc(14) <= due < utc(15), due
+    due = next_tantrum(DAY, random.Random(3))
+    life = alive(at=due - TICK_EVERY, nap_slot=utc(6), tantrum_due_at=due)
+    assert tick_at(life, due) == [event(ChoreEventKind.TANTRUM)]
+
+
+def test_when_naps_fill_whole_days_no_tantrum_is_due_for_two_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wisp.chores.NAP_FOR", timedelta(hours=10))
+    assert next_tantrum(utc(12), random.Random(1)) == DAY + timedelta(days=2)
+    life = alive(at=DAY, nap_slot=None, tantrum_due_at=None)
+    events = run(life, DAY + timedelta(days=3))
+    assert event(ChoreEventKind.TANTRUM) not in events
+    assert event(ChoreEventKind.NAP) in events
 
 
 def test_a_tantrum_starts_when_due() -> None:
-    life = alive(at=utc(8), tantrum_due_at=utc(8, 10), tantrum_message_id=5)
-    assert run(life, utc(8, 5)) == []
-    assert run(life, utc(8, 10)) == [event(ChoreEventKind.TANTRUM)]
+    life = alive(at=utc(10, 30), tantrum_due_at=utc(10, 40), tantrum_message_id=5)
+    assert run(life, utc(10, 35)) == []
+    assert run(life, utc(10, 40)) == [event(ChoreEventKind.TANTRUM)]
     assert is_open(life, Chore.TANTRUM)
     assert life.tantrum_left == TANTRUM_WINDOW.total_seconds()
     assert life.tantrum_message_id is None
@@ -390,11 +457,20 @@ def test_a_tantrum_starts_when_due() -> None:
 
 
 def test_a_tantrum_due_during_a_nap_waits_until_he_wakes() -> None:
-    life = alive(at=utc(14, 55), nap_slot=None, tantrum_due_at=utc(15, 20))
-    assert run(life, utc(15, 55)) == [event(ChoreEventKind.NAP)]
+    life = alive(at=utc(5, 55), nap_slot=None, tantrum_due_at=utc(6, 20))
+    assert run(life, utc(10, 25)) == [event(ChoreEventKind.NAP)]
     assert not is_open(life, Chore.TANTRUM)
-    assert run(life, utc(16)) == [event(ChoreEventKind.TANTRUM)]
+    assert run(life, utc(10, 30)) == [event(ChoreEventKind.TANTRUM)]
     assert not is_napping(life)
+
+
+def test_no_tantrum_starts_while_a_poke_has_him_up() -> None:
+    life = alive(at=utc(5, 55), nap_slot=None, tantrum_due_at=utc(6, 20))
+    run(life, utc(6, 30))
+    assert wake(life, utc(6, 30)) is True
+    assert run(life, utc(7)) == []
+    assert not is_open(life, Chore.TANTRUM)
+    assert is_napping(life)
 
 
 def test_a_tantrum_due_at_the_last_awake_moment_closes_before_the_nap() -> None:
@@ -411,9 +487,9 @@ def test_a_tantrum_due_during_an_outage_waits_out_the_nap_coming() -> None:
     assert tick_at(life, utc(14, 45)) == []
     assert not is_open(life, Chore.TANTRUM)
     assert life.tantrum_due_at is not None
-    assert utc(16) <= life.tantrum_due_at < DAY + timedelta(days=1)
+    assert life.tantrum_due_at.date() == date(2026, 11, 3)
     assert run(life, utc(15)) == [event(ChoreEventKind.NAP)]
-    assert event(ChoreEventKind.TANTRUM) in run(life, utc(23, 55))
+    assert event(ChoreEventKind.TANTRUM) in run(life, utc(11) + timedelta(days=1))
 
 
 def test_a_tantrum_closing_on_the_naps_first_tick_lets_the_nap_start() -> None:
@@ -425,8 +501,8 @@ def test_a_tantrum_closing_on_the_naps_first_tick_lets_the_nap_start() -> None:
 
 
 def test_a_due_time_from_an_earlier_day_is_rolled_again() -> None:
-    life = alive(tantrum_due_at=T0 - timedelta(days=1))
-    now = T0 + TICK_EVERY
+    life = alive(at=utc(1), tantrum_due_at=utc(1) - timedelta(days=1))
+    now = utc(1) + TICK_EVERY
     assert run(life, now) == []
     assert not is_open(life, Chore.TANTRUM)
     assert life.tantrum_due_at is not None
@@ -654,38 +730,114 @@ def test_lights_off_closes_the_window_and_he_sleeps_on() -> None:
     assert not is_open(life, Chore.NAP)
     assert run(life, utc(15, 30)) == []
     assert is_napping(life)
-    assert life.nap_left == 1800
+    assert life.nap_left == NAP_FOR.total_seconds() - 1800
     assert life.wellbeing == WELLBEING_START
     assert life.cranky_until is None
     assert do_chore(life, Chore.NAP) is False
 
 
-def test_he_wakes_after_an_hour_of_counted_time() -> None:
+def test_he_wakes_after_nap_for_of_counted_time() -> None:
     life = _napping_at_seven_pacific()
     do_chore(life, Chore.NAP)
     assert tick_at(life, utc(16, 30)) == []
-    assert life.nap_left == 2700
+    credited = MAX_CREDITED_GAP.total_seconds()
+    assert life.nap_left == NAP_FOR.total_seconds() - credited
     assert is_napping(life)
-    run(life, utc(17, 10))
+    end = utc(16, 30) + timedelta(seconds=life.nap_left)
+    run(life, end - TICK_EVERY)
     assert is_napping(life)
-    run(life, utc(17, 15))
+    run(life, end)
     assert not is_napping(life)
     assert life.nap_left == 0.0
 
 
 @pytest.mark.parametrize("lights_off", [False, True])
-def test_wake_ends_the_nap_and_says_whether_the_lights_were_on(
+def test_a_poke_wakes_him_for_a_while_and_leaves_the_lights_alone(
     lights_off: bool,
 ) -> None:
     life = alive()
     start_nap(life)
     if lights_off:
         do_chore(life, Chore.NAP)
-    assert wake(life, T0) is not lights_off
+    assert wake(life, T0) is True
     assert not is_napping(life)
-    assert not is_open(life, Chore.NAP)
+    assert is_woken(life)
+    assert life.woken_left == WOKEN_FOR.total_seconds()
+    assert life.nap_left == NAP_FOR.total_seconds()
+    assert is_open(life, Chore.NAP) is not lights_off
     assert life.wellbeing == WELLBEING_START
-    assert life.cranky_until == T0 + timedelta(hours=1)
+    assert life.cranky_until == T0 + CRANKY_FOR
+
+
+def test_waking_him_while_he_is_up_changes_nothing() -> None:
+    life = _napping_at_seven_pacific()
+    assert wake(life, utc(15)) is True
+    run(life, utc(15, 20))
+    before = asdict(life)
+    assert wake(life, utc(15, 20)) is False
+    assert asdict(life) == before
+    assert life.woken_left == (WOKEN_FOR - timedelta(minutes=20)).total_seconds()
+
+
+def test_wake_does_nothing_when_he_is_not_napping() -> None:
+    life = alive()
+    assert wake(life, T0) is False
+    assert (life.woken_left, life.cranky_until) == (0.0, None)
+
+
+def test_a_woken_wisp_dozes_off_again_for_the_rest_of_the_nap() -> None:
+    life = _napping_at_seven_pacific()
+    run(life, utc(16))
+    assert wake(life, utc(16)) is True
+    assert dozes_off_at(life, utc(16)) == utc(16) + WOKEN_FOR
+    assert run(life, utc(16) + WOKEN_FOR - TICK_EVERY) == []
+    assert is_woken(life)
+    assert run(life, utc(16) + WOKEN_FOR) == []
+    assert is_napping(life)
+    assert not is_woken(life)
+    assert dozes_off_at(life, utc(16, 30)) is None
+    assert life.nap_left == (NAP_FOR - timedelta(minutes=90)).total_seconds()
+    assert nap_ends_at(life, utc(16, 30)) == utc(15) + NAP_FOR
+
+
+def test_a_woken_wisp_stays_up_when_the_nap_runs_out_first() -> None:
+    life = _napping_at_seven_pacific()
+    end = utc(15) + NAP_FOR
+    run(life, end - timedelta(minutes=10))
+    assert wake(life, end - timedelta(minutes=10)) is True
+    assert life.woken_left == 600.0
+    assert dozes_off_at(life, end - timedelta(minutes=10)) is None
+    run(life, end)
+    assert (life.nap_left, life.woken_left) == (0.0, 0.0)
+    assert not is_napping(life)
+    assert not is_woken(life)
+
+
+def test_the_lights_can_go_off_while_he_is_up() -> None:
+    life = _napping_at_seven_pacific()
+    set_message_id(life, Chore.NAP, POST)
+    wake(life, utc(15, 30))
+    run(life, utc(15, 40))
+    assert do_chore(life, Chore.NAP) is True
+    assert run(life, utc(15) + LIGHTS_WINDOW) == []
+    assert life.wellbeing == WELLBEING_START
+
+
+def test_lights_missed_while_he_is_up_still_cost_wellbeing() -> None:
+    life = _napping_at_seven_pacific()
+    set_message_id(life, Chore.NAP, POST)
+    lights_out = utc(15) + LIGHTS_WINDOW
+    run(life, lights_out - timedelta(minutes=10))
+    wake(life, lights_out - timedelta(minutes=10))
+    assert run(life, lights_out) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    assert life.wellbeing == 40.0
+    assert life.cranky_until == utc(15) + NAP_FOR + CRANKY_FOR
+    assert is_woken(life)
+
+
+def test_dozing_off_again_is_rounded_up_to_the_minute() -> None:
+    life = alive(nap_left=3600.0, woken_left=90.0)
+    assert dozes_off_at(life, utc(10, 15)) == utc(10, 17)
 
 
 def test_a_poke_after_missed_lights_never_shortens_the_crankiness() -> None:
@@ -693,22 +845,23 @@ def test_a_poke_after_missed_lights_never_shortens_the_crankiness() -> None:
     set_message_id(life, Chore.NAP, POST)
     run(life, utc(15) + LIGHTS_WINDOW)
     cranky_until = life.cranky_until
-    assert cranky_until == utc(17)
-    assert wake(life, utc(15) + LIGHTS_WINDOW + timedelta(minutes=2)) is False
+    assert cranky_until == utc(15) + NAP_FOR + CRANKY_FOR
+    assert wake(life, utc(15) + LIGHTS_WINDOW + timedelta(minutes=2)) is True
     assert life.cranky_until == cranky_until
 
 
 def test_a_lights_window_never_outlasts_the_nap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("wisp.chores.LIGHTS_WINDOW", timedelta(hours=2))
+    monkeypatch.setattr("wisp.chores.LIGHTS_WINDOW", NAP_FOR + timedelta(hours=1))
     life = _napping_at_seven_pacific()
     set_message_id(life, Chore.NAP, POST)
-    assert run(life, utc(15, 55)) == []
-    assert run(life, utc(16)) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
+    end = utc(15) + NAP_FOR
+    assert run(life, end - TICK_EVERY) == []
+    assert run(life, end) == [event(ChoreEventKind.LIGHTS_MISSED, POST)]
     assert not is_napping(life)
     assert not is_open(life, Chore.NAP)
-    assert life.cranky_until == utc(17)
+    assert life.cranky_until == end + CRANKY_FOR
 
 
 def test_no_nap_starts_over_an_open_tantrum() -> None:
