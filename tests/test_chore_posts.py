@@ -41,6 +41,7 @@ from wisp.rules import (
     CHORE_POINTS,
     HEALTH_PER_CLEANUP,
     MESS_LEFT_FOR,
+    MESSES,
     SICK_FOR,
     TANTRUM_PICTURES,
     Chore,
@@ -331,7 +332,7 @@ async def test_a_mess_without_its_picture_is_words_and_the_button(
     monkeypatch: pytest.MonkeyPatch,
     picture: str | None,
 ) -> None:
-    monkeypatch.setitem(chore_posts.MESSES, Stage.ADULT, ("a mess", "Tidy", picture))
+    monkeypatch.setitem(MESSES, Stage.ADULT, ("a mess", "Tidy", picture))
     life = await lay(bot, Stage.ADULT)
     open_mess(life)
     await bot.lives.save(GUILD_ID, life)
