@@ -24,6 +24,7 @@ from cogs.life_loop import BeginButton, LifeLoop
 from cogs.lifetester import LifeTest
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
+from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
@@ -46,6 +47,7 @@ STATUS_ID = 60
 VAULT_ID = 61
 MEALTIME_ID = 62
 CARD_ID = 777
+ROOM_ID = 900
 VAULT_MESSAGE_ID = 778
 FIRST_POST_ID = 5000
 COMMAND_ID = 4000
@@ -122,6 +124,9 @@ class FakeServer:
     def __init__(self) -> None:
         self.sent: list[Sent] = []
         self.house = MagicMock(spec=discord.TextChannel)
+        self.house.id = HOUSE_ID
+        self.house.create_thread = AsyncMock(side_effect=self._create_room)
+        self.rooms: dict[int, MagicMock] = {}
         self.house.send = AsyncMock(side_effect=self._send)
         self.house.fetch_message = AsyncMock(side_effect=self._fetch)
         self.card = MagicMock(spec=discord.Message, id=888, pin=AsyncMock())
@@ -159,6 +164,18 @@ class FakeServer:
         thread.archived = False
         return thread
 
+    def _create_room(self, *, name: str, **_kwargs: Any) -> MagicMock:
+        room = MagicMock(spec=discord.Thread)
+        room.id = ROOM_ID + len(self.rooms)
+        room.parent_id = HOUSE_ID
+        room.archived = False
+        room.name = name
+        room.add_user = AsyncMock()
+        room.send = AsyncMock()
+        room.edit = AsyncMock(return_value=room)
+        self.rooms[room.id] = room
+        return room
+
     async def _send(self, text: str, **kwargs: Any) -> MagicMock:
         post = MagicMock(spec=discord.Message)
         post.id = FIRST_POST_ID + len(self.sent)
@@ -178,6 +195,7 @@ class FakeServer:
             STATUS_ID: self.status,
             VAULT_ID: self.vault,
             MEALTIME_ID: self.mealtime,
+            **self.rooms,
         }
         if channel_id not in threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
@@ -218,6 +236,7 @@ def bot(
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
     wisp_bot.gifts = GiftRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
+    wisp_bot.cravings = CravingRepo(db)
     monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)

@@ -13,8 +13,12 @@ from wisp.life import new_egg
 
 async def test_create_tables_is_idempotent(db: Database) -> None:
     await create_tables(db)
-    rows = await db.fetchall("SHOW TABLES LIKE %s", (r"wisptest\_%",))
-    assert len(rows) == len(TABLES)
+    await create_tables(db)
+    expected = {db.t(name) for name in TABLES}
+    rows = await db.fetchall("SHOW TABLES")
+    present = {next(iter(row.values())) for row in rows}
+    assert expected <= present
+    assert len(expected) == len(TABLES)
 
 
 async def test_create_tables_adds_columns_missing_from_older_tables(

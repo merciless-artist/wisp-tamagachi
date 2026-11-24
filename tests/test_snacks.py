@@ -118,8 +118,9 @@ class FakeServer:
         channels: dict[int, MagicMock] = {HOUSE_ID: self.house}
         self.guild.get_channel_or_thread.side_effect = channels.get
 
-    def _create_thread(self, **_kwargs: Any) -> MagicMock:
+    def _create_thread(self, *, name: str, **_kwargs: Any) -> MagicMock:
         self.made += 1
+        self.room.name = name
         return self.room
 
     def _post(self, *_args: Any, **kwargs: Any) -> MagicMock:

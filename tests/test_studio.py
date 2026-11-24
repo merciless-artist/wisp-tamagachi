@@ -1250,6 +1250,7 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
         VAULT,
         JAM,
         SHOP,
+        INTERACTION,
     ]
     assert old.name == FAQ
     *sections, rules_post = assert_faq_built(server.live_posts(old))

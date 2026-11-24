@@ -21,12 +21,14 @@ from cogs.snacks import SHELF_ID_PREFIX, ShopButton
 from cogs.studio import post_url
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
+from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
 from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.magazines import MagazineRepo
+from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
 from db.story import LifeStoryRepo
@@ -116,6 +118,8 @@ def bot(
     wisp_bot.drawings = DrawingRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.magazines = MagazineRepo(db)
+    wisp_bot.cravings = CravingRepo(db)
+    wisp_bot.notes = NoteRepo(db)
     wisp_bot.report_error = AsyncMock()  # type: ignore[method-assign]
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: shop_server.guild)
     monkeypatch.setattr(snacks, "maybe_meet", AsyncMock())

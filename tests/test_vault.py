@@ -169,6 +169,7 @@ def make_interaction(bot: app.WispBot, user_id: int = FIRST_USER) -> MagicMock:
     interaction = MagicMock(spec=discord.Interaction)
     interaction.client = bot
     interaction.guild = MagicMock(spec=discord.Guild)
+    interaction.guild.id = GUILD_ID
     interaction.guild_id = GUILD_ID
     interaction.user = MagicMock(spec=discord.Member)
     interaction.user.id = user_id

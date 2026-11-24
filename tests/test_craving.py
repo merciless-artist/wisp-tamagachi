@@ -136,8 +136,9 @@ class FakeServer:
         self.guild.get_channel_or_thread.side_effect = channels.get
         self.guild.get_member.side_effect = {USER_ID: self.member}.get
 
-    def _create_thread(self, **_kwargs: Any) -> MagicMock:
+    def _create_thread(self, *, name: str, **_kwargs: Any) -> MagicMock:
         self.made = True
+        self.thread.name = name
         return self.thread
 
     async def fetch_channel(self, channel_id: int) -> MagicMock:

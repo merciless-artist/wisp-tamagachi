@@ -5,7 +5,7 @@ Discord objects are fakes; the repositories are the real ones.
 
 import random
 from collections.abc import Iterator
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -31,7 +31,6 @@ from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from tests.layout import (
     assert_fits_its_frame,
-    entries,
     layout_selects,
     layout_text,
     rows,
@@ -1231,106 +1230,9 @@ async def test_before_he_hatches_the_vault_says_gifts_wait(
 # ---
 
 
-def framed(bot: app.WispBot, *names: str) -> Frame:
-    """Upload the frame's emojis, then `names`; the frame the lunchbox will use."""
-    give_emojis(bot, *FRAME_EMOJIS, *names)
-    return emoji_frame(*(bot.emoji(name) for name in FRAME_EMOJIS))
-
-
-def collections_of(text: str, frame: Frame) -> list[str]:
-    """The lunchbox's lines under COLLECTIONS, up to the blank line before its end."""
-    lines = text.splitlines()
-    start = lines.index(frame.heading("Collections")) + 1
-    assert lines[-2:] == [frame.blank, frame.bottom]
-    return lines[start:-2]
-
-
-async def test_the_lunchbox_shows_this_lifes_collections(bot: app.WispBot) -> None:
-    old = await lay(bot)
-    assert old.id is not None
-    long_ago = discord.utils.utcnow() - timedelta(days=9)
-    await bot.gifts.record(GUILD_ID, old.id, USER_ID, "tama_nano", True, long_ago)
-    life = await lay(bot, version=2)
-    assert life.id is not None
-    frame = framed(bot, "gift_alien_blue")
-    for days, (key, user_id) in enumerate(
-        [
-            ("alien_blue", USER_ID),
-            ("book_blue", OTHER_USER_ID),
-            ("alien_green", OTHER_USER_ID),
-            ("book_green", USER_ID),
-            ("book_orange", USER_ID),
-            ("book_red", OTHER_USER_ID),
-        ]
-    ):
-        at = discord.utils.utcnow() - timedelta(days=8 - days)
-        await bot.gifts.record(GUILD_ID, life.id, user_id, key, True, at)
-    await bot.gifts.record(
-        GUILD_ID, life.id, USER_ID, "tama_mimitchi", False, discord.utils.utcnow()
-    )
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    expected = frame.wrapped(
-        [
-            frame.sub("ALIEN DOLLS 2/4"),
-            frame.item(f"{bot.emoji('gift_alien_blue')} Blue ・ from <@{USER_ID}>"),
-            frame.item(f"Green ・ from <@{OTHER_USER_ID}>"),
-            frame.group_break,
-            frame.sub(f"BOOKS 4/4 COMPLETE ・ finished by <@{OTHER_USER_ID}>"),
-        ]
-    )
-    assert collections_of(text, frame) == "\n".join(expected).splitlines()
-    assert_fits_its_frame(text, frame)
-
-
-async def test_an_empty_collection_section_says_nothing_yet(
-    bot: app.WispBot,
-) -> None:
-    await lay(bot)
-    frame = framed(bot)
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert collections_of(text, frame) == [frame.item("none yet")]
-
-
-async def test_the_lunchbox_still_fits_with_long_songs_and_collections(
-    bot: app.WispBot, db: Database
-) -> None:
-    life = await lay(bot)
-    assert life.id is not None
-    frame = framed(bot)
-    at = discord.utils.utcnow() - timedelta(days=1)
-    for group in GIFT_COLLECTIONS:
-        for gift in group.gifts[:3]:
-            await bot.gifts.record(GUILD_ID, life.id, 10**17, gift.key, True, at)
-    day = at.date()
-    for offset in range(rules.FAVORITE_SONGS_SHOWN):
-        await db.execute(
-            f"INSERT INTO {db.t('favorites')} "
-            "(guild_id, day, user_id, track_key, url, picked_at) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (
-                GUILD_ID,
-                day - timedelta(days=offset),
-                10**17,
-                f"viibr:{offset}",
-                "https://viibrmusic.com/songs/" + "x" * 220,
-                datetime(2026, 10, 1),
-            ),
-        )
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, frame)
-    progress = [
-        line
-        for line in collections_of(text, frame)
-        if line.startswith(frame.sub_mark + " ")
-    ]
-    assert progress[-1].startswith(frame.sub("TECH 3/3 COMPLETE"))
+def favorite_gifts(text: str) -> str:
+    """The lunchbox's FAVORITE GIFTS line, just above the footer."""
+    return text.splitlines()[-2]
 
 
 # ---
@@ -1398,10 +1300,10 @@ async def test_the_last_tech_toy_completes_tech(
     assert kwargs["file"].filename == "tech_arcade.gif"
     vault_text, _ = await open_vault(bot)
     assert FRAME.item("Tech: all kept this life") in vault_text
-    frame = framed(bot)
     lunchbox = await lunchbox_text(bot, GUILD_ID)
-    finished = frame.sub(f"TECH 3/3 COMPLETE ・ finished by <@{USER_ID}>")
-    assert frame.wrap(finished) in lunchbox
+    assert favorite_gifts(lunchbox) == "### ・" + "・".join(
+        GIFT_BY_KEY[key].name for key in ("tetris_handheld", "tech_tv", "tech_arcade")
+    )
 
 
 @pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN, Stage.OLD_FOGEY])
@@ -1463,12 +1365,9 @@ async def test_the_vault_and_lunchbox_show_the_tv_for_his_stage(
     assert str(items.options[2].emoji) == emoji_text("gift_tech_tv_rockstar", 2)
     yesterday = discord.utils.utcnow() - timedelta(days=1)
     await bot.gifts.record(GUILD_ID, life.id, USER_ID, "tech_tv", True, yesterday)
-    frame = framed(bot, "gift_tech_tv_rockstar")
     lunchbox = await lunchbox_text(bot, GUILD_ID)
-    tv = frame.item(
-        f"{bot.emoji('gift_tech_tv_rockstar')} TV Shows ・ from <@{USER_ID}>"
-    )
-    assert frame.wrap(tv) in lunchbox
+    assert favorite_gifts(lunchbox) == f"### ・{bot.emoji('gift_tech_tv_rockstar')}"
+    assert "gift_tech_tv_baby" not in lunchbox
 
 
 async def test_retired_tech_toys_kept_before_are_left_out(bot: app.WispBot) -> None:
@@ -1477,17 +1376,14 @@ async def test_retired_tech_toys_kept_before_are_left_out(bot: app.WispBot) -> N
     yesterday = discord.utils.utcnow() - timedelta(days=1)
     for key in ("tetris_handheld", "tetris_i", "tetris_z", "tech_game_controller"):
         await bot.gifts.record(GUILD_ID, life.id, USER_ID, key, True, yesterday)
-    frame = framed(bot)
 
     lunchbox = await lunchbox_text(bot, GUILD_ID)
     vault_text, _ = await open_vault(bot)
 
-    section = entries(collections_of(lunchbox, frame), frame)
-    assert section[0] == frame.sub("TECH 1/3")
-    assert len(section) == 2
+    assert favorite_gifts(lunchbox) == "### ・" + GIFT_BY_KEY["tetris_handheld"].name
     assert "Game Controller" not in lunchbox
-    tech = f"{frame.item('Tech:')}\n{frame.note('Arcade ・ TV Shows')}"
-    assert frame.wrap(tech) in vault_text
+    tech = f"{FRAME.item('Tech:')}\n{FRAME.note('Arcade ・ TV Shows')}"
+    assert FRAME.wrap(tech) in vault_text
 
 
 async def test_retired_collections_kept_before_are_left_out(
@@ -1498,14 +1394,11 @@ async def test_retired_collections_kept_before_are_left_out(
     yesterday = discord.utils.utcnow() - timedelta(days=1)
     for key in ("alien_blue", "card_keepcalm", "jewel_ruby", "liner_bird"):
         await bot.gifts.record(GUILD_ID, life.id, USER_ID, key, True, yesterday)
-    frame = framed(bot)
 
     lunchbox = await lunchbox_text(bot, GUILD_ID)
     vault_text, _ = await open_vault(bot)
 
-    section = entries(collections_of(lunchbox, frame), frame)
-    assert section[0] == frame.sub("ALIEN DOLLS 1/4")
-    assert len(section) == 2
+    assert favorite_gifts(lunchbox) == "### ・" + GIFT_BY_KEY["alien_blue"].name
     for gone in ("Affirmation", "Keep Calm", "Jewel", "Ruby", "Liner"):
         assert gone not in lunchbox
         assert gone not in vault_text
@@ -1578,67 +1471,6 @@ async def test_the_vault_fits_under_a_note_after_a_gift(
             assert frame.wrap(frame.item(f"{group.name}: back tomorrow")) in text
         else:
             assert frame.item(f"{group.name}:") + "\n" in text
-
-
-async def test_the_lunchbox_fits_with_every_collection_nearly_full(
-    bot: app.WispBot, db: Database, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    life = await lay(bot)
-    assert life.id is not None
-    at = discord.utils.utcnow() - timedelta(days=1)
-    for group in GIFT_COLLECTIONS:
-        for gift in group.gifts[:-1]:
-            await bot.gifts.record(GUILD_ID, life.id, 10**18, gift.key, True, at)
-    for offset in range(rules.FAVORITE_SONGS_SHOWN):
-        await db.execute(
-            f"INSERT INTO {db.t('favorites')} "
-            "(guild_id, day, user_id, track_key, url, picked_at) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (
-                GUILD_ID,
-                at.date() - timedelta(days=offset),
-                10**18,
-                f"viibr:{offset}",
-                "https://viibrmusic.com/songs/" + "x" * 36,
-                datetime(2026, 10, 1),
-            ),
-        )
-    frame = long_emojis(bot, monkeypatch)
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, frame)
-    section = collections_of(text, frame)
-    assert [line for line in section if line.startswith(frame.sub_mark + " ")] == [
-        frame.sub(f"{group.name.upper()} {len(group.gifts) - 1}/{len(group.gifts)}")
-        for group in GIFT_COLLECTIONS
-    ]
-
-
-async def test_the_lunchbox_fits_with_every_collection_complete(
-    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    life = await lay(bot)
-    assert life.id is not None
-    at = discord.utils.utcnow() - timedelta(days=1)
-    for group in GIFT_COLLECTIONS:
-        for gift in group.gifts:
-            await bot.gifts.record(GUILD_ID, life.id, 10**18, gift.key, True, at)
-    frame = long_emojis(bot, monkeypatch)
-
-    text = await lunchbox_text(bot, GUILD_ID)
-
-    assert text_length(text) <= LAYOUT_TEXT_LIMIT
-    assert_fits_its_frame(text, frame)
-    expected: list[str] = []
-    for index, group in enumerate(GIFT_COLLECTIONS):
-        if index:
-            expected.append(frame.group_break)
-        done = f"{group.name.upper()} {len(group.gifts)}/{len(group.gifts)} COMPLETE"
-        finished = frame.sub(f"{done} ・ finished by <@{10**18}>")
-        expected.extend(frame.wrap(finished).splitlines())
-    assert collections_of(text, frame) == expected
 
 
 @pytest.mark.parametrize(

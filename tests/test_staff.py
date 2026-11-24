@@ -583,7 +583,7 @@ async def test_setup(
         f"・Wisp's Studio: <#{STUDIO_ID}>\n"
         f"・Track drop: <#{TRACKS_ID}>\n"
         "・General chat: off\n"
-        "・Studio threads: all six already exist\n"
+        "・Studio threads: all seven already exist\n"
         "・No feeding roles yet, so nobody can feed Wisp. "
         "Add one with !wisp roles add @role.\n"
         "・Badge roles: all 2 ready"
