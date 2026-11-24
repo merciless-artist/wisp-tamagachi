@@ -714,7 +714,9 @@ async def _poke(interaction: discord.Interaction) -> None:
             )
     quiet_for = talk.quiet_for(guild_id, now)
     streak = talk.poke(guild_id, user.id, now)
-    flavor = poke_flavor(mood(life), streak, quiet_for, talk.rng)
+    flavor = poke_flavor(
+        mood(life), streak, quiet_for, talk.rng, feelings_of(life, now)
+    )
     if woken is not None:
         life = woken
         flavor = PokeFlavor.WOKE_UP

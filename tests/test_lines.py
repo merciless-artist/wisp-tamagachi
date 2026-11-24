@@ -115,7 +115,31 @@ CHORE_AND_COLD_MOMENTS = [
     Moment.LIGHTS_OFF,
     Moment.MEDICINE,
 ]
-LONELY_TALK_MOMENTS = [Moment.POKED, Moment.CHAT_FALLBACK, Moment.BABY_TALK]
+LONELY_TALK_MOMENTS = [
+    Moment.POKED,
+    Moment.CHAT_FALLBACK,
+    Moment.BABY_TALK,
+    Moment.QUIET,
+    Moment.TRACK_FED,
+    Moment.SNACK,
+    Moment.GIFT_KEPT,
+    Moment.GIFT_PASSED,
+    Moment.GIFT_FULL,
+]
+# Moments where a need of his went unmet; their lines are angry, not polite.
+UNMET_NEED_MOMENTS = [
+    Moment.HUNGRY,
+    Moment.FADING,
+    Moment.LONELY,
+    Moment.SICK,
+    Moment.MESS,
+    Moment.MESS_LEFT,
+    Moment.SNIFFLES,
+    Moment.TANTRUM,
+    Moment.TANTRUM_MISSED,
+    Moment.LIGHTS_MISSED,
+]
+POLITE = ("i'm not mad", "a little hurt", "please", "that's probably fine", "sorry")
 FAREWELL_MOMENTS = [
     Moment.GREW_OLD,
     Moment.FAREWELL,
@@ -168,18 +192,18 @@ def test_happy_and_hangry_are_always_written(moment: Moment) -> None:
 
 
 def test_a_lonely_moment_without_lonely_lines_falls_back_to_happy() -> None:
-    assert (Moment.TRACK_FED, Mood.LONELY) not in LINES
+    assert (Moment.SNACK_FANCY, Mood.LONELY) not in LINES
     assert (
-        lines_for(Moment.TRACK_FED, Mood.LONELY)
-        is LINES[(Moment.TRACK_FED, Mood.HAPPY)]
+        lines_for(Moment.SNACK_FANCY, Mood.LONELY)
+        is LINES[(Moment.SNACK_FANCY, Mood.HAPPY)]
     )
 
 
 def test_lonely_and_happy_share_a_bag_when_lonely_falls_back() -> None:
     picker = LinePicker(random.Random(4))
-    happy = LINES[(Moment.QUIET, Mood.HAPPY)]
+    happy = LINES[(Moment.RHYME_WISP_STUCK, Mood.HAPPY)]
     turns = [(Mood.LONELY, Mood.HAPPY)[turn % 2] for turn in range(len(happy))]
-    picks = [picker.pick(Moment.QUIET, feeling) for feeling in turns]
+    picks = [picker.pick(Moment.RHYME_WISP_STUCK, feeling) for feeling in turns]
     assert sorted(picks) == sorted(happy)
 
 
@@ -325,6 +349,29 @@ def test_lonely_talk_has_its_own_lines(moment: Moment) -> None:
     assert len(lonely) >= 8
     assert not lonely & set(LINES[(moment, Mood.HAPPY)])
     assert not lonely & set(LINES[(moment, Mood.HANGRY)])
+    for line in lonely:
+        for polite in POLITE:
+            assert polite not in line.lower(), line
+
+
+def test_lonely_never_falls_back_to_happy_for_the_everyday_moments() -> None:
+    for moment in (
+        Moment.QUIET,
+        Moment.TRACK_FED,
+        Moment.SNACK,
+        Moment.GIFT_KEPT,
+        Moment.GIFT_PASSED,
+        Moment.GIFT_FULL,
+    ):
+        lonely = lines_for(moment, Mood.LONELY)
+        assert lonely is not LINES[(moment, Mood.HAPPY)], moment
+
+
+@pytest.mark.parametrize("moment", UNMET_NEED_MOMENTS)
+def test_unmet_need_lines_are_never_polite(moment: Moment) -> None:
+    for line in LINES[(moment, Mood.HAPPY)]:
+        for polite in POLITE:
+            assert polite not in line.lower(), line
 
 
 @pytest.mark.parametrize("moment", sorted(ONE_MOOD_MOMENTS))

@@ -119,8 +119,10 @@ only time he is alive and not frozen. All the numbers are starting values in
   a day per member), a snack 8 and a gift bought 8 (kept or not). An unscolded
   tantrum costs 15 and lights left on at a nap cost 10. Every 6 hours with no
   credited chat, poke, duel, snack, gift or cleanup costs 10. Below 30 he is
-  lonely and grumpy in what he says and posts once in the House with a picture
-  for his stage. Hangry beats lonely beats happy, and Wellbeing never hurts
+  lonely and pissed off about it in what he says and posts once in the House
+  with a picture for his stage. Hangry beats lonely beats happy for his mood
+  (and his pre-written lines), but his AI voice is told about both when he is
+  hangry and lonely at once, and Wellbeing never hurts
   him: no death, no growth penalty. Wellbeing at 80 or more for four days is
   what makes an Adult a Rockstar.
 
@@ -620,6 +622,25 @@ when he hatched, each stage, Monster Pox and colds and who helped, whether he is
 sick now, and how the last few Wisps before him ended, since fire sprites remember
 their past lives. Staff test lives are left out.
 
+Grumpiness: when a need goes unmet he is openly pissed off, not politely
+sad. Hangry, lonely (also stacked on hangry), starving (below 10 Health, his
+angriest), Monster Pox, a cold, spoiled, cranky, an open mess nobody has
+cleaned and a tantrum nobody has scolded each add a layer to his AI voice
+(`feelings_of` in `wisp/voice.py`). He aims it at the neglect and the House
+and may call out whoever shows up empty-handed, never anyone's identity,
+looks or music, never with slurs, and he drops it and says sorry if someone
+is really upset. Swearing by stage: the Baby swears only with Myra's baby
+swears (`BABY_SWEARS`: oogie mess, cockadoodie, fork this and the rest),
+furious but weird and wholesome; the Child keeps to damn, crap, heck and the
+baby swears; from Teen on he swears for real, more and harder when a need
+goes unmet. Teen, Adult, Rockstar (the zen cracks into a diva) and Old Fogey
+(dagnabbit, horse's ass, kids these days) each have their own grumpy voice.
+Hangry or starving, only a shared track calms him down, unless someone is
+genuinely upset. His canned lines for unmet needs are angry too, and when he
+is lonely the quiet House, a fed track, a snack, every gift answer (kept,
+passed on, lunchbox full), a poke and a fallback reply each have their own
+angry-lonely lines instead of the happy ones.
+
 From Baby on he also has a long memory of his House (`db/memories.py`, a ChromaDB
 folder at `data/memory`, searched with Gemini embeddings). When someone talks to
 him, what they said and what he answered are saved, tagged with their Discord ID
@@ -637,8 +658,10 @@ Poking: the Poke Wisp button on the status card and on the House's new-egg
 posts pokes him at every stage. The House sees who poked him and his AI
 reaction (a pre-written line if the AI is down), which is usually a giggle,
 now and then a startle or a curious look; a House that has been quiet for
-2 hours (counted from real talk there) wakes him up, and a flurry of pokes or
-low Health annoy him. He naps at the timed naps (see His chores), and a poke
+2 hours (counted from real talk there) wakes him up, and a flurry of pokes
+annoys him. Being hangry, lonely, cranky or spoiled each make an annoyed poke
+likelier, and they add up (`POKE_MOOD_WEIGHT`, `POKE_LONELY_WEIGHT`,
+`POKE_CRANKY_WEIGHT`, `POKE_SPOILED_WEIGHT`). He naps at the timed naps (see His chores), and a poke
 then wakes him cranky for 30 minutes before he dozes off again. Pokes and mentions share one cooldown per
 member; a member's first 3 pokes of the day fill his Wellbeing and only the
 first poke or mention earns a point.

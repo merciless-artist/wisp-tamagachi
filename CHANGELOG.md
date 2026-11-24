@@ -81,6 +81,44 @@
   (`db/moody.py`, `bot.moody`). A round whose answer never went out is
   deleted, so it never blocks the next one.
 
+## 2026-11-24 (Grumpy Wisp and Baby Wisp's swears)
+
+- **He is openly pissed off when a need goes unmet.** The hangry, lonely,
+  Monster Pox, cold, spoiled and cranky layers in `wisp/voice.py` lost their
+  softeners ("a bit grumpy", "never blame", "never cruel", "you know you'll
+  be fine"). He aims it at the neglect and the whole House, and hangry he
+  calls out whoever shows up empty-handed. Never anyone's identity, looks or
+  music, never slurs, and the persona's safety valve stays: drop it and say
+  sorry if someone is really upset.
+- **New feelings** (`Feeling`, from `feelings_of`): `STARVING` below
+  `FADING_BELOW` Health, his angriest, right after the hangry layer;
+  `LONELY` when Wellbeing is low but being hangry hides it from his mood, so
+  both reach the prompt; `MESS` while a mess is open; `TANTRUM` while a
+  tantrum nobody has scolded is going.
+- **Swearing by stage.** The Baby swears only with Myra's baby swears
+  (`BABY_SWEARS`, her spelling), furious but weird and wholesome; every Baby
+  layer now uses them instead of "never swearing". The Child swears mildly
+  (damn, crap, heck and the baby swears). From Teen on the real swearing
+  gets more and harder when a need goes unmet. Teen, Adult, Rockstar (zen
+  cracking into a diva) and Old Fogey (a cranky old-timer) each got a line
+  on how their grumpiness sounds, and the Baby and Child got grumpy examples.
+- **Annoyed pokes**: being lonely, cranky or spoiled now makes an annoyed
+  poke likelier too, and the reasons add up (`POKE_LONELY_WEIGHT`,
+  `POKE_CRANKY_WEIGHT`, `POKE_SPOILED_WEIGHT`; `poke_flavor` takes his
+  feelings). An annoyed poke snaps instead of staying playful.
+- **Angry canned lines**: the hungry, fading, lonely, Monster Pox, mess,
+  mess left, cold, tantrum, tantrum missed and lights missed lines were
+  rewritten angry instead of polite. New lonely lines for the quiet House, a
+  fed track, a snack and a kept gift, so lonely no longer falls back to the
+  happy ones there.
+- **Review fixes.** The hangry and starving layers' "only a track calms you
+  down" now ends with "unless someone is genuinely upset: then drop it and
+  say sorry", so the safety valve still wins. A passed-on gift and a full
+  lunchbox got lonely lines too (`_GIFT_PASSED_LONELY`,
+  `_GIFT_FULL_LONELY`). The lonely poke and lonely fallback-reply lines were
+  rewritten in the same angry-lonely tone (they were still mopey), and no
+  lonely line may be polite.
+
 ## 2026-11-24 (Tantrums last four hours)
 
 - **A tantrum stays open for 4 hours** (`TANTRUM_WINDOW`, was 1 hour) while
