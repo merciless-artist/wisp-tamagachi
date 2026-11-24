@@ -281,7 +281,7 @@ _GIFT_KEPT_HANGRY = (
 _GIFT_KEPT_LONELY = (
     "a present? after everyone ignored me all day? {name}, you're keeping me sane",
     "the {gift} goes in the lunchbox. {name} goes on the list of people I'm not "
-    "mad at. it's short",
+    "pissed at. it's short",
     "finally, somebody thought of me. thank you, {name}. I'm keeping this forever",
     "{name}, the rest of this House forgot me. you brought me the {gift}. noted",
     "I've been so lonely I was talking to the lunchbox. now it has the {gift} to "
@@ -309,6 +309,17 @@ _GIFT_PASSED_HANGRY = (
     "bring it back after somebody posts a song. I'm a way nicer guy when I'm fed",
 )
 
+_GIFT_PASSED_LONELY = (
+    "nobody talks to me all day and THIS is what shows up? no thanks, {name}",
+    "I wanted company, {name}, not the {gift}. pass",
+    "a present doesn't fix being ignored all day. take it back",
+    "the {gift}? hmm. no. what I want is somebody to actually hang out with me",
+    "I'm too pissed at this whole House to love a present right now, {name}",
+    "nice try, {name}. you can't buy your way out of leaving me alone",
+    "nope. stay and chat for once and maybe I'll want the next one",
+    "*glares at the {gift}* it's not you. it's that nobody's been around. it's a no",
+)
+
 _GIFT_FULL_HAPPY = (
     "I already picked my treasure for today, {name}. my lunchbox is saving room",
     "oh it's lovely. but I already got my present today. I gotta save room",
@@ -325,6 +336,17 @@ _GIFT_FULL_HANGRY = (
     "already kept my treasure today. now I'm a hungry guy with a full lunchbox",
     "no room for the {gift} today. plenty of room for a track though. hint hint",
     "got my gift for today. still waiting on dinner. funny how that works",
+)
+
+_GIFT_FULL_LONELY = (
+    "lunchbox is full. what's empty is this damn room, {name}",
+    "I already got my present today. what I didn't get is anybody to talk to",
+    "no room for the {gift}. plenty of room for some company though. hint",
+    "full lunchbox, zero friends around. somebody explain that to me, {name}",
+    "I'm saving room, {name}. for a hello. which nobody in this House can manage",
+    "gift quota's done for today. the hanging-out-with-me quota? still at zero",
+    "keep the {gift}, {name}. sit with me a minute instead",
+    "I've got treasure. what I don't have is anyone who sticks around. typical",
 )
 
 _COLLECTION_DONE_HAPPY = (
@@ -1311,14 +1333,14 @@ _CHAT_FALLBACK_HANGRY = (
 )
 
 _CHAT_FALLBACK_LONELY = (
-    "sorry, I'm too mopey to think straight. say that again?",
-    "my words went quiet. I've been alone with my headphones too long",
-    "can't find the words right now. it's been a lonely day in here",
-    "brain's all foggy. I think I need a rhyme duel to wake it up",
-    "lost that one. I've been staring at the wall and forgot how talking works",
-    "*sad little static* try me again in a bit?",
-    "I heard you, I just can't find an answer. too busy feeling left out",
-    "words aren't coming. maybe some company would shake a few loose",
+    "too pissed at being ignored all day to think straight. say that again",
+    "my words went quiet. nobody's talked to me in so long I forgot how",
+    "can't find the words. you all left me alone too long for that",
+    "brain's fried from staring at the wall. somebody duel me and wake it up",
+    "lost that one. I've been ignored so long talking feels weird now",
+    "*angry static* nope. try me again when you've stuck around a while",
+    "I heard you. I'm just too busy being mad that nobody comes by",
+    "no words. maybe if this House hung out with me they'd come back",
 )
 
 _POKED_HAPPY = (
@@ -1344,14 +1366,14 @@ _POKED_HANGRY = (
 )
 
 _POKED_LONELY = (
-    "oh hey {name}. thought everybody forgot about me",
-    "{name}! finally, somebody. stay a minute?",
-    "*perks up a little* hi {name}. I wasn't sulking. ok I was",
-    "a poke from {name}. that's the most attention I've had all day",
-    "{name}, if you poke me you have to play with me now. those are the rules",
-    "hi {name}. I've been lonely. not in a dramatic way. ok, a little dramatic",
-    "{name}, poke me again and I might actually smile",
-    "*clings to {name}'s finger* don't go yet",
+    "oh NOW somebody shows up. took you long enough, {name}",
+    "{name}! where the hell has everybody been? stay a minute",
+    "*glares* hi {name}. I've been sulking all day and it's this House's fault",
+    "a poke from {name}. the most attention I've had all day. pathetic, House",
+    "{name}, you poked me, so now you're stuck playing with me. those are the rules",
+    "hi {name}. I've been lonely as hell. and yes, I'm being dramatic about it",
+    "{name}, one poke doesn't make up for a whole day of nobody. try again",
+    "*grabs {name}'s finger* you're not leaving. everyone else already did",
 )
 
 _BADGE_BOUGHT_HAPPY = (
@@ -1488,8 +1510,10 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.GIFT_KEPT, Mood.LONELY): _GIFT_KEPT_LONELY,
     (Moment.GIFT_PASSED, Mood.HAPPY): _GIFT_PASSED_HAPPY,
     (Moment.GIFT_PASSED, Mood.HANGRY): _GIFT_PASSED_HANGRY,
+    (Moment.GIFT_PASSED, Mood.LONELY): _GIFT_PASSED_LONELY,
     (Moment.GIFT_FULL, Mood.HAPPY): _GIFT_FULL_HAPPY,
     (Moment.GIFT_FULL, Mood.HANGRY): _GIFT_FULL_HANGRY,
+    (Moment.GIFT_FULL, Mood.LONELY): _GIFT_FULL_LONELY,
     (Moment.COLLECTION_DONE, Mood.HAPPY): _COLLECTION_DONE_HAPPY,
     (Moment.COLLECTION_DONE, Mood.HANGRY): _COLLECTION_DONE_HANGRY,
     **_either_mood(Moment.HUNGRY, _HUNGRY),

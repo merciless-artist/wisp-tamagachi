@@ -364,6 +364,15 @@ def test_starving_comes_right_after_hangry_and_is_his_angriest(stage: Stage) -> 
     assert starving < system.index("You were just woken up")
 
 
+def test_hangry_and_starving_anger_still_gives_way_to_real_upset() -> None:
+    system = feeling_system(Stage.TEEN, Mood.HANGRY, (Feeling.STARVING,))
+    angry = [part for part in system.split("\n\n") if "calm" in part]
+    assert len(angry) == 2
+    for part in angry:
+        assert "unless someone is genuinely upset" in part, part
+        assert "say sorry" in part, part
+
+
 @pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
 def test_lonely_stacks_on_hangry(stage: Stage) -> None:
     system = feeling_system(stage, Mood.HANGRY, (Feeling.LONELY,))

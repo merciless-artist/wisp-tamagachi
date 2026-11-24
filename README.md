@@ -590,6 +590,11 @@ furious but weird and wholesome; the Child keeps to damn, crap, heck and the
 baby swears; from Teen on he swears for real, more and harder when a need
 goes unmet. Teen, Adult, Rockstar (the zen cracks into a diva) and Old Fogey
 (dagnabbit, horse's ass, kids these days) each have their own grumpy voice.
+Hangry or starving, only a shared track calms him down, unless someone is
+genuinely upset. His canned lines for unmet needs are angry too, and when he
+is lonely the quiet House, a fed track, a snack, every gift answer (kept,
+passed on, lunchbox full), a poke and a fallback reply each have their own
+angry-lonely lines instead of the happy ones.
 
 From Baby on he also has a long memory of his House (`db/memories.py`, a ChromaDB
 folder at `data/memory`, searched with Gemini embeddings). When someone talks to

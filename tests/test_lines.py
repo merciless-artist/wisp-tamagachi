@@ -123,6 +123,8 @@ LONELY_TALK_MOMENTS = [
     Moment.TRACK_FED,
     Moment.SNACK,
     Moment.GIFT_KEPT,
+    Moment.GIFT_PASSED,
+    Moment.GIFT_FULL,
 ]
 # Moments where a need of his went unmet; their lines are angry, not polite.
 UNMET_NEED_MOMENTS = [
@@ -347,10 +349,20 @@ def test_lonely_talk_has_its_own_lines(moment: Moment) -> None:
     assert len(lonely) >= 8
     assert not lonely & set(LINES[(moment, Mood.HAPPY)])
     assert not lonely & set(LINES[(moment, Mood.HANGRY)])
+    for line in lonely:
+        for polite in POLITE:
+            assert polite not in line.lower(), line
 
 
 def test_lonely_never_falls_back_to_happy_for_the_everyday_moments() -> None:
-    for moment in (Moment.QUIET, Moment.TRACK_FED, Moment.SNACK, Moment.GIFT_KEPT):
+    for moment in (
+        Moment.QUIET,
+        Moment.TRACK_FED,
+        Moment.SNACK,
+        Moment.GIFT_KEPT,
+        Moment.GIFT_PASSED,
+        Moment.GIFT_FULL,
+    ):
         lonely = lines_for(moment, Mood.LONELY)
         assert lonely is not LINES[(moment, Mood.HAPPY)], moment
 

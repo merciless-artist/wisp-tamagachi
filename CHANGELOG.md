@@ -30,6 +30,13 @@
   rewritten angry instead of polite. New lonely lines for the quiet House, a
   fed track, a snack and a kept gift, so lonely no longer falls back to the
   happy ones there.
+- **Review fixes.** The hangry and starving layers' "only a track calms you
+  down" now ends with "unless someone is genuinely upset: then drop it and
+  say sorry", so the safety valve still wins. A passed-on gift and a full
+  lunchbox got lonely lines too (`_GIFT_PASSED_LONELY`,
+  `_GIFT_FULL_LONELY`). The lonely poke and lonely fallback-reply lines were
+  rewritten in the same angry-lonely tone (they were still mopey), and no
+  lonely line may be polite.
 
 ## 2026-11-24 (Tantrums last four hours)
 
