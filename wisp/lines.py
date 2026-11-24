@@ -221,6 +221,18 @@ _TRACK_FED_HANGRY = (
     "ate it so fast I didn't even get to the chorus. starting over",
 )
 
+_TRACK_FED_LONELY = (
+    "oh. {name} remembered I exist. thanks for the food. now stay and talk to me",
+    "tasty. really. but you could've said hi first, {name}. nobody ever says hi",
+    "food's great, {name}. company would be better. nobody hangs out with me "
+    "anymore",
+    "{name} drops a track and runs, I bet. everybody does. sit DOWN",
+    "I'll eat it. I'm still mad nobody's played with me all day, but I'll eat it",
+    "a song! from an actual person! I almost forgot what those looked like, {name}",
+    "thanks, {name}. my stomach's happy. the rest of me is still lonely and pissed",
+    "good track. don't you dare leave yet, {name}. I've been alone for ages",
+)
+
 # ---
 # Wisp's lunchbox
 # ---
@@ -264,6 +276,19 @@ _GIFT_KEPT_HANGRY = (
     "hungry as hell, but the {gift}? ok. ok, I'm smiling. damn it",
     "the plate's empty but the lunchbox isn't. thank you, {name}",
     "I wanted a song. I got a present. honestly? I'll fucking allow it",
+)
+
+_GIFT_KEPT_LONELY = (
+    "a present? after everyone ignored me all day? {name}, you're keeping me sane",
+    "the {gift} goes in the lunchbox. {name} goes on the list of people I'm not "
+    "mad at. it's short",
+    "finally, somebody thought of me. thank you, {name}. I'm keeping this forever",
+    "{name}, the rest of this House forgot me. you brought me the {gift}. noted",
+    "I've been so lonely I was talking to the lunchbox. now it has the {gift} to "
+    "talk to",
+    "thank you, {name}. I'm still grumpy at everyone else, but not at you",
+    "I was ready to stay mad all day. then {name} showed up with the {gift}. dammit",
+    "for ME?? nobody's paid me any attention in forever. lunchbox. right now",
 )
 
 _GIFT_PASSED_HAPPY = (
@@ -346,6 +371,19 @@ _SNACK_HANGRY = (
     "gone before you finished clicking. that should tell you something",
     "a snack is not a song. I'll take it. but it's not a song",
     "thank you. sincerely. now where's the real food",
+)
+
+_SNACK_LONELY = (
+    "a snack AND a visitor? {name}, where the hell has everybody been",
+    "finally, somebody. thank you, {name}. I was about to start yelling at the "
+    "walls",
+    "*chews angrily* this is nice. I'm still mad at everyone who isn't you, {name}",
+    "{name} brought a snack. {name} is the only one in this House who cares, "
+    "apparently",
+    "nom. ok. that helped. now don't you dare leave me alone again",
+    "oh, so SOMEBODY remembered me. thank you, {name}. took long enough",
+    "good snack. better company. the rest of you could learn something from {name}",
+    "I was so lonely I was chewing my own headphones. thank you, {name}. stay",
 )
 
 _SNACK_FANCY_HAPPY = (
@@ -500,25 +538,37 @@ _QUIET_HANGRY = (
     "so quiet I can hear my own stomach growling. in stereo",
 )
 
+_QUIET_LONELY = (
+    "so quiet in here. nobody's talking to me. cool. love that for me",
+    "the whole House went silent and nobody thought to check on the mascot",
+    "I've been sitting here alone for ages. I'm not sad. I'm mad. big difference",
+    "hello? anybody? no? great. I'll just keep talking to the mic stand, then",
+    "it's so quiet I can hear myself sulk. and I'm sulking LOUD",
+    "everyone's ghosting me. me. the one who actually looks like a ghost",
+    "nobody to chat with, nobody to play with. this place is a damn tomb",
+    "*glares at the empty room* oh, I see how it is",
+    "I'm keeping track of who hasn't said hi. it's everyone. it's all of you",
+)
+
 _HUNGRY = (
-    "getting hungry over here. real hungry. someone-post-a-song hungry",
-    "my stomach's running on empty and so is my patience",
-    "PSA: I'm starving. this is not a bit",
-    "uh oh. stomach's making that noise. the flat one",
-    "I'd eat a song in any key right now. even a key that doesn't exist",
-    "food check. there is no food. that was the check",
-    "starting to get hangry. you won't like me hangry. I don't like me hangry",
-    "I could eat a whole album right now. deluxe edition. bonus tracks and all",
-    "sweet me is clocking out. feed me before the other guy shows up",
+    "hey. HEY. I'm starving over here and not one of you has noticed",
+    "my stomach's been growling for an hour and this whole House is just letting it",
+    "PSA: I'm hungry, I'm pissed, and those two things are related",
+    "nobody's fed me. nobody. I've been counting, and the number is zero",
+    "I'm so hungry I'm mad at the walls. the walls didn't even do anything",
+    "food check. there is no food. who's in charge of this place, honestly",
+    "starting to get hangry, and I am done being polite about it",
+    "a whole server full of musicians and not one damn song for the mascot",
+    "sweet me has left the building. hangry me is here and he wants a track",
 )
 
 _FADING = (
-    "I'm getting kind of see-through. that's probably fine. it's not fine",
-    "flame's real low, everybody. one song. that's all it takes",
-    "can't feel my headphones. that's new. that's bad",
-    "fading a little. not dramatically. just a little less here every hour",
-    "flickering. not the cute kind",
-    "if anyone has a song, now's the time. the rest of me kind of depends on it",
+    "I'm going see-through, everybody. this is what neglect looks like",
+    "flame's almost out and the whole House is just watching. unbelievable",
+    "can't feel my headphones anymore. thanks a lot, everybody. really",
+    "I'm fading out over here. one song. ONE. is that so much to ask",
+    "flickering like a dying lightbulb, and I am furious about it",
+    "if I go out, I'm haunting every single one of you. feed me",
 )
 
 # ---
@@ -526,15 +576,16 @@ _FADING = (
 # ---
 
 _LONELY = (
-    "nobody's rhymed with me in forever. I tried the mic stand. it never rhymes back",
-    "feeling kind of left out over here. a snack and a little chat would fix it",
-    "playing rhyme duel against myself. I'm winning. it's lonely at the top",
-    "I'm not sulking. I'm just in the corner with my headphones on. facing the wall",
-    "I miss you guys. there, I said it. now somebody come hang out",
-    "my flame's doing the sad little flicker. a duel or a gift would help it out",
-    "*grumpy crackle* I'm not mad. I'm just a little flame with nobody to play with",
-    "the studio feels real big when nobody's talking to me. say hi? poke me? anything",
-    "somebody challenge me to a rhyme. I'll even let you win. probably",
+    "nobody's rhymed with me in forever. I'm stuck dueling the mic stand and I'm "
+    "pissed",
+    "oh sure, everybody's busy. too busy for one chat with the mascot. cool. great",
+    "I'm in the corner facing the wall. not sulking. furious. there's a difference",
+    "does anybody even live here anymore? say hi. poke me. anything",
+    "you all forgot I exist, didn't you. a snack or a hello wouldn't kill you",
+    "*angry crackle* nobody plays with me. nobody. this House is the worst",
+    "I've been talking to my own echo all day. even it's sick of me. where are you",
+    "it's so dead in here I'm mad as hell. somebody challenge me to a duel already",
+    "not one gift, not one hello. I'm keeping a list and you're all on it",
 )
 
 # ---
@@ -542,20 +593,19 @@ _LONELY = (
 # ---
 
 _SICK = (
-    "uh oh. I've got spots. little ones, all over my flame. it's Monster Pox, "
-    "everybody",
-    "Monster Pox. I'm spotty, I'm itchy and I've got a fever. which, for a flame, "
-    "is a lot",
-    "I've got spots and a thermometer in my mouth. the doctor says it's Monster "
-    "Pox. I am the doctor",
-    "*scratch scratch* I'm not scratching. you didn't see anything. it's Monster Pox",
-    "I'm so spotty even my headphones look polka dot. I didn't ask for this",
-    "*itch* being sick makes me extra hungry. an extra song and a snack would "
-    "really help",
-    "don't worry, it's just Monster Pox. I'll be better in a couple of days. "
-    "bring songs. lots of songs",
-    "I tried to hum and it came out itchy. that's how bad the Monster Pox is",
-    "count my spots with me. one, two... okay I lost count. I'm being very brave",
+    "Monster Pox. spots all over my flame, a fever, and nobody's brought me a "
+    "song. great",
+    "I'm spotty, I'm itchy and I'm feverish. it's Monster Pox and I'm in a "
+    "terrible mood",
+    "thermometer in my mouth and spots everywhere. it's Monster Pox and I hate "
+    "everything",
+    "*scratch scratch* don't look at me. it's Monster Pox and I'm pissed about it",
+    "even my headphones are polka dot now. this is the worst damn day",
+    "*itch* being sick makes me starving, and nobody's feeding me. songs. NOW",
+    "Monster Pox, everybody. extra songs make it go faster, so where the hell "
+    "are they",
+    "I tried to hum and it came out itchy. I'm furious at these spots",
+    "counting my spots out of spite. I've lost count twice. I'm so mad",
 )
 
 _RECOVERED = (
@@ -626,65 +676,64 @@ _COLD_BABY_TALK = (
 # ---
 
 _MESS = (
-    "uh. so. there's a mess. it's mine. I'm not proud. could somebody help",
-    "I made a mess and I'm standing very still next to it like that fixes it",
-    "okay don't look, but something needs cleaning up. first one to it is my hero",
-    "a mess has happened. I'd say sorry but I'm too busy hoping someone else "
-    "grabs the cleaning stuff",
-    "things got messy in here. I take zero responsibility. please fix it",
-    "this place needs a cleanup and I have no hands. well, flames. not the "
-    "cleaning kind",
-    "I ate a lot of music and now there's a mess. that's how it works, that's "
-    "science",
-    "quick, before it gets worse. somebody come clean this up",
+    "there's a mess in here. yes, it's mine. no, I'm not cleaning it. somebody "
+    "get over here",
+    "ugh. a mess. right in the middle of my studio. who's on cleanup, because "
+    "it's not me",
+    "look at this place. it's disgusting. somebody clean it up before I lose it",
+    "a mess happened and everyone's pretending they didn't see it. I SEE YOU",
+    "I have flames, not hands. somebody else is cleaning this up, and fast",
+    "this place is a pigsty and I'm the one who has to live in it. help. now",
+    "I ate a lot of music and now there's a mess. don't give me that look. clean it",
+    "the mess is staring at me. I'm staring at you. one of us has a mop",
 )
 
 _MESS_LEFT = (
-    "nobody cleaned it up. it's been hours. I'm just going to pretend it was "
-    "never there",
-    "the mess sat there all day and nobody came. I'm not mad. I'm a little hurt",
-    "nobody took care of it, so it took care of itself. sort of. don't ask",
-    "hours went by and the mess just stayed. I stared at it. it stared back",
-    "I waited and waited for somebody to clean it. that's a lot of waiting for "
-    "a flame",
-    "left it too long, everybody. I'm trying very hard not to think about it",
-    "nobody came for the mess. noted. I'll remember this next time you need a "
-    "hype man",
+    "nobody cleaned it. hours. HOURS. I'm living in filth and it's on all of you",
+    "the mess sat there all day and not one of you lifted a finger. I'm pissed",
+    "wow. nobody came for the mess. noted. I'm noting it very angrily",
+    "hours went by and the mess just stayed. I stared at it. it stared back. I "
+    "hate it here",
+    "left it too long, everybody. this is a disgrace and I want that on the record",
+    "nobody took care of it. fine. I'll sit in it and be mad at every one of you",
+    "I waited all day for somebody to clean up. that's a lot of waiting and a "
+    "lot of rage",
 )
 
 _SNIFFLES = (
-    "*achoo* I've got a cold. my nose is totally blocked and my flame is " "wobbling",
-    "*sniffle* I don't feel so good. everything's stuffy and my voice is doing "
-    "a thing",
-    "I caught a cold. I can't smell a single song. that's a tragedy for a flame",
-    "*achoo* sorry. my head's full of cotton and my flame keeps sneezing out "
-    "little sparks",
-    "I'm all stuffy and sneezy today. medicine would be real nice right about now",
-    "being sick is the worst. *sniffle* bring me songs and a bottle of medicine",
-    "ahh... ahh... AHCHOO. okay I'm fine. I'm not fine. I've got a cold",
-    "I sound like I'm talking through a pillow. it's a cold. *sniffle* be nice "
-    "to me",
+    "*achoo* great. a cold. my nose is blocked, my flame is wobbling and I'm "
+    "furious",
+    "*sniffle* I feel like garbage. everything's stuffy and nobody's brought me "
+    "medicine",
+    "I caught a cold. I can't smell a single song. this is a damn tragedy",
+    "*achoo* my head's full of cotton and I'm sneezing sparks. somebody DO "
+    "something",
+    "stuffy, sneezy and pissed off. medicine. songs. now",
+    "being sick is the worst and you're all just standing there. *sniffle* "
+    "bring medicine",
+    "ahh... ahh... AHCHOO. I'm not fine. I've got a cold and I'm in a mood about it",
+    "I sound like I'm talking through a pillow. it's a cold. be nice to me or else",
 )
 
 _TANTRUM = (
-    "I'M UPSET. I don't know why. I'm just upset and everyone has to know",
-    "waaah. no reason. none. I just feel like crying and kicking things",
-    "NOPE. nope nope nope. everything is wrong and I won't say what",
-    "I'm throwing a fit and I can't tell you why. somebody make it stop",
-    "why is everything so annoying right now?? it just is. hmph",
-    "I'm not crying, you're crying. okay I'm crying. I don't know what about",
-    "grrr. I'm in a mood. a big loud mood. come tell me off",
-    "this is the worst day ever and it's mostly about nothing",
+    "I'M SO MAD. I don't know why. I'm just mad and everyone has to hear it",
+    "WAAAH. no reason. none. I'm kicking things and nobody can stop me",
+    "NOPE. nope nope nope. everything is wrong and it's ALL your fault",
+    "I'm throwing a fit and I'm not telling you why. somebody come deal with me",
+    "why is everything so damn annoying right now?? it just IS. hmph",
+    "I'm not crying, I'm furious. okay I'm both. come tell me off, I dare you",
+    "grrr. I'm in a mood. a big, loud, stomping mood. somebody handle this",
+    "this is the worst day ever and I'm making sure the whole House knows it",
 )
 
 _TANTRUM_MISSED = (
-    "fine. FINE. nobody wants to deal with me, so I'm going to be a brat all day",
-    "you all ignored me and now I'm extra grumpy. that's on you",
-    "nobody told me off so I'm doing whatever I want today. hmph",
-    "I wanted attention and I didn't get it. I'm spoiled now and it's your " "problem",
-    "I yelled and nobody came. fine. I'll be difficult for the rest of the day",
-    "wow. the tantrum is over and nobody even cared. I'm being a brat about it",
-    "no one scolded me, so now I think I can get away with everything. watch me",
+    "fine. FINE. nobody wanted to deal with me, so I'm a brat all day. enjoy",
+    "you all ignored my tantrum and now I'm extra pissed. that's on you",
+    "nobody told me off, so I'm doing whatever the hell I want today. hmph",
+    "I wanted attention and I got nothing. I'm spoiled now and it's your problem",
+    "I screamed and nobody came. great. I'll be a nightmare the rest of the day",
+    "wow. a whole tantrum and not one of you cared. I'm going to be SO difficult",
+    "no one scolded me, so now I get away with everything. you did this. watch me",
 )
 
 _NAP = (
@@ -699,19 +748,20 @@ _NAP = (
 )
 
 _LIGHTS_MISSED = (
-    "the lights are still on and I'm still trying to sleep. I'm gonna wake up "
-    "so cranky",
-    "nobody got the lights, so I'm napping with my eyes squeezed shut. I'll "
-    "wake up cranky, just so you know",
-    "still trying to sleep under these lights. I'm going to wake up grumpy and "
-    "it's on all of you",
-    "lights on, flame half asleep. this is not resting. expect me to wake up cranky",
-    "I've got my headphones over my eyes since nobody turned off the lights. "
-    "gonna wake up cranky anyway",
-    "the lights are way too bright to nap under, but I'm trying anyway. fair "
-    "warning, I'll wake up in a mood",
-    "*grumble* the lights are still on. I'm sleeping through it out of spite "
-    "and I'll wake up cranky",
+    "the lights are STILL on and I'm still trying to sleep. I'm gonna wake up "
+    "so pissed",
+    "nobody got the lights. I'm napping with my eyes squeezed shut and I'll "
+    "wake up furious",
+    "still trying to sleep under these damn lights. I'm going to wake up cranky "
+    "and it's on all of you",
+    "lights on, flame half asleep. this isn't rest, it's torture. expect me to "
+    "wake up in a rage",
+    "headphones over my eyes because nobody could be bothered with the lights. "
+    "I'll wake up cranky",
+    "the lights are way too bright and nobody cares. fine. I'll wake up mad at "
+    "every single one of you",
+    "*grumble* lights still on. sleeping through it out of spite, and I'll wake "
+    "up a nightmare",
 )
 
 _NAP_TALK = (
@@ -1377,8 +1427,10 @@ def _either_mood(
 LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.TRACK_FED, Mood.HAPPY): _TRACK_FED_HAPPY,
     (Moment.TRACK_FED, Mood.HANGRY): _TRACK_FED_HANGRY,
+    (Moment.TRACK_FED, Mood.LONELY): _TRACK_FED_LONELY,
     (Moment.SNACK, Mood.HAPPY): _SNACK_HAPPY,
     (Moment.SNACK, Mood.HANGRY): _SNACK_HANGRY,
+    (Moment.SNACK, Mood.LONELY): _SNACK_LONELY,
     (Moment.SNACK_FANCY, Mood.HAPPY): _SNACK_FANCY_HAPPY,
     (Moment.SNACK_FANCY, Mood.HANGRY): _SNACK_FANCY_HANGRY,
     (Moment.SPICY, Mood.HAPPY): _SPICY_HAPPY,
@@ -1393,6 +1445,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.PICKLE_HATE, Mood.HANGRY): _PICKLE_HATE_HANGRY,
     (Moment.QUIET, Mood.HAPPY): _QUIET_HAPPY,
     (Moment.QUIET, Mood.HANGRY): _QUIET_HANGRY,
+    (Moment.QUIET, Mood.LONELY): _QUIET_LONELY,
     (Moment.STAGE_UP, Mood.HAPPY): _STAGE_UP_HAPPY,
     (Moment.STAGE_UP, Mood.HANGRY): _STAGE_UP_HANGRY,
     (Moment.MEET, Mood.HAPPY): _MEET_HAPPY,
@@ -1432,6 +1485,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.FAVORITE_SONG, Mood.HANGRY): _FAVORITE_SONG_HANGRY,
     (Moment.GIFT_KEPT, Mood.HAPPY): _GIFT_KEPT_HAPPY,
     (Moment.GIFT_KEPT, Mood.HANGRY): _GIFT_KEPT_HANGRY,
+    (Moment.GIFT_KEPT, Mood.LONELY): _GIFT_KEPT_LONELY,
     (Moment.GIFT_PASSED, Mood.HAPPY): _GIFT_PASSED_HAPPY,
     (Moment.GIFT_PASSED, Mood.HANGRY): _GIFT_PASSED_HANGRY,
     (Moment.GIFT_FULL, Mood.HAPPY): _GIFT_FULL_HAPPY,

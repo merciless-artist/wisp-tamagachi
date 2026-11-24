@@ -9,19 +9,25 @@ import pytest
 
 from ai.prompt import Prompt
 from wisp.bond import PickleStance
+from wisp.chores import do_chore, open_mess, open_tantrum
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.rules import (
     AI_MAX_CHARS,
     EGG_FOOD_NEEDED,
     EGG_LINE_CHARS,
     EGG_WARMTH,
+    FADING_BELOW,
+    HANGRY_BELOW,
     HATCHING_TIME,
+    LONELY_BELOW,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
     POKE_SLEEP_AFTER,
+    Chore,
     Stage,
 )
 from wisp.voice import (
+    BABY_SWEARS,
     COIN_EMOJI,
     EGG_EXPRESSION,
     MINI_COIN_EMOJI,
@@ -177,25 +183,74 @@ def test_prompt_has_persona_stage_and_hangry_layers() -> None:
     for persona in ("Wisp", "ViiBR", "headphones", "sick beats", "never cruel"):
         assert persona in child and persona in fogey
     assert "five years old" in child and "little kid" in child
-    assert "You don't swear" in child
-    assert "You don't swear" not in fogey
     assert "life lessons" in fogey
     assert "You're starving" in prompt_for(mood=Mood.HANGRY).system
     assert "You're starving" not in prompt_for(mood=Mood.HAPPY).system
 
 
-@pytest.mark.parametrize("stage", AI_STAGES)
+REAL_SWEARING = "It's an adult server, so you swear"
+CHILD_SWEARING = "you only swear little-kid style: damn, crap and heck"
+BABY_SWEARING = "These are your swear words, the only ones you have"
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, *AI_STAGES])
 @pytest.mark.parametrize("mood", list(Mood))
-def test_only_child_is_never_allowed_to_swear(stage: Stage, mood: Mood) -> None:
+def test_each_stage_swears_its_own_way(stage: Stage, mood: Mood) -> None:
     system = prompt_for(stage, mood).system
-    allowed = bool(re.search(r"\byou swear\b", system, re.IGNORECASE))
-    assert allowed is (stage is not Stage.CHILD)
-    situation = "only at the situation" in system and "never with slurs" in system
-    assert situation is (stage is not Stage.CHILD)
+    assert (REAL_SWEARING in system) is (stage not in (Stage.BABY, Stage.CHILD))
+    assert (CHILD_SWEARING in system) is (stage is Stage.CHILD)
+    assert (BABY_SWEARING in system) is (stage is Stage.BABY)
+    assert "never with slurs" in system or stage in (Stage.BABY, Stage.CHILD)
+    assert "You don't swear" not in system
+
+
+def test_the_baby_swears_only_with_myras_baby_words() -> None:
+    system = prompt_for(Stage.BABY).system
+    for word in BABY_SWEARS:
+        assert f"\n{word}\n" in system, word
+    assert "Never any other swear word" in system
+    assert "weird and wholesome" in system
+    assert "make a sorry noise" in system
+    for real in ("fuck", "shit", "damn", "hell", "slurs"):
+        assert not re.search(rf"\b{real}", system, re.IGNORECASE), real
+
+
+def test_the_child_swears_mild_words_and_the_baby_ones() -> None:
+    system = prompt_for(Stage.CHILD).system
+    assert all(word in system for word in BABY_SWEARS)
+    assert "Nothing stronger, ever" in system
+    for real in ("fuck", "shit"):
+        assert real not in system.lower()
+
+
+def test_myras_baby_words_are_kept_as_she_wrote_them() -> None:
+    assert len(BABY_SWEARS) == len(set(BABY_SWEARS)) == 22
+    for word in ("heckin maf", "fiddely foof", "sonofa beaver", "fork you"):
+        assert word in BABY_SWEARS
+
+
+@pytest.mark.parametrize(
+    ("stage", "grumpy"),
+    [
+        (Stage.TEEN, "furious teenager"),
+        (Stage.ADULT, "slow, pointed burn"),
+        (Stage.ROCKSTAR, "the zen cracks wide open and the diva comes out"),
+        (Stage.OLD_FOGEY, "dagnabbit, horse's ass, kids these days"),
+    ],
+)
+def test_each_grown_stage_has_its_own_grumpiness(stage: Stage, grumpy: str) -> None:
+    assert grumpy in prompt_for(stage).system
+
+
+def test_grown_swearing_gets_harder_when_a_need_goes_unmet() -> None:
+    system = prompt_for(Stage.TEEN).system
+    assert "a lot more and a lot harder" in system
+    assert "showing up empty-handed" in system
+    assert "never about who anyone is, how they look or their music" in system
 
 
 def test_goodbye_keeps_the_old_fogey_swearing_rules() -> None:
-    assert "only at the situation" in goodbye_prompt(3, "Myra", []).system
+    assert REAL_SWEARING in goodbye_prompt(3, "Myra", []).system
 
 
 def test_hangry_wisp_says_compliments_are_not_food() -> None:
@@ -205,10 +260,31 @@ def test_hangry_wisp_says_compliments_are_not_food() -> None:
         assert NO_U_GIF in prompt_for(mood=mood).system
 
 
+SOFTENERS = ("a bit grumpy", "never blame", "never cruel", "keep it playful")
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+@pytest.mark.parametrize("mood", [Mood.HANGRY, Mood.LONELY])
+def test_unmet_needs_make_him_openly_angry(stage: Stage, mood: Mood) -> None:
+    parts = prompt_for(stage, mood).system.split("\n\n")
+    angry = [part for part in parts if part.startswith(("You're hangry", "You're lo"))]
+    assert len(angry) == 1
+    assert "furious" in angry[0] or "pissed off" in angry[0]
+    for softener in SOFTENERS:
+        assert softener not in angry[0].lower()
+
+
+def test_hangry_wisp_calls_out_whoever_shows_up_empty_handed() -> None:
+    assert (
+        "showing up empty-handed"
+        in prompt_for(mood=Mood.HANGRY).system.split("You're hangry right now", 1)[1]
+    )
+
+
 def test_lonely_mood_reaches_the_prompt() -> None:
     lonely = prompt_for(mood=Mood.LONELY).system
-    assert "You're lonely right now" in lonely and "grumpy" in lonely
-    assert "never blame" in lonely
+    assert "You're lonely right now" in lonely and "pissed off" in lonely
+    assert "taking so long" in lonely
     for fills_wellbeing in ("chatted", "played", "poked", "snack", "gift"):
         assert fills_wellbeing in lonely, fills_wellbeing
     assert "clean" not in lonely
@@ -217,11 +293,10 @@ def test_lonely_mood_reaches_the_prompt() -> None:
         assert "lonely" not in prompt_for(mood=mood).system
 
 
-def test_a_lonely_baby_is_clingy_and_never_swears() -> None:
+def test_a_lonely_baby_is_clingy_and_swears_his_baby_words() -> None:
     lonely = prompt_for(Stage.BABY, Mood.LONELY).system
-    assert "You're lonely right now" in lonely and "never swearing" in lonely
+    assert "You're lonely right now" in lonely and "baby swears" in lonely
     assert "clingy" in lonely
-    assert "never blame" not in lonely
     assert "clingy" not in prompt_for(Stage.BABY, Mood.HAPPY).system
 
 
@@ -243,7 +318,7 @@ def test_sick_reaches_the_prompt(mood: Mood) -> None:
     for symptom in ("spotty", "itchy", "fever", "thermometer"):
         assert symptom in grown
     baby = system(Stage.BABY, (Feeling.MONSTER_POX,))
-    assert "You have Monster Pox right now" in baby and "never swearing" in baby
+    assert "You have Monster Pox right now" in baby and "baby swears" in baby
     assert "spots" in baby and "itchy" in baby
     for sick_prompt in (grown, baby):
         assert "cold" not in sick_prompt and "sneez" not in sick_prompt
@@ -255,11 +330,62 @@ def test_sick_reaches_the_prompt(mood: Mood) -> None:
 
 
 FEELING_LAYERS = {
+    Feeling.STARVING: "You're starving to death",
+    Feeling.LONELY: "You're lonely right now",
     Feeling.MONSTER_POX: "You have Monster Pox right now",
     Feeling.SNIFFLES: "You have a cold right now",
     Feeling.SPOILED: "You're spoiled for the rest of today",
     Feeling.CRANKY: "You were just woken up",
+    Feeling.MESS: "There's a mess",
+    Feeling.TANTRUM: "in the middle of a tantrum",
 }
+
+
+def feeling_system(stage: Stage, mood: Mood, feelings: tuple[Feeling, ...]) -> str:
+    return build_prompt(
+        stage,
+        mood,
+        speaker(),
+        CONTEXT,
+        "hey wisp",
+        expressions=EXPRESSIONS,
+        feelings=feelings,
+    ).system
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+def test_starving_comes_right_after_hangry_and_is_his_angriest(stage: Stage) -> None:
+    system = feeling_system(stage, Mood.HANGRY, (Feeling.STARVING, Feeling.CRANKY))
+    parts = system.split("\n\n")
+    hangry = next(i for i, part in enumerate(parts) if part.startswith("You're hangry"))
+    assert parts[hangry + 1].startswith("You're starving to death")
+    assert "angriest" in parts[hangry + 1]
+    starving = system.index("You're starving to death")
+    assert starving < system.index("You were just woken up")
+
+
+@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
+def test_lonely_stacks_on_hangry(stage: Stage) -> None:
+    system = feeling_system(stage, Mood.HANGRY, (Feeling.LONELY,))
+    assert "You're hangry right now" in system
+    assert "You're lonely right now" in system
+    assert system.index("You're hangry") < system.index("You're lonely")
+
+
+@pytest.mark.parametrize(
+    ("stage", "feeling", "angry"),
+    [
+        (Stage.TEEN, Feeling.MESS, "nobody has cleaned up, and you're pissed off"),
+        (Stage.BABY, Feeling.MESS, "baby-swear at the oogie mess"),
+        (Stage.TEEN, Feeling.TANTRUM, "nobody has told you off yet"),
+        (Stage.BABY, Feeling.TANTRUM, "every baby swear you know"),
+    ],
+)
+def test_an_open_mess_or_tantrum_makes_him_angry(
+    stage: Stage, feeling: Feeling, angry: str
+) -> None:
+    assert angry in feeling_system(stage, Mood.HAPPY, (feeling,))
+    assert angry not in feeling_system(stage, Mood.HAPPY, ())
 
 
 @pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN])
@@ -312,7 +438,7 @@ def test_feelings_stack_in_one_prompt() -> None:
 
 def test_feelings_of_a_life() -> None:
     now = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
-    life = life_in(Phase.ALIVE, Stage.TEEN)
+    life = fed_life()
     assert feelings_of(life, now) == frozenset()
 
     life.cold_left = 10.0
@@ -330,6 +456,52 @@ def test_feelings_of_a_life() -> None:
     life.cranky_until = now + timedelta(hours=1)
     assert feelings_of(life, now) == {Feeling.CRANKY}
     assert feelings_of(life, life.cranky_until) == frozenset()
+
+
+def fed_life() -> Life:
+    life = life_in(Phase.ALIVE, Stage.TEEN)
+    life.health = HANGRY_BELOW + 20
+    life.wellbeing = LONELY_BELOW + 20
+    return life
+
+
+@pytest.mark.parametrize(
+    ("health", "wellbeing", "feelings"),
+    [
+        (HANGRY_BELOW + 1, LONELY_BELOW - 1, set()),
+        (HANGRY_BELOW - 1, LONELY_BELOW + 1, set()),
+        (HANGRY_BELOW - 1, LONELY_BELOW - 1, {Feeling.LONELY}),
+        (FADING_BELOW, LONELY_BELOW + 1, set()),
+        (FADING_BELOW - 1, LONELY_BELOW + 1, {Feeling.STARVING}),
+        (FADING_BELOW - 1, LONELY_BELOW - 1, {Feeling.STARVING, Feeling.LONELY}),
+    ],
+)
+def test_starving_and_lonely_under_hangry_come_from_his_meters(
+    health: float, wellbeing: float, feelings: set[Feeling]
+) -> None:
+    life = fed_life()
+    life.health = health
+    life.wellbeing = wellbeing
+    assert feelings_of(life, NOW) == feelings
+
+
+def test_only_a_living_wisp_starves() -> None:
+    life = fed_life()
+    life.health = 0.0
+    life.wellbeing = 0.0
+    life.phase = Phase.DEAD
+    assert feelings_of(life, NOW) == frozenset()
+
+
+def test_an_open_mess_and_tantrum_are_feelings() -> None:
+    life = fed_life()
+    open_mess(life)
+    assert feelings_of(life, NOW) == {Feeling.MESS}
+    open_tantrum(life)
+    assert feelings_of(life, NOW) == {Feeling.MESS, Feeling.TANTRUM}
+    do_chore(life, Chore.MESS)
+    do_chore(life, Chore.TANTRUM)
+    assert feelings_of(life, NOW) == frozenset()
 
 
 def test_teen_does_not_claim_to_remember_conversations() -> None:
@@ -575,8 +747,7 @@ def test_baby_makes_noises_and_single_words_only(mood: Mood) -> None:
     assert "a few sounds or one or two words" in system
     assert "a line or two" not in system
     assert "fresh every time" in system
-    assert "You don't swear" in system
-    assert not re.search(r"you swear", system, re.IGNORECASE)
+    assert REAL_SWEARING not in system and BABY_SWEARING in system
 
 
 def test_baby_keeps_the_pickle_tag_but_no_note_tag() -> None:
@@ -591,11 +762,30 @@ def test_baby_may_use_one_expression() -> None:
     assert ":wisp_happy:" in system and "At most one face" in system
 
 
-def test_hangry_baby_is_fussy_and_never_swears() -> None:
+def test_hangry_baby_is_furious_and_throws_his_baby_swears() -> None:
     hangry = prompt_for(Stage.BABY, Mood.HANGRY).system
-    assert "fussy" in hangry and "never swearing" in hangry
+    assert "furious baby" in hangry and "throw your baby swears" in hangry
     assert "compliments aren't food" not in hangry
-    assert "fussy" not in prompt_for(Stage.BABY, Mood.HAPPY).system
+    assert "furious baby" not in prompt_for(Stage.BABY, Mood.HAPPY).system
+
+
+@pytest.mark.parametrize(
+    "feeling",
+    [
+        Feeling.STARVING,
+        Feeling.LONELY,
+        Feeling.MONSTER_POX,
+        Feeling.SNIFFLES,
+        Feeling.SPOILED,
+        Feeling.CRANKY,
+        Feeling.MESS,
+        Feeling.TANTRUM,
+    ],
+)
+def test_every_baby_feeling_swears_only_baby_words(feeling: Feeling) -> None:
+    system = feeling_system(Stage.BABY, Mood.HANGRY, (feeling,))
+    assert "never swearing" not in system
+    assert REAL_SWEARING not in system and CHILD_SWEARING not in system
 
 
 # ---
@@ -747,8 +937,9 @@ def flavor(
     mood: Mood = Mood.HAPPY,
     pokes: int = 1,
     quiet_for: timedelta | None = timedelta(minutes=5),
+    feelings: frozenset[Feeling] = frozenset(),
 ) -> PokeFlavor:
-    return poke_flavor(mood, pokes, quiet_for, HeaviestChoice())
+    return poke_flavor(mood, pokes, quiet_for, HeaviestChoice(), feelings)
 
 
 def test_a_poke_most_likely_tickles() -> None:
@@ -768,6 +959,35 @@ def test_a_poke_in_the_small_hours_is_not_sleepy() -> None:
 
 def test_hunger_annoys_him() -> None:
     assert flavor(Mood.HANGRY) is PokeFlavor.ANNOYED
+
+
+@pytest.mark.parametrize(
+    ("mood", "feelings"),
+    [
+        (Mood.LONELY, frozenset()),
+        (Mood.HAPPY, frozenset({Feeling.CRANKY})),
+        (Mood.HAPPY, frozenset({Feeling.SPOILED})),
+    ],
+)
+def test_loneliness_crankiness_and_spoiling_annoy_him(
+    mood: Mood, feelings: frozenset[Feeling]
+) -> None:
+    assert flavor(mood, feelings=feelings) is PokeFlavor.ANNOYED
+    assert flavor() is not PokeFlavor.ANNOYED
+
+
+def test_grumpy_reasons_add_up_to_more_annoyance() -> None:
+    def annoyed_share(mood: Mood, feelings: frozenset[Feeling]) -> float:
+        rng = random.Random(9)
+        rolls = [poke_flavor(mood, 1, None, rng, feelings) for _ in range(2000)]
+        return rolls.count(PokeFlavor.ANNOYED) / len(rolls)
+
+    hangry = annoyed_share(Mood.HANGRY, frozenset())
+    stacked = annoyed_share(
+        Mood.HANGRY, frozenset({Feeling.LONELY, Feeling.CRANKY, Feeling.SPOILED})
+    )
+    assert annoyed_share(Mood.HAPPY, frozenset()) == 0
+    assert stacked > hangry > 0
 
 
 @pytest.mark.parametrize("pokes", [POKE_MAD_AT, POKE_FED_UP_AT - 1])
@@ -830,7 +1050,7 @@ def test_the_flavor_of_a_poke_reaches_the_prompt(
     assert "<pickles>" not in prompt.system and "<note>" not in prompt.system
 
 
-def test_annoyed_wisp_stays_playful() -> None:
+def test_annoyed_wisp_snaps_but_never_gets_personal() -> None:
     prompt = build_prompt(
         Stage.TEEN,
         Mood.HAPPY,
@@ -840,7 +1060,10 @@ def test_annoyed_wisp_stays_playful() -> None:
         expressions=EXPRESSIONS,
         poked=PokeFlavor.ANNOYED,
     )
-    assert "never mean" in prompt.user
+    assert "Snap at them" in prompt.user
+    assert "a poke isn't what you need" in prompt.user
+    assert "Nothing about who they are, how they look or their music" in prompt.user
+    assert "playful" not in prompt.user
 
 
 @pytest.mark.parametrize("poked", [PokeFlavor.MAD, PokeFlavor.FED_UP])

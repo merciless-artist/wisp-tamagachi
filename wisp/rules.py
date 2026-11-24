@@ -786,9 +786,14 @@ POKE_STREAK_GAP = timedelta(minutes=10)
 POKE_MAD_AT = 3
 POKE_FED_UP_AT = 5
 # How likely each other kind of poke reaction is, as weights. Waking up only
-# gets POKE_MOOD_WEIGHT while the House is sleepy, and being annoyed only while
-# he is hangry, else none.
+# gets POKE_MOOD_WEIGHT while the House is sleepy. Being annoyed gets
+# POKE_MOOD_WEIGHT while he is hangry, plus POKE_LONELY_WEIGHT while he is
+# lonely, POKE_CRANKY_WEIGHT while cranky and POKE_SPOILED_WEIGHT while
+# spoiled, else none.
 POKE_TICKLED_WEIGHT = 6
 POKE_STARTLED_WEIGHT = 2
 POKE_CURIOUS_WEIGHT = 2
 POKE_MOOD_WEIGHT = 12
+POKE_LONELY_WEIGHT = 8
+POKE_CRANKY_WEIGHT = 10
+POKE_SPOILED_WEIGHT = 8
