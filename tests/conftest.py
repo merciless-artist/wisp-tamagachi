@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -14,7 +15,9 @@ from db.database import Database
 from db.memories import MemoryStore
 from db.schema import TABLES, create_tables
 
-TEST_PREFIX = "wisptest_"
+# Parallel test runs each set their own prefix, starting "wisptest_", so they
+# never share tables.
+TEST_PREFIX = os.environ.get("WISP_TEST_PREFIX", "wisptest_")
 
 
 @pytest.fixture(autouse=True)

@@ -52,6 +52,7 @@ USER_ID = 1
 OTHER_ID = 2
 THIRD_ID = 3
 MESSAGE_ID = 555
+ROOM_ID = 900
 NOW = datetime(2026, 11, 6, 12, 0, tzinfo=UTC)
 MIDNIGHT = datetime(2026, 11, 6, tzinfo=UTC)
 JPEG = b"\xff\xd8\xff-doodle"
@@ -81,8 +82,12 @@ class FakeServer:
 
     def __init__(self) -> None:
         self.house = MagicMock(spec=discord.TextChannel)
+        self.house.id = HOUSE_ID
         self.sent: list[discord.File | None] = []
         self.house.send = AsyncMock(side_effect=self._send)
+        self.rooms: dict[int, MagicMock] = {}
+        self.room_error: discord.HTTPException | None = None
+        self.house.create_thread = AsyncMock(side_effect=self._create_room)
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.guild.get_channel_or_thread.side_effect = {HOUSE_ID: self.house}.get
@@ -95,6 +100,25 @@ class FakeServer:
         if user_id not in self.members:
             raise discord.NotFound(MagicMock(status=404), "Unknown Member")
         return self.members[user_id]
+
+    def _create_room(self, **_kwargs: Any) -> MagicMock:
+        room = MagicMock(spec=discord.Thread)
+        room.id = ROOM_ID + len(self.rooms)
+        room.parent_id = HOUSE_ID
+        room.archived = False
+        room.add_user = AsyncMock()
+        room.send = AsyncMock(side_effect=self._room_send)
+        self.rooms[room.id] = room
+        return room
+
+    def _room_send(self, *_args: Any, **kwargs: Any) -> None:
+        if self.room_error is not None and "file" in kwargs:
+            raise self.room_error
+
+    async def fetch_channel(self, channel_id: int) -> MagicMock:
+        if channel_id not in self.rooms:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
+        return self.rooms[channel_id]
 
     async def _send(self, *_args: Any, **kwargs: Any) -> MagicMock:
         self.sent.append(kwargs.get("file"))
@@ -147,6 +171,7 @@ def bot(
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.drawings = DrawingRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
+    monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     monkeypatch.setattr(wisp_bot.ai, "complete", AsyncMock(return_value=SCENE))
     wisp_bot.images = ImageMaker("image-worker")
     monkeypatch.setattr(wisp_bot.images, "draw", AsyncMock(return_value=JPEG))
@@ -245,6 +270,37 @@ async def test_a_drawing_is_posted_with_a_ping_and_the_picture(
     assert art.filename == DRAWING_FILE_NAME == "wisp_drawing.jpg"
     assert art.fp.read() == JPEG
     assert not re.search("[🀀-🿿☀-♩♫-➿️]", text)
+
+
+async def test_the_drawing_is_also_posted_in_the_members_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    assert await draw(bot, server) is DrawResult.MADE
+
+    (room,) = server.rooms.values()
+    call = room.send.await_args
+    assert call is not None
+    assert call.args == (server.posts()[0],)
+    assert call.kwargs["file"].filename == DRAWING_FILE_NAME
+    assert call.kwargs["file"].fp.read() == JPEG
+    assert call.kwargs["allowed_mentions"].to_dict() == {
+        "parse": [],
+        "users": [USER_ID],
+    }
+    assert (await bot.players.get(GUILD_ID, USER_ID)).room_thread_id == room.id
+
+
+async def test_a_failed_room_post_is_reported_and_the_drawing_still_counts(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.room_error = discord.Forbidden(MagicMock(status=403), "Missing Access")
+
+    assert await draw(bot, server) is DrawResult.MADE
+
+    drawing, report = server.posts()
+    assert drawing.startswith("♪ ")
+    assert report.startswith("Error in showing a drawing in Member1's room: Forbidden")
+    assert await bot.drawings.count_today_for(GUILD_ID, USER_ID, NOW) == 1
 
 
 async def test_the_worker_draws_him_from_his_stage_picture_with_no_words(

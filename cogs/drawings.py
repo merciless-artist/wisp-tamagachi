@@ -19,6 +19,7 @@ from ai.chain import AllProvidersFailed, ProviderError
 from cogs.announce import Upload, post_in_house
 from cogs.assets import stage_art
 from cogs.players import feeder_blocker
+from cogs.rooms import RoomError, open_room
 from cogs.staff import StaffContext, guild_of, reply
 from db.activity import InteractionKind
 from wisp.life import Life, Mood, Phase, is_over, mood
@@ -136,7 +137,7 @@ async def draw_for(
     reason: DrawReason,
     now: datetime,
 ) -> DrawResult:
-    """Make the member a drawing and post it in Wisp's House, if he may.
+    """Make the member a drawing and post it in Wisp's House and their room.
 
     SKIPPED, quietly and before any AI call, when no image worker address is
     set. SKIPPED too when he is not alive or is frozen, the member may not feed
@@ -176,7 +177,40 @@ async def draw_for(
         await bot.drawings.record(
             guild_id, member.id, life.id, reason.value, post.id, now
         )
+        await _show_in_room(bot, guild_id, member, name, f"♪ {line}", picture)
         return DrawResult.MADE
+
+
+async def _show_in_room(
+    bot: "WispBot",
+    guild_id: int,
+    member: discord.User | discord.Member,
+    name: str,
+    text: str,
+    picture: bytes,
+) -> None:
+    """Post the drawing in the member's room too, pinging them.
+
+    A failure is reported in Wisp's House, never raised: the drawing is
+    already made and posted there.
+    """
+    guild = bot.get_guild(guild_id)
+    if guild is None:
+        return
+    try:
+        room = await open_room(bot, guild, member)
+        await room.send(
+            text,
+            file=discord.File(BytesIO(picture), filename=DRAWING_FILE_NAME),
+            allowed_mentions=discord.AllowedMentions(
+                everyone=False,
+                roles=False,
+                users=[discord.Object(member.id)],
+                replied_user=False,
+            ),
+        )
+    except (RoomError, discord.HTTPException) as error:
+        await bot.report_error(guild, f"showing a drawing in {name}'s room", error)
 
 
 # ---

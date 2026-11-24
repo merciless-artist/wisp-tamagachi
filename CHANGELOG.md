@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-23 (Drawings in rooms)
+
+- **Drawings in rooms.** A drawing Wisp makes for a member is posted in his
+  House, as before, and in the member's room, pinging them. A room post that
+  fails is reported in the House; the drawing still counts.
+
 ## 2026-11-23 (Rooms and Wisp's Craving)
 
 - **Rooms.** Each member gets one private thread off Wisp's House, made the

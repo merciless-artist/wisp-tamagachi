@@ -577,7 +577,9 @@ bond reaches a new tier, for the member who fed the most tracks the day before
 member who fed him, chatted with him or played with him in the last 24 hours.
 At most 1 per member and 6 per server each UTC day, only while he is alive and
 not frozen, for members who can feed him and are not banned. He posts it in the
-House with a line to the member (pinging them). A drawing that fails is posted
+House with a line to the member (pinging them), and the same post in the
+member's room. A room post that fails is reported in the House; the drawing
+still counts. A drawing that fails is posted
 as `Error in making a drawing for <name>: ...` and does not use up the day's
 limit. Without `CF_IMAGE_WORKER_URL` he makes none: nothing is asked of his AI
 and nothing is posted. A member's Snack Pack shows how many he has made them. `!wisp testlife`
