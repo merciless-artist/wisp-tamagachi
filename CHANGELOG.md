@@ -12,6 +12,36 @@
 - **An ended life keeps the banner of the stage he ended at**, since there is
   no plain Status banner any more.
 
+## 2026-11-24 (Longer naps a poke interrupts)
+
+- **Naps last 4 h 30 min** (`NAP_FOR`, was 1 hour), and the lights can go off
+  for 4 hours of that (`LIGHTS_WINDOW`, was 55 minutes). The rules post reads
+  `Lights off ... in 4 h`.
+- **A poke no longer ends a nap.** It wakes him for 30 minutes (`WOKEN_FOR`,
+  new), cranky for `CRANKY_FOR` as before: he answers mentions through the AI
+  (not the sleepy lines), chimes in, takes snacks, gifts and medicine awake
+  and plays games. Then he dozes off again for what is left of the nap. The
+  nap keeps counting down while he is up; if it runs out first he stays up.
+  A poke while he is up is an ordinary poke (Wellbeing and points as usual)
+  and does not keep him up longer. Stored as `lives.woken_left` (counted
+  seconds, an additive column, 0 on existing rows).
+- **The lights post keeps its button when he is poked awake**: the lights
+  keep their own window, and turning them off while he is up still counts.
+  The old `woke Wisp up before the lights went off` edit is gone.
+- **Status card:** while he is up the last line is `back to sleep`
+  and a timestamp; the lights need reads `it's nap time: turn the lights off
+  in his House`.
+- **Tantrums with long naps:** with naps at 7am, 1pm and 10pm Pacific only
+  about 25 minutes twice a day are outside a nap and the 4 h 5 min before
+  one. If a UTC day ever has no such time, the quiet time before a nap
+  halves until some appears, down to none (a tantrum may then run into a
+  nap, which is skipped); if naps fill whole days, `next_tantrum` waits two
+  days instead of crashing.
+- **Spec:** the Naps section of `DOCS/wisp_tamagotchi.html` now describes
+  the 4 h 30 min naps, the 4-hour lights window and a poke waking him for 30
+  minutes. The rest of that page is still older than the code (it says Mood
+  and 15-minute windows).
+
 ## 2026-11-24 (Tantrums last four hours)
 
 - **A tantrum stays open for 4 hours** (`TANTRUM_WINDOW`, was 1 hour) while

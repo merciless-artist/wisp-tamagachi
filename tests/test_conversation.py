@@ -33,7 +33,7 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from wisp.bond import PickleStance
-from wisp.chores import start_nap
+from wisp.chores import is_napping, is_open, is_woken, start_nap, wake
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -54,6 +54,8 @@ from wisp.rules import (
     POX_PICTURES,
     TALK_COOLDOWN,
     WELLBEING_PER_POKE,
+    WOKEN_FOR,
+    Chore,
     Stage,
 )
 from wisp.story import Entry, EntryKind
@@ -2123,8 +2125,6 @@ async def test_a_failed_meeting_is_reported_and_the_mention_still_answered(
 # Asleep in the House
 # ---
 
-WOKE_TEXT = f"♪ <@{FIRST}> woke Wisp up before the lights went off."
-
 
 async def test_a_mention_while_napping_gets_sleepy_noises_and_no_credit(
     cog: Conversation,
@@ -2177,7 +2177,8 @@ async def test_a_poke_wakes_him_cranky_with_no_wellbeing_plus(
     await poke()
 
     woken = await current(bot)
-    assert woken.nap_left == 0
+    assert not is_napping(woken)
+    assert woken.woken_left == WOKEN_FOR.total_seconds()
     assert woken.cranky_until == clock.now + CRANKY_FOR
     assert woken.wellbeing == before.wellbeing
     assert await db.fetchall(f"SELECT kind FROM {db.t('interactions')}") == []
@@ -2187,7 +2188,7 @@ async def test_a_poke_wakes_him_cranky_with_no_wellbeing_plus(
     assert house_pictures(server) == [None]
 
 
-async def test_waking_him_with_the_lights_on_edits_the_lights_post(
+async def test_waking_him_with_the_lights_on_leaves_the_lights_post_open(
     bot: app.WispBot, server: FakeServer, poke: Press
 ) -> None:
     await lay_napping(bot)
@@ -2195,13 +2196,68 @@ async def test_waking_him_with_the_lights_on_edits_the_lights_post(
 
     await poke()
 
-    server.house.fetch_message.assert_awaited_once_with(NAP_POST_ID)
-    server.nap_post.edit.assert_awaited_once()
-    kwargs = server.nap_post.edit.await_args.kwargs
-    assert kwargs["content"] == WOKE_TEXT
-    assert kwargs["view"] is None
-    assert kwargs["allowed_mentions"].to_dict() == NO_PING
-    assert (await current(bot)).wellbeing == before.wellbeing
+    server.house.fetch_message.assert_not_awaited()
+    server.nap_post.edit.assert_not_awaited()
+    woken = await current(bot)
+    assert is_open(woken, Chore.NAP)
+    assert woken.nap_message_id == NAP_POST_ID
+    assert woken.wellbeing == before.wellbeing
+
+
+async def test_a_poke_while_he_is_up_is_an_ordinary_poke(
+    bot: app.WispBot, clock: Clock, poke: Press
+) -> None:
+    await lay_napping(bot)
+    await enroll(bot, FIRST)
+    await poke()
+    clock.advance(TALK_COOLDOWN)
+
+    await poke()
+
+    life = await current(bot)
+    assert life.wellbeing == 50 + WELLBEING_PER_POKE
+    assert life.woken_left == WOKEN_FOR.total_seconds()
+    assert life.cranky_until == clock.now - TALK_COOLDOWN + CRANKY_FOR
+
+
+async def test_a_mention_while_he_is_up_gets_an_ai_answer_and_credit(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    clock: Clock,
+    poke: Press,
+) -> None:
+    await lay_napping(bot)
+    await enroll(bot, FIRST)
+    await poke()
+    clock.advance(TALK_COOLDOWN)
+    mention = message.to_wisp("why are you up")
+
+    await cog.on_message(mention)
+
+    assert reply_text(mention) == "hey you"
+    assert len(prompts(ai)) == 2
+    assert await points(bot, FIRST) == CHAT_POINTS
+
+
+async def test_he_chimes_in_while_a_poke_has_him_up(
+    cog: Conversation,
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    server: FakeServer,
+    clock: Clock,
+) -> None:
+    life = await lay_napping(bot)
+    assert wake(life, clock.now) is True
+    await bot.lives.save(GUILD_ID, life)
+    cog.rng = FixedRandom(0.0)
+
+    await cog.on_message(message("this mix is wild"))
+
+    ai.assert_awaited_once()
+    server.house.send.assert_awaited_once()
 
 
 async def test_waking_him_after_lights_off_leaves_that_post_alone(
@@ -2215,7 +2271,7 @@ async def test_waking_him_after_lights_off_leaves_that_post_alone(
 
     server.house.fetch_message.assert_not_awaited()
     server.nap_post.edit.assert_not_awaited()
-    assert (await current(bot)).nap_left == 0
+    assert is_woken(await current(bot))
 
 
 # ---

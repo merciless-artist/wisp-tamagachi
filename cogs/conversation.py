@@ -669,7 +669,7 @@ async def _poke(interaction: discord.Interaction) -> None:
             f"{count(seconds, 'second')}, pokes and mentions together.",
         )
         return
-    woken = await wake_by_poke(bot, guild_id, user.id, now)
+    woken = await wake_by_poke(bot, guild_id, now)
     credit = Credit(False, _POKE_NAPPING if woken is not None else _POKE_ERROR)
     if woken is None:
         try:

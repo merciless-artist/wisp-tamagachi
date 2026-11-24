@@ -17,12 +17,14 @@ then a **right now** heading: what he needs, worst first, one line each.
 
 - hungry, with the track drop channel to post in
 - lonely, with what fills Wellbeing: chat, play, poke, or a snack or gift
-- a mess is waiting, he is having a tantrum, or he is asleep and the lights
-  need turning off, each pointing at his House
+- a mess is waiting, he is having a tantrum, or it is nap time and the
+  lights need turning off, each pointing at his House
 
 When there is nothing to do it says `happy`. The last line is his next nap,
 such as `next nap 2:00 PM`, or, while he naps, when he wakes, such as
-`napping until 2:00 PM`. Both are Discord timestamps, so each member sees the
+`napping until 2:00 PM`, or, while a poke has him up from a nap, when he
+dozes off again, such as `back to sleep 2:00 PM`. All are Discord
+timestamps, so each member sees the
 time in their own time zone. A line under the card points at its one
 button, **Interaction**, which jumps to the Interaction post. Before that post
 exists (on an existing server, until staff run `/wispadmin setup` once more) the
@@ -158,16 +160,25 @@ while he is an egg, and the buttons keep working after a restart.
   (10 WC, shown only while he has a cold) cures it at once: the first buyer
   gets 3 points and he posts a thank-you with the bottle.
 - **Tantrums** come about once a day while he is awake, never during a nap or
-  just before one. Scold him within an hour for 2 points; if nobody does he
+  in the 4 hours before one. With 4 h 30 min naps that leaves about 25
+  minutes twice a day (just after the 1pm and 10pm naps end). If a day ever
+  has no such time, the quiet time before a nap halves until some appears,
+  down to none. Scold him within 4 hours for 2 points; if nobody does he
   loses 15 Wellbeing and is spoiled (extra bratty) for the rest of the UTC
   day.
-- **Naps** are at 7am, 1pm and 10pm Pacific, an hour each; they follow the
+- **Naps** are at 7am, 1pm and 10pm Pacific, 4 h 30 min each; they follow the
   Pacific clock through daylight saving (so they move by an hour in UTC), and
   everything else stays on UTC. Members see nap times, and when the daily
   limits reset, as timestamps in their own time zone. Turn the lights off
-  within 55 minutes for 2 points; otherwise he loses 10 Wellbeing and is cranky
+  within 4 hours for 2 points; otherwise he loses 10 Wellbeing and is cranky
   for an hour after the nap. While he sleeps he answers only with sleepy
-  noises, and a poke wakes him early, cranky, with no Wellbeing plus. A Rhyme
+  noises. A poke wakes him for 30 minutes (`WOKEN_FOR`), cranky for an hour,
+  with no Wellbeing plus: he talks, chimes in and plays as usual, then dozes
+  off again for what is left of the nap. The nap keeps counting down while
+  he is up, so if less than 30 minutes were left he just stays up. Poking
+  him while he is up is an ordinary poke and does not keep him up longer.
+  The lights keep their own window, and turning them off while he is up
+  still counts (`woken_left` on the life). A Rhyme
   Duel is refused with `♪ Wisp is napping until 2:00 PM. Poke him awake
   first.` Snacks, gifts and medicine still work, and he answers them with
   sleepy lines. A nap whose start falls while he is frozen or the bot is down
@@ -594,7 +605,7 @@ reaction (a pre-written line if the AI is down), which is usually a giggle,
 now and then a startle or a curious look; a House that has been quiet for
 2 hours (counted from real talk there) wakes him up, and a flurry of pokes or
 low Health annoy him. He naps at the timed naps (see His chores), and a poke
-then wakes him early and cranky. Pokes and mentions share one cooldown per
+then wakes him cranky for 30 minutes before he dozes off again. Pokes and mentions share one cooldown per
 member; a member's first 3 pokes of the day fill his Wellbeing and only the
 first poke or mention earns a point.
 

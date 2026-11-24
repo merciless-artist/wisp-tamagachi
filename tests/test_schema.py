@@ -420,6 +420,7 @@ METERS_AND_CHORES_COLUMNS = {
     "lights_left": "DOUBLE NOT NULL DEFAULT 0",
     "nap_message_id": "BIGINT NULL",
     "cranky_until": "DATETIME NULL",
+    "woken_left": "DOUBLE NOT NULL DEFAULT 0",
 }
 
 
@@ -484,6 +485,7 @@ async def test_create_tables_adds_meters_and_chores_to_a_live_lives_table(
         assert life is not None
         assert life.wellbeing_stretch == 0
         assert life.nap_left == 0
+        assert life.woken_left == 0
         assert life.mess_message_id is None
     finally:
         restored = await db.fetchall(f"SHOW COLUMNS FROM {lives}")

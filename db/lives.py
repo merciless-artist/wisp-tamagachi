@@ -52,6 +52,7 @@ _COLUMNS = (
     "lights_left",
     "nap_message_id",
     "cranky_until",
+    "woken_left",
     "frozen_seconds",
     "is_test",
 )
@@ -101,6 +102,7 @@ def _from_row(row: Row) -> Life:
         lights_left=row["lights_left"],
         nap_message_id=row["nap_message_id"],
         cranky_until=from_db_time(row["cranky_until"]),
+        woken_left=row["woken_left"],
         frozen_seconds=row["frozen_seconds"],
         is_test=bool(row["is_test"]),
     )
@@ -149,6 +151,7 @@ def _values(life: Life) -> tuple[Any, ...]:
         life.lights_left,
         life.nap_message_id,
         to_db_time(life.cranky_until),
+        life.woken_left,
         life.frozen_seconds,
         life.is_test,
     )

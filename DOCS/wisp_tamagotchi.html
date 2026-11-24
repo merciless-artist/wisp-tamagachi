@@ -300,10 +300,11 @@ ol.q li::marker { color: var(--orange); font-family: var(--mono); font-weight: 6
     </ul>
     <h3>Naps</h3>
     <ul class="star">
-      <li><strong>When:</strong> three timed naps a day, at <strong>7am, 1pm and 10pm Pacific</strong> (they follow the Pacific clock through daylight saving; everything else stays on UTC), one hour each. A nap whose start falls while he is frozen or the bot is down is skipped, with no penalty.</li>
+      <li><strong>When:</strong> three timed naps a day, at <strong>7am, 1pm and 10pm Pacific</strong> (they follow the Pacific clock through daylight saving; everything else stays on UTC), 4 h 30 min each <span class="sv">starting value</span>. A nap whose start falls while he is frozen or the bot is down is skipped, with no penalty.</li>
       <li><strong>Post:</strong> when he dozes off, a <strong>Lights off</strong> button. Baby and Child have nap art; the other stages are words only for now.</li>
-      <li><strong>Lights off in 15 minutes:</strong> 2 points. <strong>Missed:</strong> -10 Mood, and he is cranky for an hour after the nap.</li>
-      <li><strong>While he sleeps</strong> he answers chat only with sleepy noises, and a poke wakes him early and cranky with no Mood plus. If the lights were still on, the post says he was woken and nobody is penalised.</li>
+      <li><strong>Lights off in the first 4 hours</strong> <span class="sv">starting value</span>: 2 points. <strong>Missed:</strong> -10 Mood, and he is cranky for an hour after the nap.</li>
+      <li><strong>While he sleeps</strong> he answers chat only with sleepy noises. A poke wakes him, cranky and with no Mood plus, for 30 minutes <span class="sv">starting value</span>: he talks, chimes in and plays as usual, then dozes off again for what is left of the nap. The nap keeps counting down while he is up, and if it runs out first he stays up. Poking him again while he is up does not keep him up longer.</li>
+      <li><strong>The lights post keeps its button</strong> while he is poked awake: turning the lights off then still counts, and leaving them on still costs the Mood.</li>
       <li>The "House has gone quiet" nap after 9 quiet hours is separate and unchanged.</li>
     </ul>
   </section>

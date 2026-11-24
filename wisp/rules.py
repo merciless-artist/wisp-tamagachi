@@ -178,15 +178,18 @@ TANTRUM_WELLBEING_PENALTY = 15.0
 # the slots follow that clock through daylight saving, and everything else
 # stays UTC. Members see nap times in their own time zone. The lights must go off
 # within LIGHTS_WINDOW, or he loses LIGHTS_WELLBEING_PENALTY Wellbeing and is
-# cranky for CRANKY_FOR after the nap. A poke that wakes him makes him cranky
-# for CRANKY_FOR too. LIGHTS_WINDOW must stay under NAP_FOR; it is nearly the
-# whole nap while the server is small (it was 15 minutes).
+# cranky for CRANKY_FOR after the nap. LIGHTS_WINDOW must stay under NAP_FOR;
+# it is most of the nap while the server is small (it was 15 minutes, then 55
+# with one-hour naps). A poke during a nap wakes him, cranky for CRANKY_FOR,
+# for WOKEN_FOR; the nap keeps counting down, and he dozes off again for what
+# is left of it.
 NAP_TIMEZONE: Final = "America/Los_Angeles"
 NAP_LOCAL_HOURS: Final = (7, 13, 22)
-NAP_FOR = timedelta(hours=1)
-LIGHTS_WINDOW = timedelta(minutes=55)
+NAP_FOR = timedelta(hours=4, minutes=30)
+LIGHTS_WINDOW = timedelta(hours=4)
 LIGHTS_WELLBEING_PENALTY = 10.0
 CRANKY_FOR = timedelta(hours=1)
+WOKEN_FOR = timedelta(minutes=30)
 # What the mess is at each stage, its button label and its picture in
 # ASSETS/moments; a None picture posts the words and the button alone.
 MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
