@@ -5,6 +5,7 @@ each language's rules and the word-list builder can all import it.
 """
 
 import unicodedata
+from collections.abc import Iterable
 from enum import StrEnum, auto
 from typing import Final, NamedTuple
 
@@ -53,6 +54,18 @@ def fold(word: str, *, language: Language) -> str:
     kept = "".join(mark for mark in decomposed if mark not in removed)
     folded = unicodedata.normalize("NFC", kept)
     return folded.translate(_FRENCH_LIGATURES) if language is Language.FR else folded
+
+
+def merge(readings: Iterable[WordKeys | None]) -> WordKeys | None:
+    """The keys of every reading of a word together; None when none can be read."""
+    read = [word_keys for word_keys in readings if word_keys is not None]
+    if not read:
+        return None
+    return WordKeys(
+        whole=frozenset().union(*(word_keys.whole for word_keys in read)),
+        perfect=frozenset().union(*(word_keys.perfect for word_keys in read)),
+        slant=frozenset().union(*(word_keys.slant for word_keys in read)),
+    )
 
 
 def compare(first: WordKeys | None, second: WordKeys | None) -> RhymeKind | None:
