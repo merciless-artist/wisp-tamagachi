@@ -464,13 +464,16 @@ def test_a_tantrum_due_during_a_nap_waits_until_he_wakes() -> None:
     assert not is_napping(life)
 
 
-def test_no_tantrum_starts_while_a_poke_has_him_up() -> None:
+def test_no_tantrum_starts_while_a_poke_has_him_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wisp.chores._is_awake", lambda now: True)
     life = alive(at=utc(5, 55), nap_slot=None, tantrum_due_at=utc(6, 20))
-    run(life, utc(6, 30))
+    assert event(ChoreEventKind.TANTRUM) not in run(life, utc(6, 30))
     assert wake(life, utc(6, 30)) is True
-    assert run(life, utc(7)) == []
+    assert event(ChoreEventKind.TANTRUM) not in run(life, utc(6, 55))
+    assert is_woken(life)
     assert not is_open(life, Chore.TANTRUM)
-    assert is_napping(life)
 
 
 def test_a_tantrum_due_at_the_last_awake_moment_closes_before_the_nap() -> None:

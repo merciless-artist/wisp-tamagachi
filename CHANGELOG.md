@@ -25,6 +25,10 @@
   halves until some appears, down to none (a tantrum may then run into a
   nap, which is skipped); if naps fill whole days, `next_tantrum` waits two
   days instead of crashing.
+- **Spec:** the Naps section of `DOCS/wisp_tamagotchi.html` now describes
+  the 4 h 30 min naps, the 4-hour lights window and a poke waking him for 30
+  minutes. The rest of that page is still older than the code (it says Mood
+  and 15-minute windows).
 
 ## 2026-11-24 (Tantrums last four hours)
 
