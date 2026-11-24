@@ -121,9 +121,6 @@ def rules_text(
     pox_minutes = rules.POX_HEALED_PER_MEAL_POINT // timedelta(minutes=1)
     health_hours = rules.HEALTH_STRETCH // timedelta(hours=1)
     chat_points = count(rules.CHAT_POINTS, "point")
-    mess_hours = rules.MESS_LEFT_FOR // timedelta(hours=1)
-    tantrum_minutes = rules.TANTRUM_WINDOW // timedelta(minutes=1)
-    lights_minutes = rules.LIGHTS_WINDOW // timedelta(minutes=1)
     rockstar_days = rules.ROCKSTAR_WELLBEING_FOR // timedelta(days=1)
     nap_times = ", ".join(timestamp(start) for start in nap_starts_on(day))
     return "\n".join(
@@ -152,11 +149,14 @@ def rules_text(
             "",
             "Chores",
             "・First press wins WC",
-            f"・Clean up his mess in {mess_hours} h or he catches a cold; "
+            f"・Clean up his mess in {_short_span(rules.MESS_LEFT_FOR)} or he "
+            "catches a cold; "
             f"medicine ({rules.MEDICINE_COST} WC) cures it",
-            f"・Scold a tantrum in {tantrum_minutes} min or Wellbeing drops "
+            f"・Scold a tantrum in {_short_span(rules.TANTRUM_WINDOW)} or "
+            "Wellbeing drops "
             f"{rules.TANTRUM_WELLBEING_PENALTY:g}",
-            f"・Lights off at naps ({nap_times}) in {lights_minutes} min "
+            f"・Lights off at naps ({nap_times}) in "
+            f"{_short_span(rules.LIGHTS_WINDOW)} "
             f"or Wellbeing drops {rules.LIGHTS_WELLBEING_PENALTY:g}",
             "",
             "Your bond",
@@ -198,6 +198,12 @@ def rules_text(
 # ---
 # Studio threads
 # ---
+
+
+def _short_span(length: timedelta) -> str:
+    """A chore's window for the rules post: "4 h" in whole hours, else "55 min"."""
+    minutes = length // timedelta(minutes=1)
+    return f"{minutes // 60} h" if minutes % 60 == 0 else f"{minutes} min"
 
 
 async def rules_post(bot: "WispBot", guild_id: int) -> str:

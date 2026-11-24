@@ -170,9 +170,9 @@ MESS_DELAY_MAX = timedelta(minutes=90)
 MESS_GAP = timedelta(hours=6)
 MESS_LEFT_FOR = timedelta(hours=6)
 HEALTH_PER_CLEANUP = 5
-# About once a day he throws a tantrum while awake. The window is an hour
-# while the server is small (it was 15 minutes).
-TANTRUM_WINDOW = timedelta(hours=1)
+# About once a day he throws a tantrum while awake. The window is four hours
+# while there are few beta testers (it was 15 minutes, then an hour).
+TANTRUM_WINDOW = timedelta(hours=4)
 TANTRUM_WELLBEING_PENALTY = 15.0
 # He naps for NAP_FOR from each of NAP_LOCAL_HOURS on the NAP_TIMEZONE clock;
 # the slots follow that clock through daylight saving, and everything else

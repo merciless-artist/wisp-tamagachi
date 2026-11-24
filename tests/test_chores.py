@@ -379,9 +379,9 @@ def test_next_tantrum_moves_to_the_next_day_when_today_has_no_awake_time_left(
 
 
 def test_a_tantrum_starts_when_due() -> None:
-    life = alive(tantrum_due_at=T0 + timedelta(minutes=10), tantrum_message_id=5)
-    assert run(life, T0 + timedelta(minutes=5)) == []
-    assert run(life, T0 + timedelta(minutes=10)) == [event(ChoreEventKind.TANTRUM)]
+    life = alive(at=utc(8), tantrum_due_at=utc(8, 10), tantrum_message_id=5)
+    assert run(life, utc(8, 5)) == []
+    assert run(life, utc(8, 10)) == [event(ChoreEventKind.TANTRUM)]
     assert is_open(life, Chore.TANTRUM)
     assert life.tantrum_left == TANTRUM_WINDOW.total_seconds()
     assert life.tantrum_message_id is None

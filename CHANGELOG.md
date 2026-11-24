@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-24 (Tantrums last four hours)
+
+- **A tantrum stays open for 4 hours** (`TANTRUM_WINDOW`, was 1 hour) while
+  there are few beta testers. Tantrums still never start during a nap or in
+  the 4 hours before one, so the next nap cannot cut one short.
+- **The rules post shows whole hours as hours**: `Scold a tantrum in 4 h`,
+  `Lights off ... in 55 min` (`_short_span`).
+
 ## 2026-11-24 (One banner per post, Status banners by stage)
 
 - **One picture per Studio post.** Discord shows two pictures in a post side

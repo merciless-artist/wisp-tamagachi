@@ -2162,7 +2162,7 @@ def test_rules_text_explains_the_chores(monkeypatch: pytest.MonkeyPatch) -> None
     assert "Clean up his mess in 5 h or he catches a cold" in section
     assert "medicine (13 WC) cures it" in section
     assert "5 h" in section
-    assert "Scold a tantrum" in section and "Wellbeing drops 17" in section
+    assert "Scold a tantrum in 4 h or Wellbeing drops 17" in section
     # 7am, 1pm and 10pm Pacific on RULES_DAY.
     naps = ", ".join(
         timestamp(datetime(2026, 11, day, hour, tzinfo=UTC))
