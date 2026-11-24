@@ -666,7 +666,7 @@ async def test_a_card_from_before_the_title_is_brought_over(
     first, *_ = server.starter_edit.await_args_list
     assert first.kwargs["content"] is None
     assert first.kwargs["view"] is None
-    assert post_pictures(server) == [["baby.png"]]
+    assert post_pictures(server) == [["baby-status.png"]]
     assert len(posted_cards(server)) == 1
     settings = await bot.settings.get(GUILD_ID)
     assert settings.status_message_id == REPOSTED_CARD_ID
@@ -693,13 +693,19 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
     assert len(posted_cards(server)) == 1
 
 
-def add_banners(assets_dir: Path, *names: str) -> Path:
+def banner_path(assets_dir: Path, stage: str) -> Path:
+    """Where Myra's Status banner for `stage` lives: `<stage>-status.png`, the
+    stage's name run together."""
+    name = stage.replace("_", "")
+    return assets_dir / "wisp-studio-rooms" / f"{name}-status.png"
+
+
+def add_banners(assets_dir: Path, *stages: str) -> None:
     """Myra's Status banners, by stage, in a stand-in ASSETS folder."""
-    banners = assets_dir / "wisp-studio-rooms" / "status"
-    banners.mkdir(parents=True, exist_ok=True)
-    for name in names:
-        (banners / f"{name}.png").write_bytes(b"png")
-    return banners
+    for stage in stages:
+        path = banner_path(assets_dir, stage)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
 
 
 @pytest.fixture
@@ -707,7 +713,6 @@ def banner_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A stand-in ASSETS folder with every Status banner and nothing else."""
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     add_banners(tmp_path, *(stage.value for stage in Stage))
-    (tmp_path / "wisp-studio-rooms" / "status.png").write_bytes(b"png")
     return tmp_path
 
 
@@ -718,9 +723,7 @@ def test_a_living_wisp_shows_his_stages_status_banner(
     life = new_egg(1, NOW)
     life.phase, life.stage = Phase.ALIVE, stage
 
-    assert status_banner(life) == (
-        banner_dir / "wisp-studio-rooms" / "status" / f"{stage.value}.png"
-    )
+    assert status_banner(life) == banner_path(banner_dir, stage.value)
 
 
 @pytest.mark.parametrize("phase", [Phase.EGG, Phase.HATCHING])
@@ -731,21 +734,21 @@ def test_an_egg_shows_the_egg_status_banner(
     life = new_egg(1, NOW)
     life.phase, life.from_coal = phase, from_coal
 
-    assert status_banner(life) == banner_dir / "wisp-studio-rooms/status/egg.png"
+    assert status_banner(life) == banner_path(banner_dir, "egg")
 
 
 @pytest.mark.parametrize("phase", [Phase.DEAD, Phase.COLD, Phase.PASSED])
-def test_an_ended_life_shows_the_plain_status_banner(
+def test_an_ended_life_keeps_the_banner_of_its_last_stage(
     banner_dir: Path, phase: Phase
 ) -> None:
     life = new_egg(1, NOW)
     life.phase, life.stage = phase, Stage.ADULT
 
-    assert status_banner(life) == banner_dir / "wisp-studio-rooms" / "status.png"
+    assert status_banner(life) == banner_path(banner_dir, "adult")
 
 
 def test_a_missing_status_banner_is_none(banner_dir: Path) -> None:
-    (banner_dir / "wisp-studio-rooms" / "status" / "teen.png").unlink()
+    banner_path(banner_dir, "teen").unlink()
     life = new_egg(1, NOW)
     life.phase, life.stage = Phase.ALIVE, Stage.TEEN
 
@@ -761,7 +764,7 @@ async def test_the_status_post_shows_only_the_banner_for_his_stage(
 
     await cog.run_tick(NOW)
 
-    assert post_pictures(server) == [["teen.png"]]
+    assert post_pictures(server) == [["teen-status.png"]]
     assert server.starter_edit.await_args.kwargs["content"] is None
 
 
@@ -1046,7 +1049,7 @@ async def test_the_card_shows_the_egg_picture(
 
     await cog.run_tick(NOW)
 
-    assert post_pictures(server) == [["egg.png"]]
+    assert post_pictures(server) == [["egg-status.png"]]
 
 
 async def test_the_card_switches_to_the_baby_on_hatch_and_skips_unchanged_ticks(
@@ -1067,7 +1070,7 @@ async def test_the_card_switches_to_the_baby_on_hatch_and_skips_unchanged_ticks(
     await cog.run_tick(NOW + timedelta(minutes=4) + FULL_GAP)
 
     assert (await current_life(bot)).phase is Phase.ALIVE
-    assert post_pictures(server) == [["egg.png"], ["baby.png"]]
+    assert post_pictures(server) == [["egg-status.png"], ["baby-status.png"]]
 
 
 async def test_missing_art_never_breaks_the_card(
@@ -1190,7 +1193,7 @@ async def test_an_ending_whose_question_never_came_can_still_begin_from_the_card
     assert_interaction_button(shown["view"])
 
 
-async def test_a_waiting_card_without_its_ending_picture_shows_none(
+async def test_a_waiting_card_keeps_the_banner_of_his_last_stage(
     cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
 ) -> None:
     await configure(bot)
@@ -1203,8 +1206,8 @@ async def test_a_waiting_card_without_its_ending_picture_shows_none(
     for edit in (waiting, still_waiting):
         assert card_text(edit.kwargs) == WAITING
         assert "attachments" not in edit.kwargs
-    assert post_pictures(server) == [[]]
-    assert server.starter_edit.await_args.kwargs["content"] == "♪ Wisp's status"
+    assert post_pictures(server) == [["baby-status.png"]]
+    assert server.starter_edit.await_args.kwargs["content"] is None
 
 
 async def test_no_favorite_song_is_picked_while_waiting(
@@ -1252,8 +1255,7 @@ async def test_an_ended_life_waits_through_every_tick(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await configure(bot)
-    (tmp_path / "wisp-studio-rooms").mkdir()
-    (tmp_path / "wisp-studio-rooms" / "status.png").write_bytes(b"png")
+    add_banners(tmp_path, "egg")
     monkeypatch.setattr(announce, "ASSETS_DIR", tmp_path)
     monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
     await lay(bot, phase=Phase.DEAD, health=0.0)
@@ -1268,7 +1270,7 @@ async def test_an_ended_life_waits_through_every_tick(
     edits = server.card_edit.await_args_list
     assert [card_text(edit.kwargs) for edit in edits] == [WAITING] * 3
     assert all(button_ids(edit.kwargs["view"]) == ["wisp:begin"] for edit in edits)
-    assert post_pictures(server) == [["status.png"], ["status.png"]]
+    assert post_pictures(server) == [["egg-status.png"], ["egg-status.png"]]
     assert not any("attachments" in edit.kwargs for edit in edits)
     server.vault.send.assert_awaited()
 
@@ -1348,7 +1350,7 @@ async def test_a_legacy_child_catches_his_cold_on_the_next_tick(
         call for call in server.house.send.await_args_list if call.args[0] in sick_lines
     ]
     assert post.kwargs["file"].filename == "sick_child.png"
-    assert post_pictures(server) == [["child.png"]]
+    assert post_pictures(server) == [["child-status.png"]]
 
 
 async def test_a_frozen_child_gets_his_cold_scheduled_but_not_started(
@@ -1912,7 +1914,7 @@ async def test_a_staff_press_after_a_farewell_lays_the_coal_egg_halfway_hatched(
     card = server.card_edit.await_args.kwargs
     assert "LIFE STAGE ・ EGG" in card_text(card)
     assert_interaction_button(card["view"])
-    assert post_pictures(server) == [["egg.png"]]
+    assert post_pictures(server) == []
     assert panel_pictures(panel) == [["egg.png"]]
     assert house_reports(server) == []
 

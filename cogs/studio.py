@@ -1,6 +1,7 @@
 """Wisp's Studio: the forum threads he lives in and the staff settings for them."""
 
 import asyncio
+import hashlib
 import logging
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
@@ -280,7 +281,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "⚡｜Jam Space",
         "Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
-        image=f"{BANNERS}/jamespace.png",
+        image=f"{BANNERS}/jamspace.png",
     ),
     StudioThread(
         "rules_thread_id",
@@ -288,7 +289,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "Wisp FAQ",
         "Loading the FAQ...",
         locked=True,
-        image=f"{BANNERS}/wispfaq.png",
+        image=f"{BANNERS}/faq.png",
     ),
     StudioThread(
         "shop_thread_id",
@@ -364,13 +365,16 @@ def _banner(spec: StudioThread) -> Path | None:
 
 
 def _upload_name(path: Path) -> str:
-    """A picture's file name in Discord: its path under ASSETS with "_" for "/".
+    """A banner's file name in Discord: its path under ASSETS with "_" for "/",
+    then the first 8 hex digits of its SHA-256.
 
-    Older posts carry Wisp's art under the same file names as the banners,
-    such as thumbs/mealtime.png, so the folder is kept in the name to tell a
-    banner from the art it replaces.
+    The folder tells a banner from older art of the same file name, such as
+    thumbs/mealtime.png, and the digits change whenever Myra redraws a banner
+    under the same name, so setup knows to swap it in.
     """
-    return path.relative_to(ASSETS_DIR).as_posix().replace("/", "_")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+    flat = path.relative_to(ASSETS_DIR).with_suffix("").as_posix().replace("/", "_")
+    return f"{flat}_{digest}{path.suffix}"
 
 
 def _banner_file(path: Path) -> discord.File:

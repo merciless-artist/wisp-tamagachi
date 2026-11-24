@@ -17,7 +17,6 @@ from wisp.life import (
     Phase,
     Sickness,
     has_sniffles,
-    is_over,
     is_sick,
     sickness,
 )
@@ -58,18 +57,15 @@ def life_image(life: Life) -> Path | None:
 
 
 def status_banner(life: Life) -> Path | None:
-    """Myra's Status banner for `life`, the Status post's one picture, or None.
+    """Myra's Status banner for `life`'s stage, the Status post's one picture.
 
-    A life that goes on shows its stage's banner, an egg's (from coal or not)
-    the egg's. A life that is over shows the plain Status banner while he
-    waits to begin again. None when the file is missing.
+    The banners are `<stage>-status.png` with the stage's name run together
+    (`oldfogey-status.png`). An egg, from coal or not, shows the egg's; a life
+    that is over keeps the banner of the stage it ended at. None when the file
+    is missing.
     """
-    folder = ASSETS_DIR / BANNERS
-    path = (
-        folder / "status.png"
-        if is_over(life)
-        else folder / "status" / f"{life.stage.value}.png"
-    )
+    name = life.stage.value.replace("_", "")
+    path = ASSETS_DIR / BANNERS / f"{name}-status.png"
     return path if path.is_file() else None
 
 

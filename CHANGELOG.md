@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-24 (Square Studio banners)
+
+- **Myra's banners are square now** (1400 x 1400), since the forum gallery
+  crops to a square. New names: `jamspace.png`, `faq.png` and
+  `<stage>-status.png` (`oldfogey-status.png`) all in `wisp-studio-rooms/`;
+  the `status/` folder and the plain `status.png` are gone.
+- **A banner's upload name carries a fingerprint**, the first 8 hex digits of
+  its SHA-256, so setup swaps a redrawn banner in even when its file name
+  stays the same (`_upload_name` in `cogs/studio.py`).
+- **An ended life keeps the banner of the stage he ended at**, since there is
+  no plain Status banner any more.
+
 ## 2026-11-24 (Tantrums last four hours)
 
 - **A tantrum stays open for 4 hours** (`TANTRUM_WINDOW`, was 1 hour) while

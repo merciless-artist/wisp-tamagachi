@@ -293,8 +293,8 @@ async def show_status_card(
 
     The banner is his stage's (`status_banner`), so the Studio's gallery shows
     how far he has grown. While he goes on the card is his live card with its
-    Interaction button (`status_buttons`). Once his life is over the banner is
-    the plain one and the card says Wisp is waiting for staff to begin again
+    Interaction button (`status_buttons`). Once his life is over the banner
+    stays his last stage's and the card says Wisp is waiting for staff to begin again
     and carries only the Begin again button, so staff always have one to press
     even when the House's question was never posted or is gone. With the
     banner missing the post has no picture.

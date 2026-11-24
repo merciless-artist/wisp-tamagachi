@@ -77,7 +77,7 @@ Menus opened before the update that added this fail once, with Discord's
   `♪ No Wisp right now. Waiting for staff to begin again.`, and
   tracks, snacks, gifts, pokes and duels answer as they do with no living Wisp.
   The waiting status card carries its own Begin again button (and no Feed or
-  Poke buttons) under the plain Status banner, so staff can always begin
+  Poke buttons) under the banner of the stage he ended at, so staff can always begin
   again even if the House question was never posted or was deleted; the
   life loop puts it back if the card is gone. A restart lays nothing and every
   button still works. No favorite song is picked and `!wisp punish` says
@@ -685,8 +685,9 @@ The Studio forum holds seven threads, named exactly:
 
 - `☀️ | Status`: the live status card and its Interaction button (see The
   Status post). Its first message is the Status banner for his stage
-  (`wisp-studio-rooms/status/<stage>.png`; the egg's for any egg), or the
-  plain `wisp-studio-rooms/status.png` once his life is over.
+  (`wisp-studio-rooms/<stage>-status.png`, the stage's name run together as
+  in `oldfogey-status.png`; the egg's for any egg), and it stays on the
+  stage he ended at once his life is over.
 - `🧡 | Mealtime`: every track that feeds him.
 - `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last
   post). Its card has no buttons; the ViiBR Vault button is on the
@@ -727,9 +728,10 @@ Each thread's first post carries only Myra's banner for it
 (`ASSETS/wisp-studio-rooms/`), which the forum gallery shows as the thumbnail
 (Discord splits a post with two pictures, so there is one). The Status
 post's banner is the status card's, since it follows his stage. A banner is
-uploaded under its path in ASSETS with `_` for `/`
-(`wisp-studio-rooms_mealtime.png`), so it is never mistaken for the older
-art of the same file name (`mealtime.png`) it replaces. Setup renames a
+uploaded under its path in ASSETS with `_` for `/` plus the first 8 hex
+digits of its SHA-256 (`wisp-studio-rooms_mealtime_1a2b3c4d.png`): the folder
+keeps it apart from older art of the same file name (`mealtime.png`), and the
+digits change when Myra redraws a banner, so setup swaps the new one in. Setup renames a
 thread whose name differs, makes the banner a first post's only picture
 (replacing what else is there), and fills a Wisp FAQ whose stored pictures are not the
 current set (43), such as an older How Wisp Works thread or the earlier
@@ -780,9 +782,9 @@ posts text only.
   magazine covers sent to their buyers (posting copies, 1200px tall, of the
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `wisp-studio-rooms/*.png`, Myra's banner for each Studio post, its
-  gallery thumbnail, and `wisp-studio-rooms/status/<stage>.png` (egg, baby,
-  child, teen, adult, rockstar, old_fogey) with `wisp-studio-rooms/status.png`
-  for the Status post. `vault.png` and `thumbs/*.png`, the Studio posts' old
+  gallery thumbnail (square, 1400 x 1400: the gallery crops to a square),
+  and `wisp-studio-rooms/<stage>-status.png` (egg, baby, child, teen, adult,
+  rockstar, oldfogey) for the Status post. `vault.png` and `thumbs/*.png`, the Studio posts' old
   art, are no longer posted; Myra keeps them for promos.
 - `stats_title.png`, `leaderboard_title.png`, `snack_pack_title.png` and
   `vault_title.png`, Myra's header pictures above the status card, the

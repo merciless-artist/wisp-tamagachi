@@ -1,6 +1,7 @@
 """Tests for the Studio setup and staff commands, run against fake Discord objects."""
 
 import asyncio
+import hashlib
 import io
 import re
 from collections.abc import Iterator
@@ -76,12 +77,17 @@ OLD_NAMES = (
 BANNERS = {
     MEALTIME: "wisp-studio-rooms/mealtime.png",
     VAULT: "wisp-studio-rooms/leaderboard.png",
-    JAM: "wisp-studio-rooms/jamespace.png",
-    FAQ: "wisp-studio-rooms/wispfaq.png",
+    JAM: "wisp-studio-rooms/jamspace.png",
+    FAQ: "wisp-studio-rooms/faq.png",
     SHOP: "wisp-studio-rooms/viibrvault.png",
     INTERACTION: "wisp-studio-rooms/interaction.png",
 }
-UPLOADED = {name: relative.replace("/", "_") for name, relative in BANNERS.items()}
+STAND_IN_DIGEST = hashlib.sha256(b"png").hexdigest()[:8]
+"""The stand-in banners are all the bytes b"png", so they share one digest."""
+UPLOADED = {
+    name: relative.removesuffix(".png").replace("/", "_") + f"_{STAND_IN_DIGEST}.png"
+    for name, relative in BANNERS.items()
+}
 """Each post's banner as Discord names it. The Status post's banner is the
 status card's, so setup gives it none."""
 FAQ_PICTURES = (
@@ -685,7 +691,7 @@ async def test_a_starter_without_a_picture_gets_its_banner(
     [
         ["mealtime.png"],
         ["wisp-studio-rooms_mealtime.png", "thumbs_mealtime.png"],
-        ["thumbs_mealtime.png", "wisp-studio-rooms_mealtime.png"],
+        ["wisp-studio-rooms_mealtime.png"],
     ],
 )
 async def test_a_starter_with_old_pictures_keeps_only_the_banner(
@@ -698,8 +704,24 @@ async def test_a_starter_with_old_pictures_keeps_only_the_banner(
 
     await ensure_studio(bot, GUILD_ID)
 
-    assert starter.attachments == ["wisp-studio-rooms_mealtime.png"]
+    assert starter.attachments == [UPLOADED[MEALTIME]]
     assert starter.content == "Every track that feeds Wisp lands here."
+
+
+async def test_a_redrawn_banner_is_swapped_in(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_thumbnails(art_dir)
+    await run_setup(bot, server)
+    starter = server.messages[server.thread_named(MEALTIME).id]
+    (art_dir / BANNERS[MEALTIME]).write_bytes(b"square png")
+
+    await ensure_studio(bot, GUILD_ID)
+
+    digest = hashlib.sha256(b"square png").hexdigest()[:8]
+    assert starter.attachments == [f"wisp-studio-rooms_mealtime_{digest}.png"]
+    jam_starter = server.messages[server.thread_named(JAM).id]
+    assert jam_starter.attachments == [UPLOADED[JAM]]
 
 
 async def test_a_starter_without_its_banner_file_is_left_alone(
