@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-24 (Talk as Wisp)
+
+- **`!wisp say [#channel] <words>`** (staff): Wisp posts the words, and any
+  pictures attached to the command, in that channel or thread, or where the
+  command was used. Member mentions ping; @everyone, @here and roles never do.
+  The command message is deleted afterwards.
+
 ## 2026-11-24 (Square Studio banners)
 
 - **Myra's banners are square now** (1400 x 1400), since the forum gallery

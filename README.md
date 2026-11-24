@@ -413,6 +413,9 @@ where the command was used.
 - `!wisp unban @member` lifts a member's ban.
 - `!wisp strip @member <points>` takes leaderboard points from a member.
 - `!wisp resetname @member` makes Wisp forget a member's name.
+- `!wisp say [#channel] <words...>` makes Wisp post the words and any
+  pictures attached to the command, in that channel or thread (or where it was
+  used), then deletes the command. Member mentions ping; nothing else does.
 - `!wisp song <link> <words...>` makes Wisp post the words and, underneath,
   the link (http or https) in the Jam Space thread, exactly as typed: no
   prefix, flair or AI line, no pings, and the link's player still shows.
