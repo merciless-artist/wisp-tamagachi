@@ -159,7 +159,7 @@ STOPLIST_ES: Final = frozenset(
         "adn", "cia", "onu", "psoe", "pri", "arturo", "bretaña", "brown", "colón",
         "cádiz", "diana", "gonzalo", "jackson", "jesucristo", "jones", "juárez",
         "lucía", "marruecos", "marta", "mike", "navarro", "polonia", "salamanca",
-        "sudáfrica", "maya", "andes", "trinidad", "ucrania",
+        "sudáfrica", "maya", "andes", "trinidad", "ucrania", "ruiz",
     }
 )  # fmt: skip
 BLOCKLIST_ES: Final = frozenset(
@@ -176,7 +176,8 @@ BLOCKLIST_ES: Final = frozenset(
         "asesinatos", "asesino", "asesinos", "asesinado", "terror", "terrorismo",
         "terrorista", "terroristas", "esclavos", "esclavo", "aborto", "gay", "negro",
         "negra", "negros", "negras", "teta", "tetas", "desnuda", "desnudo", "orgasmo",
-        "pelotudo", "pelotudos", "musulmanes", "musulmán",
+        "pelotudo", "pelotudos", "musulmanes", "musulmán", "judío", "judíos", "judía",
+        "judías", "indio", "indios", "gordo", "gorda",
     }
 )  # fmt: skip
 
@@ -230,7 +231,7 @@ _FOREIGN_FR: Final = re.compile(r"[wk]")
 
 NAMES_FR: Final = frozenset(
     {
-        "adam", "adn", "afghanistan", "afp", "afrique", "alain", "albert",
+        "adam", "adn", "paulo", "afghanistan", "afp", "afrique", "alain", "albert",
         "alberta", "alex", "alexandre", "alexis", "alfred", "alger", "algérie",
         "ali", "alice", "allah", "allemagne", "alpes", "alsace", "amazon",
         "amiens", "amsterdam", "amérique", "andré", "andy", "angela", "angeles",
@@ -308,7 +309,8 @@ NAMES_FR: Final = frozenset(
 )  # fmt: skip
 BLOCKLIST_FR: Final = frozenset(
     {
-        "merde", "putain", "pute", "putes", "salope", "salopes", "connard", "connards",
+        "juif", "juifs", "juive", "juives", "merde", "putain", "pute", "putes",
+        "salope", "salopes", "connard", "connards",
         "connasse", "con", "conne", "cons", "bite", "bites", "couille", "couilles",
         "enculé", "enculés", "enfoiré", "enfoirés", "niquer", "nique", "bordel",
         "chier", "foutre", "foutu", "salaud", "salauds", "pédé", "pédés", "nègre",

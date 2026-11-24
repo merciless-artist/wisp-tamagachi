@@ -1408,7 +1408,6 @@ fiche
 garçon
 interdit
 issue
-juifs
 mille
 pain
 pensais
@@ -3837,7 +3836,6 @@ inspection
 intelligente
 investisseurs
 isolé
-juive
 malaise
 modalités
 négative
@@ -4998,3 +4996,5 @@ nostalgie
 notable
 olive
 opposent
+passif
+pistolet

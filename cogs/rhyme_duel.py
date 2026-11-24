@@ -6,6 +6,7 @@ member's language: English, Spanish or French. Until they pick one, a start
 posts the language picker in their room instead.
 """
 
+import asyncio
 import random
 import re
 from dataclasses import dataclass
@@ -111,7 +112,7 @@ async def _duel(
     """
     moments = RHYME_MOMENTS[language]
     text = DUEL_TEXT[language]
-    chain = [opening_word(rng, language=language)]
+    chain = [await asyncio.to_thread(opening_word, rng, language=language)]
     points = 0
     opener = bot.lines.pick(moments.start, mood(life), word=_bold(chain[0]))
     await thread.send(

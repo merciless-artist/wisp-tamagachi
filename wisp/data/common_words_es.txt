@@ -2912,7 +2912,6 @@ heridas
 hielo
 idiomas
 imaginar
-indios
 inmigrantes
 interesantes
 irme
@@ -2973,7 +2972,6 @@ humo
 independientes
 instrucciones
 integración
-judíos
 levantar
 leyenda
 llamados
@@ -3033,7 +3031,6 @@ faltan
 favorito
 financiero
 fuiste
-gordo
 habitual
 identificación
 incremento
@@ -3446,7 +3443,6 @@ garantía
 gasolina
 hiciera
 hilo
-indio
 indígena
 interesados
 laborales
@@ -3802,7 +3798,6 @@ refugio
 regalos
 representar
 represión
-ruiz
 sacerdote
 seco
 secretaria
@@ -4691,7 +4686,6 @@ inclusión
 inevitable
 inseguridad
 invita
-judío
 justificar
 legalmente
 libras
@@ -4998,3 +4992,9 @@ aseguró
 autora
 beca
 borrar
+cardenal
+cima
+clubes
+comerciantes
+compré
+conservar
