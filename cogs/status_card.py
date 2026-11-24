@@ -1,10 +1,10 @@
 """Wisp's Status post: his picture, then his live card under the Wisp Stats title.
 
-The post's first message shows only Wisp's picture, so the Studio's gallery
-shows him. Under it is the card, one Components V2 message: Myra's Wisp
-Stats title picture, the card in her emoji frame, then its Interaction
-button, which jumps to the Interaction post where the members' buttons are.
-The card is pinned and edited in place.
+The post's first message shows Myra's Status banner, which the Studio's
+gallery shows, then Wisp's picture. Under it is the card, one Components V2
+message: Myra's Wisp Stats title picture, the card in her emoji frame, then
+its Interaction button, which jumps to the Interaction post where the
+members' buttons are. The card is pinned and edited in place.
 """
 
 from pathlib import Path
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from cogs.assets import ASSETS_DIR, BANNERS
 from cogs.headers import Buttons, HeadedCard, show_headed_card
 from cogs.pictures import Picture
 from cogs.studio import StudioError, studio_thread
@@ -25,6 +26,8 @@ _LABEL: Final = "status card"
 _PICTURE_KEY: Final = "status picture"
 _NO_PICTURE: Final = "♪ Wisp's status"
 _NO_PING: Final = discord.AllowedMentions.none()
+STATUS_BANNER: Final = ASSETS_DIR / BANNERS / "status.png"
+"""Myra's banner, the Status post's first picture; left out while missing."""
 _CARD: Final = HeadedCard(
     header=_TITLE_NAME,
     title_attr="status_title_message_id",
@@ -116,12 +119,14 @@ async def _show_picture(
     clear_image: bool,
     posted: bool,
 ) -> None:
-    """Keep the post's first message showing only Wisp's picture.
+    """Keep the post's first message showing the banner, then Wisp's picture.
 
-    It is edited only when the picture is not the one this process last
+    It is edited only when Wisp's picture is not the one this process last
     showed there, or while the card still lives in it (`posted` is False).
-    With no picture to show it says "♪ Wisp's status", since a message needs
-    text or a picture. A first message that is gone is left alone.
+    The banner goes on every edit, so the gallery always shows it. With no
+    picture at all it says "♪ Wisp's status", since a message needs text or a
+    picture. A first message that is gone is left alone. A refused picture is
+    sent again without Wisp's (see `Picture.attach`).
     """
     key = (guild_id, _PICTURE_KEY)
     wanted = image.name if image is not None else ("" if clear_image else None)
@@ -129,16 +134,23 @@ async def _show_picture(
         return
     starter = thread.get_partial_message(thread.id)
     picture = Picture(bot, guild_id, thread, _CARD_ATTR, _LABEL)
-    try:
-        _, attached = await picture.attach(
-            image if wanted else None,
-            lambda art: starter.edit(
-                content=None if art is not None else _NO_PICTURE,
+
+    async def show(art: discord.File | None) -> discord.Message:
+        banner = discord.File(STATUS_BANNER) if STATUS_BANNER.is_file() else None
+        files = [file for file in (banner, art) if file is not None]
+        try:
+            return await starter.edit(
+                content=None if files else _NO_PICTURE,
                 view=None,
-                attachments=[] if art is None else [art],
+                attachments=files,
                 allowed_mentions=_NO_PING,
-            ),
-        )
+            )
+        finally:
+            if banner is not None:
+                banner.close()
+
+    try:
+        _, attached = await picture.attach(image if wanted else None, show)
     except discord.NotFound:
         return
     bot.shown_images[key] = (thread.id, attached or "")

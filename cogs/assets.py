@@ -6,6 +6,8 @@ from typing import Final
 from wisp.rules import NAP_STAGES, Stage
 
 ASSETS_DIR: Final = Path(__file__).resolve().parent.parent / "ASSETS"
+BANNERS: Final = "wisp-studio-rooms"
+"""The folder under ASSETS with Myra's banner for each Studio post."""
 _ART_FORMATS: Final = (".gif", ".png")
 
 

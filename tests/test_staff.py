@@ -522,7 +522,8 @@ def test_the_staff_role_commands_are_a_loaded_extension() -> None:
 
 @pytest.fixture
 def no_studio_work(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Stand in for the Studio and badge role work, which test_studio covers."""
+    """Stand in for the Studio, badge role and storage locker work, which
+    test_studio and test_rooms cover."""
     calls: list[str] = []
 
     async def ensure_studio(bot: app.WispBot, guild_id: int) -> Settings:
@@ -540,7 +541,12 @@ def no_studio_work(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     ) -> None:
         calls.append(f"panel in {getattr(where, 'id', None)}")
 
+    async def ensure_rooms(_bot: app.WispBot, _guild: object, where: object) -> int:
+        calls.append(f"lockers in {getattr(where, 'id', None)}")
+        return 0
+
     monkeypatch.setattr(studio, "ensure_studio", ensure_studio)
+    monkeypatch.setattr(studio, "ensure_rooms", ensure_rooms)
     monkeypatch.setattr(studio, "ensure_badge_roles", ensure_badge_roles)
     monkeypatch.setattr(studio, "ensure_house_panel", ensure_house_panel)
     return calls
@@ -576,6 +582,7 @@ async def test_setup(
         f"panel in {HERE_ID}",
         "studio",
         f"badges in {HERE_ID}",
+        f"lockers in {HERE_ID}",
     ]
     assert sent(server.here) == [
         "♪ Wisp is set up.\n"
@@ -586,6 +593,7 @@ async def test_setup(
         "・Studio threads: all seven already exist\n"
         "・No feeding roles yet, so nobody can feed Wisp. "
         "Add one with !wisp roles add @role.\n"
+        "・New storage lockers: 0\n"
         "・Badge roles: all 2 ready"
     ]
 

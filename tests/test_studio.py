@@ -73,14 +73,20 @@ OLD_NAMES = (
     "Shop",
     "Interaction",
 )
-THUMBNAILS = {
-    MEALTIME: "thumbs/mealtime.png",
-    VAULT: "vault.png",
-    JAM: "thumbs/jam_space.png",
-    FAQ: "thumbs/faq.png",
-    SHOP: "gifts/VV_Store/VV_Snacks.gif",
-    INTERACTION: "thumbs/interaction.png",
+PICTURES = {
+    MEALTIME: ("wisp-studio-rooms/mealtime.png", "thumbs/mealtime.png"),
+    VAULT: ("wisp-studio-rooms/leaderboard.png", "vault.png"),
+    JAM: ("wisp-studio-rooms/jamespace.png", "thumbs/jam_space.png"),
+    FAQ: ("wisp-studio-rooms/wispfaq.png", "thumbs/faq.png"),
+    SHOP: ("wisp-studio-rooms/viibrvault.png", "gifts/VV_Store/VV_Snacks.gif"),
+    INTERACTION: ("wisp-studio-rooms/interaction.png", "thumbs/interaction.png"),
 }
+UPLOADED = {
+    name: [relative.replace("/", "_") for relative in pictures]
+    for name, pictures in PICTURES.items()
+}
+"""Each post's pictures as Discord names them: the banner first. The Status
+post's are the status card's, so setup gives it none."""
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
     "01_basics_1.png",
@@ -281,7 +287,9 @@ class FakeServer:
         thread.get_partial_message.side_effect = lambda message_id: self._partial(
             thread, message_id
         )
-        art = [kwargs["file"].filename] if "file" in kwargs else []
+        art: list[str] = [
+            FakeAttachment(file.filename) for file in kwargs.get("files", [])
+        ]
         message = self._message(thread, thread.id, content, art)
         self.threads[thread.id] = thread
         self.created_names.append(name)
@@ -354,7 +362,9 @@ class FakeServer:
 
     def _edit_message(self, message: MagicMock, fields: dict[str, Any]) -> MagicMock:
         if "attachments" in fields:
-            message.attachments = [file.filename for file in fields["attachments"]]
+            message.attachments = [
+                FakeAttachment(file.filename) for file in fields["attachments"]
+            ]
             for file in fields["attachments"]:
                 file.close()
         if "content" in fields:
@@ -384,6 +394,15 @@ class FakeServer:
 def today() -> date:
     """Today in UTC: the day whose nap times the bot's rules post shows."""
     return discord.utils.utcnow().date()
+
+
+class FakeAttachment(str):
+    """An uploaded file as a starter post holds it: equal to its name, as tests
+    compare it, with Discord's `filename` the code reads."""
+
+    @property
+    def filename(self) -> str:
+        return str(self)
 
 
 def file_names(files: list[discord.File]) -> list[str]:
@@ -428,7 +447,7 @@ def thumbnail_added(message: MagicMock) -> bool:
 
 
 def add_thumbnails(art_dir: Path) -> None:
-    for relative in THUMBNAILS.values():
+    for relative in (picture for pictures in PICTURES.values() for picture in pictures):
         path = art_dir / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"png")
@@ -630,20 +649,14 @@ async def test_new_threads_carry_their_thumbnails(
     await run_setup(bot, server)
 
     attached = {
-        thread.name: thread.create_kwargs.pop("file")
+        thread.name: thread.create_kwargs.pop("files")
         for thread in server.threads.values()
-        if "file" in thread.create_kwargs
+        if "files" in thread.create_kwargs
     }
-    assert {name: art.filename for name, art in attached.items()} == {
-        MEALTIME: "mealtime.png",
-        VAULT: "vault.png",
-        JAM: "jam_space.png",
-        FAQ: "faq.png",
-        SHOP: "VV_Snacks.gif",
-        INTERACTION: "interaction.png",
-    }
-    for art in attached.values():
-        art.close()
+    assert {
+        name: [art.filename for art in files] for name, files in attached.items()
+    } == UPLOADED
+    assert all(art.fp.closed for files in attached.values() for art in files)
     assert not any(thumbnail_added(message) for message in server.messages.values())
 
 
@@ -656,7 +669,7 @@ async def test_threads_without_art_are_text_only(
         assert thread.create_kwargs == {"auto_archive_duration": 10080}
 
 
-async def test_a_starter_without_a_picture_gets_its_thumbnail(
+async def test_a_starter_without_a_picture_gets_its_pictures(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
     await run_setup(bot, server)
@@ -664,15 +677,57 @@ async def test_a_starter_without_a_picture_gets_its_thumbnail(
 
     await ensure_studio(bot, GUILD_ID)
 
-    for name, relative in THUMBNAILS.items():
+    for name, uploaded in UPLOADED.items():
         thread = server.thread_named(name)
         thread.fetch_message.assert_any_await(thread.id)
-        assert server.messages[thread.id].attachments == [Path(relative).name]
+        assert server.messages[thread.id].attachments == uploaded
     assert not thumbnail_added(server.messages[server.thread_named(STATUS).id])
     assert house_posts(server) == []
 
 
-async def test_a_starter_that_has_a_picture_is_left_alone(
+async def test_a_starter_with_only_the_old_picture_gets_the_banner_first(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    await run_setup(bot, server)
+    add_thumbnails(art_dir)
+    starter = server.messages[server.thread_named(MEALTIME).id]
+    starter.attachments = [FakeAttachment("mealtime.png")]
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert starter.attachments == [
+        "wisp-studio-rooms_mealtime.png",
+        "thumbs_mealtime.png",
+    ]
+    assert starter.content == "Every track that feeds Wisp lands here."
+
+
+async def test_a_starter_whose_pictures_are_out_of_order_is_put_right(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    await run_setup(bot, server)
+    add_thumbnails(art_dir)
+    starter = server.messages[server.thread_named(JAM).id]
+    starter.attachments = [FakeAttachment(n) for n in reversed(UPLOADED[JAM])]
+
+    await ensure_studio(bot, GUILD_ID)
+
+    assert starter.attachments == UPLOADED[JAM]
+
+
+async def test_a_missing_picture_is_left_out(
+    bot: app.WispBot, server: FakeServer, art_dir: Path
+) -> None:
+    add_thumbnails(art_dir)
+    (art_dir / "thumbs" / "mealtime.png").unlink()
+
+    await run_setup(bot, server)
+
+    starter = server.messages[server.thread_named(MEALTIME).id]
+    assert starter.attachments == ["wisp-studio-rooms_mealtime.png"]
+
+
+async def test_a_starter_that_has_its_pictures_is_left_alone(
     bot: app.WispBot, server: FakeServer, art_dir: Path
 ) -> None:
     add_thumbnails(art_dir)
@@ -696,9 +751,9 @@ async def test_thumbnail_failure_is_posted_in_its_thread(
     await ensure_studio(bot, GUILD_ID)
 
     (line,) = mealtime.send.await_args.args
-    assert line.startswith("Error in adding the thumbnail to Mealtime: Forbidden")
+    assert line.startswith("Error in adding the pictures to Mealtime: Forbidden")
     jam_starter = server.messages[server.thread_named(JAM).id]
-    assert jam_starter.attachments == ["jam_space.png"]
+    assert jam_starter.attachments == UPLOADED[JAM]
     assert house_posts(server) == []
 
 
@@ -1219,7 +1274,7 @@ async def test_the_faq_thread_has_its_thumbnail_and_table_of_contents(
 
     thread = server.thread_named(FAQ)
     starter = server.messages[thread.id]
-    assert starter.attachments == ["faq.png"]
+    assert starter.attachments == UPLOADED[FAQ]
     settings = await bot.settings.get(GUILD_ID)
     assert starter.content.splitlines() == toc_lines(
         thread.id, settings.faq_message_ids
@@ -1273,7 +1328,7 @@ async def test_an_old_how_wisp_works_thread_is_renamed_and_filled(
     settings = await bot.settings.get(GUILD_ID)
     assert settings.rules_message_id == rules_post.id
     starter = server.messages[old.id]
-    assert starter.attachments == ["faq.png"]
+    assert starter.attachments == UPLOADED[FAQ]
     assert starter.content.splitlines() == toc_lines(
         old.id, tuple(section.id for section in sections)
     )
@@ -2291,7 +2346,7 @@ def kept_files(mock: AsyncMock, field: str) -> list[discord.File]:
 
 
 @pytest.mark.parametrize("fails", [False, True])
-async def test_a_new_threads_thumbnail_is_closed_after_creating_it(
+async def test_a_new_threads_pictures_are_closed_after_creating_it(
     bot: app.WispBot, art_dir: Path, fails: bool
 ) -> None:
     add_thumbnails(art_dir)
@@ -2313,13 +2368,13 @@ async def test_a_new_threads_thumbnail_is_closed_after_creating_it(
     else:
         await studio._create_thread(bot, forum, vault_spec())
 
-    (thumbnail,) = kept_files(forum.create_thread, "file")
-    assert thumbnail.filename == "vault.png"
-    assert thumbnail.fp.closed
+    pictures = kept_files(forum.create_thread, "files")
+    assert [picture.filename for picture in pictures] == UPLOADED[VAULT]
+    assert all(picture.fp.closed for picture in pictures)
 
 
 @pytest.mark.parametrize("fails", [False, True])
-async def test_an_added_thumbnail_is_closed_after_the_edit(
+async def test_added_pictures_are_closed_after_the_edit(
     bot: app.WispBot, art_dir: Path, fails: bool
 ) -> None:
     add_thumbnails(art_dir)
@@ -2334,12 +2389,11 @@ async def test_an_added_thumbnail_is_closed_after_the_edit(
     thread = MagicMock(spec=discord.Thread)
     thread.fetch_message = AsyncMock(return_value=starter)
 
-    await studio._add_thumbnail(
-        bot, MagicMock(spec=discord.Guild), thread, vault_spec()
-    )
+    await studio._set_pictures(bot, MagicMock(spec=discord.Guild), thread, vault_spec())
 
-    (thumbnail,) = kept_files(starter.edit, "attachments")
-    assert thumbnail.fp.closed
+    pictures = kept_files(starter.edit, "attachments")
+    assert [picture.filename for picture in pictures] == UPLOADED[VAULT]
+    assert all(picture.fp.closed for picture in pictures)
     assert bot.report_error.await_count == (1 if fails else 0)
 
 

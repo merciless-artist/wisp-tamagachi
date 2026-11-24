@@ -21,7 +21,7 @@ import pytest
 from discord.ext import commands
 
 import app
-from cogs import announce, assets, life_loop, pictures
+from cogs import announce, assets, life_loop, pictures, status_card
 from cogs.announce import BEGIN_AGAIN
 from cogs.chores import ChoreButton
 from cogs.life_loop import BeginButton, LifeLoop
@@ -166,8 +166,12 @@ def house_reports(server: FakeServer) -> list[str]:
 
 @pytest.fixture
 def bot(
-    db: Database, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+    db: Database,
+    server: FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[app.WispBot]:
+    monkeypatch.setattr(status_card, "STATUS_BANNER", tmp_path / "status.png")
     wisp_bot = app.WispBot()
     wisp_bot.settings = SettingsRepo(db)
     wisp_bot.lives = LifeRepo(db)
@@ -690,6 +694,61 @@ async def test_a_new_post_with_no_picture_keeps_a_line_of_text(
     starter = server.starter_edit.await_args.kwargs
     assert (starter["content"], starter["attachments"]) == ("♪ Wisp's status", [])
     assert len(posted_cards(server)) == 1
+
+
+async def test_the_status_banner_goes_first_above_wisps_picture(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    status_card.STATUS_BANNER.write_bytes(b"png")
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    assert post_pictures(server) == [["status.png", "baby.png"]]
+    assert server.starter_edit.await_args.kwargs["content"] is None
+
+
+async def test_with_no_picture_of_wisp_the_banner_still_shows(
+    cog: LifeLoop,
+    bot: app.WispBot,
+    server: FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pictures, "ASSETS_DIR", tmp_path)
+    status_card.STATUS_BANNER.write_bytes(b"png")
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    assert post_pictures(server) == [["status.png"]]
+    assert server.starter_edit.await_args.kwargs["content"] is None
+
+
+async def test_a_refused_picture_keeps_the_banner_and_closes_every_file(
+    cog: LifeLoop, bot: app.WispBot, server: FakeServer, stage_art: Path
+) -> None:
+    status_card.STATUS_BANNER.write_bytes(b"png")
+    server.starter_edit.side_effect = [
+        discord.Forbidden(MagicMock(status=403), "Missing Permissions"),
+        None,
+    ]
+    await configure(bot)
+    await bot.settings.update(GUILD_ID, status_message_id=STATUS_ID)
+    await lay(bot)
+
+    await cog.run_tick(NOW)
+
+    sent = [edit.kwargs["attachments"] for edit in server.starter_edit.await_args_list]
+    assert all(file.fp.closed for files in sent for file in files)
+    assert [[file.filename for file in files] for files in sent] == [
+        ["status.png", "baby.png"],
+        ["status.png"],
+    ]
 
 
 async def test_edited_status_keeps_its_interaction_button(

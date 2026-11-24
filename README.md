@@ -716,16 +716,20 @@ for buttons" (Interaction) for a few seconds; staff and bots may post there.
   The Interaction post's ViiBR Vault button jumps to this post; `/wisp vault` still
   opens the private Vault. Member chat here is deleted like on Status.
 - `🕹️ | Interaction`: the members' buttons (see The Interaction post). Its
-  first post says what is below; the card is the message under it. It has no
-  picture.
+  first post says what is below; the card is the message under it.
 - `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
   linking to each section's first picture, then one banner picture per
   question, each in a message of its own, and its last post is the quick rules
   with the current numbers.
 
-Each thread's first post carries its picture, which the forum shows as the
-thumbnail. Setup renames a thread whose name differs, adds a
-missing thumbnail and fills a Wisp FAQ whose stored pictures are not the
+Each thread's first post carries Myra's banner for it
+(`ASSETS/wisp-studio-rooms/`), which the forum gallery shows as the thumbnail,
+then Wisp's own art for it. The Status post's pictures are the status card's:
+the banner, then Wisp's live picture, put back on each change of picture. The files are uploaded under
+their path in ASSETS with `_` for `/` (`thumbs_mealtime.png`), since a banner
+and an art file can share a name. Setup renames a thread whose name differs,
+gives a first post its pictures when it has others, none or the wrong order
+(replacing its attachments), and fills a Wisp FAQ whose stored pictures are not the
 current set (43), such as an older How Wisp Works thread or the earlier
 one-picture-per-section FAQ.
 
@@ -773,8 +777,10 @@ posts text only.
 - `mags/viibrations_cover.jpg` and `mags/musicnscience_cover.jpg`, the
   magazine covers sent to their buyers (posting copies, 1200px tall, of the
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
-- `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
-  `thumbs/faq.png`, the thumbnails of the Studio threads.
+- `wisp-studio-rooms/*.png`, Myra's banner for each Studio post, its
+  gallery thumbnail; then `vault.png`, `thumbs/mealtime.png`,
+  `thumbs/jam_space.png`, `thumbs/faq.png`, `thumbs/interaction.png` and
+  `gifts/VV_Store/VV_Snacks.gif`, Wisp's art under each banner.
 - `stats_title.png`, `leaderboard_title.png`, `snack_pack_title.png` and
   `vault_title.png`, Myra's header pictures above the status card, the
   Leaderboard, the Snack Pack and the Vault. Each menu is one message: its

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-24 (Studio banners)
+
+- **Myra's banners on every Studio post.** Each post's first message now
+  carries her banner from `ASSETS/wisp-studio-rooms/` first, so the forum
+  gallery shows the banners, then Wisp's art for it under it. The Status
+  post's first message belongs to the status card (`cogs/status_card.py`,
+  `STATUS_BANNER`): it shows the banner, then Wisp's live picture, so setup
+  and the card no longer replace each other's pictures; setup gives Status
+  none.
+- **Fix:** `test_staff`'s setup answer now includes the storage lockers line
+  added in the last release (the lockers work is stubbed there). `StudioThread.image` became `images`, a tuple in order.
+  Files are uploaded as their ASSETS path with `_` for `/`, since
+  `mealtime.png` and `interaction.png` exist in both folders.
+- **Setup puts the pictures right.** A first post whose attachments are not
+  those pictures in that order (none, only the old picture, another order)
+  has them replaced (`_set_pictures`, was `_add_thumbnail`, which only filled
+  a post with none). A picture file that is missing is left out. A failure is
+  posted as `Error in adding the pictures to <post>`.
+
 ## 2026-11-23 (Lockers for everyone, the Interaction picture)
 
 - **A storage locker for everyone who joined.** `/wispadmin setup` now makes a
