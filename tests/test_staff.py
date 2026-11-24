@@ -6,6 +6,7 @@ length snowflakes, since the converters only read mentions of those.
 
 import asyncio
 import importlib
+import io
 from collections.abc import AsyncIterator, Iterable
 from dataclasses import fields
 from typing import Any
@@ -1230,3 +1231,99 @@ def test_the_members_slash_commands_are_still_registered() -> None:
         "wisp play craving",
         "wisp feed",
     }
+
+
+# ---
+# Talking as Wisp
+# ---
+
+
+def picture(name: str) -> MagicMock:
+    """A picture attached to a staff message."""
+    attachment = MagicMock(spec=discord.Attachment)
+    attachment.filename = name
+    attachment.to_file = AsyncMock(
+        side_effect=lambda: discord.File(io.BytesIO(b"png"), filename=name)
+    )
+    return attachment
+
+
+async def test_say_posts_the_words_where_it_was_used_and_deletes_the_command(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message("!wisp say hi everyone, <@123> @everyone", boss)
+    message.attachments = []
+
+    await say(bot, message)
+
+    server.here.send.assert_awaited_once()
+    sent_call = server.here.send.await_args
+    assert sent_call.args == ("hi everyone, <@123> @everyone",)
+    assert sent_call.kwargs["files"] == []
+    assert sent_call.kwargs["allowed_mentions"].to_dict() == {"parse": ["users"]}
+    message.delete.assert_awaited_once_with()
+
+
+async def test_say_posts_in_the_channel_named_with_its_pictures(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message(f"!wisp say <#{GENERAL_ID}> look at this", boss)
+    message.attachments = [picture("a.png"), picture("b.gif")]
+
+    await say(bot, message)
+
+    server.here.send.assert_not_awaited()
+    sent_call = server.general.send.await_args
+    assert sent_call.args == ("look at this",)
+    files = sent_call.kwargs["files"]
+    assert [file.filename for file in files] == ["a.png", "b.gif"]
+    message.delete.assert_awaited_once_with()
+
+
+async def test_say_with_only_pictures_posts_them_without_text(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message(f"!wisp say <#{GENERAL_ID}>", boss)
+    message.attachments = [picture("a.png")]
+
+    await say(bot, message)
+
+    sent_call = server.general.send.await_args
+    assert sent_call.args == (None,)
+    assert [file.filename for file in sent_call.kwargs["files"]] == ["a.png"]
+
+
+async def test_say_with_nothing_to_post_gets_the_usage_and_keeps_the_command(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message("!wisp say", boss)
+    message.attachments = []
+
+    await say(bot, message)
+
+    (answer,) = sent(server.here)
+    assert "add words, pictures or both" in answer
+    message.delete.assert_not_awaited()
+
+
+async def test_say_too_long_for_one_message_is_refused(
+    bot: app.WispBot, server: FakeServer, boss: MagicMock
+) -> None:
+    message = server.message("!wisp say " + "x" * 2001, boss)
+    message.attachments = []
+
+    await say(bot, message)
+
+    (answer,) = sent(server.here)
+    assert "the words fit in 2,000 characters" in answer
+    message.delete.assert_not_awaited()
+
+
+async def test_say_is_staff_only(bot: app.WispBot, server: FakeServer) -> None:
+    message = server.message("!wisp say hi", server.member(77))
+    message.attachments = []
+
+    await say(bot, message)
+
+    message.delete.assert_not_awaited()
+    assert all(call.args != ("hi",) for call in server.here.send.await_args_list)
