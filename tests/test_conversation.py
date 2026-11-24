@@ -28,6 +28,7 @@ from db.database import Database
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
 from db.memories import MemoryStore
+from db.moody import MoodyRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
@@ -235,6 +236,7 @@ def bot(
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.wisp_lunchbox = WispLunchboxRepo(db)
+    wisp_bot.moody = MoodyRepo(db)
     monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     yield wisp_bot

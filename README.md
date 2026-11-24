@@ -294,8 +294,9 @@ commands, so they never dig through slash menus. Staff are Wisp's app owner
 server's staff roles. Anyone else is ignored without a word. Bare `!wisp` is
 kept free for the help menu.
 
-Setup and the FAQ rebuild also work as slash commands, `/wispadmin setup` and
-`/wispadmin faq`. They do exactly what `!wisp setup` and `!wisp faq` do, but
+The moody phrases are managed only with `/wispadmin moody` (see Moody
+phrases). Setup and the FAQ rebuild also work as slash commands,
+`/wispadmin setup` and `/wispadmin faq`. They do exactly what `!wisp setup` and `!wisp faq` do, but
 answer privately. Discord shows them to members with Manage Server; a server
 admin can show them to a staff role under Server Settings, Integrations. Anyone
 who is not staff gets a private "That command is for staff."
@@ -563,6 +564,35 @@ craved and whether you guessed it, and, if you lost and then buy that snack
 yourself the same UTC day, that you bought it anyway. The same refusals as
 the duel apply: banned, not joined, no living Wisp, frozen, napping, or no
 feeding role.
+
+## Moody phrases
+
+An Easter egg: name the song Wisp just grumbled. Staff write the content with
+`/wispadmin moody` (private answers, staff only, each server its own):
+
+- `/wispadmin moody add stage phrase artist song year` saves a song line for
+  Child, Teen, Adult, Rockstar or Old Fogey and answers with its id. A phrase
+  is at most 300 characters, an artist or song 100, the year 1000 to 2100
+  (`MOODY_PHRASE_MAX`, `MOODY_CREDIT_MAX`, `MOODY_YEAR_MIN`/`MAX`).
+- `/wispadmin moody list stage` lists them as `#id ・ phrase ・ Artist, Song
+  (Year)`, split over several messages when long, and says when the stage
+  still needs more different songs.
+- `/wispadmin moody remove id` deletes one.
+
+When Wisp answers someone through his AI (or chimes in) while he is in a bad
+way, hangry, lonely, sick with Monster Pox or a cold, spoiled or cranky, and
+his stage has at least 3 phrases from different songs, there is a 25% chance
+(`MOODY_PHRASE_CHANCE`) he works one of them into the answer word for word,
+at most once every 30 minutes per server (`MOODY_PHRASE_GAP`) and never the
+same phrase twice in a row. If the AI leaves it out, it is added as the last
+line. A menu, "♪ Name that song", sits under the answer with that song and
+two others from the stage, shuffled. Anyone who opened /wisp board gets one
+guess per round; the first right one wins 3 wisp coins
+(`MOODY_PHRASE_REWARD`), the menu is shut and the answer shows
+"♪ @winner named it: Artist, Song (Year)". After a win, or 2 hours
+(`MOODY_ROUND_FOR`), the round is done. Rounds and guesses are stored
+(`moody_phrases`, `moody_rounds`, `moody_guesses`), so the menu works after a
+restart.
 
 Talking: mention Wisp or reply to him in Wisp's House (the channel itself, not
 its threads). He never answers in the Studio. He answers with AI at every stage: the egg wobbles or crackles in

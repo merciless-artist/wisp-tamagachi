@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-24 (Moody phrases)
+
+- **Name that song.** Staff add song lines per stage (Child to Old Fogey)
+  with `/wispadmin moody add`, `list` and `remove` (private, staff only,
+  per server; `cogs/moody_staff.py`, a `moody` group under `wispadmin`). No
+  phrases ship in the code: Myra writes them.
+- **Wisp grumbles them.** When an AI answer or chime-in comes while he is
+  hangry, lonely, sick, spoiled or cranky, and his stage has 3 different
+  songs, a 25% roll (`MOODY_PHRASE_CHANCE`, once per `MOODY_PHRASE_GAP` per
+  server, never the last phrase again) tells his AI to say one word for word
+  (`build_prompt(moody_phrase=...)`). A reply that leaves it out gets it as
+  its last line; a long one is cut, never the phrase, with room kept for the
+  winner's line (`wisp/moody.py`).
+- **The menu.** "♪ Name that song" under the answer offers that song and two
+  others, shuffled (`MoodyMenu`, a persistent `DynamicItem`). Members who
+  opened /wisp board get one guess per round; the first right one wins
+  `MOODY_PHRASE_REWARD` (3) wisp coins, shuts the menu and adds
+  "♪ <@winner> named it: Artist, Song (Year)", pinging only them. Rounds end
+  after `MOODY_ROUND_FOR` (2 hours). Banned members are turned away too.
+- **Storage:** new tables `moody_phrases`, `moody_rounds`, `moody_guesses`
+  (`db/moody.py`, `bot.moody`). A round whose answer never went out is
+  deleted, so it never blocks the next one.
+
 ## 2026-11-24 (Tantrums last four hours)
 
 - **A tantrum stays open for 4 hours** (`TANTRUM_WINDOW`, was 1 hour) while

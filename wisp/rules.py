@@ -369,6 +369,35 @@ CRAVING_GUESSES = 3
 CRAVING_TIMEOUT = timedelta(minutes=5)
 
 # ---
+# Moody phrases
+# ---
+
+# When Wisp is hangry, lonely or feels anything (sick, spoiled, cranky) at one
+# of MOODY_STAGES, each AI answer has MOODY_PHRASE_CHANCE of working one of
+# staff's song lines for his stage into it, at most once per MOODY_PHRASE_GAP
+# per server. A stage plays once it has MOODY_OPTIONS different songs; the
+# menu under the line offers that many (the rounds table holds three). The
+# first member to name the song within MOODY_ROUND_FOR wins
+# MOODY_PHRASE_REWARD wisp coins.
+MOODY_STAGES: Final = (
+    Stage.CHILD,
+    Stage.TEEN,
+    Stage.ADULT,
+    Stage.ROCKSTAR,
+    Stage.OLD_FOGEY,
+)
+MOODY_PHRASE_CHANCE = 0.25
+MOODY_PHRASE_GAP = timedelta(minutes=30)
+MOODY_ROUND_FOR = timedelta(hours=2)
+MOODY_OPTIONS = 3
+MOODY_PHRASE_REWARD = 3
+# The longest phrase, artist and song staff can add, and the years allowed.
+MOODY_PHRASE_MAX = 300
+MOODY_CREDIT_MAX = 100
+MOODY_YEAR_MIN = 1000
+MOODY_YEAR_MAX = 2100
+
+# ---
 # Rooms
 # ---
 
