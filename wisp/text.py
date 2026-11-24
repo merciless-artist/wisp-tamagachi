@@ -23,8 +23,9 @@ _Words = TypeVar("_Words", bound=str | None)
 # music notes ♪ and ♫), ‼ and ⁉, plus the keycap, variation selector and
 # zero-width joiner that build emoji sequences.
 _EMOJI: Final = re.compile("[\U0001f000-\U0001faff⌀-⏿☀-♩♬-➿" "⬀-⯿‼⁉⃣️‍]")
-# His name in a heading in capitals, which Myra spells WiSP.
-_HIS_NAME: Final = re.compile(r"\bWISP\b")
+# Names Myra spells her own way, found in a heading by their capitals.
+_SPELLINGS: Final = {"WISP": "WiSP", "VIIBR": "ViiBR"}
+_SPELLED: Final = re.compile(rf"\b({'|'.join(_SPELLINGS)})\b")
 
 # The plain divider of a short post, from house style v2.1.
 SEPARATOR: Final = "𝄡" + "𝄚" * 22 + "𝄂"
@@ -57,9 +58,9 @@ class Frame:
     Each piece is the text of Wisp's app emojis, "" for one not uploaded, so
     a missing emoji is left out and the line still reads: with none uploaded
     the menu is plain text (`UNICODE_FRAME`). Headings are in capitals, with
-    him spelled WiSP. A section heading takes the icon of its `place` in its
-    menu, the icons in turn; a section a menu leaves out keeps its place, so
-    the icons never shift.
+    WiSP and ViiBR spelled as Myra does (`heading_case`). A section heading
+    takes the icon of its `place` in its menu, the icons in turn; a section a
+    menu leaves out keeps its place, so the icons never shift.
     """
 
     title_bar: str
@@ -118,11 +119,12 @@ class Frame:
 
 
 def heading_case(name: str) -> str:
-    """`name` in capitals for a heading, with Wisp spelled `WiSP` as Myra does.
+    """`name` in capitals for a heading, keeping Myra's spellings of her names.
 
-    Only his name as a whole word changes, so "Wispy" is still "WISPY".
+    Wisp is spelled `WiSP` and ViiBR stays `ViiBR`. Only a whole word changes,
+    so "Wispy" is still "WISPY" and "VIIBRATIONS" stays in capitals.
     """
-    return _HIS_NAME.sub("WiSP", name.upper())
+    return _SPELLED.sub(lambda word: _SPELLINGS[word[0]], name.upper())
 
 
 def frame_of(emoji: Callable[[str], str]) -> Frame:

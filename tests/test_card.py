@@ -90,7 +90,7 @@ POX = pox_need(f"<#{TRACKS_ID}>")
 
 
 def stage_line(stage: str, frame: Frame = FRAME) -> str:
-    return frame.heading(f"Life stage ・ {stage}", 2)
+    return frame.heading(f"Life stage ・ {stage}", 3)
 
 
 def render(life: Life, emojis: Callable[[str], str] | None = None) -> str:
@@ -135,11 +135,12 @@ def alive_life(**fields: object) -> Life:
 def tail(
     poke: str, stage: str, facts: CardFacts = FACTS, frame: Frame = FRAME
 ) -> list[str]:
-    """The card after its bars: the facts, the hints, the stage and the footer."""
+    """The card after its bars: Today's facts and hints, the stage and the footer."""
     people = "person" if facts.fed_today == 1 else "people"
     viibr = "track" if facts.viibr_tracks == 1 else "tracks"
     suno = "track" if facts.suno_tracks == 1 else "tracks"
     return [
+        frame.heading("Today", 2),
         frame.item(f"Fed by {facts.fed_today:02d} {people} today"),
         frame.item(
             f"{facts.viibr_tracks} ViiBR {viibr} and {facts.suno_tracks} Suno {suno}"
@@ -201,7 +202,9 @@ def test_the_card_is_in_the_favorites_style_with_all_its_emojis() -> None:
     assert lines[0] == f"# {bar_} **WiSP STATS** {bar_}"
     assert lines[1].startswith("## <:boing_bass:1> **DAY 5")
     assert lines[2] == "## <:wisp_play:1> **RIGHT NOW**"
-    assert lines[-2] == "## <:wisp_pause:1> **LIFE STAGE ・ CHILD**"
+    assert lines[-7] == "## <:wisp_pause:1> **TODAY**"
+    assert lines[-6] == frame.item("Fed by 02 people today")
+    assert lines[-2] == "## <:wisp_stop:1> **LIFE STAGE ・ CHILD**"
     assert lines[-1].endswith("https://viibrmusic.com " + frame.footer_bar + "・")
     assert not any(mark in card for mark in "║╠═╚│𝄡𝄚𝄂𝄆")
     assert "header_edge" not in card and "rest_bar" not in card

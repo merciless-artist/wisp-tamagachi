@@ -1,9 +1,10 @@
 """Text of Wisp's status card, in WiSP's Favorites style (house style v4).
 
 The card sits under her Wisp Stats title picture: its title line, the day and
-what he needs right now, his meters, the day's facts and the buttons' hint,
-then his life stage and the footer line. Each meter is two lines, its name
-and its bar, between `SPACER` lines as the Favorites' songs are.
+what he needs right now, his meters, then under Today the day's facts and
+the buttons' hint, then his life stage and the footer line. Each meter is two
+lines, its name and its bar, between `SPACER` lines as the Favorites' songs
+are.
 """
 
 from collections.abc import Callable
@@ -38,6 +39,7 @@ from wisp.text import SPACER, Frame, channel_or, count, round_half_up, timestamp
 _TITLE: Final = "Wisp stats"
 _WAITING: Final = "No Wisp right now. Waiting for staff to begin again."
 _RIGHT_NOW: Final = "Right now"
+_TODAY: Final = "Today"
 _LONELY: Final = "lonely: chat, play, poke or give him a snack or gift"
 _CHORE_NEEDS: Final = {
     Chore.MESS: "a mess is waiting in his House",
@@ -49,7 +51,8 @@ _HAPPY: Final = "happy"
 # Each section's place in the card, for its icon.
 _DAY: Final = 0
 _NOW: Final = 1
-_STAGE: Final = 2
+_FACTS: Final = 2
+_STAGE: Final = 3
 
 _PERCENT_PER_PIECE: Final = 10
 _LEFT_FROM: Final = 5
@@ -151,7 +154,7 @@ def _card(
     stage: str,
     facts: CardFacts,
 ) -> str:
-    """The card: its title, the heading, the bars, the facts, the hints, the stage.
+    """The card: title, heading, bars, Today's facts and hints, then the stage.
 
     An egg has no heading, so its card opens with its bars under the title.
     """
@@ -162,6 +165,7 @@ def _card(
     )
     house = "his House" if facts.house_id is None else f"<#{facts.house_id}>"
     lines = [
+        frame.heading(_TODAY, _FACTS),
         frame.item(f"Fed by {facts.fed_today:02d} {people} today"),
         frame.item(tracks),
         frame.item(f"Poke {poke} or tag <@{facts.wisp_id}> in {house} to say hi!!"),

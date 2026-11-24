@@ -247,7 +247,7 @@ def test_the_style_is_made_of_myras_favorites_emojis() -> None:
 
 def test_the_title_is_bold_capitals_between_two_bars() -> None:
     assert FRAME.title("Wisp stats") == f"# {TOP_BAR} **WiSP STATS** {TOP_BAR}"
-    assert FRAME.title("ViiBR Vault") == f"# {TOP_BAR} **VIIBR VAULT** {TOP_BAR}"
+    assert FRAME.title("ViiBR Vault") == f"# {TOP_BAR} **ViiBR VAULT** {TOP_BAR}"
 
 
 def test_the_footer_is_the_favorites_footer_exactly() -> None:
@@ -345,9 +345,13 @@ def test_the_footer_without_its_bars_keeps_the_mic() -> None:
         ("Feed WISP now", "FEED WiSP NOW"),
         ("Wispy clouds", "WISPY CLOUDS"),
         ("Snacks", "SNACKS"),
+        ("ViiBR Vault", "ViiBR VAULT"),
+        ("viibr tracks", "ViiBR TRACKS"),
+        ("VIIBRATIONS cover", "VIIBRATIONS COVER"),
+        ("Wisp's ViiBR wave", "WiSP'S ViiBR WAVE"),
     ],
 )
-def test_headings_spell_him_wisp_with_a_small_i(name: str, expected: str) -> None:
+def test_headings_keep_myras_spellings(name: str, expected: str) -> None:
     assert heading_case(name) == expected
     assert FRAME.heading(name, 0) == f"## <:boing_bass:1> **{expected}**"
     assert UNICODE_FRAME.title(name) == f"# **{expected}**"

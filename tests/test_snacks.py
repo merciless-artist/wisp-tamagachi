@@ -487,7 +487,7 @@ async def test_the_vault_is_in_the_favorites_style_once_its_emojis_are_up(
     lines = text.splitlines()
     bar = "".join(bot.emoji(name) for name in TITLE_BAR)
     assert lines[:3] == [
-        f"# {bar} **VIIBR VAULT** {bar}",
+        f"# {bar} **ViiBR VAULT** {bar}",
         frame.note("wisp coins: 0"),
         f"## {bot.emoji('boing_bass')} **SNACKS**",
     ]

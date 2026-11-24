@@ -31,8 +31,9 @@ retype a piece.
 | footer, every menu | `### ・{long bar}{mic2}https://viibrmusic.com {long bar}・`, long bar = `headerbarright` `headerbar` `wisp_waveform` `headerbar` `headerbarleft` | `frame.footer` |
 | divider in a short post | the long bar | `frame.divider` |
 
-- Titles and headings are in capitals with him spelled `WiSP`
-  (`heading_case`): `WiSP STATS`, `VIIBR VAULT`, `SNACK PACK`,
+- Titles and headings are in capitals with Myra's spellings kept
+  (`heading_case`): him as `WiSP`, the brand as `ViiBR` (whole words only, so
+  `VIIBRATIONS` stays in capitals): `WiSP STATS`, `ViiBR VAULT`, `SNACK PACK`,
   `LEADERBOARD`, `WiSP'S FAVORITES`. **My call:** the title line has a space
   after the first bar, as this task's rule says; Myra's draft had none, and
   the lunchbox now has the space too.
@@ -65,7 +66,7 @@ never shifts when a section comes or goes.
 | menu | boing_bass | wisp_play | wisp_pause | wisp_stop |
 |---|---|---|---|---|
 | WiSP's Favorites | TOP N SONGS | FAVORITE SNACKS | FAVORITE EMOJI | FAVORITE GIFTS |
-| Status card | DAY N | RIGHT NOW | LIFE STAGE | |
+| Status card | DAY N | RIGHT NOW | TODAY | LIFE STAGE |
 | ViiBR Vault | SNACKS, GIFTS | MEDICINE | BADGES | MAGAZINES |
 | Snack Pack | SNACKS | KEEPSAKES | BADGES | MAGAZINES |
 | Leaderboard | THIS LIFE | ALL TIME | RHYME DUEL | VERSIONS |
@@ -91,9 +92,11 @@ line when the divider would take it over 2,000 characters.
   title; `DAY N ・ ♫ ♪. ♫‿♪` heading, then any `he has Monster Pox` / `he
   has a cold` items; `RIGHT NOW` heading, the needs as items, then the nap
   line as an item; the meters, each its bold name and its bar on two notes,
-  with `** **` before each and after the last; the facts and the two hints
-  as items; the `LIFE STAGE ・ X` heading; the footer. An egg's card is the
-  title, its bars, the facts and the stage. The waiting card is the title,
+  with `** **` before each and after the last; the `TODAY` heading, then the
+  facts and the two hints as items (my call: under their own heading they
+  no longer read as more Right now items); the `LIFE STAGE ・ X` heading,
+  which carries its own value, as `DAY N` does; the footer. An egg's card is
+  the title, its bars, Today and the stage. The waiting card is the title,
   one item and the footer.
 - **ViiBR Vault**: still three messages, one under the other, each a part a
   menu redraws on its own (my call). Measured with every emoji up at the
