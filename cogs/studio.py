@@ -996,7 +996,53 @@ async def song(
         log.warning("Could not delete the !wisp song message %d", ctx.message.id)
 
 
+_MEMBER_PINGS: Final = discord.AllowedMentions(
+    everyone=False, roles=False, users=True, replied_user=False
+)
+
+
+@commands.command(name="say", usage="[#channel] <words...> (and any pictures)")
+async def say_as_wisp(
+    ctx: StaffContext,
+    channel: discord.TextChannel | discord.Thread | None = None,
+    *,
+    words: str = "",
+) -> None:
+    """Post staff's words, and the pictures attached to the command, as Wisp.
+
+    The post goes in `channel`, or where the command was used without one.
+    Member mentions ping; @everyone, @here and roles never do. A command with
+    neither words nor pictures, or with words too long for one message, gets
+    the usage and keeps the command message. Otherwise the command message is
+    deleted afterwards; a failed delete is only logged. A post Discord
+    refuses raises, so it is reported where the command was used and the
+    command message is kept.
+    """
+    if not words and not ctx.message.attachments:
+        await reply(ctx, f"{usage_line(say_as_wisp)} ・ add words, pictures or both")
+        return
+    if text_length(words) > MESSAGE_LIMIT:
+        await reply(
+            ctx,
+            f"{usage_line(say_as_wisp)} ・ the words fit in "
+            f"{MESSAGE_LIMIT:,} characters",
+        )
+        return
+    files = [await attachment.to_file() for attachment in ctx.message.attachments]
+    try:
+        await (channel or ctx.channel).send(
+            words or None, files=files, allowed_mentions=_MEMBER_PINGS
+        )
+    finally:
+        for file in files:
+            file.close()
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        log.warning("Could not delete the !wisp say message %d", ctx.message.id)
+
+
 async def setup(bot: "WispBot") -> None:
     """Load the Studio staff commands."""
-    for command in (setup_studio, rebuild_faq, freeze, unfreeze, song):
+    for command in (setup_studio, rebuild_faq, freeze, unfreeze, song, say_as_wisp):
         bot.add_command(command)
