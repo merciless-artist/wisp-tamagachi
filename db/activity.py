@@ -92,12 +92,26 @@ class ActivityRepo:
         bond: int,
         meal_points: int,
         at: datetime,
+        snack: str | None = None,
     ) -> None:
-        """Record something a member did with Wisp and what it earned."""
+        """Record something a member did with Wisp and what it earned.
+
+        `snack` is the key of the snack he ate, for a snack.
+        """
         await self._db.insert(
             f"INSERT INTO {self._db.t('interactions')} (guild_id, life_id, user_id, "
-            "kind, bond, meal_points, at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (guild_id, life_id, user_id, kind.value, bond, meal_points, to_db_time(at)),
+            "kind, bond, meal_points, at, snack) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                guild_id,
+                life_id,
+                user_id,
+                kind.value,
+                bond,
+                meal_points,
+                to_db_time(at),
+                snack,
+            ),
         )
 
     async def track_points_today(
@@ -220,6 +234,20 @@ class ActivityRepo:
             (guild_id, life_id, *(kind.value for kind in _TALK)),
         )
         return None if row is None else int(row["user_id"])
+
+    async def most_eaten_snack(self, guild_id: int, life_id: int) -> str | None:
+        """The key of the snack one life ate most, or None before his first snack.
+
+        A tie goes to the snack he ate first. Snacks eaten before snacks were
+        recorded by key are not counted.
+        """
+        row = await self._db.fetchone(
+            f"SELECT snack FROM {self._db.t('interactions')} "
+            "WHERE guild_id = %s AND life_id = %s AND snack IS NOT NULL "
+            "GROUP BY snack ORDER BY COUNT(*) DESC, MIN(id) LIMIT 1",
+            (guild_id, life_id),
+        )
+        return None if row is None else str(row["snack"])
 
     async def top_this_life(
         self, guild_id: int, life_id: int, limit: int

@@ -28,6 +28,7 @@ from wisp.text import (
     emoji_frame,
     fit,
     frame_of,
+    heading_case,
     meter_receipt,
     richest,
     round_half_up,
@@ -461,6 +462,22 @@ def test_a_short_line_and_a_line_outside_the_frame_are_left_alone() -> None:
     assert FRAME.wrap(FRAME.sub("short")) == FRAME.sub("short")
     outside = "x " * 80
     assert FRAME.wrap(outside) == outside
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Wisp's favorites", "WiSP'S FAVORITES"),
+        ("wisp", "WiSP"),
+        ("Feed WISP now", "FEED WiSP NOW"),
+        ("Wispy clouds", "WISPY CLOUDS"),
+        ("Snacks", "SNACKS"),
+    ],
+)
+def test_headings_spell_him_wisp_with_a_small_i(name: str, expected: str) -> None:
+    assert heading_case(name) == expected
+    assert FRAME.heading(name) == f"{EDGE}{HEADER2}{HEADER} {expected}"
+    assert UNICODE_FRAME.heading(name) == f"{HEADING_MARK} {expected}"
 
 
 def test_the_unicode_frame_keeps_the_old_pieces() -> None:

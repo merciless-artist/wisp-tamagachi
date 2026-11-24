@@ -290,6 +290,42 @@ async def test_latest_interactor_breaks_a_tie_by_the_later_record(
     assert await repo.latest_interactor(GUILD, 1) == 11
 
 
+# ---
+# Snacks eaten
+# ---
+
+
+async def test_the_most_eaten_snack_is_counted_in_one_life(db: Database) -> None:
+    repo = ActivityRepo(db)
+    snack, free = InteractionKind.SNACK, InteractionKind.FREE_SNACK
+    assert await repo.most_eaten_snack(GUILD, 1) is None
+
+    await repo.record_interaction(GUILD, 1, 10, snack, 0, 8, NOW, snack="cheese")
+    for user_id in (10, 11):
+        await repo.record_interaction(
+            GUILD, 1, user_id, free, 0, 5, NOW, snack="sinewave"
+        )
+    await repo.record_interaction(GUILD, 1, 10, InteractionKind.FEED, 0, 5, NOW)
+    for life_id, guild_id in ((2, GUILD), (1, OTHER_GUILD)):
+        for _ in range(3):
+            await repo.record_interaction(
+                guild_id, life_id, 10, snack, 0, 8, NOW, snack="pickles"
+            )
+
+    assert await repo.most_eaten_snack(GUILD, 1) == "sinewave"
+    assert await repo.most_eaten_snack(GUILD, 2) == "pickles"
+
+
+async def test_a_tie_for_most_eaten_goes_to_the_first_eaten(db: Database) -> None:
+    repo = ActivityRepo(db)
+    for key in ("pickles", "cheese", "cheese", "pickles"):
+        await repo.record_interaction(
+            GUILD, 1, 10, InteractionKind.SNACK, 0, 8, NOW, snack=key
+        )
+
+    assert await repo.most_eaten_snack(GUILD, 1) == "pickles"
+
+
 @pytest.mark.parametrize(
     "kind,title",
     [

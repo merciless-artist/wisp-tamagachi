@@ -135,6 +135,7 @@ _DEFINITIONS: dict[str, str] = {
         bond INT NOT NULL,
         meal_points INT NOT NULL,
         at DATETIME NOT NULL,
+        snack VARCHAR(20) NULL,
         PRIMARY KEY (id),
         INDEX idx_guild_user_at (guild_id, user_id, at)
     """,
@@ -182,6 +183,7 @@ _DEFINITIONS: dict[str, str] = {
         url VARCHAR(255) NOT NULL,
         picked_at DATETIME NOT NULL,
         artist VARCHAR(100) NULL,
+        title VARCHAR(200) NULL,
         PRIMARY KEY (guild_id, day)
     """,
     "expression_uses": """
@@ -284,7 +286,8 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "shop_message_ids": "TEXT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
-    "favorites": {"artist": "VARCHAR(100) NULL"},
+    "favorites": {"artist": "VARCHAR(100) NULL", "title": "VARCHAR(200) NULL"},
+    "interactions": {"snack": "VARCHAR(20) NULL"},
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",

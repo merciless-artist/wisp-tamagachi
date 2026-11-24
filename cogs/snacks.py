@@ -1457,7 +1457,9 @@ async def _eat(
     add_growth(life, snack.growth)
     if bond:
         await bot.players.add_bond(guild_id, user_id, bond)
-    await log.record_interaction(guild_id, life.id, user_id, kind, bond, points, now)
+    await log.record_interaction(
+        guild_id, life.id, user_id, kind, bond, points, now, snack=snack.key
+    )
     await bot.lives.save(guild_id, life)
     return _Meal(life, player, before, won)
 

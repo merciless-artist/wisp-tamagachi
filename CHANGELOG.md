@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-23 (WiSP's Favorites)
+
+- **The lunchbox is WiSP'S FAVORITES**, Myra's new layout
+  (`DOCS/specs/2026-11-23-wisps-favorites-layout.md`), for `/wisp lunchbox`
+  and the Lunchbox button: one Components V2 text message with no header
+  picture, pinging nobody. `TOP {n} SONGS` (`FAVORITE_SONGS_SHOWN`, fewer
+  when he has fewer), each `01 · NOV 13 — @member` over the song's name and
+  `♫ listen here`; `FAVORITE SNACKS` (his favorite this life, then the one he
+  ate most this life if different); `FAVORITE EMOJI`; `FAVORITE GIFTS` (this
+  life's kept gifts as emojis on one line, trimmed to fit); her footer line.
+  Missing app emojis are left out. The old gift collection lines are gone.
+- **WiSP in headings.** Every frame heading spells him `WiSP` in capitals
+  (`heading_case` in `wisp/text.py`), so the title is `WiSP'S FAVORITES`.
+- **Song titles.** When he keeps a favorite, Wisp reads the song's name from
+  the JSON-LD MusicRecording of its viibrmusic.com page (a share link at the
+  song it redirects to; `WispBot/1.0`, within `VIIBR_RESOLVE_TIMEOUT`) and
+  stores it (cut to `SONG_TITLE_LIMIT`). The Mealtime post names it. A
+  favorite kept earlier is read the first time the lunchbox shows it. A page
+  with no name leaves the song unnamed; one that cannot be read is tried
+  again next time. Neither is an error post.
+- **Snacks eaten are counted by snack** for the favorite snacks; snacks eaten
+  before this release are not counted.
+- **Storage (all additive):** `favorites.title VARCHAR(200) NULL`,
+  `interactions.snack VARCHAR(20) NULL`.
+
 ## 2026-11-23 (Drawings in rooms)
 
 - **Drawings in rooms.** A drawing Wisp makes for a member is posted in his

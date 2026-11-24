@@ -5,7 +5,6 @@ gamble, decided by the Gifts cog's random source.
 """
 
 import random
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +23,6 @@ from cogs.players import (
     too_poor_text,
 )
 from db.activity import InteractionKind
-from db.gifts import GiftAttempt
 from db.players import Player
 from wisp.chores import is_napping
 from wisp.gifts import (
@@ -397,59 +395,6 @@ async def announce_gift(
         image=_gift_art(given.gift, stage) if kept else None,
         ping=giver,
     )
-
-
-# ---
-# Wisp's lunchbox
-# ---
-
-
-def collection_lines(
-    bot: "WispBot",
-    frame: Frame,
-    kept: Sequence[GiftAttempt],
-    stage: Stage,
-    room: int,
-) -> list[str]:
-    """The lunchbox lines of each collection this life kept gifts from, in order.
-
-    Each collection is one entry of the list, its lines joined, and every
-    entry after the first opens with the frame's group break. A collection's
-    line is in capitals, as `BOOKS 1/4`. The entries take at most `room`,
-    counted by `text_length`: an unfinished collection lists its gifts and
-    givers while there is room, else only its progress. A growing gift shows
-    its look at his `stage`.
-    """
-    plain: list[str] = []
-    rich: list[str] = []
-    for collection in GIFT_COLLECTIONS:
-        got = [
-            (GIFT_BY_KEY[attempt.gift], attempt.user_id)
-            for attempt in kept
-            if attempt.gift in GIFT_BY_KEY
-            and GIFT_BY_KEY[attempt.gift].collection == collection.key
-        ]
-        if not got:
-            continue
-        opening = [frame.group_break] if plain else []
-        progress = f"{collection.name.upper()} {len(got)}/{len(collection.gifts)}"
-        if len(got) == len(collection.gifts):
-            done = frame.wrap(
-                frame.sub(f"{progress} COMPLETE ・ finished by <@{got[-1][1]}>")
-            )
-            plain.append("\n".join([*opening, done]))
-            rich.append(plain[-1])
-            continue
-        items = (
-            frame.item(
-                f"{with_emoji(bot.emoji(gift.emoji_name(stage)), gift.name)} ・ "
-                f"from <@{user_id}>"
-            )
-            for gift, user_id in got
-        )
-        plain.append(frame.wrap("\n".join([*opening, frame.sub(progress)])))
-        rich.append(frame.wrap("\n".join([*opening, frame.sub(progress), *items])))
-    return richest(plain, rich, room)
 
 
 async def setup(bot: "WispBot") -> None:

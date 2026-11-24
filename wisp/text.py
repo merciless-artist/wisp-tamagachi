@@ -73,6 +73,8 @@ _FANCY: Final = re.compile("[\U0001d400-\U0001d7ff\u2100-\u214f]")
 _MUSIC: Final = re.compile("[\U0001d100-\U0001d1ff]")
 _BOX_DRAWING: Final = re.compile("[\u2500-\u257f]")
 _CUSTOM_EMOJI: Final = r"<a?:\w+:\d+>"
+# His name in a heading in capitals, which Myra spells WiSP.
+_HIS_NAME: Final = re.compile(r"\bWISP\b")
 
 # What a line is made of, as Discord shows it: a masked link (only its label
 # shows), a custom emoji, a mention, a timestamp (a short time such as
@@ -309,8 +311,8 @@ class Frame:
         return visual_width(self.bottom)
 
     def heading(self, name: str) -> str:
-        """A `#` line: a section heading, in capitals."""
-        return f"{self.heading_mark} {name.upper()}"
+        """A `#` line: a section heading, in capitals as `heading_case` writes."""
+        return f"{self.heading_mark} {heading_case(name)}"
 
     def sub(self, text: str) -> str:
         """A `##` line: a sub-heading or an information line."""
@@ -345,6 +347,14 @@ class Frame:
     def wrapped(self, lines: Sequence[str]) -> list[str]:
         """Each of `lines` wrapped on its own, so a long one stays one entry."""
         return [self.wrap(line) for line in lines]
+
+
+def heading_case(name: str) -> str:
+    """`name` in capitals for a heading, with Wisp spelled `WiSP` as Myra does.
+
+    Only his name as a whole word changes, so "Wispy" is still "WISPY".
+    """
+    return _HIS_NAME.sub("WiSP", name.upper())
 
 
 def emoji_frame(

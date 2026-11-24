@@ -15,12 +15,17 @@ from wisp.links import TrackKind, find_track
 
 @dataclass(frozen=True)
 class Favorite:
-    """The track Wisp kept as his favorite of one UTC day, and who fed it."""
+    """The track Wisp kept as his favorite of one UTC day, and who fed it.
+
+    `title` is the song's name from its page: "" when the page names none,
+    None when it has not been read yet.
+    """
 
     day: date
     user_id: int
     track_key: str
     url: str
+    title: str | None = None
 
 
 class WispLunchboxRepo:
@@ -83,15 +88,25 @@ class WispLunchboxRepo:
     async def favorites(self, guild_id: int, limit: int) -> list[Favorite]:
         """Return up to `limit` of the guild's favorite songs, newest day first."""
         rows = await self._db.fetchall(
-            "SELECT day, user_id, track_key, url "
+            "SELECT day, user_id, track_key, url, title "
             f"FROM {self._db.t('favorites')} "
             "WHERE guild_id = %s ORDER BY day DESC LIMIT %s",
             (guild_id, limit),
         )
         return [
-            Favorite(row["day"], row["user_id"], row["track_key"], row["url"])
+            Favorite(
+                row["day"], row["user_id"], row["track_key"], row["url"], row["title"]
+            )
             for row in rows
         ]
+
+    async def set_title(self, guild_id: int, day: date, title: str) -> None:
+        """Store the song name of the day's favorite, "" when its page has none."""
+        await self._db.execute(
+            f"UPDATE {self._db.t('favorites')} SET title = %s "
+            "WHERE guild_id = %s AND day = %s",
+            (title, guild_id, day),
+        )
 
     async def record_expressions(self, guild_id: int, names: Sequence[str]) -> None:
         """Count one use of each expression name, once per time it appears."""

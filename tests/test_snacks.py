@@ -1521,6 +1521,19 @@ async def test_a_snack_fills_wellbeing_by_eight_not_health(
     assert life.wellbeing == 58.0
 
 
+@pytest.mark.parametrize("key", ["sinewave", "cheese"])
+async def test_a_snack_is_counted_as_eaten_this_life(
+    bot: app.WispBot, key: str
+) -> None:
+    life = await lay(bot)
+    assert life.id is not None
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "cheese")
+
+    await eat(bot, key)
+
+    assert await bot.activity_log.most_eaten_snack(GUILD_ID, life.id) == key
+
+
 async def test_a_snack_restarts_the_wellbeing_stretch(bot: app.WispBot) -> None:
     life = await lay(bot)
     life.wellbeing_stretch = 10800.0

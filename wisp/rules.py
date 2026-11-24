@@ -453,6 +453,8 @@ PAID_SNACKS: tuple[Snack, ...] = tuple(snack for snack in SNACKS if snack.cost >
 # ---
 
 FAVORITE_SONGS_SHOWN = 3
+# The longest song title he keeps; `favorites.title` holds this many characters.
+SONG_TITLE_LIMIT = 200
 
 # ---
 # Gifts

@@ -565,3 +565,42 @@ async def test_create_tables_adds_cravings_beside_live_tables(db: Database) -> N
         f"SELECT guesses, ended_at, won, bought_at FROM {cravings} LIMIT 1"
     )
     assert row == {"guesses": "", "ended_at": None, "won": 0, "bought_at": None}
+
+
+@pytest.mark.parametrize(
+    ("table", "column", "insert"),
+    [
+        (
+            "favorites",
+            "title",
+            "(guild_id, day, user_id, track_key, url, picked_at) "
+            "VALUES (1, '2026-11-22', 2, 'viibr:x', 'https://viibrmusic.com/s/x', "
+            "'2026-11-23 00:05:00')",
+        ),
+        (
+            "interactions",
+            "snack",
+            "(guild_id, life_id, user_id, kind, bond, meal_points, at) "
+            "VALUES (1, 1, 2, 'snack', 1, 8, '2026-11-23 12:00:00')",
+        ),
+    ],
+)
+async def test_create_tables_adds_lunchbox_columns_to_live_tables(
+    db: Database, table: str, column: str, insert: str
+) -> None:
+    name = db.t(table)
+    await db.execute(f"INSERT INTO {name} {insert}")
+    await db.execute(f"ALTER TABLE {name} DROP COLUMN {column}")
+    try:
+        await create_tables(db)
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT user_id, {column} FROM {name}")
+        assert row == {"user_id": 2, column: None}
+    finally:
+        present = {
+            field["Field"] for field in await db.fetchall(f"SHOW COLUMNS FROM {name}")
+        }
+        if column not in present:
+            definition = schema._ADDED_COLUMNS[table][column]
+            await db.execute(f"ALTER TABLE {name} ADD COLUMN {column} {definition}")

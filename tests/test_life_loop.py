@@ -184,6 +184,9 @@ def bot(
     monkeypatch.setattr(app.WispBot, "user", WISP)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
+    monkeypatch.setattr(
+        wisp_bot.share_links, "song_title", AsyncMock(return_value=None)
+    )
     yield wisp_bot
 
 

@@ -435,13 +435,23 @@ roles Wisp made for badges no longer sold. A badge bought before it was
 retired stays in the buyer's Snack Pack. If Discord will not give the role,
 the purchase is undone and the points come back.
 - `/wisp lunchbox` (the **Lunchbox** button shows it to you alone) shows
-  Wisp's lunchbox: his favorite song of each day (picked
-  at random from that UTC day's viibrmusic.com tracks, newest three shown), the
-  favorite snack he picked when he hatched, the expression he uses most and
-  the gift collections of this life. Each song is its day and sharer, then a
-  numbered `#1 LISTEN HERE` link, and his favorite emoji shows its name in
-  code. It is one Components V2 message in Myra's emoji frame: her header
-  picture, then the text, closed by the `clef` line. It is posted publicly
+  Wisp's lunchbox, **WiSP'S FAVORITES**, in Myra's layout
+  (`DOCS/specs/2026-11-23-wisps-favorites-layout.md`): his top songs (his
+  favorite of each day, picked at random from that UTC day's viibrmusic.com
+  tracks, newest three shown, as `01 · NOV 13 — @member` over the song's
+  name and a `♫ listen here` link), his favorite snacks (the one he picked
+  when he hatched, then the one he ate most this life if it differs), the
+  expression he uses most with its name in code, and the gifts this life
+  kept as their emojis on one line, trimmed to fit. Every heading spells him
+  `WiSP`. Its emojis (`headerbarright`, `headerbar`, `headerbarleft`,
+  `wisp_waveform`, `boing_bass`, `portable_speaker`, `wisp_play`,
+  `wisp_pause`, `wisp_stop`, `mic2`) are Wisp's app emojis, and any not
+  uploaded is left out. It is one Components V2 message of text, with no
+  header picture. When he keeps a favorite he reads the song's name from the
+  JSON-LD of its viibrmusic.com page (a share link at the song it redirects
+  to) and keeps it; the Mealtime post names it. A page that cannot be read
+  is tried again the next time the lunchbox shows that song; one with no
+  name leaves the song unnamed. It is posted publicly
   where it was asked for, pinging nobody; asked for in the track drop,
   it is posted in Wisp's House instead (or shown only to the member when there
   is no House). Anyone can look, banned members included.
@@ -694,12 +704,12 @@ posts text only.
   full-size `mags/viibrations_mag.png` and `mags/musicNscience_mag.png`).
 - `vault.png`, `thumbs/mealtime.png`, `thumbs/jam_space.png` and
   `thumbs/faq.png`, the thumbnails of the Studio threads.
-- `stats_title.png`, `leaderboard_title.png`, `lunchbox_title.png`,
-  `snack_pack_title.png` and `vault_title.png`, Myra's header pictures above
-  the status card, the Leaderboard, Wisp's Lunchbox, the Snack Pack and the
-  Vault. Each menu is one message: its header picture, then the menu in the
-  emoji frame, closed by the frame's `clef` line, then its buttons. The old
-  footer picture, `box_footer.png`, is no longer used.
+- `stats_title.png`, `leaderboard_title.png`, `snack_pack_title.png` and
+  `vault_title.png`, Myra's header pictures above the status card, the
+  Leaderboard, the Snack Pack and the Vault. Each menu is one message: its
+  header picture, then the menu in the emoji frame, closed by the frame's
+  `clef` line, then its buttons. The old footer picture, `box_footer.png`,
+  and the old lunchbox header, `lunchbox_title.png`, are no longer used.
 - `faq/<NN>_<section>_<k>.png`, the Wisp FAQ's banner pictures, one per
   question: `00_how_wisp_works_1`, `01_basics_1` to `_4`, `02_feeding_1` to
   `_4`, `03_vault_1` to `_5`, `04_lunchbox_1` to `_3`, `05_bond_1` to `_3`,
