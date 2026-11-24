@@ -1,7 +1,8 @@
 """The slash command groups the cogs attach their commands to.
 
-`wisp` is the members' group. `wispadmin` holds only the slash forms of
-`!wisp setup` and `!wisp faq`; every other staff command is typed.
+`wisp` is the members' group. `wispadmin` holds the slash forms of
+`!wisp setup` and `!wisp faq`, and `moody` under it the moody phrases; every
+other staff command is typed.
 """
 
 from typing import Final
@@ -29,6 +30,9 @@ wispadmin = app_commands.Group(
     default_permissions=discord.Permissions(manage_guild=True),
     allowed_contexts=_GUILDS_ONLY,
     allowed_installs=_GUILD_INSTALL,
+)
+moody = app_commands.Group(
+    name="moody", description="Wisp's moody song phrases.", parent=wispadmin
 )
 
 

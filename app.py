@@ -40,6 +40,7 @@ from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
 from db.magazines import MagazineRepo
+from db.moody import MoodyRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.schema import create_tables
@@ -67,6 +68,8 @@ EXTENSIONS: tuple[str, ...] = (
     "cogs.rhyme_duel",
     "cogs.interaction",
     "cogs.feeding",
+    "cogs.moody",
+    "cogs.moody_staff",
     "cogs.conversation",
     "cogs.chores",
     "cogs.life_loop",
@@ -205,6 +208,7 @@ class WispBot(commands.Bot):
         self.magazines = MagazineRepo(self.db)
         self.drawings = DrawingRepo(self.db)
         self.cravings = CravingRepo(self.db)
+        self.moody = MoodyRepo(self.db)
         self.ai = chain_from_config()
         self.vision = vision_from_config()
         self.embedder = embedder_from_config()

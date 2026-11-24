@@ -16,7 +16,7 @@ import pymysql
 import pytest
 
 import app
-from cogs import discipline, feeding, groups, staff, studio
+from cogs import discipline, feeding, groups, moody_staff, staff, studio
 from db.database import Database
 from db.lives import LifeRepo
 from db.players import PlayerRepo
@@ -1086,7 +1086,7 @@ async def test_unban_strip_and_resetname(
 # ---
 
 
-def test_the_staff_slash_group_has_only_setup_and_faq() -> None:
+def test_the_staff_slash_group_has_setup_faq_and_the_moody_phrases() -> None:
     group = groups.wispadmin
     assert group.default_permissions == discord.Permissions(manage_guild=True)
     assert group.guild_only
@@ -1098,7 +1098,16 @@ def test_the_staff_slash_group_has_only_setup_and_faq() -> None:
         False,
     )
     names = {command.qualified_name for command in group.walk_commands()}
-    assert names == {"wispadmin setup", "wispadmin faq"}
+    assert names == {
+        "wispadmin setup",
+        "wispadmin faq",
+        "wispadmin moody",
+        "wispadmin moody add",
+        "wispadmin moody list",
+        "wispadmin moody remove",
+    }
+    assert group.get_command("moody") is groups.moody
+    assert groups.moody.get_command("add") is moody_staff.add_phrase
     assert group.get_command("setup") is studio.setup_slash
     assert group.get_command("faq") is studio.faq_slash
 

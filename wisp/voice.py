@@ -323,6 +323,12 @@ _MOOD_LAYERS: Final = {
     Mood.LONELY: (_LONELY, _BABY_LONELY),
 }
 
+_MOODY_PHRASE: Final = (
+    "You're in a bad way, and it bursts out of you. Work this exact phrase "
+    "into your reply, word for word, as your own grumpy outburst. Don't "
+    "quote it, credit it or say it's from a song:\n{phrase}"
+)
+
 _SEE_FAQ: Final = (
     " If anyone asks you something about your sickness that you're not sure of, "
     "tell them to look in the Wisp FAQ in Wisp's Studio. Don't guess."
@@ -888,6 +894,7 @@ def build_prompt(
     sight: Sight | None = None,
     story: str = "",
     memories: str = "",
+    moody_phrase: str | None = None,
 ) -> Prompt:
     """The prompt for Wisp's next line in his House, from Baby on.
 
@@ -904,7 +911,8 @@ def build_prompt(
     track drop for food (see `link_track_drop`). `sight` is the picture that
     came with `message`. `story` is what has really happened to him, from
     `wisp.story.life_story`. `memories` is what he recalls of past talk, from
-    `wisp.memories.memories_text`.
+    `wisp.memories.memories_text`. `moody_phrase` is a song line staff wrote
+    that he must say word for word as his own outburst (see `wisp.moody`).
 
     Raises:
         ValueError: `stage` is the Egg, who answers with `egg_prompt`.
@@ -932,6 +940,8 @@ def build_prompt(
             system.append(layer)
     if track_drop and not baby:
         system.append(_TRACK_DROP_NOTE)
+    if moody_phrase is not None:
+        system.append(_MOODY_PHRASE.format(phrase=moody_phrase))
     if story:
         system.append(story)
     if memories:

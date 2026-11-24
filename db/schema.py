@@ -258,6 +258,37 @@ _DEFINITIONS: dict[str, str] = {
         PRIMARY KEY (guild_id, user_id, day),
         INDEX idx_open (guild_id, ended_at)
     """,
+    "moody_phrases": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        stage VARCHAR(10) NOT NULL,
+        phrase VARCHAR(300) NOT NULL,
+        artist VARCHAR(100) NOT NULL,
+        song VARCHAR(100) NOT NULL,
+        year SMALLINT NOT NULL,
+        added_by BIGINT NOT NULL,
+        added_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_stage (guild_id, stage)
+    """,
+    "moody_rounds": """
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        guild_id BIGINT NOT NULL,
+        message_id BIGINT NULL,
+        phrase_id BIGINT NOT NULL,
+        option_1 BIGINT NOT NULL,
+        option_2 BIGINT NOT NULL,
+        option_3 BIGINT NOT NULL,
+        winner_id BIGINT NULL,
+        opened_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX idx_guild_opened (guild_id, opened_at)
+    """,
+    "moody_guesses": """
+        round_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        PRIMARY KEY (round_id, user_id)
+    """,
     "data_fixes": """
         name VARCHAR(40) NOT NULL,
         applied_at DATETIME NOT NULL,
