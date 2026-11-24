@@ -328,6 +328,11 @@ RHYME_TURN = timedelta(seconds=15)
 RHYME_PERFECT_POINTS = 2
 RHYME_SLANT_POINTS = 1
 RHYME_OPENER_RHYMES = 8
+# Spanish and French openers also need this many letters, and are never among
+# the first RHYME_OPENER_SKIP_TOP (most frequent) words of their list, so a
+# function word like "la" or "que" never opens a duel.
+RHYME_OPENER_MIN_LETTERS = 4
+RHYME_OPENER_SKIP_TOP = 150
 MAX_WORD_LENGTH = 30
 
 # Wisp's first turns in a duel, by stage, on which he always finds a rhyme

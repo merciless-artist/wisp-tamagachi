@@ -113,6 +113,7 @@ _DEFINITIONS: dict[str, str] = {
         banned_forever BOOL NOT NULL DEFAULT 0,
         room_thread_id BIGINT NULL,
         room_pack_message_id BIGINT NULL,
+        rhyme_language VARCHAR(2) NULL,
         PRIMARY KEY (guild_id, user_id)
     """,
     "feeds": """
@@ -274,6 +275,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "best_rhyme_score": "INT NOT NULL DEFAULT 0",
         "room_thread_id": "BIGINT NULL",
         "room_pack_message_id": "BIGINT NULL",
+        "rhyme_language": "VARCHAR(2) NULL",
     },
     "inventory": {"won": "INT NOT NULL DEFAULT 0"},
     "settings": {

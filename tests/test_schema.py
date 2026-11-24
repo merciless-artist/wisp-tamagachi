@@ -523,6 +523,30 @@ async def test_create_tables_adds_room_columns_to_a_live_players_table(
                 )
 
 
+async def test_create_tables_adds_rhyme_language_to_a_live_players_table(
+    db: Database,
+) -> None:
+    players = db.t("players")
+    await db.execute(f"INSERT INTO {players} (guild_id, user_id) VALUES (1, 1)")
+    await db.execute(f"ALTER TABLE {players} DROP COLUMN rhyme_language")
+    try:
+        await create_tables(db)
+        await create_tables(db)
+
+        row = await db.fetchone(f"SELECT rhyme_language FROM {players}")
+        assert row == {"rhyme_language": None}
+    finally:
+        present = {
+            column["Field"]
+            for column in await db.fetchall(f"SHOW COLUMNS FROM {players}")
+        }
+        if "rhyme_language" not in present:
+            await db.execute(
+                f"ALTER TABLE {players} ADD COLUMN rhyme_language "
+                f"{schema._ADDED_COLUMNS['players']['rhyme_language']}"
+            )
+
+
 async def test_create_tables_adds_won_to_a_live_inventory_table(
     db: Database,
 ) -> None:

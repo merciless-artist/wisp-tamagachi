@@ -470,7 +470,9 @@ the purchase is undone and the points come back.
 - `/wisp play rhyme` (also Games, then **Rhyme Duel**, on the Interaction
   post) starts a Rhyme Duel with Wisp in your storage locker. A duel that counts as play
   (a scored rhyme, a member who can feed Wisp, at most 5 a day) fills his
-  Wellbeing and pays 1 Vault point.
+  Wellbeing and pays 1 Vault point. `/wisp play rhyme language:` (English,
+  Español or Français) saves that language and starts a duel in it (see
+  Rhyme Duel languages below).
 - `/wisp play craving` (also Games, then **Wisp's Craving**) starts today's
   Wisp's Craving in your storage locker (see below).
 
@@ -494,6 +496,54 @@ also posts it in your room and pins it, deleting the last one. So each open
 adds a new message and a pin notice to the room (see the build notes in
 `DOCS/specs/2026-11-23-rooms-and-wisps-craving-design.md`). When a room
 cannot be made, the error is posted and the room is tried again next time.
+
+## Rhyme Duel languages
+
+A Rhyme Duel can be played in English, Español or Français. The first time a
+member starts one (`players.rhyme_language` is still NULL), Wisp posts a
+picker in their storage locker with three buttons, English, Español and Français, and
+the private reply points there. Posting it does not hold the storage locker. Until they
+pick, every start posts the picker again; nothing is guessed. Pressing a
+button runs the same start as `/wisp play rhyme language:`: every refusal is
+checked again, and only then is the language saved (by Discord ID) and the
+picker edited to a one-line note with no buttons, before the duel starts.
+Only the member can press their own buttons. After that, `/wisp play rhyme`
+and the Play menu use the saved language, and `language:` changes it.
+
+In the chosen language Wisp checks the rhymes, picks his opener and answers,
+says his start and stuck lines, and gives the verdicts and the score line.
+The receipt, the private replies and the refusals stay English, since their
+reasons are shared with feeding and the Craving. Scoring is the same in every
+language (perfect 2, slant 1), and there is one best score per member across
+all three.
+
+- **English** is unchanged: the CMU dictionary and `wisp/data/common_words.txt`.
+  The only change is cleaner input: curly quotes and edge punctuation such as
+  `«hat»` or `hat !` are stripped.
+- **Spanish** (`wisp/rhymes_es.py`) reads stress and sound from spelling.
+  Perfect is rima consonante (`canción`/`corazón`), slant is rima asonante
+  (`casa`/`cama`). Homophones (`casa`/`caza`) are not rhymes.
+- **French** (`wisp/rhymes_fr.py`) reads phones from spelling, with a table
+  of exceptions and elision (`l'été` reads `été`). Perfect is rime suffisante
+  or better (`parler`/`aller`), slant is rime pauvre or assonance
+  (`chanter`/`parler`). Whether a final `-ent` is silent comes from
+  `wisp/data/silent_ent_fr.txt`.
+- **Known words.** Spanish and French accept only words in
+  `wisp/data/known_words_<es|fr>.txt`, which rejects nonsense (`xuego`,
+  `blorp'été`) the way CMU does for English.
+- **No accents needed.** `wisp/data/accents_<es|fr>.txt` maps an unaccented
+  spelling to its accented forms, so `cancion` reads as `canción` and
+  `garcon` as `garçon`. `corazon` after `corazón` counts as already used.
+- **Openers** in Spanish and French need 8 perfect rhymes
+  (`RHYME_OPENER_RHYMES`), at least `RHYME_OPENER_MIN_LETTERS` letters, and
+  must not be among the first `RHYME_OPENER_SKIP_TOP` words of
+  `common_words_<es|fr>.txt`.
+
+The word lists are built offline with the dev-only `wordfreq` package and
+committed; the bot reads only `wisp/data/`. Rebuild one from the repo root
+with `python -m tools.build_common_words <en|es|fr>`. It prints what it
+keeps for review; the English rebuild must leave `common_words.txt`
+byte-identical.
 
 ## Wisp's Craving
 

@@ -9,8 +9,18 @@ from typing import Any
 
 import pytest
 
+from wisp.language import Language
 from wisp.life import Mood
-from wisp.lines import CRAVING_HINTS, FIELDS, LINES, LinePicker, Moment, lines_for
+from wisp.lines import (
+    CRAVING_HINTS,
+    FIELDS,
+    LINES,
+    RHYME_MOMENTS,
+    LinePicker,
+    Moment,
+    RhymeMoments,
+    lines_for,
+)
 from wisp.rules import PAID_SNACKS, SNACK_BY_KEY, SNACKS, Stage
 
 SAMPLE_FIELDS = {
@@ -371,9 +381,52 @@ def test_fields_cover_every_moment() -> None:
 
 
 def test_rhyme_start_lines_say_the_word() -> None:
-    for mood in Mood:
-        for line in lines_for(Moment.RHYME_START, mood):
-            assert placeholders(line) == {"word"}, line
+    for moments in RHYME_MOMENTS.values():
+        for mood in Mood:
+            for line in lines_for(moments.start, mood):
+                assert placeholders(line) == {"word"}, line
+
+
+# ---
+# The Rhyme Duel in each language
+# ---
+
+
+def rhyme_lines(language: Language) -> list[str]:
+    return [
+        line
+        for moment in RHYME_MOMENTS[language]
+        for mood in Mood
+        for line in lines_for(moment, mood)
+    ]
+
+
+def test_every_language_has_rhyme_moments() -> None:
+    assert set(RHYME_MOMENTS) == set(Language)
+    assert RHYME_MOMENTS[Language.EN] == RhymeMoments(
+        Moment.RHYME_START, Moment.RHYME_WISP_STUCK, Moment.RHYME_PLAYER_STUCK
+    )
+    every = [moment for moments in RHYME_MOMENTS.values() for moment in moments]
+    assert len(every) == len(set(every))
+
+
+@pytest.mark.parametrize("language", [Language.ES, Language.FR])
+def test_the_stuck_lines_take_no_fields(language: Language) -> None:
+    moments = RHYME_MOMENTS[language]
+    assert FIELDS[moments.wisp_stuck] == FIELDS[moments.player_stuck] == set()
+
+
+@pytest.mark.parametrize("language", [Language.ES, Language.FR])
+def test_rhyme_lines_are_lowercase_at_the_start(language: Language) -> None:
+    for line in rhyme_lines(language):
+        first = line.lstrip("¡¿{")[0]
+        assert not first.isupper(), line
+
+
+def test_french_lines_use_plain_spaces() -> None:
+    for line in rhyme_lines(Language.FR):
+        assert " " not in line and " " not in line, line
+        assert not re.search(r"[^ ][!?:]", line), line
 
 
 @pytest.mark.parametrize(

@@ -2,8 +2,9 @@
 
 import random
 from enum import StrEnum, auto
-from typing import Final
+from typing import Final, NamedTuple
 
+from wisp.language import Language
 from wisp.life import Mood
 
 # ---
@@ -44,6 +45,12 @@ class Moment(StrEnum):
     RHYME_START = auto()
     RHYME_WISP_STUCK = auto()
     RHYME_PLAYER_STUCK = auto()
+    RHYME_START_ES = auto()
+    RHYME_WISP_STUCK_ES = auto()
+    RHYME_PLAYER_STUCK_ES = auto()
+    RHYME_START_FR = auto()
+    RHYME_WISP_STUCK_FR = auto()
+    RHYME_PLAYER_STUCK_FR = auto()
     EGG_POKE = auto()
     BABY_TALK = auto()
     CHAT_FALLBACK = auto()
@@ -125,6 +132,12 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.RHYME_START: frozenset({"word"}),
     Moment.RHYME_WISP_STUCK: _NONE,
     Moment.RHYME_PLAYER_STUCK: _NONE,
+    Moment.RHYME_START_ES: frozenset({"word"}),
+    Moment.RHYME_WISP_STUCK_ES: _NONE,
+    Moment.RHYME_PLAYER_STUCK_ES: _NONE,
+    Moment.RHYME_START_FR: frozenset({"word"}),
+    Moment.RHYME_WISP_STUCK_FR: _NONE,
+    Moment.RHYME_PLAYER_STUCK_FR: _NONE,
     Moment.EGG_POKE: _NONE,
     Moment.BABY_TALK: _NONE,
     Moment.CHAT_FALLBACK: _NONE,
@@ -971,6 +984,108 @@ _RHYME_PLAYER_STUCK_HANGRY = (
 )
 
 # ---
+# Rhyme Duel in Spanish
+# ---
+
+_RHYME_START_ES_HAPPY = (
+    "¡a rimar! empiezo yo con {word}",
+    "ok, ok, ok. mi palabra es {word}. te toca",
+    "calentando la voz... {word}. dale",
+    "a ver qué tienes. rima con {word}",
+    "practiqué frente al espejo. {word}. supera eso",
+    "audífonos puestos, cara de juego. {word}",
+)
+
+_RHYME_START_ES_HANGRY = (
+    "rápido, tengo hambre. rima con {word}",
+    "bueno, un duelo y luego comida. {word}",
+    "rimando con la panza vacía. ahí va: {word}",
+    "me muero de hambre, pero no me rindo. {word}",
+    "{word}. dale, antes de que me desmaye",
+)
+
+_RHYME_WISP_STUCK_ES_HAPPY = (
+    "uy, me quedé sin rimas. ¡ganaste esta!",
+    "mi cerebro se quedó en silencio. vale, me ganaste",
+    "nada. cero rimas. ¿cómo LO hiciste?",
+    "me rindo. voy a anotar esa palabra para que me persiga",
+    "sin rima, sin palabras. solo respeto",
+)
+
+_RHYME_WISP_STUCK_ES_HANGRY = (
+    "nada. mi cerebro va en reserva. ganaste",
+    "no puedo pensar, tengo demasiada hambre. esa es tuya",
+    "sin rimas y sin bocadillos. qué día de mierda",
+    "en blanco. vacío. como mi panza. ganaste",
+)
+
+_RHYME_PLAYER_STUCK_ES_HAPPY = (
+    "¡ja! ¿sin rimas? me la llevo",
+    "¡se acabó! buen duelo igual",
+    "¡y fin del duelo! casi lo logras",
+    "te gané. revancha cuando quieras",
+    "y el micro vuelve a mí. buena partida",
+)
+
+_RHYME_PLAYER_STUCK_ES_HANGRY = (
+    "gané con la panza vacía. imagíname bien comido",
+    "listo. buena partida. ahora que alguien me dé de comer",
+    "te gané muerto de hambre. eso tiene que doler",
+    "se acabó el duelo. mi panza sigue siendo lo más ruidoso aquí",
+)
+
+# ---
+# Rhyme Duel in French
+# ---
+
+_RHYME_START_FR_HAPPY = (
+    "on rime ! je commence avec {word}",
+    "ok ok ok. mon mot, c'est {word}. à toi",
+    "j'échauffe ma voix... {word}. vas-y",
+    "voyons ce que tu vaux. rime avec {word}",
+    "je me suis entraîné devant le miroir. {word}. fais mieux",
+    "casque sur les oreilles, regard de champion. {word}",
+)
+
+_RHYME_START_FR_HANGRY = (
+    "vite, j'ai faim. rime avec {word}",
+    "bon. un duel, et après on mange. {word}",
+    "rimer le ventre vide. allez, c'est parti : {word}",
+    "je meurs de faim, mais je lâche rien. {word}",
+    "{word}. vas-y, avant que je tombe dans les pommes",
+)
+
+_RHYME_WISP_STUCK_FR_HAPPY = (
+    "oh non, je sèche. tu as gagné celle-là !",
+    "mon cerveau vient de se taire. ok, tu m'as eu",
+    "plus une seule rime. comment t'as FAIT ça ?",
+    "je cale. je note ce mot pour qu'il me hante plus tard",
+    "pas de rime. pas de mots. juste du respect",
+)
+
+_RHYME_WISP_STUCK_FR_HANGRY = (
+    "rien. mon cerveau tourne à vide. tu gagnes",
+    "je peux pas réfléchir, j'ai trop faim. celle-là est pour toi",
+    "plus de rimes et plus de goûter. journée de merde",
+    "le vide. complet. comme mon ventre. tu gagnes",
+)
+
+_RHYME_PLAYER_STUCK_FR_HAPPY = (
+    "ha ! plus de rimes ? je prends",
+    "c'est fini ! beau duel quand même",
+    "et c'est la fin du duel ! t'y étais presque",
+    "je t'ai eu. revanche quand tu veux",
+    "et le micro me revient. bien joué",
+)
+
+_RHYME_PLAYER_STUCK_FR_HANGRY = (
+    "gagné le ventre vide. imagine si j'avais mangé",
+    "fini. bien joué. maintenant, quelqu'un me nourrit ?",
+    "je t'ai battu en crevant de faim. ça doit piquer",
+    "duel terminé. mon ventre reste le plus bruyant ici",
+)
+
+# ---
 # Wisp's Craving
 # ---
 
@@ -1288,6 +1403,18 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     (Moment.RHYME_WISP_STUCK, Mood.HANGRY): _RHYME_WISP_STUCK_HANGRY,
     (Moment.RHYME_PLAYER_STUCK, Mood.HAPPY): _RHYME_PLAYER_STUCK_HAPPY,
     (Moment.RHYME_PLAYER_STUCK, Mood.HANGRY): _RHYME_PLAYER_STUCK_HANGRY,
+    (Moment.RHYME_START_ES, Mood.HAPPY): _RHYME_START_ES_HAPPY,
+    (Moment.RHYME_START_ES, Mood.HANGRY): _RHYME_START_ES_HANGRY,
+    (Moment.RHYME_WISP_STUCK_ES, Mood.HAPPY): _RHYME_WISP_STUCK_ES_HAPPY,
+    (Moment.RHYME_WISP_STUCK_ES, Mood.HANGRY): _RHYME_WISP_STUCK_ES_HANGRY,
+    (Moment.RHYME_PLAYER_STUCK_ES, Mood.HAPPY): _RHYME_PLAYER_STUCK_ES_HAPPY,
+    (Moment.RHYME_PLAYER_STUCK_ES, Mood.HANGRY): _RHYME_PLAYER_STUCK_ES_HANGRY,
+    (Moment.RHYME_START_FR, Mood.HAPPY): _RHYME_START_FR_HAPPY,
+    (Moment.RHYME_START_FR, Mood.HANGRY): _RHYME_START_FR_HANGRY,
+    (Moment.RHYME_WISP_STUCK_FR, Mood.HAPPY): _RHYME_WISP_STUCK_FR_HAPPY,
+    (Moment.RHYME_WISP_STUCK_FR, Mood.HANGRY): _RHYME_WISP_STUCK_FR_HANGRY,
+    (Moment.RHYME_PLAYER_STUCK_FR, Mood.HAPPY): _RHYME_PLAYER_STUCK_FR_HAPPY,
+    (Moment.RHYME_PLAYER_STUCK_FR, Mood.HANGRY): _RHYME_PLAYER_STUCK_FR_HANGRY,
     (Moment.BABY_TALK, Mood.HAPPY): _BABY_TALK_HAPPY,
     (Moment.BABY_TALK, Mood.HANGRY): _BABY_TALK_HANGRY,
     (Moment.BABY_TALK, Mood.LONELY): _BABY_TALK_LONELY,
@@ -1376,6 +1503,32 @@ def lines_for(moment: Moment, mood: Mood) -> tuple[str, ...]:
     A moment with no lonely lines of its own falls back to its happy lines.
     """
     return LINES[_key(moment, mood)]
+
+
+# ---
+# Rhyme Duel moments per language
+# ---
+
+
+class RhymeMoments(NamedTuple):
+    """The moments a Rhyme Duel speaks in one language."""
+
+    start: Moment
+    wisp_stuck: Moment
+    player_stuck: Moment
+
+
+RHYME_MOMENTS: Final[dict[Language, RhymeMoments]] = {
+    Language.EN: RhymeMoments(
+        Moment.RHYME_START, Moment.RHYME_WISP_STUCK, Moment.RHYME_PLAYER_STUCK
+    ),
+    Language.ES: RhymeMoments(
+        Moment.RHYME_START_ES, Moment.RHYME_WISP_STUCK_ES, Moment.RHYME_PLAYER_STUCK_ES
+    ),
+    Language.FR: RhymeMoments(
+        Moment.RHYME_START_FR, Moment.RHYME_WISP_STUCK_FR, Moment.RHYME_PLAYER_STUCK_FR
+    ),
+}
 
 
 # ---
