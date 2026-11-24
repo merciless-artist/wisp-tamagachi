@@ -19,6 +19,7 @@ from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
 from wisp.bond import PickleStance
+from wisp.language import Language
 from wisp.life import EventKind, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import COAL_EGG_FOOD, NOTE_MAX_CHARS, NOTES_KEPT, WELLBEING_START, Stage
@@ -571,6 +572,18 @@ async def test_pickle_stance_round_trip(db: Database) -> None:
 
     await repo.set_pickle_stance(GUILD, USER, None)
     assert (await repo.get(GUILD, USER)).pickle_stance is None
+
+
+async def test_rhyme_language_starts_unset_and_is_saved(db: Database) -> None:
+    repo = PlayerRepo(db)
+    assert (await repo.get(GUILD, USER)).rhyme_language is None
+
+    await repo.set_rhyme_language(GUILD, USER, Language.FR)
+    assert (await repo.get(GUILD, USER)).rhyme_language is Language.FR
+    assert (await repo.get(GUILD, OTHER_USER)).rhyme_language is None
+
+    await repo.set_rhyme_language(GUILD, USER, Language.ES)
+    assert (await repo.get(GUILD, USER)).rhyme_language is Language.ES
 
 
 async def test_offense_round_trip(db: Database) -> None:

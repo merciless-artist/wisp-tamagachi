@@ -7,9 +7,11 @@ from pathlib import Path
 import pronouncing
 import pytest
 
+from wisp.language import Language
 from wisp.rhymes import (
     RhymeKind,
     clean_word,
+    fold,
     opening_word,
     rhyme_chance,
     rhyme_kind,
@@ -38,6 +40,7 @@ JUNK = {
 }  # fmt: skip
 HATCHED = [Stage.BABY, Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 TRIALS = 1000
+LEAF = Path(__file__).resolve().parent.parent / "wisp/rhyme_keys.py"
 
 
 def reply_rate(stage: Stage, turn: int | None = None) -> float:
@@ -45,7 +48,8 @@ def reply_rate(stage: Stage, turn: int | None = None) -> float:
     rng = random.Random(15)
     turn = RHYME_SURE_TURNS[stage] + 1 if turn is None else turn
     hits = sum(
-        wisp_reply("day", {"day"}, stage, turn, rng) is not None for _ in range(TRIALS)
+        wisp_reply("day", {"day"}, stage, turn, rng, language=Language.EN) is not None
+        for _ in range(TRIALS)
     )
     return hits / TRIALS
 
@@ -57,27 +61,27 @@ def reply_rate(stage: Stage, turn: int | None = None) -> float:
 
 @pytest.mark.parametrize(("first", "second"), [("fire", "choir"), ("cat", "hat")])
 def test_perfect_rhyme(first: str, second: str) -> None:
-    assert rhyme_kind(first, second) is RhymeKind.PERFECT
-    assert rhyme_kind(second, first) is RhymeKind.PERFECT
+    assert rhyme_kind(first, second, language=Language.EN) is RhymeKind.PERFECT
+    assert rhyme_kind(second, first, language=Language.EN) is RhymeKind.PERFECT
 
 
 def test_slant_rhyme() -> None:
-    assert rhyme_kind("fire", "mine") is RhymeKind.SLANT
-    assert rhyme_kind("mine", "fire") is RhymeKind.SLANT
+    assert rhyme_kind("fire", "mine", language=Language.EN) is RhymeKind.SLANT
+    assert rhyme_kind("mine", "fire", language=Language.EN) is RhymeKind.SLANT
 
 
 def test_not_a_rhyme() -> None:
-    assert rhyme_kind("fire", "water") is None
+    assert rhyme_kind("fire", "water", language=Language.EN) is None
 
 
 @pytest.mark.parametrize(("first", "second"), [("fire", "zzqx"), ("blorptang", "hat")])
 def test_unknown_word_rejected(first: str, second: str) -> None:
-    assert rhyme_kind(first, second) is None
+    assert rhyme_kind(first, second, language=Language.EN) is None
 
 
 @pytest.mark.parametrize(("first", "second"), [("fire", "fire"), ("Fire", "fire")])
 def test_same_word_rejected(first: str, second: str) -> None:
-    assert rhyme_kind(first, second) is None
+    assert rhyme_kind(first, second, language=Language.EN) is None
 
 
 @pytest.mark.parametrize(
@@ -85,12 +89,12 @@ def test_same_word_rejected(first: str, second: str) -> None:
     [("right", "write"), ("night", "knight"), ("to", "two"), ("flower", "flour")],
 )
 def test_homophones_are_not_rhymes(first: str, second: str) -> None:
-    assert rhyme_kind(first, second) is None
-    assert rhyme_kind(second, first) is None
+    assert rhyme_kind(first, second, language=Language.EN) is None
+    assert rhyme_kind(second, first, language=Language.EN) is None
 
 
 def test_stress_level_does_not_break_a_rhyme() -> None:
-    assert rhyme_kind("day", "birthday") is RhymeKind.PERFECT
+    assert rhyme_kind("day", "birthday", language=Language.EN) is RhymeKind.PERFECT
 
 
 def test_scores() -> None:
@@ -115,7 +119,90 @@ def test_scores() -> None:
     ],
 )
 def test_clean_word(text: str, word: str | None) -> None:
-    assert clean_word(text) == word
+    assert clean_word(text, language=Language.EN) == word
+
+
+@pytest.mark.parametrize(
+    ("text", "word"),
+    [
+        ("«hat»", "hat"),
+        ("hat !", "hat"),
+        ("hat\u202f!", "hat"),
+        ("\u00a0hat\u00a0", "hat"),
+        ("¡hat…", "hat"),
+        ("“hat”", "hat"),
+        ("don’t", "don't"),
+        pytest.param("he\u0301llo", None, id="nfc-keeps-english-ascii"),
+    ],
+)
+def test_clean_word_strips_unicode_edges(text: str, word: str | None) -> None:
+    assert clean_word(text, language=Language.EN) == word
+
+
+def _old_rhyme_kind(first: str, second: str) -> RhymeKind | None:
+    """The English rule before languages, kept here to prove nothing changed."""
+
+    def rhyme_part(phones: str) -> tuple[str, ...]:
+        split = phones.split()
+        vowels = [index for index, phone in enumerate(split) if phone[-1].isdigit()]
+        stressed = [index for index in vowels if split[index][-1] in "12"]
+        start = (stressed or vowels or [0])[-1]
+        return tuple(phone.rstrip("012") for phone in split[start:])
+
+    def sounds(word: str) -> set[tuple[str, ...]]:
+        return {
+            tuple(phone.rstrip("012") for phone in phones.split())
+            for phones in pronouncing.phones_for_word(word)
+        }
+
+    if first == second or sounds(first) & sounds(second):
+        return None
+    first_rhymes = {rhyme_part(phones) for phones in pronouncing.phones_for_word(first)}
+    second_rhymes = {
+        rhyme_part(phones) for phones in pronouncing.phones_for_word(second)
+    }
+    if first_rhymes & second_rhymes:
+        return RhymeKind.PERFECT
+    if {rhyme[0] for rhyme in first_rhymes} & {rhyme[0] for rhyme in second_rhymes}:
+        return RhymeKind.SLANT
+    return None
+
+
+def test_english_keys_match_the_old_rhyme_kind() -> None:
+    rng = random.Random(7)
+    kinds = set()
+    for _ in range(2000):
+        first, second = rng.choice(COMMON), rng.choice(COMMON)
+        kind = rhyme_kind(first, second, language=Language.EN)
+        assert kind is _old_rhyme_kind(first, second), (first, second)
+        kinds.add(kind)
+    assert kinds == {None, RhymeKind.SLANT, RhymeKind.PERFECT}
+
+
+@pytest.mark.parametrize(
+    ("word", "language", "folded"),
+    [
+        ("corazón", Language.ES, "corazon"),
+        ("pingüino", Language.ES, "pinguino"),
+        ("año", Language.ES, "año"),
+        ("ça", Language.FR, "ca"),
+        ("garçon", Language.FR, "garcon"),
+        ("cœur", Language.FR, "coeur"),
+        ("ex-æquo", Language.FR, "ex-aequo"),
+        ("maïs", Language.FR, "mais"),
+        ("forêt", Language.FR, "foret"),
+        ("à", Language.FR, "a"),
+        ("ca\u0301ncion", Language.ES, "cancion"),
+        ("choir", Language.EN, "choir"),
+    ],
+)
+def test_fold_per_language(word: str, language: Language, folded: str) -> None:
+    assert fold(word, language=language) == folded
+
+
+def test_rhyme_keys_is_a_leaf_module() -> None:
+    source = LEAF.read_text(encoding="utf-8")
+    assert not re.search(r"^\s*(from|import)\s+wisp\.rhymes", source, re.MULTILINE)
 
 
 # ---
@@ -128,17 +215,19 @@ def test_wisp_never_repeats() -> None:
     used = {"day"}
     replies = []
     for _ in range(200):
-        reply = wisp_reply("day", used, Stage.ROCKSTAR, 1, rng)
+        reply = wisp_reply("day", used, Stage.ROCKSTAR, 1, rng, language=Language.EN)
         if reply is not None:
             assert reply not in used
-            assert rhyme_kind("day", reply) is RhymeKind.PERFECT
+            assert rhyme_kind("day", reply, language=Language.EN) is RhymeKind.PERFECT
             used.add(reply)
             replies.append(reply)
     assert len(replies) > 20
     assert set(replies) <= set(COMMON)
     everything = used | set(COMMON)
     assert all(
-        wisp_reply("day", everything, Stage.ROCKSTAR, 1, rng) is None for _ in range(20)
+        wisp_reply("day", everything, Stage.ROCKSTAR, 1, rng, language=Language.EN)
+        is None
+        for _ in range(20)
     )
 
 
@@ -150,7 +239,7 @@ def test_wisp_never_answers_with_a_homophone(word: str, homophone: str) -> None:
     rng = random.Random(9)
     used = {word}
     for _ in range(300):
-        reply = wisp_reply(word, used, Stage.ROCKSTAR, 1, rng)
+        reply = wisp_reply(word, used, Stage.ROCKSTAR, 1, rng, language=Language.EN)
         if reply is not None:
             used.add(reply)
     assert homophone not in used
@@ -158,7 +247,17 @@ def test_wisp_never_answers_with_a_homophone(word: str, homophone: str) -> None:
 
 
 def test_wisp_has_nothing_for_an_unknown_word() -> None:
-    assert wisp_reply("blorptang", set(), Stage.ROCKSTAR, 1, random.Random(1)) is None
+    assert (
+        wisp_reply(
+            "blorptang",
+            set(),
+            Stage.ROCKSTAR,
+            1,
+            random.Random(1),
+            language=Language.EN,
+        )
+        is None
+    )
 
 
 def test_wisp_reply_rate_rises_with_stage() -> None:
@@ -192,9 +291,11 @@ def test_the_child_gets_three_sure_turns() -> None:
 
 def test_opening_word_has_plenty_of_rhymes() -> None:
     for seed in range(20):
-        word = opening_word(random.Random(seed))
+        word = opening_word(random.Random(seed), language=Language.EN)
         rhymes = [
-            other for other in COMMON if rhyme_kind(word, other) is RhymeKind.PERFECT
+            other
+            for other in COMMON
+            if rhyme_kind(word, other, language=Language.EN) is RhymeKind.PERFECT
         ]
         assert word in COMMON
         assert len(rhymes) >= RHYME_OPENER_RHYMES
@@ -202,7 +303,7 @@ def test_opening_word_has_plenty_of_rhymes() -> None:
 
 def test_opening_word_varies() -> None:
     rng = random.Random(8)
-    assert len({opening_word(rng) for _ in range(20)}) > 10
+    assert len({opening_word(rng, language=Language.EN) for _ in range(20)}) > 10
 
 
 # ---

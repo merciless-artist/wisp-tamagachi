@@ -1,10 +1,11 @@
-"""Storage for players: activation, points, bond, names, bans, rhyme scores, rooms."""
+"""Storage for players: activation, points, bond, names, bans, rhymes, rooms."""
 
 from dataclasses import dataclass, fields
 from datetime import datetime
 
 from db.database import Database, Params, Row, from_db_time, to_db_time
 from wisp.bond import PickleStance, reached_new_tier
+from wisp.language import Language
 
 
 @dataclass
@@ -25,6 +26,7 @@ class Player:
     best_rhyme_score: int = 0
     room_thread_id: int | None = None
     room_pack_message_id: int | None = None
+    rhyme_language: Language | None = None
 
     def is_banned(self, now: datetime) -> bool:
         """Whether the player is banned from Wisp at `now`."""
@@ -38,10 +40,12 @@ _SELECT = f"SELECT {', '.join(field.name for field in fields(Player))} FROM"
 
 def _from_row(row: Row) -> Player:
     stance = row["pickle_stance"]
+    language = row["rhyme_language"]
     return Player(
         **{
             **row,
             "pickle_stance": None if stance is None else PickleStance(stance),
+            "rhyme_language": None if language is None else Language(language),
             "activated_at": from_db_time(row["activated_at"]),
             "met_at": from_db_time(row["met_at"]),
             "banned_until": from_db_time(row["banned_until"]),
@@ -178,6 +182,12 @@ class PlayerRepo:
             (score, guild_id, user_id, score),
         )
         return changed == 1
+
+    async def set_rhyme_language(
+        self, guild_id: int, user_id: int, language: Language
+    ) -> None:
+        """Set the language the player's Rhyme Duels are played in."""
+        await self._update(guild_id, user_id, "rhyme_language = %s", (language.value,))
 
     async def top_rhyme(self, guild_id: int, limit: int) -> list[Player]:
         """Return the players with a Rhyme Duel score, best score first."""

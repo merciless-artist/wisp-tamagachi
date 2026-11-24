@@ -31,6 +31,7 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
+from wisp.language import Language
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.rules import (
@@ -214,7 +215,7 @@ def vault(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 @pytest.fixture(autouse=True)
 def opener(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(rhyme_duel, "opening_word", lambda _rng: "fire")
+    monkeypatch.setattr(rhyme_duel, "opening_word", lambda _rng, *, language: "fire")
 
 
 @pytest.fixture
@@ -226,9 +227,15 @@ def wisp_says(monkeypatch: pytest.MonkeyPatch) -> Callable[..., list[Any]]:
         queue = list(replies)
 
         def reply(
-            word: str, used: set[str], stage: Stage, turn: int, rng: random.Random
+            word: str,
+            used: set[str],
+            stage: Stage,
+            turn: int,
+            rng: random.Random,
+            *,
+            language: Language,
         ) -> str | None:
-            asked.append((word, set(used), stage, turn))
+            asked.append((word, set(used), stage, turn, language))
             return queue.pop(0)
 
         monkeypatch.setattr(rhyme_duel, "wisp_reply", reply)
@@ -348,8 +355,8 @@ async def test_duel_scores_perfect_and_slant(
     assert chain == "・fire ・ choir ・ higher ・ mine"
     assert points == "・Score: 3 points"
     assert asked == [
-        ("choir", {"fire", "choir"}, Stage.BABY, 1),
-        ("mine", {"fire", "choir", "higher", "mine"}, Stage.BABY, 2),
+        ("choir", {"fire", "choir"}, Stage.BABY, 1, Language.EN),
+        ("mine", {"fire", "choir", "higher", "mine"}, Stage.BABY, 2, Language.EN),
     ]
     server.thread.edit.assert_not_awaited()
 

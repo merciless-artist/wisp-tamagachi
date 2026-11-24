@@ -28,9 +28,17 @@ from cogs.players import (
 )
 from cogs.vault import refresh_vault
 from db.activity import InteractionKind
+from wisp.language import Language
 from wisp.life import Life, Phase, mood
 from wisp.lines import Moment
-from wisp.rhymes import clean_word, opening_word, rhyme_kind, score, wisp_reply
+from wisp.rhymes import (
+    clean_word,
+    opening_word,
+    rhyme_kind,
+    same_word_key,
+    score,
+    wisp_reply,
+)
 from wisp.rules import PLAYS_PER_DAY, RHYME_TURN
 from wisp.text import (
     MESSAGE_LIMIT,
@@ -82,13 +90,16 @@ async def _duel(
     user_id: int,
     life: Life,
     rng: random.Random,
+    language: Language,
 ) -> _Outcome:
-    """Trade rhymes until someone is stuck; only the player's messages count.
+    """Trade rhymes in `language` until someone is stuck; only the player's
+    messages count.
 
     Wisp opens with a word, then each turn the player must answer with one
-    unused word that rhymes with the last one, within RHYME_TURN.
+    unused word that rhymes with the last one, within RHYME_TURN. A word is
+    used when any spelling of it was said.
     """
-    chain = [opening_word(rng)]
+    chain = [opening_word(rng, language=language)]
     points = 0
     opener = bot.lines.pick(Moment.RHYME_START, mood(life), word=_bold(chain[0]))
     await thread.send(
@@ -106,19 +117,22 @@ async def _duel(
             )
         except TimeoutError:
             return _Outcome(Moment.RHYME_PLAYER_STUCK, _TIMED_OUT, chain, points)
-        answer = clean_word(message.content)
+        answer = clean_word(message.content, language=language)
         if answer is None:
             return _Outcome(Moment.RHYME_PLAYER_STUCK, _NOT_ONE_WORD, chain, points)
-        if answer in chain:
+        said = {same_word_key(word, language=language) for word in chain}
+        if same_word_key(answer, language=language) in said:
             reason = f"{answer} was already used"
             return _Outcome(Moment.RHYME_PLAYER_STUCK, reason, chain, points)
-        kind = rhyme_kind(chain[-1], answer)
+        kind = rhyme_kind(chain[-1], answer, language=language)
         if kind is None:
             reason = f"{answer} doesn't rhyme with {chain[-1]}"
             return _Outcome(Moment.RHYME_PLAYER_STUCK, reason, chain, points)
         chain.append(answer)
         points += score(kind)
-        reply = wisp_reply(answer, set(chain), life.stage, len(chain) // 2, rng)
+        reply = wisp_reply(
+            answer, set(chain), life.stage, len(chain) // 2, rng, language=language
+        )
         if reply is None:
             return _Outcome(Moment.RHYME_WISP_STUCK, None, chain, points)
         chain.append(reply)
@@ -269,7 +283,7 @@ async def _host(interaction: discord.Interaction, guild_id: int) -> None:
         return
     started = f"♪ Your Rhyme Duel is on in {thread.mention}."
     await say_privately(interaction, started)
-    outcome = await _duel(bot, thread, user.id, life, random.Random())
+    outcome = await _duel(bot, thread, user.id, life, random.Random(), Language.EN)
     line = bot.lines.pick(outcome.ending, mood(life))
     await thread.send(
         summary_text(
