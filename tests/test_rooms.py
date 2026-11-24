@@ -33,7 +33,7 @@ USER_ID = 1
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
 WELCOME = "\n".join(
     [
-        f"♪ This is your room with Wisp, <@{USER_ID}>.",
+        f"♪ This is your storage locker with Wisp, <@{USER_ID}>.",
         "・Your games with him happen here.",
         "・Your Snack Pack gets pinned here each time you open it with /wisp snackpack.",
     ]
@@ -195,7 +195,7 @@ async def test_board_makes_a_private_room_on_first_join(
 
     server.house.create_thread.assert_awaited_once()
     room = server.only_room()
-    assert room.name == "♪ Member1's room"
+    assert room.name == "Member1's Storage Locker"
     assert room.create_kwargs == {
         "type": discord.ChannelType.private_thread,
         "invitable": False,
@@ -218,7 +218,7 @@ async def test_the_room_is_named_for_the_name_wisp_knows(
 
     room = await open_room(bot, server.guild, make_member())
 
-    assert room.name == "♪ Kit's room"
+    assert room.name == "Kit's Storage Locker"
 
 
 async def test_the_room_is_reused(bot: app.WispBot, server: FakeServer) -> None:
@@ -333,6 +333,49 @@ async def test_an_archived_room_is_reopened(
     server.house.create_thread.assert_awaited_once()
 
 
+async def test_a_room_with_its_old_name_is_renamed_when_opened(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    room = await open_room(bot, server.guild, make_member())
+    room.name = "♪ Member1's room"
+
+    again = await open_room(bot, server.guild, make_member())
+
+    assert again is room
+    room.edit.assert_awaited_once_with(name="Member1's Storage Locker")
+    assert room.name == "Member1's Storage Locker"
+    server.house.create_thread.assert_awaited_once()
+
+
+async def test_a_room_with_its_name_is_not_renamed(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    room = await open_room(bot, server.guild, make_member())
+
+    await open_room(bot, server.guild, make_member())
+
+    room.edit.assert_not_awaited()
+
+
+async def test_a_failed_rename_on_opening_is_reported_and_the_room_still_opens(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    room = await open_room(bot, server.guild, make_member())
+    room.name = "♪ Member1's room"
+    room.edit.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    again = await open_room(bot, server.guild, make_member())
+
+    assert again is room
+    (report,) = server.house.send.await_args.args
+    assert report.startswith("Error in renaming a room: Forbidden: 403")
+
+
 async def test_a_deleted_room_is_made_again(
     bot: app.WispBot, server: FakeServer
 ) -> None:
@@ -438,8 +481,8 @@ async def test_board_without_a_house_still_shows_the_board(
 
 
 def test_room_name_fits_discord() -> None:
-    assert room_name("Kit") == "♪ Kit's room"
-    assert room_name("x" * 200) == clip("♪ " + "x" * 200 + "'s room", ROOM_NAME_MAX)
+    assert room_name("Kit") == "Kit's Storage Locker"
+    assert room_name("x" * 200) == clip("x" * 200 + "'s Storage Locker", ROOM_NAME_MAX)
     assert len(room_name("x" * 200)) == ROOM_NAME_MAX
 
 
@@ -464,8 +507,8 @@ async def test_learning_a_name_renames_the_room(
 
     await modal.on_submit(make_interaction(bot, server))
 
-    room.edit.assert_awaited_once_with(name="♪ Kit's room", archived=False)
-    assert room.name == "♪ Kit's room"
+    room.edit.assert_awaited_once_with(name="Kit's Storage Locker", archived=False)
+    assert room.name == "Kit's Storage Locker"
 
 
 async def test_learning_a_name_without_a_room_makes_none(

@@ -58,8 +58,10 @@ NOW = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
 DAY = NOW.date()
 CRAVED = "jellywave"
 NO_PING = discord.AllowedMentions.none().to_dict()
-WELCOME = "♪ This is your room with Wisp"
-ROOM_BUSY = "♪ You already have a game going in your room. Finish that one first."
+WELCOME = "♪ This is your storage locker with Wisp"
+ROOM_BUSY = (
+    "♪ You already have a game going in your storage locker. Finish that one first."
+)
 STARTED = f"♪ Your Craving is on in <#{THREAD_ID}>."
 
 # ---
@@ -798,7 +800,7 @@ async def test_no_room_refuses_with_the_reason(
     interaction = await start(bot, server)
 
     assert replies(interaction) == [
-        "♪ Wisp's House isn't set up, so he can't open your room yet."
+        "♪ Wisp's House isn't set up, so he can't open your storage locker yet."
     ]
     assert await bot.cravings.today(GUILD_ID, USER_ID, NOW) is None
     assert (GUILD_ID, USER_ID) not in bot.room_games

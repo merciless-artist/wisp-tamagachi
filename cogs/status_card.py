@@ -2,23 +2,19 @@
 
 The post's first message shows only Wisp's picture, so the Studio's gallery
 shows him. Under it is the card, one Components V2 message: Myra's Wisp
-Stats title picture, the card in her emoji frame, then the card's buttons:
-everything a member can do with Wisp, each answering privately. The card
-is pinned and edited in place.
+Stats title picture, the card in her emoji frame, then its Interaction
+button, which jumps to the Interaction post where the members' buttons are.
+The card is pinned and edited in place.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Final
 
 import discord
 
-from cogs.conversation import PokeButton
 from cogs.headers import Buttons, HeadedCard, show_headed_card
 from cogs.pictures import Picture
-from cogs.rhyme_duel import PlayButton
-from cogs.snacks import FeedButton, ShopButton, SnackPackButton
 from cogs.studio import StudioError, studio_thread
-from cogs.wisp_lunchbox import LunchboxButton
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -36,40 +32,28 @@ _CARD: Final = HeadedCard(
     label=_LABEL,
     post=_NO_PICTURE.removeprefix("♪ "),
 )
-_BUTTONS_PER_ROW: Final = 3
 
 
 # ---
-# The card's buttons
+# The card's button
 # ---
 
 
-def status_buttons(vault_link: str | None = None) -> Buttons:
-    """The live status card's buttons, three to a row.
-
-    Feed Wisp, Poke Wisp and Vault, then Snack Pack, Play and Lunchbox. Vault
-    jumps to `vault_link`, the ViiBR Vault post; before there is one it opens
-    the Vault privately. Every other button is persistent, so an old card
-    keeps working after a restart.
+def status_buttons(interaction_link: str | None) -> Buttons:
+    """The live status card's one button, Interaction, which jumps to
+    `interaction_link`, the Interaction post; before there is one the card has
+    no button.
     """
-    vault: discord.ui.Item[Any] = (
-        ShopButton("Vault")
-        if vault_link is None
-        else discord.ui.Button(
-            label="Vault", style=discord.ButtonStyle.link, url=vault_link
-        )
-    )
-    buttons: list[discord.ui.Item[Any]] = [
-        FeedButton(),
-        PokeButton(),
-        vault,
-        SnackPackButton("Snack Pack"),
-        PlayButton(),
-        LunchboxButton(),
-    ]
+    if interaction_link is None:
+        return []
     return [
-        buttons[start : start + _BUTTONS_PER_ROW]
-        for start in range(0, len(buttons), _BUTTONS_PER_ROW)
+        [
+            discord.ui.Button(
+                label="Interaction",
+                style=discord.ButtonStyle.link,
+                url=interaction_link,
+            )
+        ]
     ]
 
 

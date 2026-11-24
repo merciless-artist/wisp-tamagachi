@@ -378,13 +378,6 @@ async def ensure_shelves(bot: "WispBot", guild_id: int) -> None:
         bot.failing_displays.discard(key)
 
 
-def shop_url(guild_id: int, thread_id: int | None) -> str | None:
-    """A link that jumps to the ViiBR Vault post, or None before it exists."""
-    if thread_id is None:
-        return None
-    return f"https://discord.com/channels/{guild_id}/{thread_id}"
-
-
 async def setup(bot: "WispBot") -> None:
     """Register the post's menus so they still work after a restart."""
     bot.add_dynamic_items(ShelfMenu)

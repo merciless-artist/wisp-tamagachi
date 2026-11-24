@@ -52,7 +52,8 @@ OLD_VAULT = "🔒| The ViiBR Vault"
 JAM = "⚡｜Jam Space"
 FAQ = "📙｜Wisp FAQ"
 SHOP = "🛍️ | ViiBR Vault"
-THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, SHOP)
+INTERACTION = "🕹️ | Interaction"
+THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, SHOP, INTERACTION)
 THREAD_TITLES = (
     "Status",
     "Mealtime",
@@ -60,6 +61,7 @@ THREAD_TITLES = (
     "Jam Space",
     "Wisp FAQ",
     "ViiBR Vault",
+    "Interaction",
 )
 OLD_NAMES = (
     "Status",
@@ -68,6 +70,7 @@ OLD_NAMES = (
     "The Jam Space",
     "How Wisp Works",
     "Shop",
+    "Interaction",
 )
 THUMBNAILS = {
     MEALTIME: "thumbs/mealtime.png",
@@ -158,6 +161,7 @@ THREAD_ATTRS = (
     "jam_thread_id",
     "rules_thread_id",
     "shop_thread_id",
+    "interaction_thread_id",
 )
 
 
@@ -522,7 +526,7 @@ def sent_text(ctx: MagicMock) -> str:
 # ---
 
 
-async def test_setup_creates_six_threads_with_the_vault(
+async def test_setup_creates_seven_threads_with_the_vault(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     ctx = await run_setup(bot, server)
@@ -541,7 +545,7 @@ async def test_setup_creates_six_threads_with_the_vault(
     assert settings.status_message_id == server.messages[status.id].id
     assert settings.vault_message_id == server.messages[vault.id].id
     server.messages[status.id].pin.assert_awaited_once()
-    for name in (VAULT, MEALTIME, JAM, FAQ, SHOP):
+    for name in (VAULT, MEALTIME, JAM, FAQ, SHOP, INTERACTION):
         thread = server.thread_named(name)
         server.messages[thread.id].pin.assert_not_awaited()
 
@@ -560,6 +564,46 @@ async def test_setup_creates_six_threads_with_the_vault(
     assert not re.search(EMOJI, text)
     assert "Errors" not in text
     assert house_posts(server) == []
+
+
+async def test_the_interaction_post_is_open_for_its_buttons(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+
+    interaction = server.thread_named(INTERACTION)
+    assert interaction.locked is False
+    assert server.messages[interaction.id].content == (
+        "♪ Interaction\n・Feed, poke, shop and play with Wisp with the buttons below."
+    )
+    settings = await bot.settings.get(GUILD_ID)
+    assert settings.interaction_thread_id == interaction.id
+    assert settings.interaction_message_id is None
+
+
+async def test_ensuring_the_studio_tells_the_interaction_post_to_draw(
+    bot: app.WispBot, server: FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dispatched = MagicMock()
+    monkeypatch.setattr(bot, "dispatch", dispatched)
+
+    await run_setup(bot, server)
+    await ensure_studio(bot, GUILD_ID)
+
+    assert dispatched.call_args_list == [((studio.STUDIO_ENSURED, GUILD_ID),)] * 2
+
+
+async def test_a_new_interaction_thread_forgets_the_old_card(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    await bot.settings.update(GUILD_ID, interaction_message_id=4321)
+    del server.threads[server.thread_named(INTERACTION).id]
+
+    settings = await ensure_studio(bot, GUILD_ID)
+
+    assert settings.interaction_message_id is None
+    assert server.created_names == [*THREAD_NAMES, INTERACTION]
 
 
 async def test_a_new_rules_post_shows_the_current_food_values(
@@ -662,7 +706,7 @@ async def test_setup_is_idempotent(bot: app.WispBot, server: FakeServer) -> None
 
     assert server.created_names == list(THREAD_NAMES)
     assert await bot.settings.get(GUILD_ID) == first
-    assert "Studio threads: all six already exist" in sent_text(ctx)
+    assert "Studio threads: all seven already exist" in sent_text(ctx)
     assert server.thread_named(FAQ).edit.await_count == 1
     assert server.messages[server.thread_named(STATUS).id].pin.await_count == 1
     assert house_posts(server) == []
@@ -922,7 +966,7 @@ async def test_rerun_unlocks_the_status_and_vault_posts_so_their_buttons_work(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
-    boards = [server.thread_named(name) for name in (STATUS, VAULT)]
+    boards = [server.thread_named(name) for name in (STATUS, VAULT, INTERACTION)]
     for thread in boards:
         assert thread.locked is False
         thread.locked = True

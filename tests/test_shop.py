@@ -15,9 +15,10 @@ import pytest
 import app
 from cogs import shop, snacks
 from cogs.boards import board_for
-from cogs.shop import MENUS, SHELVES, ShelfMenu, ensure_shelves, shop_url
+from cogs.interaction import interaction_lines
+from cogs.shop import MENUS, SHELVES, ShelfMenu, ensure_shelves
 from cogs.snacks import SHELF_ID_PREFIX, ShopButton
-from cogs.status_card import status_buttons
+from cogs.studio import post_url
 from db.activity import ActivityRepo
 from db.badges import BadgeRepo
 from db.database import Database
@@ -377,24 +378,24 @@ async def test_something_the_vault_does_not_sell_is_turned_away(
 # ---
 
 
-def test_the_status_vault_button_jumps_to_the_post() -> None:
-    link = shop_url(GUILD_ID, SHOP_ID)
+def test_the_interaction_vault_button_jumps_to_the_post() -> None:
+    link = post_url(GUILD_ID, SHOP_ID)
     assert link == f"https://discord.com/channels/{GUILD_ID}/{SHOP_ID}"
 
-    first_row, _ = status_buttons(link)
+    _, vault = interaction_lines(link)[2]
 
-    vault = first_row[2]
     assert isinstance(vault, discord.ui.Button)
-    assert (vault.label, vault.url) == ("Vault", link)
+    assert (vault.label, vault.url) == ("ViiBR Vault", link)
     assert vault.style is discord.ButtonStyle.link
 
 
 def test_before_the_post_exists_the_vault_button_opens_it_privately() -> None:
-    assert shop_url(GUILD_ID, None) is None
+    assert post_url(GUILD_ID, None) is None
 
-    first_row, _ = status_buttons(None)
+    _, vault = interaction_lines(None)[2]
 
-    assert isinstance(first_row[2], ShopButton)
+    assert isinstance(vault, ShopButton)
+    assert vault.item.label == "ViiBR Vault"
 
 
 def test_chat_in_the_vault_post_is_cleared() -> None:

@@ -25,6 +25,38 @@
 - **Storage (all additive):** `favorites.title VARCHAR(200) NULL`,
   `interactions.snack VARCHAR(20) NULL`.
 
+## 2026-11-23 (The Interaction post and storage lockers)
+
+- **The Interaction post.** A new Studio post, `🕹️ | Interaction`, holds the
+  members' buttons: one Components V2 message of Myra's lines, each with its
+  button on the row under it (Feed WiSP, Poke, ViiBR Vault, Snack Pack,
+  Games, Lunchbox). The buttons keep their persistent custom ids, so presses
+  work after restarts and on old status cards. ViiBR Vault jumps to the ViiBR
+  Vault post, or opens the Vault privately before there is one. The card is
+  drawn each time the Studio is ensured (setup included, through the
+  `studio_ensured` event), edited in place, and posted again when it is
+  gone. The post stays unlocked (a locked post's buttons don't work for
+  members); member chat in it is deleted like on Status ("This post is just
+  for buttons").
+- **Status is only status.** The live status card's six buttons are replaced
+  by one link button, **Interaction**, that jumps to the Interaction post; no
+  button until that post exists. The card's line now reads "feed Wisp, shop
+  the Vault and play: tap Interaction below!", and chat deleted from Status
+  gets "This post is just for Wisp's status."
+- Pointers that sent members to the Status post's buttons now name the
+  Interaction post: the Leaderboard intro, the Wellbeing drop post and the
+  "menu closed when Wisp restarted" answer.
+- **Storage lockers.** Members' rooms are named `<name>'s Storage Locker`;
+  an existing room is renamed the next time Wisp opens it (a failed rename is
+  reported and the game goes on). Member-facing text says "storage locker":
+  the welcome post, "Open /wisp board first so Wisp can give you a storage
+  locker.", the busy and no-House refusals. Code names stay `room`.
+- **Existing servers:** run `/wispadmin setup` once after deploy to make the
+  Interaction post. Until then the status card shows no button.
+- **Storage (additive):** `settings.interaction_thread_id` and
+  `settings.interaction_message_id`.
+- `shop_url` became `cogs.studio.post_url`, shared by both links.
+
 ## 2026-11-23 (Drawings in rooms)
 
 - **Drawings in rooms.** A drawing Wisp makes for a member is posted in his

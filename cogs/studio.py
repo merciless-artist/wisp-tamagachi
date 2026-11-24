@@ -291,11 +291,20 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "medicine work right away.",
         image="gifts/VV_Store/VV_Snacks.gif",
     ),
+    StudioThread(
+        "interaction_thread_id",
+        "🕹️ | Interaction",
+        "Interaction",
+        "♪ Interaction\n・Feed, poke, shop and play with Wisp with the buttons below.",
+    ),
 )
 
 _THREAD_ATTRS = frozenset(spec.attr for spec in STUDIO_THREADS)
 _FAQ_ATTR: Final = "rules_thread_id"
 _SHOP_ATTR: Final = "shop_thread_id"
+_INTERACTION_ATTR: Final = "interaction_thread_id"
+STUDIO_ENSURED: Final = "studio_ensured"
+"""The event dispatched with the guild id each time the Studio is ensured."""
 _studio_locks: dict[int, asyncio.Lock] = {}
 
 
@@ -481,7 +490,10 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
     from before the FAQ, a build that stopped part way or a release with a
     different set of pictures (such as one picture per section). A new ViiBR
     Vault thread forgets the shelves stored for the old one, so the life loop
-    posts them in it (`cogs.shop.ensure_shelves`).
+    posts them in it (`cogs.shop.ensure_shelves`). A new Interaction thread
+    forgets the card stored for the old one. Once done, STUDIO_ENSURED is
+    dispatched, so the Interaction post is drawn again with the current Vault
+    link (`cogs.interaction`).
 
     Raises:
         StudioError: The Studio forum is not set or is not a forum.
@@ -513,9 +525,12 @@ async def ensure_studio(bot: "WispBot", guild_id: int) -> Settings:
             await _build_faq(bot, forum.guild, threads[_FAQ_ATTR])
         if _SHOP_ATTR in created:
             await bot.settings.update(guild_id, shop_message_ids=None)
+        if _INTERACTION_ATTR in created:
+            await bot.settings.update(guild_id, interaction_message_id=None)
         settings = await bot.settings.get(guild_id)
     if recreated:
         await _announce(bot, forum.guild, recreated)
+    bot.dispatch(STUDIO_ENSURED, guild_id)
     return settings
 
 
@@ -564,6 +579,13 @@ async def studio_thread(bot: "WispBot", guild_id: int, attr: str) -> discord.Thr
     if thread is None:
         raise StudioError(f"Could not open the Studio thread {attr}.")
     return thread
+
+
+def post_url(guild_id: int, thread_id: int | None) -> str | None:
+    """A link that jumps to the Studio post `thread_id`, or None before it exists."""
+    if thread_id is None:
+        return None
+    return f"https://discord.com/channels/{guild_id}/{thread_id}"
 
 
 # ---

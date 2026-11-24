@@ -311,7 +311,7 @@ class LunchboxButton(
     discord.ui.DynamicItem[discord.ui.Button["discord.ui.View"]],
     template=re.compile(_LUNCHBOX_ID),
 ):
-    """The Lunchbox button on the status card; it shows the lunchbox privately.
+    """The Lunchbox button on the Interaction post; it shows the lunchbox privately.
 
     Anyone may look, as with /wisp lunchbox. Its custom id is fixed, so the
     button keeps working after the bot restarts.

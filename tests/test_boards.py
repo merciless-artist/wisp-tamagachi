@@ -1,4 +1,5 @@
-"""Tests for the boards: chat typed in the Status and Vault posts is deleted.
+"""Tests for the boards: chat typed in the Status, Vault and Interaction posts
+is deleted.
 
 Discord objects are fakes; the settings repository is the real one.
 """
@@ -22,13 +23,15 @@ HOUSE_ID = 20
 STATUS_ID = 41
 VAULT_ID = 42
 MEALTIME_ID = 43
+INTERACTION_ID = 44
 STAFF_ROLE_ID = 7
 MEMBER_ID = 1
 OWNER_ID = 99
 START = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
 NO_PING = discord.AllowedMentions.none().to_dict()
 NOTICES = {
-    STATUS_ID: f"♪ This post is just for buttons. Come chat in <#{HOUSE_ID}>.",
+    STATUS_ID: f"♪ This post is just for Wisp's status. Come chat in <#{HOUSE_ID}>.",
+    INTERACTION_ID: f"♪ This post is just for buttons. Come chat in <#{HOUSE_ID}>.",
     VAULT_ID: f"♪ This post is just for the leaderboard. Come chat in <#{HOUSE_ID}>.",
 }
 
@@ -112,6 +115,7 @@ async def cog(db: Database) -> Boards:
         status_thread_id=STATUS_ID,
         vault_thread_id=VAULT_ID,
         mealtime_thread_id=MEALTIME_ID,
+        interaction_thread_id=INTERACTION_ID,
     )
     await bot.settings.add_staff_role(GUILD_ID, STAFF_ROLE_ID)
     return Boards(bot)
@@ -126,7 +130,7 @@ def sent(thread: MagicMock) -> list[tuple[str, dict[str, Any]]]:
 # ---
 
 
-@pytest.mark.parametrize("board_id", [STATUS_ID, VAULT_ID])
+@pytest.mark.parametrize("board_id", [STATUS_ID, VAULT_ID, INTERACTION_ID])
 async def test_member_chat_in_a_board_is_deleted_with_a_notice_that_goes_away(
     cog: Boards, clock: Clock, board_id: int
 ) -> None:

@@ -63,7 +63,7 @@ _DROP_REASONS: Final = {
     Meter.HEALTH: "nobody fed him a track for {span}. Drop a track in {drop}.",
     Meter.WELLBEING: (
         "nobody chatted, played or poked him, or gave him a snack or gift, "
-        "for {span}. Talk to him here or use {status}."
+        "for {span}. Talk to him here or use {buttons}."
     ),
 }
 _GENERAL_NEWS: Final = (
@@ -411,7 +411,7 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
         settings = await bot.settings.get(guild_id)
         await house.say(
             meter_drops_text(
-                drops, settings.tracks_channel_id, settings.status_thread_id
+                drops, settings.tracks_channel_id, settings.interaction_thread_id
             )
         )
 
@@ -431,17 +431,19 @@ def _span(length: timedelta) -> str:
 
 
 def meter_drops_text(
-    drops: list[Event], tracks_channel_id: int | None, status_thread_id: int | None
+    drops: list[Event],
+    tracks_channel_id: int | None,
+    interaction_thread_id: int | None,
 ) -> str:
     """One House post naming every meter that dropped in a tick, and why.
 
-    The track drop and the Status post are channel links when staff set them
+    The track drop and the Interaction post are channel links when staff set them
     and plain words when not. The numbers are whole, rounded as the card's
     bars round them, and the loss is the difference of the shown numbers.
     """
     where = {
         "drop": channel_or("the track drop", tracks_channel_id),
-        "status": channel_or("the Status post", status_thread_id),
+        "buttons": channel_or("the Interaction post", interaction_thread_id),
     }
     lengths = {Meter.HEALTH: HEALTH_STRETCH, Meter.WELLBEING: WELLBEING_STRETCH}
     lines = [_DROPS_TITLE]

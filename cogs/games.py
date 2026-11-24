@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from app import WispBot
 
 ROOM_BUSY: Final = (
-    "♪ You already have a game going in your room. Finish that one first."
+    "♪ You already have a game going in your storage locker. Finish that one first."
 )
 
 # ---

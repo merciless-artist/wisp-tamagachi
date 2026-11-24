@@ -27,7 +27,8 @@ class Settings:
     `general_channel_id` is the server's general chat, where Wisp shares
     each new stage; None keeps the news in his House. `shop_thread_id` is
     the ViiBR Vault post in the Studio and `shop_message_ids` its shelves, in
-    order; the column holds them as a JSON list.
+    order; the column holds them as a JSON list. `interaction_thread_id` is
+    the Interaction post and `interaction_message_id` its card of buttons.
     """
 
     tracks_channel_id: int | None = None
@@ -51,6 +52,8 @@ class Settings:
     general_channel_id: int | None = None
     shop_thread_id: int | None = None
     shop_message_ids: tuple[int, ...] | None = None
+    interaction_thread_id: int | None = None
+    interaction_message_id: int | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))

@@ -42,10 +42,10 @@ from cogs.players import (
     status_text,
     test_press,
 )
-from cogs.shop import ensure_shelves, shop_url
+from cogs.shop import ensure_shelves
 from cogs.staff import StaffContext, guild_of, is_staff, reply
 from cogs.status_card import show_status, status_buttons
-from cogs.studio import refresh_house_panel
+from cogs.studio import post_url, refresh_house_panel
 from cogs.vault import refresh_vault
 from cogs.wisp_lunchbox import pick_favorite_song
 from wisp.card import waiting
@@ -293,8 +293,8 @@ async def show_status_card(
 ) -> None:
     """Show `life` in the Status post: his picture first, then the card.
 
-    While he goes on it is his live card with its buttons (`status_buttons`,
-    whose Vault jumps to the ViiBR Vault post), under his current picture.
+    While he goes on it is his live card with its Interaction button
+    (`status_buttons`), under his current picture.
     Once his life is over it says Wisp is waiting for staff to begin again
     and carries only the Begin again button,
     so staff always have one to press even when the House's question was never
@@ -308,8 +308,8 @@ async def show_status_card(
         rows = [[begin_button()]]
     else:
         content = await status_text(bot, guild_id, life, now)
-        shop_thread_id = (await bot.settings.get(guild_id)).shop_thread_id
-        rows = status_buttons(shop_url(guild_id, shop_thread_id))
+        interaction_id = (await bot.settings.get(guild_id)).interaction_thread_id
+        rows = status_buttons(post_url(guild_id, interaction_id))
         image = life_image(life)
     await show_status(
         bot, guild_id, content, rows, image, clear_image=image is None and is_over(life)

@@ -162,7 +162,9 @@ async def test_enter_room_refuses_with_the_reason_and_reports_it(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     guild = MagicMock(spec=discord.Guild)
-    refused = RoomError("Wisp's House isn't set up, so he can't open your room yet.")
+    refused = RoomError(
+        "Wisp's House isn't set up, so he can't open your storage locker yet."
+    )
     monkeypatch.setattr("cogs.games.open_room", AsyncMock(side_effect=refused))
     reported = AsyncMock()
     monkeypatch.setattr(bot, "report_error", reported)
@@ -176,7 +178,7 @@ async def test_enter_room_refuses_with_the_reason_and_reports_it(
     interaction.followup.send.assert_awaited_once()
     assert interaction.followup.send.await_args is not None
     assert interaction.followup.send.await_args.args == (
-        "♪ Wisp's House isn't set up, so he can't open your room yet.",
+        "♪ Wisp's House isn't set up, so he can't open your storage locker yet.",
     )
     assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
 
