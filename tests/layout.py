@@ -4,34 +4,48 @@ from typing import Any
 
 import discord
 
-from wisp.text import UNICODE_FRAME, Frame, visual_width
+from wisp.text import (
+    FOOTER_BAR,
+    FOOTER_MIC,
+    SECTION_ICONS,
+    TITLE_BAR,
+    UNICODE_FRAME,
+    Frame,
+)
+
+# Every app emoji WiSP's Favorites style is made of, each once.
+STYLE_EMOJIS = tuple(
+    dict.fromkeys((*TITLE_BAR, *FOOTER_BAR, FOOTER_MIC, *SECTION_ICONS))
+)
+# The v3 frame's emojis, which no menu draws any more.
+_OLD_FRAME = ("header_edge", "rest_bar", "header2", "header3", ":clef:")
 
 
-def assert_fits_its_frame(text: str, frame: Frame) -> None:
-    """Myra's v3 frame holds: every line is a section break or opens with the
-    frame's edge, the box closes with the frame's bottom line, and nothing
-    looks wider than it."""
+def assert_is_a_menu(text: str, frame: Frame, title: str | None = None) -> None:
+    """WiSP's Favorites style holds: the text opens with the title line of
+    `title` when given, closes with the footer line, has no empty line and
+    none of the v3 frame's edge and bar emojis."""
     lines = text.split("\n")
-    assert lines[-1] == frame.bottom
-    for line in lines[:-1]:
-        assert line == frame.section_break or line.startswith(frame.blank), line
-        assert visual_width(line) <= frame.room, line
-
-
-def rows(frame: Frame, *lines: str) -> list[str]:
-    """`lines` as a menu shows them: each wrapped to fit `frame`."""
-    return "\n".join(frame.wrapped(lines)).split("\n")
-
-
-def entries(lines: list[str], frame: Frame = UNICODE_FRAME) -> list[str]:
-    """`lines` with each wrapped line's rows joined back into one entry."""
-    joined: list[str] = []
+    if title is not None:
+        assert lines[0] == frame.title(title)
+    assert lines[-1] == frame.footer
     for line in lines:
-        if line.startswith(frame.continuation) and joined:
-            joined[-1] += "\n" + line
-        else:
-            joined.append(line)
-    return joined
+        assert line, text
+        assert not any(old in line for old in _OLD_FRAME), line
+
+
+def section(lines: list[str], heading: str, frame: Frame = UNICODE_FRAME) -> list[str]:
+    """The lines under the `heading` line, up to the next heading or the footer."""
+    start = lines.index(heading) + 1
+    end = next(
+        (
+            index
+            for index in range(start, len(lines))
+            if lines[index].startswith("## ") or lines[index] == frame.footer
+        ),
+        len(lines),
+    )
+    return lines[start:end]
 
 
 def layout_text(view: discord.ui.LayoutView) -> str:

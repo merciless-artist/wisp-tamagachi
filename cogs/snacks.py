@@ -149,6 +149,14 @@ _NONE_YET: Final = "none yet"
 _NOTHING_SAVED: Final = "nothing saved yet"
 _VAULT_HEADER: Final = "vault_title.png"
 _PACK_HEADER: Final = "snack_pack_title.png"
+_VAULT_TITLE: Final = "ViiBR Vault"
+_PACK_TITLE: Final = "Snack Pack"
+# Each Vault section's place, across its three parts, for its icon.
+_SNACKS_PLACE: Final = 0
+_MEDICINE_PLACE: Final = 1
+_BADGES_PLACE: Final = 2
+_MAGAZINES_PLACE: Final = 3
+_GIFTS_PLACE: Final = 4
 _VAULT_CONTEXT: Final = "the ViiBR Vault menu"
 _ROLE_REASON: Final = "Bought in the ViiBR Vault"
 _ROLE_FAILURES: Final = (
@@ -377,14 +385,13 @@ class _VaultPiece:
 class VaultLayout(Lasting, discord.ui.LayoutView):
     """One part of the Vault as a Components V2 message, with no container.
 
-    The Vault is three messages, one right under the other: in Myra's emoji
-    frame it is too long for one, and the Gifts need a whole one for their
-    emojis. Each piece's lines are one text display, followed
-    by an action row for each
-    of its menus; a picture piece is a media gallery of its attached picture,
-    left out when the picture is missing. A failure is reported as the ViiBR
-    Vault menu. It never times out; see `cogs.menus` for a press after a
-    restart.
+    The Vault is three messages, one right under the other, so a menu redraws
+    only its own part: with every emoji uploaded one message would run close
+    to its limit, and the Gifts need room for their emojis. Each piece's lines
+    are one text display, followed by an action row for each of its menus; a
+    picture piece is a media gallery of its attached picture, left out when
+    the picture is missing. A failure is reported as the ViiBR Vault menu. It
+    never times out; see `cogs.menus` for a press after a restart.
     """
 
     def __init__(self, pieces: Sequence[_VaultPiece]) -> None:
@@ -444,7 +451,7 @@ def _vault_snack(bot: "WispBot", frame: Frame, snack: Snack, price: str) -> str:
 
 
 def _coins_line(bot: "WispBot", frame: Frame, balance: int) -> str:
-    return frame.sub(f"wisp coins: {with_emoji(bot.emoji(COIN_EMOJI), str(balance))}")
+    return frame.note(f"wisp coins: {with_emoji(bot.emoji(COIN_EMOJI), str(balance))}")
 
 
 def _snack_pieces(
@@ -456,26 +463,22 @@ def _snack_pieces(
 ) -> list[_VaultPiece]:
     """The Vault's first part in `frame`, in pieces, each followed by its menus.
 
-    An optional note comes before Myra's header picture, then the member's
-    wisp coins, the snacks and, while he has a cold, the medicine. A blank
-    line follows the snacks, as in Myra's draft. There is no bottom line: the
-    other parts sit right under this one and the last closes the box. Every
-    line is wrapped to fit the frame.
+    An optional note comes before Myra's header picture, then the Vault's
+    title, the member's wisp coins, the snacks and, while he has a cold, the
+    medicine. There is no footer: the other parts sit right under this one and
+    the last closes the Vault.
     """
     told = [note] if note else []
-    snacks = frame.wrapped(
-        [
-            _coins_line(bot, frame, balance),
-            frame.section_break,
-            frame.heading("Snacks"),
-            _vault_snack(bot, frame, _FREE, "free once a day"),
-            *(
-                _vault_snack(bot, frame, snack, _coins(bot, f"{snack.cost} WC"))
-                for snack in _MENU
-            ),
-            frame.blank,
-        ]
-    )
+    snacks = [
+        frame.title(_VAULT_TITLE),
+        _coins_line(bot, frame, balance),
+        frame.heading("Snacks", _SNACKS_PLACE),
+        _vault_snack(bot, frame, _FREE, "free once a day"),
+        *(
+            _vault_snack(bot, frame, snack, _coins(bot, f"{snack.cost} WC"))
+            for snack in _MENU
+        ),
+    ]
     medicine_name = with_emoji(bot.emoji(MEDICINE_EMOJI), "cures his cold")
     return [
         *([_VaultPiece(told)] if told else []),
@@ -486,16 +489,13 @@ def _snack_pieces(
             if menus.medicine is None
             else [
                 _VaultPiece(
-                    frame.wrapped(
-                        [
-                            frame.section_break,
-                            frame.heading("Medicine"),
-                            frame.item(
-                                f"{medicine_name} ・ "
-                                f"{_coins(bot, f'{MEDICINE_COST} WC')}"
-                            ),
-                        ]
-                    ),
+                    [
+                        frame.heading("Medicine", _MEDICINE_PLACE),
+                        frame.item(
+                            f"{medicine_name} ・ "
+                            f"{_coins(bot, f'{MEDICINE_COST} WC')}"
+                        ),
+                    ],
                     [menus.medicine],
                 )
             ]
@@ -515,22 +515,17 @@ def _extra_pieces(
     """The Vault's second part in `frame`, in pieces, each followed by its menus.
 
     The badges, then the Magazines when `magazines`, the covers the member
-    owns this life, is not None. There is no bottom line: the Gifts part sits
-    right under this one and closes the box. Under a note the member's wisp
+    owns this life, is not None. There is no footer: the Gifts part sits
+    right under this one and closes the Vault. Under a note the member's wisp
     coins come first, since the first part's cannot be updated from here.
-    Every line is wrapped to fit the frame.
     """
     told = [note] if note else []
     coins = [_coins_line(bot, frame, balance)] if note else []
-    badges = frame.wrapped(
-        [*coins, frame.section_break, *badge_section(bot, frame, offers)]
-    )
+    badges = [*coins, *badge_section(bot, frame, offers, _BADGES_PLACE)]
     covers = (
         []
         if magazines is None
-        else frame.wrapped(
-            [frame.section_break, *magazine_section(bot, frame, magazines)]
-        )
+        else magazine_section(bot, frame, magazines, _MAGAZINES_PLACE)
     )
     cover_menus = [] if menus.magazines is None else [menus.magazines]
     return [
@@ -550,21 +545,20 @@ def _gift_pieces(
 ) -> list[_VaultPiece]:
     """The Vault's third part in `frame`, in pieces, each followed by its menus.
 
-    The Gifts; a blank line and the frame's bottom line close the box, as in
-    Myra's lunchbox. Under a note the member's wisp coins come first, since
-    the first part's cannot be updated from here. The Gifts take whatever
-    room the rest leaves of the layout's text limit. Every line is wrapped to
-    fit the frame.
+    The Gifts, then the footer line under their menus closes the Vault. Under
+    a note the member's wisp coins come first, since the first part's cannot
+    be updated from here. The Gifts take whatever room the rest leaves of the
+    layout's text limit.
     """
     told = [note] if note else []
-    close = [frame.blank, frame.bottom]
-    coins = frame.wrapped([_coins_line(bot, frame, balance)] if note else [])
+    close = [frame.footer]
+    coins = [_coins_line(bot, frame, balance)] if note else []
     # Joined as one text, so the newlines between the text displays are
     # counted too: a small safety margin on purpose.
-    rest = "\n".join([*told, *coins, frame.section_break, *close])
+    rest = "\n".join([*told, *coins, *close])
     room = LAYOUT_TEXT_LIMIT - text_length(rest) - 1
     gift_menus = [menu for menu in (menus.collections, menus.gifts) if menu is not None]
-    gift_lines = [*coins, frame.section_break, *gift_section(bot, frame, gifts, room)]
+    gift_lines = [*coins, *gift_section(bot, frame, gifts, room, _GIFTS_PLACE)]
     return [
         *([_VaultPiece(told)] if told else []),
         _VaultPiece(gift_lines, gift_menus),
@@ -723,15 +717,15 @@ def _pack_keepsake(bot: "WispBot", frame: Frame, keepsake: Keepsake) -> str:
 
 
 async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
-    """The member's Snack Pack in Myra's emoji frame: balance, snacks, keepsakes,
-    badges and any magazines.
+    """The member's Snack Pack in WiSP's Favorites style: balance, snacks,
+    keepsakes, badges and any magazines.
 
     Keepsakes, badges and magazines are listed newest life first; the
     Magazines section is there only when the member has bought one. When they
     do not all fit in one layout message, each is cut short with how many
     more there are: the magazines get at most a quarter of the room, the
     badges at most half of the rest, and each any room the ones before leave
-    over. Every line is wrapped to fit the frame.
+    over.
     """
     frame = frame_of(bot.emoji)
     player = await bot.players.get(guild_id, user_id)
@@ -748,39 +742,28 @@ async def _snack_pack_text(bot: "WispBot", guild_id: int, user_id: int) -> str:
         snacks.append(_pack_snack(bot, frame, _FREE, "free today"))
     balance = _coins(bot, f"{player.balance} WC (wisp coins)")
     drawings = await bot.drawings.count_for(guild_id, user_id)
-    head = frame.wrapped(
-        [
-            frame.sub(f"<@{user_id}> snack pack"),
-            frame.sub(balance),
-            frame.sub(f"Drawings from Wisp: {drawings}"),
-            frame.section_break,
-            frame.heading("Snacks"),
-            *(snacks or [frame.item(_NOTHING_SAVED)]),
-            frame.section_break,
-            frame.heading("Keepsakes"),
-        ]
-    )
+    head = [
+        frame.title(_PACK_TITLE),
+        frame.note(f"<@{user_id}> snack pack"),
+        frame.note(balance),
+        frame.note(f"Drawings from Wisp: {drawings}"),
+        frame.heading("Snacks", 0),
+        *(snacks or [frame.item(_NOTHING_SAVED)]),
+        frame.heading("Keepsakes", 1),
+    ]
     nothing = [frame.item(_NONE_YET)]
     held = await bot.keepsakes.of(guild_id, user_id)
     newest_life_first = sorted(held, key=lambda keepsake: -keepsake.version)
-    keepsakes = (
-        frame.wrapped(
-            [_pack_keepsake(bot, frame, keepsake) for keepsake in newest_life_first]
-        )
-        or nothing
-    )
+    keepsakes = [
+        _pack_keepsake(bot, frame, keepsake) for keepsake in newest_life_first
+    ] or nothing
     badges = (
-        frame.wrapped(
-            badge_pack_lines(bot, frame, await bot.badges.of(guild_id, user_id))
-        )
-        or nothing
+        badge_pack_lines(bot, frame, await bot.badges.of(guild_id, user_id)) or nothing
     )
-    covers = frame.wrapped(
-        magazine_pack_lines(frame, await bot.magazines.of(guild_id, user_id))
-    )
-    between = [frame.section_break, frame.heading("Badges")]
-    shelf = [frame.section_break, frame.heading("Magazines")] if covers else []
-    tail = [frame.blank, frame.bottom]
+    covers = magazine_pack_lines(frame, await bot.magazines.of(guild_id, user_id))
+    between = [frame.heading("Badges", 2)]
+    shelf = [frame.heading("Magazines", 3)] if covers else []
+    tail = [frame.footer]
     framing = "\n".join([*head, *between, *shelf, *tail])
     room = LAYOUT_TEXT_LIMIT - text_length(framing) - 3
     cover_room = min(_length(covers), room // 4)

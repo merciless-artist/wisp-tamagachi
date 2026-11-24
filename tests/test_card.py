@@ -1,4 +1,4 @@
-"""Tests for the status card text, in Myra's emoji frame (house style v3)."""
+"""Tests for the status card text, in WiSP's Favorites style (house style v4)."""
 
 from collections.abc import Callable
 from dataclasses import replace
@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from tests.layout import rows
 from wisp.card import CardFacts, bar, render_status, waiting
 from wisp.chores import next_nap_start
 from wisp.life import Life, Phase, new_egg
@@ -26,11 +25,11 @@ from wisp.rules import (
     Stage,
 )
 from wisp.text import (
-    FRAME_EMOJIS,
     LAYOUT_TEXT_LIMIT,
+    SPACER,
     UNICODE_FRAME,
     Frame,
-    emoji_frame,
+    frame_of,
     round_half_up,
     text_length,
     timestamp,
@@ -56,21 +55,20 @@ FACTS = CardFacts(
 )
 HEALTH_EMOJI = "<:full_full:1564444125976068186>"
 WELLBEING_EMOJI = "<:care_full:1564443602506088480>"
-# Most cards are checked in the Unicode fallback frame; one is in her emoji frame.
+# Most cards are checked with none of the style's emojis; one has them all.
 FRAME = UNICODE_FRAME
-EMOJI_FRAME = emoji_frame(
-    *(f"<:{name}:{index}>" for index, name in enumerate(FRAME_EMOJIS, start=1))
-)
-BLANK = FRAME.blank
-RIGHT_NOW = FRAME.heading("Right now")
+EMOJI_FRAME = frame_of(lambda name: f"<:{name}:1>")
+TITLE = FRAME.title("Wisp stats")
+DAY_1 = FRAME.heading("Day 1 ・ ♫ ♪. ♫‿♪", 0)
+RIGHT_NOW = FRAME.heading("Right now", 1)
 # NOW is 5am Pacific, so his next nap is 7am Pacific.
 NEXT_NAP_TEXT = f"next nap {timestamp(october(20, 14))}"
-NEXT_NAP = FRAME.sub(NEXT_NAP_TEXT)
+NEXT_NAP = FRAME.item(NEXT_NAP_TEXT)
 
 
 def need(text: str) -> str:
-    """A Right now item as the card shows it, wrapped to fit the frame."""
-    return FRAME.wrap(FRAME.item(text))
+    """A Right now item as the card shows it."""
+    return FRAME.item(text)
 
 
 HUNGRY = need(f"hungry: drop a track in <#{TRACKS_ID}>")
@@ -92,11 +90,11 @@ POX = pox_need(f"<#{TRACKS_ID}>")
 
 
 def stage_line(stage: str, frame: Frame = FRAME) -> str:
-    return frame.wrap(frame.heading(f"Life stage ・ {stage}"))
+    return frame.heading(f"Life stage ・ {stage}", 2)
 
 
 def render(life: Life, emojis: Callable[[str], str] | None = None) -> str:
-    """The card in the Unicode frame, with `emoji` unless other emojis are given."""
+    """The card with no style emojis, with `emoji` unless other emojis are given."""
     return render_status(life, NOW, FACTS, emojis or emoji, FRAME)
 
 
@@ -110,6 +108,16 @@ def no_emoji(_name: str) -> str:
 
 def pieces(name: str, count: int) -> str:
     return emoji(name) * count
+
+
+def meter(label: str, shown: str, frame: Frame = FRAME) -> list[str]:
+    """A meter's two lines: its name in bold, then its bar."""
+    return [frame.note(f"**{label}**"), frame.note(shown)]
+
+
+def meter_lines(*meters: list[str]) -> list[str]:
+    """The meters with a spacer before each one and after the last."""
+    return [*(line for lines in meters for line in (SPACER, *lines)), SPACER]
 
 
 def alive_life(**fields: object) -> Life:
@@ -127,53 +135,35 @@ def alive_life(**fields: object) -> Life:
 def tail(
     poke: str, stage: str, facts: CardFacts = FACTS, frame: Frame = FRAME
 ) -> list[str]:
-    """The card after its bars: the facts, the hints, the stage and the end."""
+    """The card after its bars: the facts, the hints, the stage and the footer."""
     people = "person" if facts.fed_today == 1 else "people"
     viibr = "track" if facts.viibr_tracks == 1 else "tracks"
     suno = "track" if facts.suno_tracks == 1 else "tracks"
-    return rows(
-        frame,
-        frame.blank,
-        frame.sub(f"Fed by {facts.fed_today:02d} {people} today"),
-        frame.blank,
-        frame.sub(
+    return [
+        frame.item(f"Fed by {facts.fed_today:02d} {people} today"),
+        frame.item(
             f"{facts.viibr_tracks} ViiBR {viibr} and {facts.suno_tracks} Suno {suno}"
         ),
-        frame.blank,
         frame.item(f"Poke {poke} or tag <@{WISP_ID}> in <#{HOUSE_ID}> to say hi!!"),
-        frame.blank,
         frame.item("feed Wisp, shop the Vault and play: tap Interaction below!"),
-        frame.blank,
-        frame.blank,
         stage_line(stage, frame),
-        frame.blank,
-        frame.bottom,
-    )
+        frame.footer,
+    ]
 
 
 def right_now(card: str) -> list[str]:
-    """The card's Right now items, each wrapped item one entry, up to the nap line."""
+    """The card's Right now items, up to the nap line before the meters."""
     lines = card.split("\n")
-    start = lines.index(RIGHT_NOW) + 1
-    end = next(
-        index
-        for index in range(start, len(lines))
-        if lines[index].startswith(FRAME.sub_mark)
-    )
-    items: list[str] = []
-    for line in lines[start:end]:
-        if line.startswith(FRAME.continuation) and items:
-            items[-1] += "\n" + line
-        else:
-            items.append(line)
-    return [FRAME.wrap(need) for need in items]
+    start = next(n for n, line in enumerate(lines) if "**RIGHT NOW**" in line) + 1
+    return lines[start : lines.index(SPACER, start) - 1]
 
 
 def meters(card: str) -> list[str]:
-    """The card's meter lines: from the first label to the blank line after."""
+    """The card's meter lines, between its first and last spacer, spacers left out."""
     lines = card.split("\n")
-    start = lines.index(FRAME.item("Health"))
-    return lines[start : lines.index(BLANK, start)]
+    first = lines.index(SPACER)
+    last = len(lines) - 1 - lines[::-1].index(SPACER)
+    return [line for line in lines[first:last] if line != SPACER]
 
 
 # ---
@@ -181,7 +171,7 @@ def meters(card: str) -> list[str]:
 # ---
 
 
-def test_the_card_is_myras_layout_in_her_emoji_frame() -> None:
+def test_the_card_is_in_the_favorites_style_with_all_its_emojis() -> None:
     life = alive_life(
         stage=Stage.CHILD,
         wellbeing=WELLBEING_MAX,
@@ -194,24 +184,27 @@ def test_the_card_is_myras_layout_in_her_emoji_frame() -> None:
 
     card = render_status(life, NOW, facts, lambda name: ids.get(name, ""), frame)
 
-    assert card.split("\n") == [
-        *rows(
-            frame,
-            frame.heading("Day 5 ・ ♫ ♪. ♫‿♪"),
-            frame.blank,
-            frame.heading("Right now"),
-            frame.item("happy"),
-            frame.sub(NEXT_NAP_TEXT),
-            frame.blank,
-            frame.item("Health"),
+    lines = card.split("\n")
+    assert lines == [
+        frame.title("Wisp stats"),
+        frame.heading("Day 5 ・ ♫ ♪. ♫‿♪", 0),
+        frame.heading("Right now", 1),
+        frame.item("happy"),
+        frame.item(NEXT_NAP_TEXT),
+        *meter_lines(
+            meter("Health", f"{HEALTH_EMOJI * 10} 100%", frame),
+            meter("Wellbeing", f"{WELLBEING_EMOJI * 10} 100%", frame),
         ),
-        f"{frame.blank}{HEALTH_EMOJI * 10} 100%",
-        frame.item("Wellbeing"),
-        f"{frame.blank}{WELLBEING_EMOJI * 10} 100%",
         *tail("him", "CHILD", facts, frame),
     ]
+    bar_ = "<:headerbarright:1><:wisp_waveform:1><:headerbarleft:1>"
+    assert lines[0] == f"# {bar_} **WiSP STATS** {bar_}"
+    assert lines[1].startswith("## <:boing_bass:1> **DAY 5")
+    assert lines[2] == "## <:wisp_play:1> **RIGHT NOW**"
+    assert lines[-2] == "## <:wisp_pause:1> **LIFE STAGE ・ CHILD**"
+    assert lines[-1].endswith("https://viibrmusic.com " + frame.footer_bar + "・")
     assert not any(mark in card for mark in "║╠═╚│𝄡𝄚𝄂𝄆")
-    assert not any(line.startswith(">") for line in card.split("\n"))
+    assert "header_edge" not in card and "rest_bar" not in card
     assert "𝐂" not in card
 
 
@@ -219,33 +212,34 @@ def test_a_living_baby_has_every_line_in_its_place() -> None:
     card = render(alive_life())
 
     assert card.split("\n") == [
-        FRAME.heading("Day 1 ・ ♫ ♪. ♫‿♪"),
-        BLANK,
+        TITLE,
+        DAY_1,
         RIGHT_NOW,
         HAPPY,
         NEXT_NAP,
-        BLANK,
-        FRAME.item("Health"),
-        f"{BLANK}{pieces('full_full', 5)}{emoji('full_left')} 55%",
-        FRAME.item("Wellbeing"),
-        f"{BLANK}{pieces('care_full', 6)}{emoji('care_left')} 65%",
+        *meter_lines(
+            meter("Health", f"{pieces('full_full', 5)}{emoji('full_left')} 55%"),
+            meter("Wellbeing", f"{pieces('care_full', 6)}{emoji('care_left')} 65%"),
+        ),
         *tail("him", "BABY"),
     ]
 
 
-def test_every_line_is_in_the_frame_bars_included() -> None:
+def test_the_card_opens_with_its_title_and_closes_with_the_footer() -> None:
     lines = render(alive_life()).split("\n")
 
-    assert lines[-1] == FRAME.bottom
-    assert all(line.startswith(FRAME.blank) for line in lines[:-1])
+    assert lines[0] == "# **WiSP STATS**"
+    assert lines[-1] == FRAME.footer
+    assert all(line for line in lines)
 
 
-def test_the_waiting_card_has_only_its_line_in_the_frame() -> None:
+def test_the_waiting_card_has_only_its_line_under_the_title() -> None:
     assert waiting(FRAME).split("\n") == [
-        FRAME.sub("No Wisp right now. Waiting for staff to begin again."),
-        FRAME.blank,
-        FRAME.bottom,
+        TITLE,
+        FRAME.item("No Wisp right now. Waiting for staff to begin again."),
+        FRAME.footer,
     ]
+    assert waiting(EMOJI_FRAME).split("\n")[-1] == EMOJI_FRAME.footer
 
 
 # ---
@@ -294,10 +288,8 @@ def test_bars_without_any_emojis_keep_the_labels_and_percents() -> None:
     card = render(alive_life(), emojis=no_emoji)
 
     assert meters(card) == [
-        FRAME.item("Health"),
-        f"{BLANK}55%",
-        FRAME.item("Wellbeing"),
-        f"{BLANK}65%",
+        *meter("Health", "55%"),
+        *meter("Wellbeing", "65%"),
     ]
     assert "<:" not in card
 
@@ -308,10 +300,8 @@ def test_the_card_has_two_bars_health_then_wellbeing() -> None:
     card = render_status(life, NOW, FACTS, emoji, FRAME)
 
     assert meters(card) == [
-        FRAME.item("Health"),
-        f"{BLANK}{pieces('full_full', 10)} 100%",
-        FRAME.item("Wellbeing"),
-        f"{BLANK}{pieces('care_full', 2)}{emoji('care_left')} 25%",
+        *meter("Health", f"{pieces('full_full', 10)} 100%"),
+        *meter("Wellbeing", f"{pieces('care_full', 2)}{emoji('care_left')} 25%"),
     ]
     assert "Mood" not in card
     assert "happiness" not in card
@@ -329,7 +319,7 @@ def test_the_card_has_two_bars_health_then_wellbeing() -> None:
 def test_fed_by_is_two_digits_and_singular_for_one(fed: int, words: str) -> None:
     card = render_status(alive_life(), NOW, replace(FACTS, fed_today=fed), emoji, FRAME)
 
-    assert FRAME.wrap(FRAME.sub(f"Fed by {words} today")) in card
+    assert FRAME.item(f"Fed by {words} today") in card.split("\n")
 
 
 @pytest.mark.parametrize(
@@ -345,7 +335,7 @@ def test_tracks_line_is_singular_for_one(viibr: int, suno: int, words: str) -> N
 
     card = render_status(alive_life(), NOW, facts, emoji, FRAME)
 
-    assert FRAME.wrap(FRAME.sub(words)) in card
+    assert FRAME.item(words) in card.split("\n")
 
 
 @pytest.mark.parametrize(
@@ -362,7 +352,7 @@ def test_tracks_line_is_singular_for_one(viibr: int, suno: int, words: str) -> N
 def test_stage_is_in_capitals_just_above_the_end(stage: Stage, word: str) -> None:
     card = render(alive_life(stage=stage))
 
-    assert card.endswith("\n".join([stage_line(word), BLANK, FRAME.bottom]))
+    assert card.endswith("\n".join([stage_line(word), FRAME.footer]))
 
 
 def test_day_counts_whole_days_since_hatching() -> None:
@@ -370,14 +360,14 @@ def test_day_counts_whole_days_since_hatching() -> None:
 
     card = render_status(life, NOW, FACTS, emoji, FRAME)
 
-    assert card.split("\n")[0] == FRAME.heading("Day 12 ・ ♫ ♪. ♫‿♪")
+    assert card.split("\n")[1] == FRAME.heading("Day 12 ・ ♫ ♪. ♫‿♪", 0)
 
 
 def test_no_house_channel_says_his_house() -> None:
     card = render_status(alive_life(), NOW, replace(FACTS, house_id=None), emoji, FRAME)
 
     expected = FRAME.item(f"Poke him or tag <@{WISP_ID}> in his House to say hi!!")
-    assert FRAME.wrap(expected) in card
+    assert expected in card.split("\n")
     assert "<#" not in card
 
 
@@ -392,10 +382,11 @@ def test_egg_and_hatching_cards_open_with_their_bars() -> None:
     egg.egg_food = EGG_FOOD_NEEDED // 2
 
     assert render(egg).split("\n") == [
-        FRAME.item("Warmth"),
-        f"{BLANK}{pieces('full_full', 7)}{emoji('full_left')} 75%",
-        FRAME.item("Hatching"),
-        f"{BLANK}{pieces('happiness_full', 5)} 50%",
+        TITLE,
+        *meter_lines(
+            meter("Warmth", f"{pieces('full_full', 7)}{emoji('full_left')} 75%"),
+            meter("Hatching", f"{pieces('happiness_full', 5)} 50%"),
+        ),
         *tail("the egg", "EGG"),
     ]
 
@@ -403,8 +394,8 @@ def test_egg_and_hatching_cards_open_with_their_bars() -> None:
     egg.phase_seconds = HATCHING_TIME.total_seconds() / 5
 
     assert render(egg).split("\n") == [
-        FRAME.item("Emerging"),
-        f"{BLANK}{pieces('happiness_full', 2)} 20%",
+        TITLE,
+        *meter_lines(meter("Emerging", f"{pieces('happiness_full', 2)} 20%")),
         *tail("the egg", "HATCHING"),
     ]
 
@@ -433,13 +424,12 @@ def test_a_sick_card_says_hours_left_under_the_day(
 
     assert card.startswith(
         "\n".join(
-            rows(
-                FRAME,
-                FRAME.heading("Day 1 ・ ♫ ♪. ♫‿♪"),
-                FRAME.sub(f"he has Monster Pox ・ {hours} h left"),
-                BLANK,
+            [
+                TITLE,
+                DAY_1,
+                FRAME.item(f"he has Monster Pox ・ {hours} h left"),
                 RIGHT_NOW,
-            )
+            ]
         )
     )
 
@@ -466,13 +456,7 @@ def test_a_card_with_a_cold_says_hours_left_under_the_day(
 
     assert card.startswith(
         "\n".join(
-            rows(
-                FRAME,
-                FRAME.heading("Day 1 ・ ♫ ♪. ♫‿♪"),
-                FRAME.sub(f"he has a cold ・ {hours} h left"),
-                BLANK,
-                RIGHT_NOW,
-            )
+            [TITLE, DAY_1, FRAME.item(f"he has a cold ・ {hours} h left"), RIGHT_NOW]
         )
     )
 
@@ -486,9 +470,9 @@ def test_a_wisp_with_the_pox_and_a_cold_shows_both_lines() -> None:
 
     lines = render_status(life, NOW, FACTS, emoji, FRAME).split("\n")
 
-    assert lines[1:3] == [
-        FRAME.sub("he has Monster Pox ・ 1 h left"),
-        FRAME.sub("he has a cold ・ 2 h left"),
+    assert lines[2:4] == [
+        FRAME.item("he has Monster Pox ・ 1 h left"),
+        FRAME.item("he has a cold ・ 2 h left"),
     ]
 
 
@@ -545,7 +529,7 @@ def test_right_now_agrees_with_the_percent_the_bar_shows(
     card = render_status(life, NOW, FACTS, emoji, FRAME)
 
     shown = round_half_up(line) - (1 if needed else 0)
-    label = meters(card).index(FRAME.item(meter))
+    label = meters(card).index(FRAME.note(f"**{meter}**"))
     assert meters(card)[label + 1].endswith(f" {shown}%")
     assert right_now(card) == ([need] if needed else [HAPPY])
 
@@ -603,15 +587,15 @@ def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
 
     lines = render_status(life, NOW, FACTS, emoji, FRAME).split("\n")
 
-    assert lines[: 8 + POX.count("\n")] == [
-        FRAME.heading("Day 1 ・ ♫ ♪. ♫‿♪"),
-        FRAME.sub("he has Monster Pox ・ 1 h left"),
-        FRAME.sub("he has a cold ・ 2 h left"),
-        BLANK,
+    assert lines[:8] == [
+        TITLE,
+        DAY_1,
+        FRAME.item("he has Monster Pox ・ 1 h left"),
+        FRAME.item("he has a cold ・ 2 h left"),
         RIGHT_NOW,
-        *FRAME.wrap(POX).split("\n"),
+        POX,
         NEXT_NAP,
-        BLANK,
+        SPACER,
     ]
 
 
@@ -629,7 +613,7 @@ def test_the_right_now_block_sits_under_the_day_and_any_sickness() -> None:
 def test_the_card_says_when_his_next_nap_is(now: datetime, nap: datetime) -> None:
     card = render_status(alive_life(hatched_at=now), now, FACTS, emoji, FRAME)
 
-    assert FRAME.sub(f"next nap {timestamp(nap)}") in card.split("\n")
+    assert FRAME.item(f"next nap {timestamp(nap)}") in card.split("\n")
 
 
 @pytest.mark.parametrize(
@@ -650,7 +634,7 @@ def test_while_he_naps_the_card_says_when_he_wakes(
     assert lines[start : start + 3] == [
         RIGHT_NOW,
         HAPPY,
-        FRAME.sub(f"napping until {timestamp(until)}"),
+        FRAME.item(f"napping until {timestamp(until)}"),
     ]
     assert not any("next nap" in line for line in lines)
 
@@ -660,7 +644,7 @@ def test_while_a_poke_has_him_up_the_card_says_when_he_dozes_off() -> None:
     card = render_status(life, NOW, FACTS, emoji, FRAME)
 
     lines = card.split("\n")
-    assert FRAME.sub(f"back to sleep {timestamp(october(20, 12, 10))}") in lines
+    assert FRAME.item(f"back to sleep {timestamp(october(20, 12, 10))}") in lines
     assert not any("napping until" in line for line in lines)
 
 
@@ -668,7 +652,7 @@ def test_a_poke_late_in_the_nap_shows_the_next_nap() -> None:
     life = alive_life(nap_left=600.0, woken_left=600.0)
     card = render_status(life, NOW, FACTS, emoji, FRAME)
 
-    assert FRAME.sub(f"next nap {timestamp(next_nap_start(NOW))}") in card.split("\n")
+    assert FRAME.item(f"next nap {timestamp(next_nap_start(NOW))}") in card.split("\n")
 
 
 def test_eggs_have_no_right_now_or_next_nap() -> None:
@@ -698,6 +682,9 @@ def longest_emoji(name: str) -> str:
     return f"<a:{name}:{LONGEST_ID}>"
 
 
+LONGEST_FRAME = frame_of(longest_emoji)
+
+
 def test_the_fullest_card_fits_one_message() -> None:
     life = alive_life(
         stage=Stage.OLD_FOGEY,
@@ -712,9 +699,10 @@ def test_the_fullest_card_fits_one_message() -> None:
         lights_left=60.0,
     )
 
-    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji, FRAME)
+    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji, LONGEST_FRAME)
 
     assert "OLD FOGEY" in card and "Monster Pox" in card
+    assert card.split("\n")[-1] == LONGEST_FRAME.footer
     assert "a cold" in card
     assert card.count("_full:") == 20
     assert right_now(card) == [pox_need(f"<#{LONGEST_ID}>"), MESS, TANTRUM, LIGHTS]
@@ -735,7 +723,7 @@ def test_a_sick_card_needing_everything_fits_one_message() -> None:
         lights_left=60.0,
     )
 
-    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji, FRAME)
+    card = render_status(life, NOW, LONGEST_FACTS, longest_emoji, LONGEST_FRAME)
 
     assert "Monster Pox" in card and "a cold" in card
     assert right_now(card) == [

@@ -36,7 +36,7 @@ from db.story import LifeStoryRepo
 from wisp import chores, rules
 from wisp.life import new_egg
 from wisp.links import TrackKind
-from wisp.text import MESSAGE_LIMIT, SEPARATOR, text_length, timestamp
+from wisp.text import MESSAGE_LIMIT, SEPARATOR, frame_of, text_length, timestamp
 
 # A day after daylight saving ended: Pacific is UTC-8.
 RULES_DAY = date(2026, 11, 2)
@@ -1992,17 +1992,38 @@ def test_rules_text_is_headed_as_the_quick_rules() -> None:
 async def test_the_rules_post_has_a_blank_line_when_the_emoji_divider_is_too_long(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(bot, "emoji", lambda name: f"<a:{name}:{'9' * 19}>")
+    roles = {10**18 + offset for offset in range(4)}
+    for role_id in roles:
+        await bot.settings.add_role(GUILD_ID, role_id)
+    divider = frame_of(bot.emoji).divider
+    assert text_length(
+        rules_text(rules.MEAL_POINTS, roles, day=today(), divider=divider)
+    ) > (MESSAGE_LIMIT)
+
+    text = await studio.rules_post(bot, GUILD_ID)
+
+    assert text == rules_text(rules.MEAL_POINTS, roles, day=today(), divider="")
+    assert "One Wisp per server: share music and he grows.\n\nWho can" in text
+    assert SEPARATOR not in text and "<a:" not in text
+    assert text_length(text) < MESSAGE_LIMIT
+
+
+async def test_the_rules_post_has_the_footer_bar_divider_when_it_fits(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(bot, "emoji", lambda name: f"<:{name}:1564444125976068186>")
 
     text = await studio.rules_post(bot, GUILD_ID)
 
-    assert text == rules_text(rules.MEAL_POINTS, day=today(), divider="")
-    assert "One Wisp per server: share music and he grows.\n\nWho can" in text
-    assert SEPARATOR not in text and "<:" not in text
+    divider = frame_of(bot.emoji).divider
+    assert text == rules_text(rules.MEAL_POINTS, day=today(), divider=divider)
+    assert f"he grows.\n{divider}\nWho can" in text
+    assert divider.count("<:") == 5 and ":wisp_waveform:" in divider
     assert text_length(text) < MESSAGE_LIMIT
 
 
-async def test_the_rules_post_has_the_frames_divider_when_it_fits(
+async def test_the_rules_post_has_the_plain_divider_without_the_emojis(
     bot: app.WispBot,
 ) -> None:
     text = await studio.rules_post(bot, GUILD_ID)

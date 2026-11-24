@@ -24,11 +24,12 @@ from db.lives import LifeRepo
 from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
-from tests.layout import assert_fits_its_frame, entries, layout_text
+from tests.layout import assert_is_a_menu, layout_text
+from tests.layout import section as menu_section
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
 from wisp.rules import Stage
-from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, text_length
+from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, Frame, frame_of, text_length
 
 GUILD_ID = 100
 FORUM_ID = 10
@@ -42,16 +43,15 @@ FIRST_USER = 1
 SECOND_USER = 2
 LONG_ID = 10**17
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
-# Without the frame emojis uploaded, every menu falls back to the Unicode frame.
+# Without the style's emojis uploaded, every menu is plain text.
 FRAME = UNICODE_FRAME
-BLANK = FRAME.blank
 INTRO = [
-    FRAME.sub("The leaderboard."),
-    BLANK,
-    "║𝄡 Shop the Vault with the button on",
-    "║ the Interaction post.",
-    BLANK,
+    FRAME.title("Leaderboard"),
+    FRAME.note("Shop the Vault with the button on the Interaction post."),
 ]
+PLACES = {"This life": 0, "All time": 1, "Rhyme Duel": 2, "Versions": 3}
+# The longest emoji markup Discord makes, for every emoji of the style.
+LONG_EMOJI_ID = "9" * 19
 HEADER = "leaderboard_title.png"
 
 
@@ -307,7 +307,7 @@ async def test_board_is_one_layout_under_myras_header(bot: app.WispBot) -> None:
     assert isinstance(header, discord.ui.MediaGallery)
     assert header.items[0].media.url == f"attachment://{HEADER}"
     assert isinstance(board, discord.ui.TextDisplay)
-    assert board.content.splitlines()[-1] == FRAME.bottom
+    assert board.content.splitlines()[-1] == FRAME.footer
 
 
 # ---
@@ -415,10 +415,9 @@ async def test_leaderboard_lists_versions_newest_first(bot: app.WispBot) -> None
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert section(text, "Versions") == [
-        "║𝄡 v3 ・ going strong ・ 12 days\n║ ・ Baby",
-        "║𝄡 v2 ・ never hatched",
-        "║𝄡 v1 ・ went out after 18 days\n║ ・ peak: Teen"
-        f"\n║ ・ hatched by <@{SECOND_USER}>",
+        " ・v3 ・ going strong ・ 12 days ・ Baby",
+        " ・v2 ・ never hatched",
+        f" ・v1 ・ went out after 18 days ・ peak: Teen ・ hatched by <@{SECOND_USER}>",
     ]
 
 
@@ -432,7 +431,7 @@ async def test_leaderboard_versions_leave_out_staff_test_lives(
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert section(text, "Versions") == ["║𝄡 v2 ・ never hatched"]
+    assert section(text, "Versions") == [" ・v2 ・ never hatched"]
 
 
 async def test_a_test_life_alone_leaves_no_versions(bot: app.WispBot) -> None:
@@ -442,7 +441,7 @@ async def test_a_test_life_alone_leaves_no_versions(bot: app.WispBot) -> None:
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
-    assert section(text, "Versions") == ["║𝄡 None yet"]
+    assert section(text, "Versions") == [" ・None yet"]
 
 
 # ---
@@ -450,20 +449,39 @@ async def test_a_test_life_alone_leaves_no_versions(bot: app.WispBot) -> None:
 # ---
 
 
-def section(text: str, name: str) -> list[str]:
-    """The entries under one `#` heading, up to the blank line that ends it."""
-    lines = text.splitlines()
-    start = lines.index(FRAME.heading(name)) + 1
-    return entries(lines[start : lines.index(BLANK, start)])
+def section(text: str, name: str, frame: Frame = FRAME) -> list[str]:
+    """The lines under one section heading, up to the next heading or the footer."""
+    return menu_section(text.splitlines(), frame.heading(name, PLACES[name]), frame)
 
 
-async def test_leaderboard_is_the_leaderboard_frame(bot: app.WispBot) -> None:
+async def test_leaderboard_is_in_the_favorites_style(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     lines = text.splitlines()
-    assert lines[:5] == INTRO
-    assert lines[-2:] == [BLANK, FRAME.bottom]
-    assert_fits_its_frame(text, FRAME)
+    assert lines[:2] == INTRO
+    assert lines[-1] == FRAME.footer
+    assert_is_a_menu(text, FRAME, "Leaderboard")
+
+
+async def test_leaderboard_has_myras_bars_and_icons_once_uploaded(
+    bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bot, "emoji", lambda name: f"<:{name}:1>")
+    frame = frame_of(bot.emoji)
+
+    text = await render_leaderboard(bot, GUILD_ID, NOW)
+
+    lines = text.splitlines()
+    bar = "<:headerbarright:1><:wisp_waveform:1><:headerbarleft:1>"
+    assert lines[0] == f"# {bar} **LEADERBOARD** {bar}"
+    assert lines[-1] == frame.footer
+    assert [line for line in lines if line.startswith("## ")] == [
+        "## <:boing_bass:1> **THIS LIFE**",
+        "## <:wisp_play:1> **ALL TIME**",
+        "## <:wisp_pause:1> **RHYME DUEL**",
+        "## <:wisp_stop:1> **VERSIONS**",
+    ]
+    assert_is_a_menu(text, frame, "Leaderboard")
 
 
 async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> None:
@@ -478,12 +496,12 @@ async def test_leaderboard_ranks_this_life_and_all_time(bot: app.WispBot) -> Non
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert section(text, "This life") == [
-        f"║𝄡 1. <@{SECOND_USER}> ・ 5 points",
-        f"║𝄡 2. <@{FIRST_USER}> ・ 1 point",
+        f" ・1. <@{SECOND_USER}> ・ 5 points",
+        f" ・2. <@{FIRST_USER}> ・ 1 point",
     ]
     assert section(text, "All time") == [
-        f"║𝄡 1. <@{FIRST_USER}> ・ 201 points\n║ ・ Friend",
-        f"║𝄡 2. <@{SECOND_USER}> ・ 5 points\n║ ・ New face",
+        f" ・1. <@{FIRST_USER}> ・ 201 points ・ Friend",
+        f" ・2. <@{SECOND_USER}> ・ 5 points ・ New face",
     ]
 
 
@@ -496,13 +514,13 @@ async def test_leaderboard_shows_top_rhyme_scores(bot: app.WispBot) -> None:
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert section(text, "Rhyme Duel") == [
-        "║𝄡 1. <@15> ・ 15 points",
-        "║𝄡 2. <@11> ・ 12 points",
-        "║𝄡 3. <@13> ・ 9 points",
-        "║𝄡 4. <@12> ・ 7 points",
-        "║𝄡 5. <@10> ・ 4 points",
+        " ・1. <@15> ・ 15 points",
+        " ・2. <@11> ・ 12 points",
+        " ・3. <@13> ・ 9 points",
+        " ・4. <@12> ・ 7 points",
+        " ・5. <@10> ・ 4 points",
     ]
-    assert section(text, "Versions")[0].startswith("║𝄡 v1 ・ going strong")
+    assert section(text, "Versions")[0].startswith(" ・v1 ・ going strong")
 
 
 async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
@@ -512,23 +530,15 @@ async def test_leaderboard_is_empty_but_tidy_for_a_new_server(
 
     assert text.splitlines() == [
         *INTRO,
-        FRAME.section_break,
-        FRAME.heading("This life"),
-        "║𝄡 Nobody has fed him yet",
-        BLANK,
-        FRAME.section_break,
-        FRAME.heading("All time"),
-        "║𝄡 Nobody has points yet",
-        BLANK,
-        FRAME.section_break,
-        FRAME.heading("Rhyme Duel"),
-        "║𝄡 Nobody has dueled him yet",
-        BLANK,
-        FRAME.section_break,
-        FRAME.heading("Versions"),
-        "║𝄡 None yet",
-        BLANK,
-        FRAME.bottom,
+        "## **THIS LIFE**",
+        " ・Nobody has fed him yet",
+        "## **ALL TIME**",
+        " ・Nobody has points yet",
+        "## **RHYME DUEL**",
+        " ・Nobody has dueled him yet",
+        "## **VERSIONS**",
+        " ・None yet",
+        "### ・https://viibrmusic.com",
     ]
 
 
@@ -565,19 +575,22 @@ async def test_leaderboard_fits_one_message(
         for version in range(60, 0, -1)
     ]
     monkeypatch.setattr(bot.lives, "history", AsyncMock(return_value=history))
+    monkeypatch.setattr(bot, "emoji", lambda name: f"<a:{name}:{LONG_EMOJI_ID}>")
+    frame = frame_of(bot.emoji)
 
     text = await render_leaderboard(bot, GUILD_ID, NOW)
 
     assert text_length(text) <= LAYOUT_TEXT_LIMIT
     lines = text.splitlines()
-    assert lines[-2:] == [BLANK, FRAME.bottom]
-    assert_fits_its_frame(text, FRAME)
-    assert sum(line.startswith("║𝄡 ") and ". <@" in line for line in lines) == 25
-    version_lines = section(text, "Versions")
+    assert lines[0] == frame.title("Leaderboard")
+    assert lines[-1] == frame.footer
+    assert_is_a_menu(text, frame, "Leaderboard")
+    assert sum(line.startswith(" ・") and ". <@" in line for line in lines) == 25
+    version_lines = section(text, "Versions", frame)
     assert 0 < len(version_lines) < len(history)
-    assert version_lines[0].startswith("║𝄡 v61 ・ going strong")
-    assert version_lines[1].startswith("║𝄡 v60 ・")
-    expected = [f"║𝄡 v{n} ・" for n in range(61, 61 - len(version_lines), -1)]
+    assert version_lines[0].startswith(" ・v61 ・ going strong")
+    assert version_lines[1].startswith(" ・v60 ・")
+    expected = [f" ・v{n} ・" for n in range(61, 61 - len(version_lines), -1)]
     assert [line[: len(prefix)] for line, prefix in zip(version_lines, expected)] == (
         expected
     )
@@ -629,7 +642,7 @@ async def test_changed_text_posts_one_new_card_and_deletes_the_old_pair(
     (card,) = server.vault.send.await_args_list
     board = card_text(card)
     assert board.startswith(INTRO[0])
-    assert "║𝄡 v1 ・ going strong" in board
+    assert " ・v1 ・ going strong" in board
     header, _ = card.kwargs["view"].children
     assert isinstance(header, discord.ui.MediaGallery)
     assert card.kwargs["allowed_mentions"].to_dict() == (
@@ -757,7 +770,7 @@ async def test_a_card_in_the_first_post_is_brought_over(
     assert starter["view"] is None
     assert server.deleted == [VAULT_TITLE_ID]
     (card,) = server.vault.send.await_args_list
-    assert card_text(card).splitlines()[-1] == FRAME.bottom
+    assert card_text(card).splitlines()[-1] == FRAME.footer
     assert (await bot.settings.get(GUILD_ID)).vault_message_id == POSTED_ID
 
 
@@ -798,7 +811,7 @@ async def test_the_private_board_points_at_its_own_buttons(
 
     text = await render_leaderboard(bot, GUILD_ID, NOW, private=True)
 
-    assert "║ with the buttons below." in text
+    assert " Shop or open your Snack Pack with the buttons below." in text
     assert "Status post" not in text
 
 
@@ -807,7 +820,7 @@ async def test_the_intro_says_where_to_shop(bot: app.WispBot) -> None:
 
     text = await current_text(bot)
 
-    assert "║𝄡 Shop the Vault with the button" in text
+    assert " Shop the Vault with the button" in text
     assert "Snack Pack" not in text
 
 

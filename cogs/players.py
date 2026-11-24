@@ -47,7 +47,7 @@ NOT_TAKING: Final = "♪ Wisp is not taking snacks or gifts from you right now."
 
 
 async def status_text(bot: "WispBot", guild_id: int, life: Life, now: datetime) -> str:
-    """Render the status card for a life that is not over, in Myra's emoji frame.
+    """Render the status card for a life that is not over, in WiSP's Favorites style.
 
     Fed today counts the members who fed Wisp or gave him a snack since UTC
     midnight; the tracks are those fed on the same UTC day.
