@@ -5,8 +5,9 @@ each language's rules and the word-list builder can all import it.
 """
 
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from enum import StrEnum, auto
+from pathlib import Path
 from typing import Final, NamedTuple
 
 from wisp.language import Language
@@ -81,3 +82,34 @@ def compare(first: WordKeys | None, second: WordKeys | None) -> RhymeKind | None
     if first.slant & second.slant:
         return RhymeKind.SLANT
     return None
+
+
+def read_accents(path: Path) -> dict[str, tuple[str, ...]]:
+    """An accent map file: each unaccented spelling and the known words it stands for.
+
+    One line per entry, `unaccented<TAB>accented accented ...`.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return {
+        unaccented: tuple(accented.split())
+        for unaccented, accented in (line.split("	") for line in lines)
+    }
+
+
+def known_spellings(
+    word: str,
+    *,
+    language: Language,
+    known: frozenset[str],
+    accents: Mapping[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    """The known spellings `word` can be read as; empty when it is unknown.
+
+    A word that carries an accent is only itself. An unaccented one is itself
+    when known, plus the accented twins `accents` lists for it.
+    """
+    word = unicodedata.normalize("NFC", word)
+    own = (word,) if word in known else ()
+    if fold(word, language=language) != word:
+        return own
+    return own + tuple(accents.get(word, ()))

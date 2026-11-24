@@ -3,9 +3,9 @@
 Every language turns a word into `WordKeys`, and `compare` decides how two
 words rhyme from them. English pronunciations come from the CMU Pronouncing
 Dictionary: a word's rhyme is its phones from the last stressed vowel to the
-end, with the stress marks dropped. Spanish keys come from spelling rules in
-`rhymes_es`. Wisp only ever answers with words from his language's common word
-list in `data/`.
+end, with the stress marks dropped. Spanish and French keys come from spelling
+rules in `rhymes_es` and `rhymes_fr`. Wisp only ever answers with words from
+his language's common word list in `data/`.
 """
 
 import random
@@ -20,7 +20,7 @@ from typing import Final
 
 import pronouncing
 
-from wisp import rhymes_es
+from wisp import rhymes_es, rhymes_fr
 from wisp.language import Language
 from wisp.rhyme_keys import RhymeKind, WordKeys, compare, fold
 from wisp.rules import (
@@ -56,10 +56,12 @@ _DATA: Final = Path(__file__).resolve().parent / "data"
 _WORD_FILES: Final[dict[Language, Path]] = {
     Language.EN: _DATA / "common_words.txt",
     Language.ES: _DATA / "common_words_es.txt",
+    Language.FR: _DATA / "common_words_fr.txt",
 }
 _WORDS: Final[dict[Language, re.Pattern[str]]] = {
     Language.EN: re.compile(r"[a-z]+(?:'[a-z]+)*"),
     Language.ES: rhymes_es.WORD,
+    Language.FR: rhymes_fr.WORD,
 }
 EDGE: Final = string.punctuation + "¡¿«»“”‘’…"
 _EDGES: Final = re.compile(rf"^[\s{re.escape(EDGE)}]+|[\s{re.escape(EDGE)}]+$")
@@ -110,6 +112,7 @@ def _english_keys(word: str) -> WordKeys | None:
 _KEYS: Final[dict[Language, Callable[[str], WordKeys | None]]] = {
     Language.EN: _english_keys,
     Language.ES: rhymes_es.keys,
+    Language.FR: rhymes_fr.keys,
 }
 
 # ---
@@ -123,7 +126,12 @@ def keys(word: str, *, language: Language) -> WordKeys | None:
 
 
 def same_word_key(word: str, *, language: Language) -> str:
-    """The spelling two words share when they are the same word."""
+    """The spelling two words share when they are the same word.
+
+    French compares only the part after an elision, so l'été is été.
+    """
+    if language is Language.FR:
+        word = rhymes_fr.tail(word)
     return fold(word, language=language)
 
 

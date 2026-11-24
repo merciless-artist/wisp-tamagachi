@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Final, NamedTuple
 
 from wisp.language import Language
-from wisp.rhyme_keys import WordKeys, fold, merge
+from wisp.rhyme_keys import WordKeys, known_spellings, merge, read_accents
 
 __all__ = ["WORD", "keys", "keys_of", "readings", "stressed_vowel"]
 
@@ -232,11 +232,7 @@ def _known() -> frozenset[str]:
 @cache
 def _accents() -> dict[str, tuple[str, ...]]:
     """Each unaccented spelling and the accented known words it can stand for."""
-    lines = _ACCENTS_FILE.read_text(encoding="utf-8").splitlines()
-    return {
-        unaccented: tuple(accented.split())
-        for unaccented, accented in (line.split("\t") for line in lines)
-    }
+    return read_accents(_ACCENTS_FILE)
 
 
 def readings(word: str) -> tuple[str, ...]:
@@ -245,11 +241,9 @@ def readings(word: str) -> tuple[str, ...]:
     A word that carries an accent is only itself. An unaccented one is itself
     when known, plus the accented twins the accent map lists for it.
     """
-    word = unicodedata.normalize("NFC", word)
-    own = (word,) if word in _known() else ()
-    if fold(word, language=Language.ES) != word:
-        return own
-    return own + _accents().get(word, ())
+    return known_spellings(
+        word, language=Language.ES, known=_known(), accents=_accents()
+    )
 
 
 def keys(word: str) -> WordKeys | None:
