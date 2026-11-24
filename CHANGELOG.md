@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-11-23 (Rhyme Duel in three languages)
+
+- **The Rhyme Duel in English, Español or Français.** The first time a member
+  starts a duel, Wisp posts a language picker in their room with three
+  buttons, English, Español and Français, and frees the room at once. A press
+  runs the same start as the command, so every refusal still applies; only
+  once the checks pass is the language saved and the picker closed to a
+  one-line note, before the duel starts. Only the member can press their
+  buttons.
+- **`/wisp play rhyme language:`** saves a new language and starts a duel in
+  it. With no option, the saved language is used.
+- **Spanish rhymes** are rule-based from spelling (`wisp/rhymes_es.py`):
+  perfect is rima consonante, slant is rima asonante.
+- **French rhymes** are rule-based from spelling (`wisp/rhymes_fr.py`):
+  perfect is rime suffisante or better, slant is rime pauvre or assonance.
+  Silent `-ent` verb endings come from the committed `silent_ent_fr.txt`.
+- **Known words and accent maps.** Spanish and French accept only words in
+  `known_words_<es|fr>.txt`, so nonsense is rejected, and
+  `accents_<es|fr>.txt` lets members type without accents (`cancion`,
+  `garcon`). An unaccented repeat of a used word counts as already used.
+  Wisp's openers and answers come from `common_words_<es|fr>.txt`. All are
+  built offline with `python -m tools.build_common_words <en|es|fr>`;
+  `wordfreq` stays dev-only.
+- **In the chosen language:** the opener and word line, Wisp's turns, his
+  start and stuck lines, the verdicts and the score line.
+- **The receipt and private replies stay English**, since their reasons are
+  shared with feeding and the Craving.
+- **One best score** per member across all three languages; scoring is the
+  same in each.
+- **English** plays as before. Input cleaning is a little wider in every
+  language (NFC, curly quotes, edge punctuation such as `«hat»`).
+- **Storage (additive):** `players.rhyme_language` (`VARCHAR(2) NULL`); NULL
+  means the member has not picked yet.
+
 ## 2026-11-23 (Drawings in rooms)
 
 - **Drawings in rooms.** A drawing Wisp makes for a member is posted in his
