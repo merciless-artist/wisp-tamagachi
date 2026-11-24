@@ -80,6 +80,16 @@ class PlayerRepo:
             (to_db_time(at),),
         )
 
+    async def activated(self, guild_id: int) -> list[Player]:
+        """Return the players who opened /wisp board, first to join first."""
+        rows = await self._db.fetchall(
+            f"{_SELECT} {self._db.t('players')} "
+            "WHERE guild_id = %s AND activated_at IS NOT NULL "
+            "ORDER BY activated_at, user_id",
+            (guild_id,),
+        )
+        return [_from_row(row) for row in rows]
+
     async def add_points(self, guild_id: int, user_id: int, points: int) -> None:
         """Add leaderboard points to both the lifetime total and the balance."""
         await self._update(

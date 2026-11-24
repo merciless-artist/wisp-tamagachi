@@ -15,7 +15,7 @@ import pytest
 import app
 from cogs import rooms, vault
 from cogs.players import NameModal
-from cogs.rooms import RoomError, rename_room, room_name
+from cogs.rooms import RoomError, ensure_rooms, rename_room, room_name
 from db.activity import ActivityRepo
 from db.database import Database
 from db.lives import LifeRepo
@@ -58,6 +58,8 @@ class FakeServer:
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = GUILD_ID
         self.guild.get_channel_or_thread.side_effect = self.channels.get
+        self.members: dict[int, MagicMock] = {}
+        self.guild.fetch_member = AsyncMock(side_effect=self._fetch_member)
 
     def make_house(self, house_id: int) -> MagicMock:
         house = MagicMock(spec=discord.TextChannel)
@@ -106,6 +108,11 @@ class FakeServer:
         if channel_id not in self.threads:
             raise discord.NotFound(MagicMock(status=404), "Unknown Channel")
         return self.threads[channel_id]
+
+    def _fetch_member(self, user_id: int) -> MagicMock:
+        if user_id not in self.members:
+            raise discord.NotFound(MagicMock(status=404), "Unknown Member")
+        return self.members[user_id]
 
     def only_room(self) -> MagicMock:
         (room,) = self.threads.values()
@@ -550,3 +557,110 @@ async def test_a_failed_rename_is_reported_not_raised(
 
     (report,) = server.house.send.await_args.args
     assert report.startswith("Error in renaming a room: Forbidden: 403")
+
+
+# ---
+# Making missing rooms for everyone who joined
+# ---
+
+
+async def join(bot: app.WispBot, server: FakeServer, user_id: int, name: str) -> None:
+    """A member who opened /wisp board and is still in the server."""
+    server.members[user_id] = make_member(user_id, name)
+    await bot.players.activate(GUILD_ID, user_id, NOW)
+
+
+async def test_everyone_who_joined_without_a_room_gets_one(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await join(bot, server, 1, "One")
+    await join(bot, server, 2, "Two")
+
+    made = await ensure_rooms(bot, server.guild, None)
+
+    assert made == 2
+    assert sorted(room.name for room in server.threads.values()) == [
+        "One's Storage Locker",
+        "Two's Storage Locker",
+    ]
+    assert await stored_room(bot, 1) is not None
+    assert await stored_room(bot, 2) is not None
+
+
+async def test_members_with_a_room_or_not_joined_are_left_alone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await join(bot, server, 1, "One")
+    room = await rooms.open_room(bot, server.guild, server.members[1])
+    room.archived = True
+    server.members[2] = make_member(2, "Two")
+    await bot.players.get(GUILD_ID, 2)
+
+    made = await ensure_rooms(bot, server.guild, None)
+
+    assert made == 0
+    assert server.only_room() is room
+    room.edit.assert_not_awaited()
+
+
+async def test_a_deleted_room_is_made_again_for_everyone(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await join(bot, server, 1, "One")
+    old = await rooms.open_room(bot, server.guild, server.members[1])
+    del server.threads[old.id]
+
+    made = await ensure_rooms(bot, server.guild, None)
+
+    assert made == 1
+    assert await stored_room(bot, 1) == server.only_room().id != old.id
+
+
+async def test_members_who_left_the_server_get_no_room(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await bot.players.activate(GUILD_ID, 1, NOW)
+
+    made = await ensure_rooms(bot, server.guild, None)
+
+    assert made == 0
+    server.house.create_thread.assert_not_awaited()
+
+
+async def test_one_failed_room_is_reported_and_the_rest_are_made(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await configure(bot)
+    await join(bot, server, 1, "One")
+    await join(bot, server, 2, "Two")
+    make_thread = server.house.create_thread.side_effect
+
+    def refuse_one(**kwargs: Any) -> MagicMock:
+        if kwargs["name"] == "One's Storage Locker":
+            raise forbidden()
+        return cast(MagicMock, make_thread(**kwargs))
+
+    server.house.create_thread.side_effect = refuse_one
+    where = MagicMock(spec=discord.TextChannel)
+    where.send = AsyncMock()
+
+    made = await ensure_rooms(bot, server.guild, where)
+
+    assert made == 1
+    assert await stored_room(bot, 1) is None
+    assert await stored_room(bot, 2) is not None
+    (report,) = where.send.await_args.args
+    assert report.startswith("Error in making a storage locker: Forbidden: 403")
+
+
+async def test_making_rooms_without_a_house_raises_room_error(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await join(bot, server, 1, "One")
+
+    with pytest.raises(RoomError):
+        await ensure_rooms(bot, server.guild, None)

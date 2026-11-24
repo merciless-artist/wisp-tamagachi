@@ -479,8 +479,10 @@ the purchase is undone and the points come back.
 ## Storage lockers (rooms)
 
 Each member gets one private thread off Wisp's House, their storage locker
-(a "room" in the code), made the first time they run `/wisp board` (members
-who joined earlier get theirs the next time they run it). It is named
+(a "room" in the code), made the first time they run `/wisp board`.
+`/wispadmin setup` (or `!wisp setup`) makes one for every member who has run
+`/wisp board` and has none, once the House permissions below are in place,
+skipping members who left the server; its answer says how many it made. It is named
 `<name>'s Storage Locker` for the name Wisp knows them by, and renamed when
 he learns a new one. A room from before storage lockers (`♪ <name>'s room`)
 is renamed the next time Wisp opens it; a failed rename is reported and the

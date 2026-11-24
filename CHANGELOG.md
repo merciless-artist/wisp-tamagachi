@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-23 (Lockers for everyone, the Interaction picture)
+
+- **A storage locker for everyone who joined.** `/wispadmin setup` now makes a
+  storage locker for every member who has run `/wisp board` and has none (or
+  whose locker was deleted), skipping members who left the server
+  (`ensure_rooms` in `cogs/rooms.py`, `PlayerRepo.activated`). It runs only
+  when Wisp has every House permission lockers need; a failure for one member
+  is posted and the rest carry on. Setup's answer adds
+  `・New storage lockers: <n>`.
+- **The Interaction post has a picture**, `ASSETS/thumbs/interaction.png`
+  (Wisp with a game controller). Setup adds it to the existing post.
+
 ## 2026-11-23 (WiSP's Favorites)
 
 - **The lunchbox is WiSP'S FAVORITES**, Myra's new layout

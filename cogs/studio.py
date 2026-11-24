@@ -19,6 +19,7 @@ from cogs.channels import where_of
 from cogs.faq import FAQ_PICTURE_COUNT, fill_faq
 from cogs.groups import wispadmin
 from cogs.pictures import Picture, art_kwargs, life_image
+from cogs.rooms import RoomError, ensure_rooms
 from cogs.speech import POKE_ID, poke_view
 from cogs.staff import StaffContext, guild_of, refused, reply, usage_line
 from db.settings import Settings, meal_points
@@ -296,6 +297,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
         "🕹️ | Interaction",
         "Interaction",
         "♪ Interaction\n・Feed, poke, shop and play with Wisp with the buttons below.",
+        image="thumbs/interaction.png",
     ),
 )
 
@@ -756,7 +758,9 @@ async def set_up(
     reported in `where`. A House or general chat that is also the track drop
     is refused, since Wisp never posts there. Returns the answer for staff,
     which says when no feeding role is set yet, since nobody can feed him then,
-    and which House permissions members' rooms still need.
+    and which House permissions members' rooms still need. With those
+    permissions in place, every member who opened /wisp board and has no
+    storage locker gets one.
     """
     if house.id == tracks.id:
         return _HOUSE_IS_TRACKS
@@ -791,6 +795,7 @@ async def set_up(
     permissions_line = (
         [f"・Wisp needs these in his House: {', '.join(missing)}"] if missing else []
     )
+    lockers_line = [] if missing else [await _lockers_line(bot, guild, where)]
     return "\n".join(
         [
             "♪ Wisp is set up.",
@@ -801,9 +806,21 @@ async def set_up(
             f"・{threads}",
             *roles_line,
             *permissions_line,
+            *lockers_line,
             *badge_lines,
         ]
     )
+
+
+async def _lockers_line(
+    bot: "WispBot", guild: discord.Guild, where: discord.abc.Messageable | None
+) -> str:
+    """Make the storage lockers members are missing and say how many were made."""
+    try:
+        made = await ensure_rooms(bot, guild, where)
+    except RoomError as error:
+        return f"・Storage lockers: {error}"
+    return f"・New storage lockers: {made}"
 
 
 async def rebuild(bot: "WispBot", guild_id: int) -> str:

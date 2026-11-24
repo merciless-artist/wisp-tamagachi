@@ -1,7 +1,8 @@
 """Rooms: each member's one private thread off Wisp's House.
 
 Members know a room as their storage locker, which is its name. A member's
-games and their pinned Snack Pack live in their room. It is made once, reused
+games and their pinned Snack Pack live in their room. It is made when they
+first open /wisp board, or by staff setup for anyone who has none, reused
 forever, and made again only when it was deleted or sits under an old House.
 """
 
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 
 import discord
 
+from db.players import Player
 from wisp.rules import ROOM_ARCHIVE_MINUTES, ROOM_NAME_MAX
 from wisp.text import clip
 
@@ -23,6 +25,7 @@ if TYPE_CHECKING:
 
 NOT_JOINED: Final = "Open /wisp board first so Wisp can give you a storage locker."
 _RENAME_CONTEXT: Final = "renaming a room"
+_MAKE_CONTEXT: Final = "making a storage locker"
 
 
 class RoomError(LookupError):
@@ -133,6 +136,42 @@ async def open_room(
             await _discard(bot, guild.id, member.id, room)
             raise
         return room
+
+
+async def ensure_rooms(
+    bot: "WispBot", guild: discord.Guild, where: discord.abc.Messageable | None
+) -> int:
+    """Make a room for every member who opened /wisp board and has none.
+
+    Members who left the server are skipped. A Discord failure for one member
+    is reported in `where` and the rest carry on. Returns how many rooms were
+    made.
+
+    Raises:
+        RoomError: The House is not set, cannot be seen or is not a text channel.
+    """
+    house = await _house(bot, guild)
+    made = 0
+    for player in await bot.players.activated(guild.id):
+        try:
+            made += await _make_missing_room(bot, guild, house, player)
+        except discord.HTTPException as error:
+            await bot.report_error(guild, _MAKE_CONTEXT, error, where=where)
+    return made
+
+
+async def _make_missing_room(
+    bot: "WispBot", guild: discord.Guild, house: discord.TextChannel, player: Player
+) -> bool:
+    """Make the player's room when they have none and are still in the server."""
+    if await _stored_room(bot, house.id, player.room_thread_id) is not None:
+        return False
+    try:
+        member = await guild.fetch_member(player.user_id)
+    except discord.NotFound:
+        return False
+    await open_room(bot, guild, member)
+    return True
 
 
 async def _rename(

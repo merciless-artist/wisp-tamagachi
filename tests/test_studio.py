@@ -29,6 +29,7 @@ from cogs.studio import (
 from db.badges import BadgeRepo
 from db.database import Database
 from db.lives import LifeRepo
+from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from wisp import chores, rules
@@ -78,6 +79,7 @@ THUMBNAILS = {
     JAM: "thumbs/jam_space.png",
     FAQ: "thumbs/faq.png",
     SHOP: "gifts/VV_Store/VV_Snacks.gif",
+    INTERACTION: "thumbs/interaction.png",
 }
 FAQ_PICTURES = (
     "00_how_wisp_works_1.png",
@@ -461,6 +463,7 @@ def bot(
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.lives = LifeRepo(db)
     wisp_bot.story = LifeStoryRepo(db)
+    wisp_bot.players = PlayerRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot
@@ -637,6 +640,7 @@ async def test_new_threads_carry_their_thumbnails(
         JAM: "jam_space.png",
         FAQ: "faq.png",
         SHOP: "VV_Snacks.gif",
+        INTERACTION: "interaction.png",
     }
     for art in attached.values():
         art.close()
@@ -760,7 +764,19 @@ async def test_setup_with_every_house_permission_names_none(
 
     ctx = await run_setup(bot, server)
 
-    assert "needs these" not in sent_text(ctx)
+    text = sent_text(ctx)
+    assert "needs these" not in text
+    assert "・New storage lockers: 0" in text.splitlines()
+
+
+async def test_setup_makes_no_lockers_while_the_house_lacks_permissions(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.house.permissions_for.return_value = ROOM_PERMISSIONS
+
+    ctx = await run_setup(bot, server)
+
+    assert "storage lockers" not in sent_text(ctx)
 
 
 async def test_setup_pins_the_status_post_to_the_top_once(
