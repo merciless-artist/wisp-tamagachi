@@ -2,8 +2,10 @@
 
 Every language turns a word into `WordKeys`, and `compare` decides how two
 words rhyme from them. English pronunciations come from the CMU Pronouncing
-Dictionary: a word's rhyme is its phones from the last stressed vowel to the
-end, with the stress marks dropped. Spanish and French keys come from spelling
+Dictionary, and for words it lacks from WikiPron's English (US) list (from
+Wiktionary, CC BY-SA 4.0) in `data/`, mapped to the same phones: a word's
+rhyme is its phones from the last stressed vowel to the end, with the stress
+marks dropped. Spanish and French keys come from spelling
 rules in `rhymes_es` and `rhymes_fr`. Wisp only ever answers with words from
 his language's common word list in `data/`.
 """
@@ -58,6 +60,7 @@ _WORD_FILES: Final[dict[Language, Path]] = {
     Language.ES: _DATA / "common_words_es.txt",
     Language.FR: _DATA / "common_words_fr.txt",
 }
+_WIKIPRON_EN_FILE: Final = _DATA / "wikipron_en.txt"
 _WORDS: Final[dict[Language, re.Pattern[str]]] = {
     Language.EN: re.compile(r"[a-z]+(?:'[a-z]+)*"),
     Language.ES: rhymes_es.WORD,
@@ -90,12 +93,28 @@ def _rhyme_part(phones: str) -> str:
     return " ".join(phone.rstrip(_STRESS_MARKS) for phone in split[start:])
 
 
+@cache
+def _wikipron_english() -> dict[str, str]:
+    """Each WikiPron word CMU lacks and its tab-separated ARPAbet readings."""
+    lines = _WIKIPRON_EN_FILE.read_text(encoding="utf-8").splitlines()
+    return dict(line.split("\t", 1) for line in lines)
+
+
+def _english_pronunciations(word: str) -> list[str]:
+    """A word's CMU pronunciations, else its WikiPron ones; empty when unknown."""
+    cmu: list[str] = pronouncing.phones_for_word(word)
+    if cmu:
+        return cmu
+    wikipron = _wikipron_english().get(word)
+    return wikipron.split("\t") if wikipron else []
+
+
 def _english_keys(word: str) -> WordKeys | None:
-    """The keys of every CMU pronunciation of a word; None when it is unknown.
+    """The keys of every pronunciation of a word; None when it is unknown.
 
     The slant key is the rhyme's stressed vowel.
     """
-    pronunciations: list[str] = pronouncing.phones_for_word(word)
+    pronunciations = _english_pronunciations(word)
     if not pronunciations:
         return None
     rhymes = frozenset(_rhyme_part(phones) for phones in pronunciations)

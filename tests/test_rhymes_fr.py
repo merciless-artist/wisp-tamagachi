@@ -2,6 +2,7 @@
 
 import random
 from functools import partial
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,7 @@ from wisp.rules import (
     Stage,
 )
 
+ROOT = Path(__file__).resolve().parent.parent
 SILENT = rhymes_fr._silent_ent()
 
 PERFECT = [
@@ -284,3 +286,42 @@ def test_french_accent_map_reaches_known_words() -> None:
 def test_silent_ent_list_holds_verbs_only() -> None:
     assert {"parlent", "chantent", "aiment"} <= SILENT
     assert not {"talent", "moment", "régiment", "sergent", "survient"} & SILENT
+
+
+# ---
+# Lexique words
+# ---
+
+
+def test_a_rare_lexique_word_is_known_and_rhymes() -> None:
+    frequent = (ROOT / "wisp/data/known_words_fr.txt").read_text(encoding="utf-8")
+    assert "joufflu" not in frequent.split()
+    assert rhyme_kind("joufflu", "exclu", language=Language.FR) is RhymeKind.PERFECT
+
+
+def test_goutu_is_not_in_lexique() -> None:
+    assert rhyme_kind("goûtu", "exclu", language=Language.FR) is None
+
+
+def test_made_up_french_words_stay_unknown() -> None:
+    assert rhyme_kind("joufflu", "blorpflu", language=Language.FR) is None
+    assert rhymes_fr.keys("blorpflu") is None
+
+
+def test_lexique_reading_wins_over_the_rules() -> None:
+    assert phones_of("compte", SILENT) == frozenset({"kOpt"})
+    assert rhyme_kind("compte", "raconte", language=Language.FR) is RhymeKind.PERFECT
+    assert rhyme_kind("compte", "conte", language=Language.FR) is None
+
+
+def test_the_whole_word_table_adds_to_lexique() -> None:
+    word_keys = rhymes_fr.keys("tous")
+    assert word_keys is not None
+    assert {"tu", "tus"} <= word_keys.whole
+
+
+def test_every_lexique_word_has_keys() -> None:
+    lexique = rhymes_fr._lexique()
+    assert len(lexique) > 100000
+    assert set(lexique) <= rhymes_fr._known()
+    assert all(rhymes_fr._known_keys(word) for word in lexique)

@@ -11,10 +11,14 @@ plain strings:
     glides      j w H
     consonants  p b t d k g f v s z m n l S (ch) Z (j) N (gn) R
 
-A player's word only counts when it is in the known word list in `data/`, or
-reaches one through the accent map there, so `ete` reads as `été` while a
-made-up word like `blorpaison` is rejected. Whether a final -ent is silent
-(ils parlent) or not (un moment) also comes from a list in `data/`.
+A player's word only counts when it is a known word, or reaches one through
+the accent map in `data/`, so `ete` reads as `été` while a made-up word like
+`blorpaison` is rejected. The known words are the frequent-word list in
+`data/` and every word form of Lexique 3.83 (New, Pallier et al., CC BY-SA
+4.0). A Lexique word is heard as Lexique says (its `phon`, in these phones),
+plus any reading the whole-word table gives it; every other word is read by
+the rules. Whether a final -ent is silent (ils parlent) or not (un moment)
+comes from a list in `data/`.
 """
 
 import re
@@ -38,6 +42,7 @@ _DATA: Final = Path(__file__).resolve().parent / "data"
 _KNOWN_FILE: Final = _DATA / "known_words_fr.txt"
 _ACCENTS_FILE: Final = _DATA / "accents_fr.txt"
 _SILENT_ENT_FILE: Final = _DATA / "silent_ent_fr.txt"
+_LEXIQUE_FILE: Final = _DATA / "lexique_fr.txt"
 
 _TAIL: Final = re.compile(rf"[{_LETTERS}]+")
 _PARTS: Final = re.compile(r"['-]")
@@ -377,13 +382,12 @@ def _rhyme_keys(phones: str) -> tuple[str, str]:
     return perfect, _SLANT.get(vowel, vowel)
 
 
-def keys_of(spelling: str, silent_ent: frozenset[str]) -> WordKeys | None:
-    """The rhyme keys of one spelling (no elision), known word or not.
+def _keys_of_readings(read: frozenset[str]) -> WordKeys | None:
+    """The rhyme keys of a word's readings; None when there are none.
 
     The perfect key is a rime suffisante or better, the slant key a rime
-    pauvre or an assonance. None when the spelling cannot be read.
+    pauvre or an assonance.
     """
-    read = phones_of(spelling, silent_ent)
     if not read:
         return None
     rhymed = [_rhyme_keys(phones) for phones in read]
@@ -394,15 +398,41 @@ def keys_of(spelling: str, silent_ent: frozenset[str]) -> WordKeys | None:
     )
 
 
+def keys_of(spelling: str, silent_ent: frozenset[str]) -> WordKeys | None:
+    """The rhyme keys of one spelling (no elision) read by the rules, known or not.
+
+    None when the spelling cannot be read.
+    """
+    return _keys_of_readings(phones_of(spelling, silent_ent))
+
+
+def _known_keys(spelling: str) -> WordKeys | None:
+    """The rhyme keys of one known spelling: Lexique's readings, else the rules'."""
+    heard = _lexique().get(spelling)
+    if heard is None:
+        return keys_of(spelling, _silent_ent())
+    return _keys_of_readings(
+        frozenset(heard.split("\t")) | WHOLE.get(spelling, frozenset())
+    )
+
+
 # ---
 # Known words
 # ---
 
 
 @cache
+def _lexique() -> dict[str, str]:
+    """Each Lexique word and its tab-separated readings, as phones."""
+    lines = _LEXIQUE_FILE.read_text(encoding="utf-8").splitlines()
+    return dict(line.split("\t", 1) for line in lines)
+
+
+@cache
 def _known() -> frozenset[str]:
-    """Every French word a player may use."""
-    return frozenset(_KNOWN_FILE.read_text(encoding="utf-8").split())
+    """Every French word a player may use: the frequent ones and Lexique's."""
+    frequent = _KNOWN_FILE.read_text(encoding="utf-8").split()
+    return frozenset(frequent).union(_lexique())
 
 
 @cache
@@ -438,4 +468,4 @@ def readings(word: str) -> tuple[str, ...]:
 
 def keys(word: str) -> WordKeys | None:
     """The keys of every reading of `word`; None when it is not a known word."""
-    return merge(keys_of(reading, _silent_ent()) for reading in readings(word))
+    return merge(_known_keys(reading) for reading in readings(word))

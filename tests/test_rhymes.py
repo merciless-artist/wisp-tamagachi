@@ -41,6 +41,7 @@ JUNK = {
 HATCHED = [Stage.BABY, Stage.CHILD, Stage.TEEN, Stage.ADULT, Stage.ROCKSTAR]
 TRIALS = 1000
 LEAF = Path(__file__).resolve().parent.parent / "wisp/rhyme_keys.py"
+WIKIPRON_FILE = Path(__file__).resolve().parent.parent / "wisp/data/wikipron_en.txt"
 
 
 def reply_rate(stage: Stage, turn: int | None = None) -> float:
@@ -327,3 +328,37 @@ def test_common_words_are_real_words() -> None:
     short = {word for word in COMMON if len(word) < 3}
     assert short <= TWO_LETTER_WORDS
     assert not JUNK & set(COMMON)
+
+
+# ---
+# WikiPron words
+# ---
+
+
+def test_a_word_cmu_lacks_rhymes_from_wikipron() -> None:
+    assert not pronouncing.phones_for_word("lollygag")
+    assert rhyme_kind("lollygag", "bag", language=Language.EN) is RhymeKind.PERFECT
+    assert rhyme_kind("widdershins", "pins", language=Language.EN) is RhymeKind.SLANT
+
+
+def test_curr_is_in_neither_dictionary() -> None:
+    assert rhyme_kind("curr", "were", language=Language.EN) is None
+
+
+def test_every_wikipron_reading_has_one_stressed_vowel() -> None:
+    readings = [
+        reading
+        for line in WIKIPRON_FILE.read_text(encoding="utf-8").splitlines()
+        for reading in line.split("\t")[1:]
+    ]
+    assert len(readings) > 30000
+    for reading in readings:
+        stress = [phone[-1] for phone in reading.split() if phone[-1].isdigit()]
+        assert stress.count("1") == 1, reading
+        assert set(stress) <= {"0", "1"}, reading
+
+
+def test_wikipron_words_are_all_missing_from_cmu() -> None:
+    lines = WIKIPRON_FILE.read_text(encoding="utf-8").splitlines()
+    words = [line.split("\t")[0] for line in lines]
+    assert not [word for word in words[::50] if pronouncing.phones_for_word(word)]

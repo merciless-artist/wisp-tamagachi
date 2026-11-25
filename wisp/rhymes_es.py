@@ -2,9 +2,11 @@
 
 Spanish is spelled the way it sounds, so rules find the stressed vowel and
 normalise the sounds after it (seseo, yeísmo, b and v alike) instead of a
-pronouncing dictionary. A player's word only counts when it is in the known
-word list in `data/`, or reaches one through the accent map there, so
-`cancion` reads as `canción` while a made-up word like `xuego` is rejected.
+pronouncing dictionary. A player's word only counts when it is a known word,
+or reaches one through the accent map in `data/`, so `cancion` reads as
+`canción` while a made-up word like `xuego` is rejected. The known words are
+the frequent-word list in `data/` and the words of WikiPron's Latin American
+Spanish list (from Wiktionary, CC BY-SA 4.0), all read by the same rules.
 """
 
 import re
@@ -23,6 +25,7 @@ WORD: Final = re.compile(r"[a-záéíóúüñ]+")
 _DATA: Final = Path(__file__).resolve().parent / "data"
 _KNOWN_FILE: Final = _DATA / "known_words_es.txt"
 _ACCENTS_FILE: Final = _DATA / "accents_es.txt"
+_WIKIPRON_FILE: Final = _DATA / "wikipron_es.txt"
 
 _VOWELS: Final = frozenset("aeiouáéíóúü")
 _STRONG: Final = frozenset("aeoáéó")
@@ -225,8 +228,9 @@ def keys_of(spelling: str) -> WordKeys | None:
 
 @cache
 def _known() -> frozenset[str]:
-    """Every Spanish word a player may use."""
-    return frozenset(_KNOWN_FILE.read_text(encoding="utf-8").split())
+    """Every Spanish word a player may use: the frequent ones and WikiPron's."""
+    frequent = _KNOWN_FILE.read_text(encoding="utf-8").split()
+    return frozenset(frequent).union(_WIKIPRON_FILE.read_text(encoding="utf-8").split())
 
 
 @cache

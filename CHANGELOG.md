@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-11-25 (Bigger rhyme dictionaries)
+
+- **French** now knows every Lexique 3.83 word form (`wisp/data/lexique_fr.txt`,
+  about 120,000 words; 46,076 known before, 129,380 now) and hears each one
+  as Lexique's `phon` field says, mapped to the existing phones, so the
+  spelling rules' slips are gone for them (`compte` rhymes with `raconte`).
+  Words outside Lexique keep the rule reading; the whole-word table still
+  adds its readings (`tous` is `tu` and `tus`). Perfect is still rime
+  suffisante or better and slant rime pauvre or assonance. `goûtu` is not in
+  Lexique, so it is still unknown.
+- **English** keeps CMU and adds WikiPron's English (US) list for the
+  35,434 words CMU lacks (`wisp/data/wikipron_en.txt`, IPA mapped to ARPAbet;
+  stress on the last full vowel, as WikiPron has none). A CMU word is read
+  exactly as before. `curr` is in neither, so it is still unknown.
+- **Spanish** knows WikiPron's Latin American Spanish words too
+  (`wisp/data/wikipron_es.txt`; 46,279 known before, 146,763 now), still read
+  by the spelling rules.
+- English loanwords (`love`, `game`) stay unknown in Spanish and French, by
+  the same wordfreq test as before. Made-up words are still rejected, Wisp's
+  own words are unchanged, and the accent maps reach the new words
+  (`abatardi` reads as `abâtardi`). The known and common word lists are
+  byte-identical after the rebuild.
+- New offline builder `tools/build_pronunciations.py`; raw downloads go in
+  the gitignored `tools/raw/`. Credits and licenses (CC BY-SA 4.0 for the
+  Lexique- and Wiktionary-derived files) are in `wisp/data/CREDITS.md`.
+- The files load lazily on the first duel in their language: about 0.4 s
+  and 35 MB for French (7 MB before), 0.2 to 0.6 s and 18 MB for Spanish
+  (6 MB before), and 0.1 s and 5 MB for English, only once a word CMU lacks
+  is played.
+
 ## 2026-11-25 (Snacks picture back in the ViiBR Vault)
 
 - The Vault post's snack shelf shows Myra's `VV_Snacks.gif` above the snack

@@ -222,3 +222,19 @@ def test_no_wordfreq_at_runtime() -> None:
     assert not [
         path for path in sources if "wordfreq" in path.read_text(encoding="utf-8")
     ]
+
+
+# ---
+# WikiPron words
+# ---
+
+
+def test_a_rare_wikipron_word_is_known_and_rhymes() -> None:
+    frequent = (ROOT / "wisp/data/known_words_es.txt").read_text(encoding="utf-8")
+    assert "chirimoya" not in frequent.split()
+    assert rhyme_kind("chirimoya", "joya", language=Language.ES) is RhymeKind.PERFECT
+
+
+def test_made_up_spanish_words_stay_unknown() -> None:
+    assert rhyme_kind("chirimoya", "xirimoya", language=Language.ES) is None
+    assert rhymes_es.keys("xirimoya") is None

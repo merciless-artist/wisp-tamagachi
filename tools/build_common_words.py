@@ -18,8 +18,11 @@ Spanish and French have no dictionary, so they also get a known word list
 (every word a player may use) and an accent map (the accented known words an
 unaccented spelling stands for). Both come from the top KNOWN_SCAN words,
 without English words and without unaccented misspellings of a more frequent
-accented word. French also gets the -ent verb forms whose ending is silent
-(ils parlent), worked out from how frequent each form is next to its stem.
+accented word. The accent map also reaches the words of the language's
+pronunciation file (Lexique for French, WikiPron for Spanish), so build that
+first with `tools.build_pronunciations`. French also gets the -ent verb forms
+whose ending is silent (ils parlent), worked out from how frequent each form
+is next to its stem.
 
 The tool prints every common word it keeps (and, for French, the silent -ent
 forms), so a person can look for names, places and misread nouns to add to
@@ -182,7 +185,7 @@ BLOCKLIST_ES: Final = frozenset(
 )  # fmt: skip
 
 
-def _english(word: str, language: Language) -> bool:
+def english(word: str, language: Language) -> bool:
     """Whether a word in another language's list is really English.
 
     Spanish counts a word as English at exactly ENGLISH_MARGIN more frequent
@@ -199,7 +202,7 @@ def _known_spanish(word: str) -> bool:
     return bool(
         rhymes_es.WORD.fullmatch(word)
         and rhymes_es.keys_of(word) is not None
-        and not _english(word, Language.ES)
+        and not english(word, Language.ES)
     )
 
 
@@ -376,7 +379,7 @@ def _known_french(word: str) -> bool:
         rhymes_fr.WORD.fullmatch(word)
         and _HEARD_VOWEL_FR.search(word)
         and _sounds_french(word)
-        and not _english(word, Language.FR)
+        and not english(word, Language.FR)
     )
 
 
@@ -415,6 +418,8 @@ class Profile:
     has a dictionary at runtime instead and no known word or accent files.
     `sounds` gives a word's readings when no two of Wisp's words may sound
     alike, and `silent_ent` the silent -ent forms to write, for French.
+    `pronunciations` is the file from `tools.build_pronunciations` whose
+    words (each line's first field) the accent map also reaches.
     """
 
     language: Language
@@ -428,6 +433,7 @@ class Profile:
     sounds: Callable[[str], frozenset[str]] | None = None
     silent_ent: Callable[[], frozenset[str]] | None = None
     silent_ent_output: Path | None = None
+    pronunciations: Path | None = None
 
 
 PROFILES: Final[dict[Language, Profile]] = {
@@ -447,6 +453,7 @@ PROFILES: Final[dict[Language, Profile]] = {
         known=_known_spanish,
         known_output=DATA / "known_words_es.txt",
         accents_output=DATA / "accents_es.txt",
+        pronunciations=DATA / "wikipron_es.txt",
     ),
     Language.FR: Profile(
         language=Language.FR,
@@ -460,6 +467,7 @@ PROFILES: Final[dict[Language, Profile]] = {
         sounds=_sounds_french,
         silent_ent=_silent_ent_fr,
         silent_ent_output=DATA / "silent_ent_fr.txt",
+        pronunciations=DATA / "lexique_fr.txt",
     ),
 }
 
@@ -549,6 +557,13 @@ def common_words(profile: Profile) -> list[str]:
     raise RuntimeError(f"Only {len(kept)} words passed; scan more than {profile.scan}.")
 
 
+def pronounced_words(path: Path, known: list[str]) -> list[str]:
+    """The words of a pronunciation file that `known` lacks, in file order."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    have = set(known)
+    return [word for line in lines if (word := line.split("\t")[0]) not in have]
+
+
 def _write(path: Path, lines: list[str]) -> None:
     """Write `lines` to `path`, one per line, with Unix line endings."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -568,7 +583,11 @@ def main(argv: list[str]) -> None:
     if profile.known_output is not None and profile.accents_output is not None:
         known = list(_known_in_order(profile.language))
         _write(profile.known_output, known)
-        accents = accent_map(known, profile.language)
+        if profile.pronunciations is not None:
+            reached = known + pronounced_words(profile.pronunciations, known)
+        else:
+            reached = known
+        accents = accent_map(reached, profile.language)
         _write(
             profile.accents_output,
             [f"{key}\t{' '.join(accents[key])}" for key in sorted(accents)],
