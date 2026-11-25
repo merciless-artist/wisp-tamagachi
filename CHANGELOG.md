@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-25 (Snacks picture back in the ViiBR Vault)
+
+- The Vault post's snack shelf shows Myra's `VV_Snacks.gif` above the snack
+  menu again, in place of its text line, so every shelf is a picture with its
+  menu. It is its own message under the banner, so the banner stays alone in
+  the first post.
+
 ## 2026-11-24 (Mood gifs)
 
 - **Myra's mood gifs** (`ASSETS/wispmoods/gifs/<stage><mood>.gif`: angry,

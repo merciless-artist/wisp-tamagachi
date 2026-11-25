@@ -1,7 +1,7 @@
 """The ViiBR Vault post: Myra's shelf pictures in the Studio, each with its menu.
 
-The post's first message shows Myra's ViiBR Vault banner. Under it come the snack
-menu, then one message per shelf picture with its menu, then the medicine and
+The post's first message shows Myra's ViiBR Vault banner. Under it comes one
+message per shelf picture with its menu, snacks first, then the medicine and
 magazine menus with the Snack Pack button. A pick answers only the member who
 made it, with the same purchase the private Vault makes; the post itself never
 changes. The menus are persistent, so they keep working after a restart.
@@ -276,7 +276,7 @@ class Shelf:
 
 
 SHELVES: Final[tuple[Shelf, ...]] = (
-    Shelf(None, "♪ Snacks for your Snack Pack", ("snacks",)),
+    Shelf("VV_Snacks.gif", "", ("snacks",)),
     Shelf("VV_Tamas-tech.gif", "", ("tamas_tech",)),
     Shelf("VV_Dolls-Books.png", "", ("dolls_books",)),
     Shelf("VV_VanityRoles.png", "", ("badges",)),

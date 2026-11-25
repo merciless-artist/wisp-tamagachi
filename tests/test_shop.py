@@ -215,14 +215,13 @@ async def test_the_shelves_are_posted_in_order_once(
 
     sent = shop_server.sent
     assert [post["pictures"] for post in sent] == [
-        [],
+        ["VV_Snacks.gif"],
         ["VV_Tamas-tech.gif"],
         ["VV_Dolls-Books.png"],
         ["VV_VanityRoles.png"],
         [],
     ]
-    assert sent[0]["content"] == "♪ Snacks for your Snack Pack"
-    assert [post["content"] for post in sent[1:4]] == [None, None, None]
+    assert [post["content"] for post in sent[:4]] == [None, None, None, None]
     assert sent[4]["content"].startswith("♪ Also in the Vault\n・Medicine, 10 WC")
     assert [custom_ids(post["view"]) for post in sent] == [
         ["wisp:shelf:snacks"],

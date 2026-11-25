@@ -802,9 +802,9 @@ for buttons" (Interaction) for a few seconds; staff and bots may post there.
 
 - `⚡｜Jam Space`: his favorite songs and lyrics.
 - `🛍️ | ViiBR Vault`: the shop (`cogs/shop.py`). Its first post is Myra's
-  ViiBR Vault banner; under it the life
-  loop posts the shelves in order: the snack menu, the Tamagotchis and Tech
-  picture with its gift menu, the Alien Dolls and Books picture with its gift
+  ViiBR Vault banner; under it the life loop posts the shelves in order: the
+  Snacks picture with the snack menu, the Tamagotchis and Tech picture with
+  its gift menu, the Alien Dolls and Books picture with its gift
   menu, the Vanity Roles picture with the badge menu, then the medicine and
   magazine menus with the Open my Snack Pack button. The shelves are stored in
   `settings.shop_message_ids` and posted again whenever that is not one per
