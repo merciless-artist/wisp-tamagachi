@@ -30,7 +30,16 @@ from typing import Final
 from wisp.language import Language
 from wisp.rhyme_keys import WordKeys, known_spellings, merge, read_accents
 
-__all__ = ["ELIDED", "WORD", "keys", "keys_of", "phones_of", "readings", "tail"]
+__all__ = [
+    "ELIDED",
+    "RHYME_VOWELS",
+    "WORD",
+    "keys",
+    "keys_of",
+    "phones_of",
+    "readings",
+    "tail",
+]
 
 _LETTERS: Final = "a-zàâäéèêëîïôöùûüÿœæç"
 WORD: Final = re.compile(rf"[{_LETTERS}]+(?:['-][{_LETTERS}]+)*")
@@ -50,7 +59,7 @@ _MUTE: Final = "ə"
 _V: Final = "aàâäeéèêëiîïoôöuùûüyÿœæ"
 _VOWEL_GROUP: Final = re.compile(f"[{_V}]+")
 _PHONE_VOWELS: Final = frozenset("aeEiouy2@AIO")
-_RHYME_VOWELS: Final = _PHONE_VOWELS - {"@"}
+RHYME_VOWELS: Final = _PHONE_VOWELS - {"@"}
 _GLIDES: Final = {"i": "j", "u": "w", "y": "H"}
 _SLANT: Final = {"E": "e", "@": "2"}
 
@@ -358,7 +367,7 @@ def phones_of(spelling: str, silent_ent: frozenset[str]) -> frozenset[str]:
     else:
         options = [(spelling, False)]
     read = {_reading(option, silent) for option, silent in options}
-    return frozenset(phones for phones in read if _RHYME_VOWELS & set(phones))
+    return frozenset(phones for phones in read if RHYME_VOWELS & set(phones))
 
 
 # ---
@@ -373,7 +382,7 @@ def _rhyme_keys(phones: str) -> tuple[str, str]:
     consonants. The perfect key takes the consonants after that vowel, or the
     phone before it when the reading ends on it.
     """
-    last = max(index for index, phone in enumerate(phones) if phone in _RHYME_VOWELS)
+    last = max(index for index, phone in enumerate(phones) if phone in RHYME_VOWELS)
     vowel = phones[last]
     if last == len(phones) - 1 and last > 0:
         perfect = phones[last - 1 :]

@@ -40,6 +40,7 @@ from wisp.rules import (
 
 __all__ = [
     "EDGE",
+    "ENGLISH_WORD",
     "RhymeKind",
     "WordKeys",
     "clean_word",
@@ -61,8 +62,9 @@ _WORD_FILES: Final[dict[Language, Path]] = {
     Language.FR: _DATA / "common_words_fr.txt",
 }
 _WIKIPRON_EN_FILE: Final = _DATA / "wikipron_en.txt"
+ENGLISH_WORD: Final = re.compile(r"[a-z]+(?:'[a-z]+)*")
 _WORDS: Final[dict[Language, re.Pattern[str]]] = {
-    Language.EN: re.compile(r"[a-z]+(?:'[a-z]+)*"),
+    Language.EN: ENGLISH_WORD,
     Language.ES: rhymes_es.WORD,
     Language.FR: rhymes_fr.WORD,
 }

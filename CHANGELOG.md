@@ -12,15 +12,21 @@
   Lexique, so it is still unknown.
 - **English** keeps CMU and adds WikiPron's English (US) list for the
   35,434 words CMU lacks (`wisp/data/wikipron_en.txt`, IPA mapped to ARPAbet;
-  stress on the last full vowel, as WikiPron has none). A CMU word is read
-  exactly as before. `curr` is in neither, so it is still unknown.
+  stress on the last full vowel, as WikiPron has none). Its British-style
+  vowels join the way CMU writes them: GOAT `ə ʊ` is OW (`accoast` rhymes
+  with `coast`, `aikido` with `go`), and NEAR, SQUARE and CURE are IH R,
+  EH R and UH R (`wayfare`/`chair`, `immure`/`pure`), while a two-syllable
+  `-ia`, `-ial` or `-ual` stays two vowels. A CMU word is read exactly as
+  before. `curr` is in neither, so it is still unknown.
 - **Spanish** knows WikiPron's Latin American Spanish words too
   (`wisp/data/wikipron_es.txt`; 46,279 known before, 146,763 now), still read
   by the spelling rules.
 - English loanwords (`love`, `game`) stay unknown in Spanish and French, by
   the same wordfreq test as before. Made-up words are still rejected, Wisp's
   own words are unchanged, and the accent maps reach the new words
-  (`abatardi` reads as `abâtardi`). The known and common word lists are
+  (`abatardi` reads as `abâtardi`) without losing any twin they had: an
+  unaccented WikiPron or Lexique word keeps every accented twin (`titulo`
+  is still `título` and `tituló`). The known and common word lists are
   byte-identical after the rebuild.
 - New offline builder `tools/build_pronunciations.py`; raw downloads go in
   the gitignored `tools/raw/`. Credits and licenses (CC BY-SA 4.0 for the

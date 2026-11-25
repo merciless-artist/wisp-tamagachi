@@ -513,16 +513,22 @@ def _known_in_order(language: Language) -> tuple[str, ...]:
     return tuple(word for word in words if not misspelt(word))
 
 
-def accent_map(known: list[str], language: Language) -> dict[str, tuple[str, ...]]:
-    """Each unaccented spelling and the known words it can stand for.
+def accent_map(
+    known: list[str], pronounced: list[str], language: Language
+) -> dict[str, tuple[str, ...]]:
+    """Each unaccented spelling and the known or pronounced words it stands for.
 
-    A spelling that is not itself known stands for every known word that folds
-    to it. One that is known stands only for twins nearly as frequent, at most
-    ACCENT_MARGIN less, and is left out when there are none.
+    A spelling that is not itself in the frequent `known` list stands for
+    every word that folds to it. One that is known stands only for twins
+    nearly as frequent, at most ACCENT_MARGIN less, and is left out when there
+    are none. The `pronounced` words (from the pronunciation file) can be
+    twins but are never known spellings themselves here, so a rare
+    unaccented WikiPron or Lexique word (frio) keeps all its twins (frío,
+    frió).
     """
     known_set = set(known)
     spellings: defaultdict[str, list[str]] = defaultdict(list)
-    for word in known:
+    for word in known + pronounced:
         folded = fold(word, language=language)
         if folded != word:
             spellings[folded].append(word)
@@ -564,11 +570,11 @@ def pronounced_words(path: Path, known: list[str]) -> list[str]:
     return [word for line in lines if (word := line.split("\t")[0]) not in have]
 
 
-def _write(path: Path, lines: list[str]) -> None:
+def write_lines(path: Path, lines: list[str]) -> None:
     """Write `lines` to `path`, one per line, with Unix line endings."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    print(f"Wrote {len(lines)} lines to {path}")
+    print(f"Wrote {len(lines)} lines ({path.stat().st_size:,} bytes) to {path}")
 
 
 def main(argv: list[str]) -> None:
@@ -578,22 +584,23 @@ def main(argv: list[str]) -> None:
     profile = PROFILES[Language(parser.parse_args(argv).language)]
     if profile.silent_ent is not None and profile.silent_ent_output is not None:
         silent = sorted(profile.silent_ent())
-        _write(profile.silent_ent_output, silent)
+        write_lines(profile.silent_ent_output, silent)
         print(fill(" ".join(silent), width=88))
     if profile.known_output is not None and profile.accents_output is not None:
         known = list(_known_in_order(profile.language))
-        _write(profile.known_output, known)
-        if profile.pronunciations is not None:
-            reached = known + pronounced_words(profile.pronunciations, known)
-        else:
-            reached = known
-        accents = accent_map(reached, profile.language)
-        _write(
+        write_lines(profile.known_output, known)
+        pronounced = (
+            pronounced_words(profile.pronunciations, known)
+            if profile.pronunciations is not None
+            else []
+        )
+        accents = accent_map(known, pronounced, profile.language)
+        write_lines(
             profile.accents_output,
             [f"{key}\t{' '.join(accents[key])}" for key in sorted(accents)],
         )
     words = common_words(profile)
-    _write(profile.output, words)
+    write_lines(profile.output, words)
     print(fill(" ".join(words), width=88))
 
 

@@ -30,6 +30,7 @@ abetis	abêtis
 abetissait	abêtissait
 abetissement	abêtissement
 abetit	abêtit
+abhorre	abhorré
 abhorree	abhorrée
 abhorres	abhorrés
 abima	abîma
@@ -116,6 +117,7 @@ absorbee	absorbée
 absorbees	absorbées
 absorberent	absorbèrent
 absorbes	absorbés
+abstint	abstînt
 absurdite	absurdité
 absurdites	absurdités
 abuse	abusé
@@ -254,6 +256,7 @@ accotes	accotés
 accouche	accouché
 accouchee	accouchée
 accouchees	accouchées
+accouches	accouchés
 accoude	accoudé
 accoudee	accoudée
 accoudees	accoudées
@@ -264,6 +267,7 @@ accouplee	accouplée
 accouplees	accouplées
 accouplerent	accouplèrent
 accouples	accouplés
+accourut	accourût
 accoutre	accoutré
 accoutree	accoutrée
 accoutres	accoutrés
@@ -295,6 +299,7 @@ accroitra	accroîtra
 accroitrait	accroîtrait
 accroitre	accroître
 accroitront	accroîtront
+accrut	accrût
 acculat	acculât
 accule	acculé
 acculee	acculée
@@ -494,11 +499,13 @@ adhesions	adhésions
 adhesive	adhésive
 adhesives	adhésives
 adiposite	adiposité
+adjoignit	adjoignît
 adjuge	adjugé
 adjugee	adjugée
 adjuges	adjugés
 adjupete	adjupète
 adjupetes	adjupètes
+adjure	adjuré
 administrat	administrât
 administre	administré
 administree	administrée
@@ -556,6 +563,7 @@ adulterine	adultérine
 adulterins	adultérins
 adversite	adversité
 adversites	adversités
+advint	advînt
 aede	aède
 aedes	aèdes
 aerage	aérage
@@ -629,6 +637,7 @@ aerostiers	aérostiers
 aerotrains	aérotrains
 affabilite	affabilité
 affabilites	affabilités
+affabule	affabulé
 affairee	affairée
 affairees	affairées
 affairerent	affairèrent
@@ -692,6 +701,7 @@ affirmes	affirmés
 affixe	affixé
 afflanque	afflanqué
 affleurat	affleurât
+affleure	affleuré
 affleurerent	affleurèrent
 afflige	affligé
 affligee	affligée
@@ -804,6 +814,7 @@ agitees	agitées
 agiterent	agitèrent
 agites	agités
 agnes	agnès
+agonise	agonisé
 agrafee	agrafée
 agrafees	agrafées
 agrea	agréa
@@ -1258,6 +1269,7 @@ amenes	amenés amènes
 amenite	aménité
 amenites	aménités
 amenorrhee	aménorrhée
+amenuise	amenuisé
 amenuisee	amenuisée
 amenuiserent	amenuisèrent
 amenuises	amenuisés
@@ -1728,6 +1740,7 @@ apparie	apparié
 appariee	appariée
 appariees	appariées
 apparies	appariés
+appartint	appartînt
 appat	appât
 appatais	appâtais
 appatant	appâtant
@@ -1947,6 +1960,7 @@ architecturees	architecturées
 archivees	archivées
 arcon	arçon
 arcons	arçons
+arde	ardé
 ardeche	ardèche
 ardechois	ardéchois
 ardechoise	ardéchoise
@@ -2292,6 +2306,7 @@ asteroide	astéroïde
 asteroides	astéroïdes
 asthenie	asthénie
 asthenies	asthénies
+asticote	asticoté
 asticotes	asticotés
 astique	astiqué
 astiquee	astiquée
@@ -2659,6 +2674,7 @@ azuree	azurée
 azurees	azurées
 azures	azurés
 babelienne	babélienne
+babille	babillé
 babord	bâbord
 baccalaureat	baccalauréat
 bache	bâche bâché
@@ -2701,6 +2717,7 @@ badigeonnee	badigeonnée
 badigeonnees	badigeonnées
 badigeonnerent	badigeonnèrent
 badigeonnes	badigeonnés
+badine	badiné
 bafoue	bafoué
 bafouee	bafouée
 bafouees	bafouées
@@ -2725,6 +2742,7 @@ bagneres	bagnères
 bagousees	bagousées
 baguee	baguée
 baguees	baguées
+baguenaude	baguenaudé
 bahrein	bahreïn
 baigne	baigné
 baignee	baignée
@@ -2747,6 +2765,8 @@ bailler	bâiller
 baillera	bâillera
 baillerent	bâillèrent
 baillerez	bâillerez
+bailles	bâilles
+baillez	bâillez
 baillon	bâillon
 baillonna	bâillonna
 baillonnait	bâillonnait
@@ -2862,9 +2882,12 @@ baptisees	baptisées
 baptiserent	baptisèrent
 baptises	baptisés
 baptistere	baptistère
+baragouine	baragouiné
 baraquee	baraquée
+baratine	baratiné
 baratinee	baratinée
 baratines	baratinés
+baratte	baratté
 barattes	barattés
 barbele	barbelé
 barbelee	barbelée
@@ -3329,6 +3352,7 @@ betonneuses	bétonneuses
 betonniere	bétonnière
 betonnieres	bétonnières
 betons	bétons
+beugle	beuglé
 beuglee	beuglée
 beurree	beurrée
 beurrees	beurrées
@@ -3336,6 +3360,7 @@ beurres	beurrés
 bevue	bévue
 bevues	bévues
 beyonce	beyoncé
+bezef	bézef
 beziers	béziers
 bezoard	bézoard
 biaise	biaisé
@@ -3381,8 +3406,11 @@ bigarre	bigarré
 bigarree	bigarrée
 bigarrees	bigarrées
 bigarres	bigarrés
+bigle	biglé
 biglee	biglée
 bigles	biglés
+bigophone	bigophoné
+bigorne	bigorné
 bigornes	bigornés
 bijoutiere	bijoutière
 bilateral	bilatéral
@@ -3419,6 +3447,7 @@ bipe	bipé
 bipede	bipède
 bipedes	bipèdes
 bipee	bipée
+bipes	bipés
 biphenyle	biphényle
 bipolarite	bipolarité
 birefringence	biréfringence
@@ -3433,6 +3462,7 @@ bisexualite	bisexualité
 bisexue	bisexué
 bisexues	bisexués
 bisse	bissé
+bistre	bistré
 bistree	bistrée
 bistrees	bistrées
 bistres	bistrés
@@ -3440,6 +3470,8 @@ bistrotiere	bistrotière
 bistrotieres	bistrotières
 bitumee	bitumée
 bitumees	bitumées
+biture	bituré
+bitures	biturés
 bivouaque	bivouaqué
 bivouaquee	bivouaquée
 bizarroide	bizarroïde
@@ -3447,6 +3479,7 @@ bizarroides	bizarroïdes
 bizute	bizuté
 blablate	blablaté
 blackboule	blackboulé
+blaire	blairé
 blama	blâma
 blamable	blâmable
 blamaient	blâmaient
@@ -3520,6 +3553,7 @@ blesserent	blessèrent
 blesses	blessés
 bleuatre	bleuâtre
 bleuatres	bleuâtres
+bleuit	bleuît
 bleute	bleuté
 bleutee	bleutée
 bleutees	bleutées
@@ -3618,13 +3652,16 @@ bossele	bosselé
 bosselee	bosselée
 bosselees	bosselées
 bosseles	bosselés
+bossue	bossué
 bossuee	bossuée
 bossuees	bossuées
+bossues	bossués
 botte	botté
 bottee	bottée
 bottees	bottées
 bottele	bottelé
 bottelees	bottelées
+bottine	bottiné
 boucane	boucané
 boucanee	boucanée
 boucanees	boucanées
@@ -3660,6 +3697,8 @@ bougeat	bougeât
 bougee	bougée
 bougees	bougées
 bougerent	bougèrent
+bougonne	bougonné
+bouillonne	bouillonné
 bouillonnee	bouillonnée
 bouillonnees	bouillonnées
 bouillonnerent	bouillonnèrent
@@ -3676,8 +3715,12 @@ boulonne	boulonné
 boulonnee	boulonnée
 boulonnes	boulonnés
 boulottees	boulottées
+boume	boumé
 bouquete	bouqueté
 bouquetiere	bouquetière
+bouquine	bouquiné
+bourdonne	bourdonné
+bourgeonne	bourgeonné
 bourlingue	bourlingué
 bourre	bourré
 bourree	bourrée
@@ -3737,8 +3780,10 @@ brade	bradé
 bradee	bradée
 braillee	braillée
 braillerent	braillèrent
+brailles	braillés
 braise	braisé
 braisee	braisée
+brame	bramé
 bramees	bramées
 branchee	branchée
 branchees	branchées
@@ -3841,6 +3886,7 @@ brouillee	brouillée
 brouillees	brouillées
 brouillerent	brouillèrent
 brouilles	brouillés
+brouillonne	brouillonné
 broute	brouté
 broutee	broutée
 brouterent	broutèrent
@@ -3850,6 +3896,7 @@ broyee	broyée
 broyees	broyées
 broyerent	broyèrent
 broyes	broyés
+bruisse	bruissé
 brula	brûla
 brulage	brûlage
 brulai	brûlai
@@ -3931,6 +3978,7 @@ budgetisation	budgétisation
 budgetivores	budgétivores
 buee	buée
 buees	buées
+bugne	bugné
 buissonniere	buissonnière
 buissonnieres	buissonnières
 bumes	bûmes
@@ -4039,6 +4087,7 @@ cafouille	cafouillé
 cafte	cafté
 caftes	caftés
 cagoules	cagoulés
+cahote	cahoté
 cahotee	cahotée
 cahotees	cahotées
 cahoterent	cahotèrent
@@ -4065,6 +4114,7 @@ calamistree	calamistrée
 calamistres	calamistrés
 calamite	calamité
 calamites	calamités
+calanche	calanché
 calcemie	calcémie
 calcifie	calcifié
 calcifiee	calcifiée
@@ -4130,6 +4180,7 @@ calomniee	calomniée
 calorifere	calorifère
 caloriferes	calorifères
 calottees	calottées
+calottes	calottés
 calque	calqué
 calquee	calquée
 calquees	calquées
@@ -4204,6 +4255,7 @@ candelabre	candélabre
 candelabres	candélabres
 canebiere	canebière
 canepetiere	canepetière
+canes	canés
 canides	canidés
 cannee	cannée
 cannees	cannées
@@ -4280,6 +4332,7 @@ capuchonnes	capuchonnés
 caquetement	caquètement
 caquetements	caquètements
 carabinee	carabinée
+carabines	carabinés
 caractere	caractère
 caracteres	caractères
 caracteriel	caractériel
@@ -4302,12 +4355,15 @@ caracteristiques	caractéristiques
 caracterologie	caractérologie
 caraibe	caraïbe
 caraibes	caraïbes
+carambole	carambolé
+carambouille	carambouillé
 caramelisait	caramélisait
 caramelise	caramélise caramélisé
 caramelisee	caramélisée
 caramelisees	caramélisées
 carameliser	caraméliser
 caramelises	caramélisés
+carapate	carapaté
 carapates	carapatés
 caravaniere	caravanière
 caravanieres	caravanières
@@ -4323,8 +4379,10 @@ carcerale	carcérale
 carcerales	carcérales
 carceraux	carcéraux
 carcinoide	carcinoïde
+carde	cardé
 cardee	cardée
 carderes	cardères
+cardes	cardés
 cardioide	cardioïde
 cardiomegalie	cardiomégalie
 careme	carême
@@ -4345,8 +4403,10 @@ caribeenne	caribéenne
 caricaturees	caricaturées
 cariee	cariée
 cariees	cariées
+carillonne	carillonné
 carillonnees	carillonnées
 carillonnes	carillonnés
+carme	carmé
 carmee	carmée
 carmelite	carmélite
 carmelites	carmélites
@@ -4410,6 +4470,7 @@ casserolee	casserolée
 casserolees	casserolées
 casses	cassés
 cassiterite	cassitérite
+castagne	castagné
 castre	castré
 castree	castrée
 catachrese	catachrèse
@@ -4419,6 +4480,7 @@ catalyse	catalysé
 catapulte	catapulté
 catapultee	catapultée
 catapultees	catapultées
+catapultes	catapultés
 catastrophee	catastrophée
 catche	catché
 catechese	catéchèse
@@ -4608,6 +4670,7 @@ centree	centrée
 centrees	centrées
 centripete	centripète
 centripetes	centripètes
+centuple	centuplé
 centuplee	centuplée
 cepage	cépage
 cepages	cépages
@@ -4724,6 +4787,8 @@ chalonnais	châlonnais
 chalons	châlons
 chaloupee	chaloupée
 chaloupees	chaloupées
+chaloupes	chaloupés
+chamaille	chamaillé
 chamaillerent	chamaillèrent
 chamailles	chamaillés
 chamarre	chamarré
@@ -4771,6 +4836,7 @@ chantee	chantée
 chantees	chantées
 chanterent	chantèrent
 chantes	chantés
+chantonne	chantonné
 chantonnee	chantonnée
 chantonnerent	chantonnèrent
 chantonnes	chantonnés
@@ -4787,6 +4853,7 @@ chapeautes	chapeautés
 chaperonne	chaperonné
 chaperonnee	chaperonnée
 chaperonnes	chaperonnés
+chapes	chapés
 chapitree	chapitrée
 chapitrees	chapitrées
 charancon	charançon
@@ -4881,6 +4948,7 @@ chatouillat	chatouillât
 chatouillee	chatouillée
 chatouillees	chatouillées
 chatouillerent	chatouillèrent
+chatouilles	chatouillés
 chatrage	châtrage
 chatraient	châtraient
 chatre	châtre châtré
@@ -5018,9 +5086,11 @@ chicaniere	chicanière
 chicore	chicoré
 chicoree	chicorée
 chicorees	chicorées
+chicote	chicoté
 chie	chié
 chiee	chiée
 chiees	chiées
+chies	chiés
 chiffonne	chiffonné
 chiffonnee	chiffonnée
 chiffonnees	chiffonnées
@@ -5045,11 +5115,14 @@ chipee	chipée
 chipees	chipées
 chiperent	chipèrent
 chipes	chipés
+chipote	chipoté
 chique	chiqué
+chiques	chiqués
 chiroptere	chiroptère
 chloe	chloé
 chloramphenicol	chloramphénicol
 chloree	chlorée
+chloroforme	chloroformé
 chocolate	chocolaté
 chocolatee	chocolatée
 chocolatees	chocolatées
@@ -5104,6 +5177,7 @@ choregraphiques	chorégraphiques
 chouchoute	chouchouté
 chouchoutee	chouchoutée
 chouia	chouïa
+chourave	chouravé
 chouravee	chouravée
 chouraves	chouravés
 choure	chouré
@@ -5230,9 +5304,11 @@ circulerent	circulèrent
 ciree	cirée
 cirees	cirées
 cires	cirés
+cisaille	cisaillé
 cisaillee	cisaillée
 cisaillees	cisaillées
 cisaillerent	cisaillèrent
+cisailles	cisaillés
 cisele	ciselé cisèle
 ciselee	ciselée
 ciselees	ciselées
@@ -5281,6 +5357,7 @@ clande	clandé
 clandes	clandés
 clandestinite	clandestinité
 clandestinites	clandestinités
+clape	clapé
 claquat	claquât
 claque	claqué
 claquee	claquée
@@ -5365,8 +5442,10 @@ cloitrees	cloîtrées
 cloitrer	cloîtrer
 cloitres	cloîtres cloîtrés
 clopinames	clopinâmes
+cloque	cloqué
 cloquee	cloquée
 cloquees	cloquées
+cloques	cloqués
 clot	clôt
 clotura	clôtura
 cloturai	clôturai
@@ -5402,6 +5481,7 @@ coalises	coalisés
 cobelligerants	cobelligérants
 cocaine	cocaïne
 cocainomane	cocaïnomane
+cocardes	cocardés
 cocardiere	cocardière
 cocardieres	cocardières
 cochat	cochât
@@ -5410,6 +5490,7 @@ cochee	cochée
 cochees	cochées
 cochere	cochère
 cocheres	cochères
+coches	cochés
 cochleaire	cochléaire
 cochleaires	cochléaires
 cochlee	cochlée
@@ -5443,6 +5524,7 @@ cogne	cogné
 cognee	cognée
 cognees	cognées
 cognerent	cognèrent
+cognes	cognés
 cohabite	cohabité
 coherence	cohérence
 coherences	cohérences
@@ -5489,6 +5571,7 @@ coinciderent	coïncidèrent
 coincidions	coïncidions
 coincons	coinçons
 coit	coït
+coite	coïté
 coits	coïts
 colee	colée
 coleoptere	coléoptère
@@ -5554,6 +5637,7 @@ colonisee	colonisée
 colonisees	colonisées
 coloniserent	colonisèrent
 colonises	colonisés
+colophane	colophané
 colore	coloré
 coloree	colorée
 colorees	colorées
@@ -5569,6 +5653,7 @@ colportee	colportée
 colportees	colportées
 coltine	coltiné
 coltinee	coltinée
+coltines	coltinés
 combativite	combativité
 combientieme	combientième
 combine	combiné
@@ -5802,6 +5887,7 @@ comprimee	comprimée
 comprimees	comprimées
 comprimerent	comprimèrent
 comprimes	comprimés comprîmes
+compromit	compromît
 comptabilise	comptabilisé
 comptabilisees	comptabilisées
 comptabilises	comptabilisés
@@ -5851,6 +5937,7 @@ concertee	concertée
 concertees	concertées
 concerterent	concertèrent
 concertes	concertés
+conchie	conchié
 conchoidaux	conchoïdaux
 concilie	concilié
 conciliees	conciliées
@@ -5979,6 +6066,8 @@ confisquees	confisquées
 confisquerent	confisquèrent
 confisques	confisqués
 confituriere	confiturière
+conflue	conflué
+confondit	confondît
 conformat	conformât
 conformee	conformée
 conformement	conformément
@@ -6093,6 +6182,7 @@ conquete	conquête
 conquetes	conquêtes
 conquiere	conquière
 conquierent	conquièrent
+conquit	conquît
 consacre	consacré
 consacree	consacrée
 consacrees	consacrées
@@ -6114,6 +6204,7 @@ conseillere	conseillère
 conseillerent	conseillèrent
 conseilleres	conseillères
 conseilles	conseillés
+consentit	consentît
 consequemment	conséquemment
 consequence	conséquence
 consequences	conséquences
@@ -6249,6 +6340,7 @@ contigue	contiguë
 contigues	contiguës
 contiguite	contiguïté
 contingente	contingenté
+contint	contînt
 continuames	continuâmes
 continuat	continuât
 continuee	continuée
@@ -6271,6 +6363,7 @@ contractee	contractée
 contractees	contractées
 contracterent	contractèrent
 contractes	contractés
+contraignit	contraignît
 contrariat	contrariât
 contrarie	contrarié
 contrariee	contrariée
@@ -6364,6 +6457,7 @@ conviees	conviées
 convierent	convièrent
 convies	conviés
 convinmes	convînmes
+convint	convînt
 convivialite	convivialité
 convoite	convoité
 convoitee	convoitée
@@ -6556,6 +6650,7 @@ coudoye	coudoyé
 couillonne	couillonné
 couillonnee	couillonnée
 couillonnes	couillonnés
+couine	couiné
 coulat	coulât
 coule	coulé
 coulee	coulée
@@ -6567,6 +6662,7 @@ coulisserent	coulissèrent
 coupee	coupée
 coupees	coupées
 couperent	coupèrent
+couperose	couperosé
 couperosee	couperosée
 couperosees	couperosées
 coupes	coupés
@@ -6634,10 +6730,14 @@ couve	couvé
 couvee	couvée
 couvees	couvées
 couves	couvés
+couvrit	couvrît
 crache	craché
 crachee	crachée
 crachees	crachées
 cracherent	crachèrent
+craches	crachés
+crachote	crachoté
+craignit	craignît
 crame	cramé
 cramee	cramée
 cramees	cramées
@@ -12582,6 +12682,7 @@ desoxygenation	désoxygénation
 desoxyribonucleique	désoxyribonucléique
 despiritualisation	déspiritualisation
 despiritualiser	déspiritualiser
+dessale	dessalé
 dessalee	dessalée
 dessalees	dessalées
 dessales	dessalés
@@ -13312,6 +13413,7 @@ devine	deviné
 devinee	devinée
 devinees	devinées
 devinerent	devinèrent
+devines	devinés
 devinmes	devînmes
 devirginisee	dévirginisée
 devirginiser	dévirginiser
@@ -13802,6 +13904,7 @@ dissequez	disséquez
 dissequiez	disséquiez
 dissequions	disséquions
 dissequons	disséquons
+disserte	disserté
 dissimulat	dissimulât
 dissimule	dissimulé
 dissimulee	dissimulée
@@ -13849,6 +13952,7 @@ distribues	distribués
 diurese	diurèse
 diuretique	diurétique
 diuretiques	diurétiques
+divague	divagué
 diverge	divergé
 diversifie	diversifié
 diversifiee	diversifiée
@@ -13890,6 +13994,7 @@ documentes	documentés
 dodecaedre	dodécaèdre
 dodecagone	dodécagone
 dodecaphoniste	dodécaphoniste
+dodeline	dodeliné
 dodelinerent	dodelinèrent
 doigte	doigté
 doleance	doléance
@@ -13936,6 +14041,7 @@ dorlotee	dorlotée
 dorlotees	dorlotées
 dorlotes	dorlotés
 dormimes	dormîmes
+dormit	dormît
 dorothee	dorothée
 dosee	dosée
 dosees	dosées
@@ -13980,6 +14086,7 @@ drainees	drainées
 draines	drainés
 dramatise	dramatisé
 dramatisee	dramatisée
+dramatises	dramatisés
 drape	drapé
 drapee	drapée
 drapees	drapées
@@ -14325,6 +14432,7 @@ ecartez	écartez
 ecartions	écartions
 ecartons	écartons
 ecarts	écarts
+ecchymose	ecchymosé
 ecchymosee	ecchymosée
 ecclesiale	ecclésiale
 ecclesiastique	ecclésiastique
@@ -16614,6 +16722,7 @@ empese	empesé
 empesee	empesée
 empesees	empesées
 empeses	empesés
+empeste	empesté
 empestee	empestée
 empestees	empestées
 empetra	empêtra
@@ -16790,6 +16899,7 @@ encastre	encastré
 encastree	encastrée
 encastrees	encastrées
 encastres	encastrés
+encaustique	encaustiqué
 encaustiquee	encaustiquée
 encavee	encavée
 encellulee	encellulée
@@ -16878,6 +16988,7 @@ enclenchees	enclenchées
 enclenches	enclenchés
 encloitrer	encloîtrer
 encloque	encloqué
+encoche	encoché
 encoconnee	encoconnée
 encode	encodé
 encodee	encodée
@@ -16966,6 +17077,7 @@ endommagee	endommagée
 endommagees	endommagées
 endommages	endommagés
 endormimes	endormîmes
+endormit	endormît
 endossat	endossât
 endosse	endossé
 endossee	endossée
@@ -17251,6 +17363,7 @@ enonceront	énonceront
 enonces	énoncés
 enonciateurs	énonciateurs
 enonciation	énonciation
+enorgueillit	enorgueillît
 enorme	énorme
 enormement	énormément
 enormes	énormes
@@ -17552,6 +17665,7 @@ entrebaillerait	entrebâillerait
 entrebaillerent	entrebâillèrent
 entrebailles	entrebâillés
 entrebailleur	entrebâilleur
+entrechoque	entrechoqué
 entrechoquees	entrechoquées
 entrechoquerent	entrechoquèrent
 entrechoques	entrechoqués
@@ -17602,10 +17716,13 @@ entreregarderent	entreregardèrent
 entrerent	entrèrent
 entres	entrés
 entretinmes	entretînmes
+entretint	entretînt
 entretisse	entretissé
 entretissees	entretissées
 entretuees	entretuées
 entretues	entretués
+entrevit	entrevît
+entrouvrit	entrouvrît
 entube	entubé
 entubee	entubée
 entubes	entubés
@@ -18502,6 +18619,7 @@ ereinter	éreinter
 ereintes	éreintés
 ereinteur	éreinteur
 eres	ères
+ergote	ergoté
 ergotherapeute	ergothérapeute
 ergotherapie	ergothérapie
 eric	éric
@@ -18540,6 +18658,7 @@ erpetologiste	erpétologiste
 errames	errâmes
 erre	erré
 errerent	errèrent
+erres	errés
 errone	erroné
 erronee	erronée
 erronees	erronées
@@ -18575,6 +18694,7 @@ escaladames	escaladâmes
 escaladee	escaladée
 escaladees	escaladées
 escaladerent	escaladèrent
+escalades	escaladés
 escamote	escamoté
 escamotee	escamotée
 escamotees	escamotées
@@ -18583,6 +18703,7 @@ escarpe	escarpé
 escarpee	escarpée
 escarpees	escarpées
 escarpes	escarpés
+esclaffe	esclaffé
 esclaffee	esclaffée
 esclafferent	esclaffèrent
 esclaffes	esclaffés
@@ -19346,6 +19467,7 @@ europeenne	européenne
 europeennes	européennes
 europeens	européens
 eusebe	eusèbe
+eusse	eussé
 eutes	eûtes
 evacua	évacua
 evacuai	évacuai
@@ -19912,6 +20034,7 @@ exfiltre	exfiltré
 exfoliee	exfoliée
 exhalames	exhalâmes
 exhalat	exhalât
+exhale	exhalé
 exhalee	exhalée
 exhausse	exhaussé
 exhaussee	exhaussée
@@ -20089,7 +20212,9 @@ expulses	expulsés
 expurge	expurgé
 expurgee	expurgée
 expurges	expurgés
+exsude	exsudé
 extasiat	extasiât
+extasie	extasié
 extasiee	extasiée
 extasiees	extasiées
 extasierent	extasièrent
@@ -20166,6 +20291,7 @@ fabriquee	fabriquée
 fabriquees	fabriquées
 fabriquerent	fabriquèrent
 fabriques	fabriqués
+fabule	fabulé
 facade	façade
 facades	façades
 facetie	facétie
@@ -20288,6 +20414,7 @@ fane	fané
 fanee	fanée
 fanees	fanées
 fanes	fanés
+fanfaronne	fanfaronné
 fantome	fantôme
 fantomes	fantômes
 farde	fardé
@@ -20611,6 +20738,7 @@ fiancees	fiancées
 fiancerent	fiancèrent
 fiances	fiancés
 fiancons	fiançons
+fibrille	fibrillé
 fibrinogene	fibrinogène
 ficele	ficelé
 ficelee	ficelée
@@ -20633,6 +20761,7 @@ fiee	fiée
 fieffe	fieffé
 fieffee	fieffée
 fieffes	fieffés
+fiente	fienté
 fiere	fière
 fierement	fièrement
 fieres	fières
@@ -20669,12 +20798,14 @@ filete	fileté
 filetee	filetée
 filiere	filière
 filieres	filières
+filigranes	filigranés
 filler	fillér
 filme	filmé
 filmee	filmée
 filmees	filmées
 filmes	filmés
 filmotheque	filmothèque
+filoche	filoché
 filoguide	filoguidé
 filoute	filouté
 filoutes	filoutés
@@ -20723,6 +20854,7 @@ flagelles	flagellés
 flageolerent	flageolèrent
 flaire	flairé
 flairee	flairée
+flaires	flairés
 flambe	flambé
 flambee	flambée
 flambees	flambées
@@ -20900,6 +21032,7 @@ fondee	fondée
 fondees	fondées
 fonderent	fondèrent
 fondes	fondés
+fondit	fondît
 fondriere	fondrière
 fondrieres	fondrières
 foraminiferes	foraminifères
@@ -21075,6 +21208,7 @@ frederic	frédéric
 frederick	frédérick
 frederique	frédérique
 fredonnames	fredonnâmes
+fredonne	fredonné
 fredonnee	fredonnée
 fredonnees	fredonnées
 fredonnerent	fredonnèrent
@@ -21191,8 +21325,10 @@ frigorifiees	frigorifiées
 frigorifies	frigorifiés
 frigorigene	frigorigène
 frilosite	frilosité
+frime	frimé
 frimee	frimée
 frimees	frimées
+frimes	frimés
 fringillide	fringillidé
 fringue	fringué
 fringuee	fringuée
@@ -21215,6 +21351,7 @@ frisotte	frisotté
 frisottee	frisottée
 frisottees	frisottées
 frisottes	frisottés
+frissonne	frissonné
 frissonnerent	frissonnèrent
 frittes	frittés
 frivolite	frivolité
@@ -21417,6 +21554,8 @@ galeriens	galériens
 galilee	galilée
 galileen	galiléen
 gallinace	gallinacé
+galoche	galoché
+galoches	galochés
 galonne	galonné
 galonnee	galonnée
 galonnees	galonnées
@@ -21449,6 +21588,7 @@ gantees	gantées
 gantes	gantés
 gantieres	gantières
 ganymedes	ganymèdes
+gapette	gâpette
 garanciere	garancière
 garcon	garçon
 garconne	garçonne
@@ -21470,6 +21610,7 @@ garderent	gardèrent
 garee	garée
 garees	garées
 garerent	garèrent
+gargarise	gargarisé
 garrotte	garrotté
 garrottee	garrottée
 garrottes	garrottés
@@ -21870,6 +22011,7 @@ giflat	giflât
 gifle	giflé
 giflee	giflée
 giflees	giflées
+gigote	gigoté
 giletieres	giletières
 giroflee	giroflée
 giroflees	giroflées
@@ -21905,6 +22047,7 @@ glacure	glaçure
 glacures	glaçures
 glaieul	glaïeul
 glaieuls	glaïeuls
+glandouille	glandouillé
 glane	glané
 glanee	glanée
 glanees	glanées
@@ -21944,9 +22087,11 @@ gobe	gobé
 gobee	gobée
 gobees	gobées
 goberent	gobèrent
+goberge	gobergé
 gobes	gobés
 godemiche	godemiché
 godemiches	godemichés
+godille	godillé
 godronnes	godronnés
 goeland	goéland
 goelands	goélands
@@ -21955,7 +22100,9 @@ goelettes	goélettes
 goemon	goémon
 goemons	goémons
 goetie	goétie
+goinfre	goinfré
 goinfree	goinfrée
+goinfres	goinfrés
 gomenol	goménol
 gomenolee	goménolée
 gomine	gominé
@@ -21967,6 +22114,7 @@ gommees	gommées
 gondolee	gondolée
 gondolees	gondolées
 gondolerent	gondolèrent
+gondoles	gondolés
 gondoliere	gondolière
 gonfle	gonflé
 gonflee	gonflée
@@ -21978,6 +22126,7 @@ gonorrhee	gonorrhée
 gorgee	gorgée
 gorgees	gorgées
 gorgerent	gorgèrent
+gouaille	gouaillé
 goudronne	goudronné
 goudronnee	goudronnée
 goudronnees	goudronnées
@@ -21987,11 +22136,13 @@ gougeres	gougères
 goulee	goulée
 goulees	goulées
 goulument	goulûment
+goupille	goupillé
 goupillee	goupillée
 goure	gouré
 gouree	gourée
 gourees	gourées
 goures	gourés
+gourme	gourmé
 gourmee	gourmée
 gourmes	gourmés
 gout	goût
@@ -22050,6 +22201,7 @@ graduee	graduée
 graduees	graduées
 gradues	gradués
 graffite	graffité
+graille	graillé
 graillee	graillée
 graissat	graissât
 graissee	graissée
@@ -22076,6 +22228,7 @@ gratines	gratinés
 grattat	grattât
 grattee	grattée
 grattees	grattées
+grattes	grattés
 grattouille	grattouillé
 gratuite	gratuité
 gravat	gravât
@@ -22127,6 +22280,7 @@ greleraient	grêleraient
 greles	grêles grêlés
 grelon	grêlon
 grelons	grêlons
+grelotte	grelotté
 grelottee	grelottée
 grelotterent	grelottèrent
 grene	grené grène
@@ -22175,6 +22329,7 @@ grignoterent	grignotèrent
 grignotes	grignotés
 grillagee	grillagée
 grillagees	grillagées
+grillages	grillagés
 grille	grillé
 grillee	grillée
 grillees	grillées
@@ -22217,6 +22372,7 @@ grisatre	grisâtre
 grisatres	grisâtres
 grisee	grisée
 grisees	grisées
+grisonne	grisonné
 grivelee	grivelée
 grivelerie	grivèlerie
 grognees	grognées
@@ -22226,6 +22382,7 @@ grommelee	grommelée
 grommelerent	grommelèrent
 grondee	grondée
 gronderent	grondèrent
+grondes	grondés
 grossiere	grossière
 grossierement	grossièrement
 grossieres	grossières
@@ -22384,6 +22541,7 @@ haches	hachés
 hachure	hachuré
 hachuree	hachurée
 hachurees	hachurées
+hachures	hachurés
 hades	hadès
 hai	haï
 haik	haïk
@@ -22466,7 +22624,9 @@ happee	happée
 happees	happées
 happes	happés
 haquenee	haquenée
+harangue	harangué
 haranguee	haranguée
+harangues	harangués
 harasse	harassé
 harassee	harassée
 harassees	harassées
@@ -22800,6 +22960,8 @@ herpes	herpès
 herpetique	herpétique
 herpetologie	herpétologie
 herpetologiste	herpétologiste
+herse	hersé
+herses	hersés
 herve	hervé
 herzegovine	herzégovine
 hesita	hésita
@@ -22952,6 +23114,7 @@ horrifiee	horrifiée
 horrifiees	horrifiées
 horrifierent	horrifièrent
 horrifies	horrifiés
+horripile	horripilé
 horripilee	horripilée
 horripiles	horripilés
 hospitaliere	hospitalière
@@ -22986,6 +23149,7 @@ houspillee	houspillée
 houspillees	houspillées
 houspillerent	houspillèrent
 houspilles	houspillés
+housses	houssés
 hue	hué
 huee	huée
 huees	huées
@@ -23036,6 +23200,7 @@ hurle	hurlé
 hurlee	hurlée
 hurlees	hurlées
 hurlerent	hurlèrent
+hurles	hurlés
 hydrate	hydraté
 hydratee	hydratée
 hydrocele	hydrocèle
@@ -23372,6 +23537,7 @@ impartialite	impartialité
 impassibilite	impassibilité
 impatientee	impatientée
 impatienterent	impatientèrent
+impatientes	impatientés
 impatronise	impatronisé
 impaye	impayé
 impayee	impayée
@@ -23618,6 +23784,7 @@ incarcerees	incarcérées
 incarcerer	incarcérer
 incarceres	incarcérés
 incarcerez	incarcérez
+incarnat	incarnât
 incarne	incarné
 incarnee	incarnée
 incarnees	incarnées
@@ -24565,6 +24732,7 @@ interiorisent	intériorisent
 interioriser	intérioriser
 interiorises	intériorisés
 interiorite	intériorité
+interlignes	interlignés
 interloque	interloqué
 interloquee	interloquée
 interloquees	interloquées
@@ -24635,6 +24803,7 @@ interrogee	interrogée
 interrogees	interrogées
 interrogerent	interrogèrent
 interroges	interrogés
+interrompit	interrompît
 intersideral	intersidéral
 intersiderale	intersidérale
 intersideraux	intersidéraux
@@ -24898,10 +25067,12 @@ itinerante	itinérante
 itinerantes	itinérantes
 itinerants	itinérants
 ixieme	ixième
+jacasse	jacassé
 jacassiere	jacassière
 jachere	jachère
 jacheres	jachères
 jacobees	jacobées
+jacte	jacté
 jainistes	jaïnistes
 jalonne	jalonné
 jalonnee	jalonnée
@@ -24918,17 +25089,21 @@ jambieres	jambières
 jansenisme	jansénisme
 janseniste	janséniste
 jansenistes	jansénistes
+jappe	jappé
 japperent	jappèrent
+jardine	jardiné
 jardiniere	jardinière
 jardinieres	jardinières
 jargonne	jargonné
 jarretiere	jarretière
 jarretieres	jarretières
 jase	jasé
+jaspe	jaspé
 jaspees	jaspées
 jaspes	jaspés
 jaspine	jaspiné
 jaugee	jaugée
+jauges	jaugés
 jaunatre	jaunâtre
 jaunatres	jaunâtres
 jaures	jaurès
@@ -25218,6 +25393,7 @@ laitieres	laitières
 laius	laïus
 laiusse	laïusse
 lamaisme	lamaïsme
+lambine	lambiné
 lambrisse	lambrissé
 lambrissee	lambrissée
 lambrissees	lambrissées
@@ -25634,6 +25810,7 @@ licencie	licencié
 licenciee	licenciée
 licenciees	licenciées
 licencies	licenciés
+liche	liché
 lichee	lichée
 lichees	lichées
 lidocaine	lidocaïne
@@ -25762,12 +25939,16 @@ longanimite	longanimité
 longeames	longeâmes
 longee	longée
 longerent	longèrent
+longes	longés
 longevite	longévité
 loquacite	loquacité
+loques	loqués
+lorgne	lorgné
 lorgnees	lorgnées
 lorgnerent	lorgnèrent
 lorgnes	lorgnés
 losangee	losangée
+losanges	losangés
 lotionnes	lotionnés
 louames	louâmes
 louangee	louangée
@@ -25824,6 +26005,7 @@ lutherien	luthérien
 lutherienne	luthérienne
 lutheriennes	luthériennes
 lutheriens	luthériens
+lutine	lutiné
 lutinee	lutinée
 lutinerent	lutinèrent
 luttat	luttât
@@ -25988,6 +26170,7 @@ mahometans	mahométans
 maia	maïa
 maile	mailé
 mainlevee	mainlevée
+maintint	maintînt
 maisonnee	maisonnée
 maisonnees	maisonnées
 maitre	maître
@@ -26191,6 +26374,8 @@ maraicheres	maraîchères
 maraichers	maraîchers
 maratre	marâtre
 maratres	marâtres
+maraude	maraudé
+maraudes	maraudés
 maravedis	maravédis
 marbree	marbrée
 marbrees	marbrées
@@ -26232,6 +26417,7 @@ mariniere	marinière
 marinieres	marinières
 marlene	marlène
 marmitees	marmitées
+marmites	marmités
 marmonne	marmonné
 marmonnee	marmonnée
 marmonnes	marmonnés
@@ -26348,6 +26534,7 @@ matinant	mâtinant
 matine	mâtine mâtiné
 matinee	matinée mâtinée
 matinees	matinées
+matines	mâtines mâtinés
 matite	matité
 matraquee	matraquée
 matrilineaire	matrilinéaire
@@ -26877,6 +27064,7 @@ mentionne	mentionné
 mentionnee	mentionnée
 mentionnees	mentionnées
 mentionnes	mentionnés
+mentit	mentît
 mentonniere	mentonnière
 mephistophelique	méphistophélique
 mephistopheliques	méphistophéliques
@@ -26930,6 +27118,7 @@ mercerise	mercerisé
 merciere	mercière
 mercieres	mercières
 merdee	merdée
+merdouille	merdouillé
 mere	mère mére
 meres	mères
 meric	méric
@@ -27181,6 +27370,7 @@ meuble	meublé
 meublee	meublée
 meublees	meublées
 meublerent	meublèrent
+meugle	meuglé
 meuliere	meulière
 meulieres	meulières
 meuniere	meunière
@@ -27190,7 +27380,9 @@ mevente	mévente
 mezieres	mézières
 mezig	mézig
 mezigue	mézigue
+miaule	miaulé
 micacees	micacées
+miche	miché
 michele	michèle
 mickael	mickaël
 microcephale	microcéphale
@@ -27241,9 +27433,11 @@ millionieme	millionième
 mimames	mimâmes
 mimee	mimée
 mimerent	mimèrent
+mimes	mîmes
 mimetique	mimétique
 mimetisme	mimétisme
 mimosees	mimosées
+minaude	minaudé
 minaudiere	minaudière
 minee	minée
 minees	minées
@@ -27302,6 +27496,7 @@ misericordieux	miséricordieux
 missionne	missionné
 missionnes	missionnés
 mitardes	mitardés
+mite	mité
 mitee	mitée
 mitees	mitées
 mithridatise	mithridatisé
@@ -27320,6 +27515,7 @@ mitraillee	mitraillée
 mitraillees	mitraillées
 mitraillerent	mitraillèrent
 mitrailles	mitraillés
+mitres	mitrés
 mixe	mixé
 mixee	mixée
 mixes	mixés
@@ -27387,6 +27583,7 @@ moeurs	mœurs
 moire	moiré
 moiree	moirée
 moirees	moirées
+moires	moirés
 moise	moïse
 moissonne	moissonné
 moissonnee	moissonnée
@@ -27441,6 +27638,7 @@ monetisation	monétisation
 mongoloide	mongoloïde
 monnaye	monnayé
 monnayee	monnayée
+monocle	monoclé
 monogrammees	monogrammées
 monomes	monômes
 mononucleaire	mononucléaire
@@ -27490,6 +27688,7 @@ moquees	moquées
 moquerent	moquèrent
 moques	moqués
 moquettees	moquettées
+moquettes	moquettés
 moralisee	moralisée
 moralite	moralité
 moralites	moralités
@@ -27499,14 +27698,18 @@ morcelee	morcelée
 morcelees	morcelées
 morceles	morcelés
 mordancage	mordançage
+mordille	mordillé
 mordillee	mordillée
 mordillees	mordillées
 mordilles	mordillés
+mordit	mordît
 mordore	mordoré
 mordoree	mordorée
 mordorees	mordorées
 mordores	mordorés
+morfale	morfalé
 morfalee	morfalée
+morfales	morfalés
 morfle	morflé
 morflee	morflée
 morigena	morigéna
@@ -27543,6 +27746,7 @@ motorisee	motorisée
 motorisees	motorisées
 motorises	motorisés
 motricite	motricité
+moucharde	mouchardé
 mouchee	mouchée
 mouchete	moucheté
 mouchetee	mouchetée
@@ -27580,6 +27784,7 @@ mudejar	mudéjar
 mudejare	mudéjare
 muee	muée
 muees	muées
+mues	mués
 muflee	muflée
 mulatre	mulâtre
 mulatres	mulâtres
@@ -27590,6 +27795,7 @@ muller	müller
 multifrequences	multifréquences
 multimedia	multimédia
 multimedias	multimédias
+multiplexe	multiplexé
 multipliat	multipliât
 multiplicite	multiplicité
 multiplicites	multiplicités
@@ -27676,6 +27882,7 @@ mutile	mutilé
 mutilee	mutilée
 mutilees	mutilées
 mutiles	mutilés
+mutine	mutiné
 mutinee	mutinée
 mutines	mutinés
 mutite	mutité
@@ -27742,6 +27949,7 @@ napoleons	napoléons
 nappee	nappée
 nappees	nappées
 narghile	narghilé
+nargue	nargué
 narguees	narguées
 narguile	narguilé
 narguiles	narguilés
@@ -27999,6 +28207,7 @@ neron	néron
 nerve	nervé
 nervosite	nervosité
 nervosites	nervosités
+nervure	nervuré
 nervuree	nervurée
 nervurees	nervurées
 nes	nés
@@ -28306,6 +28515,7 @@ obscenement	obscènement
 obscenes	obscènes
 obscenite	obscénité
 obscenites	obscénités
+obscurcit	obscurcît
 obscurement	obscurément
 obscurite	obscurité
 obscurites	obscurités
@@ -28392,8 +28602,10 @@ oceanologie	océanologie
 oceanologue	océanologue
 oceans	océans
 ocellee	ocellée
+ocelles	ocellés
 ocree	ocrée
 ocrees	ocrées
+ocres	ocrés
 octogenaire	octogénaire
 octogenaires	octogénaires
 octroyat	octroyât
@@ -28783,6 +28995,7 @@ pacifiees	pacifiées
 pacifies	pacifiés
 pacses	pacsés
 pactise	pactisé
+pagaie	pagaïe
 pagaye	pagayé
 pagayerent	pagayèrent
 pagee	pagée
@@ -28799,6 +29012,7 @@ pailletes	pailletés
 pait	paît
 paitre	paître
 paitront	paîtront
+palabre	palabré
 palanquee	palanquée
 palanquees	palanquées
 pale	pâle
@@ -28832,6 +29046,7 @@ palirait	pâlirait
 palirent	pâlirent
 palis	pâlis
 palissadee	palissadée
+palissades	palissadés
 palissaient	pâlissaient
 palissait	pâlissait
 palissant	pâlissant
@@ -28853,6 +29068,8 @@ palottes	pâlottes
 palpe	palpé
 palpees	palpées
 palperent	palpèrent
+palpes	palpés
+palpite	palpité
 palpiterent	palpitèrent
 paludeenne	paludéenne
 paludeennes	paludéennes
@@ -28912,6 +29129,7 @@ paniques	paniqués
 pansee	pansée
 pansees	pansées
 panserent	pansèrent
+panses	pansés
 pantagruelique	pantagruélique
 pantagrueliques	pantagruéliques
 pantele	pantelé
@@ -28928,9 +29146,11 @@ papaverine	papavérine
 papilionace	papilionacé
 papilionacee	papilionacée
 papilionacees	papilionacées
+papillonne	papillonné
 papilloterent	papillotèrent
 papote	papoté
 papoterent	papotèrent
+papouille	papouillé
 paque	pâque
 paquerette	pâquerette
 paquerettes	pâquerettes
@@ -28951,6 +29171,7 @@ parachuterent	parachutèrent
 parachutes	parachutés
 paradee	paradée
 paraderent	paradèrent
+paraffine	paraffiné
 paraffinee	paraffinée
 paraffines	paraffinés
 parait	paraît
@@ -29114,6 +29335,7 @@ pasteurise	pasteurisé
 pasteurisee	pasteurisée
 pasteurises	pasteurisés
 pataques	pataquès
+patauge	pataugé
 pataugerent	pataugèrent
 pate	pâte pâté
 patee	pâtée
@@ -29198,6 +29420,7 @@ paupiere	paupière
 paupieres	paupières
 pauvrete	pauvreté
 pauvretes	pauvretés
+pavane	pavané
 pave	pavé
 pavee	pavée
 pavees	pavées
@@ -29341,6 +29564,8 @@ pegriots	pégriots
 peguy	péguy
 peignee	peignée
 peignees	peignées
+peignes	peignés
+peignit	peignît
 peinat	peinât
 peinee	peinée
 peinees	peinées
@@ -29383,6 +29608,7 @@ pelliculee	pelliculée
 peloponnese	péloponnèse
 pelot	pélot
 pelotee	pelotée
+pelotes	pelotés
 pelotonne	pelotonné
 pelotonnee	pelotonnée
 pelotonnees	pelotonnées
@@ -29936,6 +30162,7 @@ petomane	pétomane
 petomanes	pétomanes
 petoncle	pétoncle
 petoncles	pétoncles
+petons	pétons
 petouille	pétouille
 petoulet	pétoulet
 petrarque	pétrarque
@@ -30106,7 +30333,9 @@ phylactere	phylactère
 phylloxera	phylloxéra
 phylogenese	phylogenèse
 physiotherapie	physiothérapie
+piaffe	piaffé
 piaillerent	piaillèrent
+pianote	pianoté
 pianotee	pianotée
 pianoterent	pianotèrent
 piaulerent	piaulèrent
@@ -30224,6 +30453,7 @@ pimentee	pimentée
 pimentees	pimentées
 pimentes	pimentés
 pinacotheque	pinacothèque
+pinaille	pinaillé
 pinardiere	pinardière
 pinca	pinça
 pincage	pinçage
@@ -30318,6 +30548,7 @@ plagie	plagié
 plaide	plaidé
 plaidee	plaidée
 plaiderent	plaidèrent
+plaignit	plaignît
 plaisanterent	plaisantèrent
 plait	plaît
 plane	plané
@@ -30407,6 +30638,7 @@ pleurees	pleurées
 pleurerent	pleurèrent
 pleuresie	pleurésie
 pleuretique	pleurétique
+pleurniche	pleurniché
 plevre	plèvre
 plevres	plèvres
 pliat	pliât
@@ -30481,6 +30713,7 @@ poignardees	poignardées
 poignardes	poignardés
 poignee	poignée
 poignees	poignées
+poile	poilé
 poiles	poilés
 poincare	poincaré
 poincon	poinçon
@@ -30545,6 +30778,7 @@ polluee	polluée
 polluees	polluées
 pollues	pollués
 polycephale	polycéphale
+polychrome	polychromé
 polychromees	polychromées
 polycopie	polycopié
 polycopiee	polycopiée
@@ -30576,6 +30810,7 @@ pomeranienne	poméranienne
 pomeraniennes	poméraniennes
 pomeraniens	poméraniens
 pommadees	pommadées
+pommades	pommadés
 pommee	pommée
 pommees	pommées
 pommele	pommelé
@@ -30588,6 +30823,7 @@ pompeienne	pompéienne
 pompeiennes	pompéiennes
 pompeiens	pompéiens
 pompierisme	pompiérisme
+pomponne	pomponné
 pomponnee	pomponnée
 pomponnees	pomponnées
 pomponnes	pomponnés
@@ -30596,6 +30832,7 @@ poncait	ponçait
 poncant	ponçant
 poncee	poncée
 poncees	poncées
+ponces	poncés
 ponctualite	ponctualité
 ponctue	ponctué
 ponctuee	ponctuée
@@ -30689,6 +30926,7 @@ posterieurs	postérieurs
 posterite	postérité
 posterites	postérités
 postiere	postière
+postillonne	postillonné
 postoperatoire	postopératoire
 postoperatoires	postopératoires
 postule	postulé
@@ -30710,9 +30948,11 @@ poudrees	poudrées
 poudriere	poudrière
 pouffe	pouffé
 poufferent	pouffèrent
+pouilles	pouillés
 pouliniere	poulinière
 poupee	poupée
 poupees	poupées
+pouponne	pouponné
 pouponniere	pouponnière
 pouponnieres	pouponnières
 pourchasse	pourchassé
@@ -30744,6 +30984,7 @@ poussiereuses	poussiéreuses
 poussiereux	poussiéreux
 poussiniere	poussinière
 praline	praliné
+pralines	pralinés
 pratiquat	pratiquât
 pratiquee	pratiquée
 pratiquees	pratiquées
@@ -31439,6 +31680,7 @@ pressat	pressât
 pressee	pressée
 pressees	pressées
 pressentimes	pressentîmes
+pressentit	pressentît
 presserent	pressèrent
 presses	pressés
 pressionnee	pressionnée
@@ -32052,6 +32294,7 @@ protestames	protestâmes
 protestat	protestât
 proteste	protesté
 protesterent	protestèrent
+protestes	protestés
 protet	protêt
 protets	protêts
 prothese	prothèse
@@ -32238,6 +32481,7 @@ quantite	quantité
 quantites	quantités
 quarantieme	quarantième
 quarantiemes	quarantièmes
+quarte	quarté
 quatorzieme	quatorzième
 quatrieme	quatrième
 quatriemement	quatrièmement
@@ -32392,6 +32636,7 @@ raclee	raclée
 raclees	raclées
 raclerent	raclèrent
 racles	raclés
+racole	racolé
 racontat	racontât
 raconte	raconté
 racontee	racontée
@@ -32404,6 +32649,7 @@ radie	radié
 radiee	radiée
 radies	radiés
 radiesthesiste	radiesthésiste
+radine	radiné
 radinee	radinée
 radioactivite	radioactivité
 radiodiffuse	radiodiffusé
@@ -32414,6 +32660,7 @@ radioelement	radioélément
 radiogoniometre	radiogoniomètre
 radiogoniometrique	radiogoniométrique
 radiographiee	radiographiée
+radiographies	radiographiés
 radiometre	radiomètre
 radiometres	radiomètres
 radiometrie	radiométrie
@@ -32428,6 +32675,7 @@ radiotelescope	radiotélescope
 radiotelescopes	radiotélescopes
 radiotherapie	radiothérapie
 radome	radôme
+radote	radoté
 raffine	raffiné
 raffinee	raffinée
 raffinees	raffinées
@@ -32439,6 +32687,7 @@ rafistoles	rafistolés
 rafle	raflé
 raflee	raflée
 raflees	raflées
+rafles	raflés
 rafraichi	rafraîchi
 rafraichie	rafraîchie
 rafraichies	rafraîchies
@@ -32478,6 +32727,7 @@ raille	raillé
 raillee	raillée
 raillerent	raillèrent
 railles	raillés
+rainure	rainuré
 rais	raïs
 raisine	raisiné
 raisonne	raisonné
@@ -32560,6 +32810,7 @@ ramifie	ramifié
 ramifiee	ramifiée
 ramifiees	ramifiées
 ramifies	ramifiés
+ramone	ramoné
 ramonee	ramonée
 ramonees	ramonées
 rampee	rampée
@@ -32641,6 +32892,7 @@ rapiecer	rapiécer
 rapiecerait	rapiécerait
 rapieces	rapiécés
 rapiere	rapière
+rapines	rapinés
 rappelames	rappelâmes
 rappelat	rappelât
 rappele	rappelé
@@ -32761,6 +33013,7 @@ rattrapes	rattrapés
 rature	raturé
 raturee	raturée
 raturees	raturées
+ratures	raturés
 raucite	raucité
 ravage	ravagé
 ravagee	ravagée
@@ -32774,8 +33027,10 @@ ravales	ravalés
 ravaude	ravaudé
 ravaudees	ravaudées
 ravaudes	ravaudés
+ravine	raviné
 ravinee	ravinée
 ravinees	ravinées
+ravines	ravinés
 ravise	ravisé
 ravisee	ravisée
 ravitaille	ravitaillé
@@ -33056,6 +33311,7 @@ rebellerent	rebellèrent
 rebellion	rébellion
 rebellions	rébellions
 rebequer	rebéquer
+rebiffe	rebiffé
 rebiffee	rebiffée
 rebifferent	rebiffèrent
 rebiquee	rebiquée
@@ -33066,6 +33322,7 @@ rebouchee	rebouchée
 rebouchees	rebouchées
 reboucherent	rebouchèrent
 rebouches	rebouchés
+reboucle	rebouclé
 rebouclee	rebouclée
 reboutonne	reboutonné
 reboutonnee	reboutonnée
@@ -33118,6 +33375,7 @@ recapitulons	récapitulons
 recase	recasé
 recasse	recassé
 recassee	recassée
+recelait	recélait
 recelant	recélant
 recele	recèle recelé
 recelee	recelée
@@ -33313,6 +33571,7 @@ reclassee	reclassée
 reclusion	réclusion
 reclusionnaires	réclusionnaires
 reclusions	réclusions
+recoiffe	recoiffé
 recoiffee	recoiffée
 recoifferent	recoiffèrent
 recoiffes	recoiffés
@@ -33396,6 +33655,7 @@ recompose	recomposé
 recomposee	recomposée
 recomposerent	recomposèrent
 recomposes	recomposés
+recompte	recompté
 recomptees	recomptées
 reconcilia	réconcilia
 reconciliaient	réconciliaient
@@ -33422,6 +33682,7 @@ reconciliions	réconciliions
 reconcilions	réconcilions
 reconditionne	reconditionné
 reconditionnee	reconditionnée
+reconduisit	reconduisît
 reconfigure	reconfiguré
 reconfigures	reconfigurés
 reconfort	réconfort
@@ -33499,6 +33760,7 @@ recouvrat	recouvrât
 recouvree	recouvrée
 recouvrees	recouvrées
 recouvres	recouvrés
+recouvrit	recouvrît
 recrache	recraché
 recrachee	recrachée
 recre	récré
@@ -33566,6 +33828,7 @@ rectifies	rectifiés
 rectilineaire	rectilinéaire
 recu	reçu
 recue	reçue
+recueillit	recueillît
 recues	reçues
 reculat	reculât
 recule	reculé
@@ -33710,8 +33973,10 @@ redeployer	redéployer
 redeployez	redéployez
 redepose	redéposé
 redeposer	redéposer
+redescendit	redescendît
 redessine	redessiné
 redessinee	redessinée
+redevint	redevînt
 redhibition	rédhibition
 redhibitoire	rédhibitoire
 redhibitoires	rédhibitoires
@@ -33975,6 +34240,7 @@ refilees	refilées
 refiles	refilés
 refimes	refîmes
 refinancee	refinancée
+refit	refît
 reflechi	réfléchi
 reflechie	réfléchie
 reflechies	réfléchies
@@ -34037,7 +34303,7 @@ reforma	réforma
 reformateur	réformateur
 reformateurs	réformateurs
 reformation	réformation
-reforme	réforme réformé
+reforme	réforme réformé reformé
 reformee	réformée reformée
 reformees	réformées
 reformer	réformer
@@ -34199,6 +34465,7 @@ regicide	régicide
 regicides	régicides
 regie	régie
 regies	régies
+regimbe	regimbé
 regime	régime
 regiment	régiment
 regimentaire	régimentaire
@@ -34657,6 +34924,7 @@ relooke	relooké
 relookee	relookée
 reloue	reloué
 relourde	relourdé
+reluque	reluqué
 reluquee	reluquée
 reluques	reluqués
 remacha	remâcha
@@ -34677,6 +34945,7 @@ remanente	rémanente
 remanie	remanié
 remaniee	remaniée
 remanies	remaniés
+remaquille	remaquillé
 remaquillee	remaquillée
 remarie	remarié
 remariee	remariée
@@ -34840,6 +35109,7 @@ renaitront	renaîtront
 renal	rénal
 renale	rénale
 renales	rénales
+renaude	renaudé
 renaux	rénaux
 rencarde	rencardé
 rencardee	rencardée
@@ -34881,6 +35151,7 @@ renferme	renfermé
 renfermee	renfermée
 renfermees	renfermées
 renfermes	renfermés
+renfile	renfilé
 renfle	renflé
 renflee	renflée
 renflees	renflées
@@ -34911,6 +35182,8 @@ renfrognee	renfrognée
 renfrognes	renfrognés
 rengages	rengagés
 rengainerent	rengainèrent
+rengaines	rengainés
+rengorge	rengorgé
 rengorges	rengorgés
 rengracie	rengracié
 renie	renié
@@ -35100,6 +35373,7 @@ repartit	répartit
 repartiteur	répartiteur
 repartition	répartition
 repartitions	répartitions
+reparut	reparût
 repasse	repassé
 repassee	repassée
 repassees	repassées
@@ -35408,6 +35682,7 @@ reprochee	reprochée
 reprochees	reprochées
 reprocherent	reprochèrent
 reproches	reprochés
+reproduisit	reproduisît
 reprogramme	reprogrammé
 reprogrammee	reprogrammée
 reprogrammes	reprogrammés
@@ -35722,8 +35997,11 @@ respirat	respirât
 respiree	respirée
 respirees	respirées
 respirerent	respirèrent
+respires	respirés
 responsabilite	responsabilité
 responsabilites	responsabilités
+resquille	resquillé
+ressaisit	ressaisît
 ressasse	ressassé
 ressassee	ressassée
 ressassees	ressassées
@@ -35807,6 +36085,7 @@ resumons	résumons
 resurgence	résurgence
 resurgences	résurgences
 resurgente	résurgente
+resurgit	resurgît
 resurrection	résurrection
 resurrections	résurrections
 retabli	rétabli
@@ -35886,6 +36165,7 @@ retiniennes	rétiniennes
 retinite	rétinite
 retinmes	retînmes
 retinopathie	rétinopathie
+retint	retînt
 retirames	retirâmes
 retirat	retirât
 retire	retiré
@@ -36319,6 +36599,7 @@ revisite	revisité
 revisitee	revisitée
 reviso	réviso
 revisons	révisons
+revisse	revissé
 revissees	revissées
 revivifie	revivifié
 revivifiee	revivifiée
@@ -36414,6 +36695,7 @@ rhomboides	rhomboïdes
 rhone	rhône
 rhumatoide	rhumatoïde
 ribery	ribéry
+ricane	ricané
 ricanerent	ricanèrent
 ricoche	ricoché
 ride	ridé
@@ -36442,6 +36724,7 @@ rincee	rincée
 rincees	rincées
 rincerent	rincèrent
 rinces	rincés
+ripaille	ripaillé
 ripe	ripé
 ripoline	ripoliné
 ripolinee	ripolinée
@@ -36456,6 +36739,7 @@ risquees	risquées
 rissole	rissolé
 rissolee	rissolée
 rissolees	rissolées
+rissoles	rissolés
 ritualise	ritualisé
 ritualises	ritualisés
 rivalise	rivalisé
@@ -36473,6 +36757,7 @@ rizieres	rizières
 robotise	robotisé
 robotisee	robotisée
 robotisees	robotisées
+rocaille	rocaillé
 roda	rôda
 rodai	rôdai
 rodaient	rôdaient
@@ -36512,6 +36797,8 @@ romanite	romanité
 rombiere	rombière
 rombieres	rombières
 romeo	roméo
+rompit	rompît
+ronchonne	ronchonné
 roneo	ronéo
 roneote	ronéoté
 roneotions	ronéotions
@@ -36527,7 +36814,9 @@ rongerent	rongèrent
 ronges	rongés
 ronier	rônier
 roniers	rôniers
+ronin	rônin
 ronins	rônins
+ronronne	ronronné
 ronronnerent	ronronnèrent
 rontgens	röntgens
 rosatre	rosâtre
@@ -36565,7 +36854,9 @@ rotissoires	rôtissoires
 rotit	rôtit
 rotondite	rotondité
 rotondites	rotondités
+rots	rôts
 roturiere	roturière
+roucoule	roucoulé
 roucoules	roucoulés
 rouee	rouée
 rougeatre	rougeâtre
@@ -36606,6 +36897,7 @@ routiere	routière
 routieres	routières
 routiniere	routinière
 routinieres	routinières
+rouvrit	rouvrît
 royaute	royauté
 royautes	royautés
 ruames	ruâmes
@@ -36628,6 +36920,7 @@ ruinees	ruinées
 ruisselat	ruisselât
 ruissele	ruisselé
 ruisselerent	ruisselèrent
+rumine	ruminé
 ruminee	ruminée
 ruminees	ruminées
 rumines	ruminés
@@ -36818,6 +37111,7 @@ sautee	sautée
 sautees	sautées
 sauterent	sautèrent
 sautes	sautés
+sautille	sautillé
 sautillerent	sautillèrent
 sauvames	sauvâmes
 sauvat	sauvât
@@ -36916,6 +37210,7 @@ scinde	scindé
 scindee	scindée
 scinderent	scindèrent
 scindes	scindés
+scintille	scintillé
 scintillerent	scintillèrent
 scissiparite	scissiparité
 sclereux	scléreux
@@ -37012,6 +37307,7 @@ secouee	secouée
 secouees	secouées
 secouerent	secouèrent
 secoues	secoués
+secourut	secourût
 secretaient	secrétaient sécrétaient
 secretaire	secrétaire
 secretairerie	secrétairerie
@@ -37230,6 +37526,7 @@ semitiques	sémitiques
 semonca	semonça
 semoncait	semonçait
 semoncant	semonçant
+semonce	semoncé
 senart	sénart
 senat	sénat
 senateur	sénateur
@@ -37521,6 +37818,7 @@ sifflee	sifflée
 sifflees	sifflées
 sifflerent	sifflèrent
 siffles	sifflés
+sifflote	siffloté
 siffloterent	sifflotèrent
 sigille	sigillé
 sigillee	sigillée
@@ -37551,6 +37849,7 @@ silesien	silésien
 silhouettee	silhouettée
 siliconee	siliconée
 siliconees	siliconées
+silicose	silicosé
 silicosee	silicosée
 sillonne	sillonné
 sillonnee	sillonnée
@@ -37595,6 +37894,7 @@ singulieres	singulières
 sinistree	sinistrée
 sinistrees	sinistrées
 sinistres	sinistrés
+sinue	sinué
 sinuosite	sinuosité
 sinuosites	sinuosités
 sinusoidal	sinusoïdal
@@ -37752,6 +38052,7 @@ souffles	soufflés
 soufflete	souffleté
 souffletee	souffletée
 souffletes	souffletés
+souffrit	souffrît
 soufree	soufrée
 soufrees	soufrées
 soufres	soufrés
@@ -37818,6 +38119,7 @@ soulons	soûlons
 soulot	soûlot
 soulots	soûlots
 souls	soûls
+soumit	soumît
 soupames	soupâmes
 soupcon	soupçon
 soupconna	soupçonna
@@ -37857,6 +38159,7 @@ soupiere	soupière
 soupieres	soupières
 soupirat	soupirât
 soupirerent	soupirèrent
+souque	souqué
 sourciliere	sourcilière
 sourcilieres	sourcilières
 sourcille	sourcillé
@@ -37866,6 +38169,7 @@ sourimes	sourîmes
 soussigne	soussigné
 soussignee	soussignée
 soussignes	soussignés
+soutache	soutaché
 soutachee	soutachée
 soutachees	soutachées
 soutaches	soutachés
@@ -37875,6 +38179,7 @@ soutiree	soutirée
 soutirees	soutirées
 souverainete	souveraineté
 souverainetes	souverainetés
+souvint	souvînt
 sovietique	soviétique
 sovietiques	soviétiques
 sovietisation	soviétisation
@@ -37884,6 +38189,7 @@ sparteine	spartéine
 spasticite	spasticité
 spatulee	spatulée
 spatulees	spatulées
+spatules	spatulés
 spe	spé
 special	spécial
 speciale	spéciale
@@ -38188,6 +38494,7 @@ subaigue	subaiguë
 subdivise	subdivisé
 subdivisee	subdivisée
 subdivises	subdivisés
+subites	subîtes
 subjectivite	subjectivité
 subjugue	subjugué
 subjuguee	subjuguée
@@ -38203,6 +38510,7 @@ submergee	submergée
 submergees	submergées
 submergerent	submergèrent
 submerges	submergés
+subodore	subodoré
 subodorerent	subodorèrent
 subodores	subodorés
 subordonne	subordonné
@@ -38272,6 +38580,7 @@ suce	sucé
 sucee	sucée
 sucees	sucées
 sucerent	sucèrent
+suces	sucés
 sucoir	suçoir
 sucoirs	suçoirs
 sucon	suçon
@@ -38335,6 +38644,7 @@ suifes	suifés
 suiffe	suiffé
 suiffee	suiffée
 suiffes	suiffés
+suinte	suinté
 suitee	suitée
 suivimes	suivîmes
 sujetion	sujétion
@@ -38642,6 +38952,7 @@ suspecte	suspecté
 suspectee	suspectée
 suspectees	suspectées
 suspectes	suspectés
+suspendit	suspendît
 sustentes	sustentés
 susurre	susurré
 susurree	susurrée
@@ -38779,6 +39090,7 @@ talonnes	talonnés
 talquat	talquât
 talque	talqué
 talquees	talquées
+tambourine	tambouriné
 tambourinee	tambourinée
 tambourinerent	tambourinèrent
 tamisee	tamisée
@@ -38797,6 +39109,7 @@ tances	tancés
 tancrede	tancrède
 tangerois	tangérois
 tangibilite	tangibilité
+tangue	tangué
 taniere	tanière
 tanieres	tanières
 tanne	tanné
@@ -38813,20 +39126,24 @@ tape	tapé
 tapee	tapée
 tapees	tapées
 taperent	tapèrent
+tapine	tapiné
 tapinee	tapinée
 tapisse	tapissé
 tapissee	tapissée
 tapissees	tapissées
 tapisses	tapissés
 tapissiere	tapissière
+tapote	tapoté
 tapoterent	tapotèrent
 taquinee	taquinée
 tarabiscote	tarabiscoté
 tarabiscotee	tarabiscotée
 tarabiscotees	tarabiscotées
 tarabiscotes	tarabiscotés
+tarabuste	tarabusté
 tarabusterent	tarabustèrent
 tarabustes	tarabustés
+taraude	taraudé
 taraudee	taraudée
 taraudees	taraudées
 tarauderent	taraudèrent
@@ -38908,6 +39225,7 @@ taxees	taxées
 taximetre	taximètre
 taylorise	taylorisé
 tchaikovski	tchaïkovski
+tchatche	tchatché
 tchecoslovaque	tchécoslovaque
 tchecoslovaques	tchécoslovaques
 tchecoslovaquie	tchécoslovaquie
@@ -39417,6 +39735,7 @@ thyroide	thyroïde
 thyroidectomie	thyroïdectomie
 thyroidien	thyroïdien
 thyroidienne	thyroïdienne
+tiare	tiaré
 tibere	tibère
 tibetain	tibétain
 tibetaine	tibétaine
@@ -39454,6 +39773,7 @@ timores	timorés
 timothee	timothée
 tinee	tinée
 tinmes	tînmes
+tinte	tinté
 tinterent	tintèrent
 tintes	tintés
 tiquete	tiqueté
@@ -39484,14 +39804,17 @@ titillees	titillées
 titilles	titillés
 titree	titrée
 titrees	titrées
+titube	titubé
 tituberent	titubèrent
 titularise	titularisé
 titularisee	titularisée
 toaste	toasté
 toilee	toilée
 toilettees	toilettées
+toise	toisé
 toisee	toisée
 toiserent	toisèrent
+toises	toisés
 tolarde	tôlarde
 tole	tôle
 tolede	tolède
@@ -39559,6 +39882,7 @@ torchee	torchée
 torchees	torchées
 torchere	torchère
 torcheres	torchères
+tordit	tordît
 toreador	toréador
 toreadors	toréadors
 toree	torée
@@ -39578,6 +39902,7 @@ torsade	torsadé
 torsadee	torsadée
 torsadees	torsadées
 torsades	torsadés
+tortille	tortillé
 tortillee	tortillée
 tortillees	tortillées
 tortilles	tortillés
@@ -39602,11 +39927,13 @@ touchees	touchées
 toucherent	touchèrent
 touches	touchés
 toue	toué
+touille	touillé
 touillee	touillée
 touillees	touillées
 touilles	touillés
 tourbiere	tourbière
 tourbieres	tourbières
+tourbillonne	tourbillonné
 tourbillonnerent	tourbillonnèrent
 toure	touré
 touriere	tourière
@@ -39627,11 +39954,13 @@ tournee	tournée
 tournees	tournées
 tournerent	tournèrent
 tournes	tournés
+tournicote	tournicoté
 tournicotes	tournicotés
 tournoye	tournoyé
 tournoyerent	tournoyèrent
 tourtiere	tourtière
 tourtieres	tourtières
+toussote	toussoté
 toxicite	toxicité
 traca	traça
 tracabilite	traçabilité
@@ -39662,6 +39991,7 @@ tracons	traçons
 tracte	tracté
 tractee	tractée
 tractes	tractés
+traduisit	traduisît
 traficote	traficoté
 trafique	trafiqué
 trafiquee	trafiquée
@@ -39922,6 +40252,7 @@ tremble	tremblé
 tremblee	tremblée
 tremblees	tremblées
 tremblerent	tremblèrent
+tremblote	trembloté
 tremie	trémie
 tremiere	trémière
 tremieres	trémières
@@ -40032,18 +40363,23 @@ triee	triée
 triees	triées
 trierent	trièrent
 tries	triés
+trifouille	trifouillé
 triglyceride	triglycéride
 triglycerides	triglycérides
 trigonometrie	trigonométrie
 trilaterale	trilatérale
+trille	trillé
 trilobee	trilobée
 trilobes	trilobés
 trimbale	trimbalé
 trimbalee	trimbalée
+trimbales	trimbalés
 trimballat	trimballât
 trimballe	trimballé
 trimballee	trimballée
+trimballes	trimballés
 trime	trimé
+tringle	tringlé
 tringlee	tringlée
 trinite	trinité
 trinome	trinôme
@@ -40138,6 +40474,7 @@ troquee	troquée
 troquees	troquées
 troquerent	troquèrent
 troques	troqués
+trottine	trottiné
 troublat	troublât
 troublee	troublée
 troublees	troublées
@@ -40160,6 +40497,7 @@ trouvere	trouvère
 trouverent	trouvèrent
 trouveres	trouvères
 trouves	trouvés
+truande	truandé
 trucide	trucidé
 trucidee	trucidée
 trucides	trucidés
@@ -40198,6 +40536,7 @@ turbotiere	turbotière
 turbotieres	turbotières
 turkmenes	turkmènes
 turkmenistan	turkménistan
+turlupine	turlupiné
 turlupinee	turlupinée
 tutelaire	tutélaire
 tutelaires	tutélaires
@@ -40325,6 +40664,7 @@ vacuite	vacuité
 vagabonderent	vagabondèrent
 vahine	vahiné
 vahines	vahinés
+valdingue	valdingué
 valdingues	valdingués
 valdotains	valdôtains
 valere	valère
@@ -40791,8 +41131,10 @@ viree	virée
 virees	virées
 virerent	virèrent
 vires	virés
+virevolte	virevolté
 virginite	virginité
 virginites	virginités
+virilise	virilisé
 virilises	virilisés
 virilite	virilité
 virilites	virilités
@@ -40855,6 +41197,7 @@ vivandieres	vivandières
 vivifie	vivifié
 vivifiee	vivifiée
 vivifiees	vivifiées
+vivote	vivoté
 vivoterent	vivotèrent
 vocifera	vociféra
 vociferai	vociférai
@@ -40930,6 +41273,7 @@ voutes	voûtes voûtés
 voyagerent	voyagèrent
 vrillees	vrillées
 vrillerent	vrillèrent
+vrilles	vrillés
 vulcanise	vulcanisé
 vulgarisee	vulgarisée
 vulgarite	vulgarité
@@ -41026,6 +41370,7 @@ zezettes	zézettes
 zigouille	zigouillé
 zigouillees	zigouillées
 zigouilles	zigouillés
+zigzague	zigzagué
 zigzaguee	zigzaguée
 zigzaguerent	zigzaguèrent
 zinedine	zinédine
@@ -41033,3 +41378,4 @@ zingue	zingué
 zingues	zingués
 zippe	zippé
 zoe	zoé
+zyeute	zyeuté

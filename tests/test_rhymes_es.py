@@ -238,3 +238,11 @@ def test_a_rare_wikipron_word_is_known_and_rhymes() -> None:
 def test_made_up_spanish_words_stay_unknown() -> None:
     assert rhyme_kind("chirimoya", "xirimoya", language=Language.ES) is None
     assert rhymes_es.keys("xirimoya") is None
+
+
+@pytest.mark.parametrize(("word", "twin"), [("titulo", "tituló"), ("frio", "frió")])
+def test_a_wikipron_spelling_keeps_its_rarer_accented_twin(
+    word: str, twin: str
+) -> None:
+    assert twin in rhymes_es._accents()[word]
+    assert rhyme_kind(word, "habló", language=Language.ES) is RhymeKind.PERFECT

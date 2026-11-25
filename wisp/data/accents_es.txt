@@ -245,6 +245,7 @@ abadernese	abadérnese
 abaderno	abadernó
 abadi	abadí
 abadia	abadía
+abaja	abajá
 abajabamos	abajábamos
 abajais	abajáis
 abajala	abájala
@@ -329,6 +330,7 @@ abalancenos	abaláncenos
 abalancense	abaláncense
 abalances	abalancés
 abalancese	abaláncese
+abalanza	abalanzá
 abalanzabamos	abalanzábamos
 abalanzais	abalanzáis
 abalanzala	abalánzala
@@ -502,6 +504,7 @@ abaleense	abaléense
 abalees	abaleés
 abaleese	abaléese
 abaleo	abaleó
+abana	abaná
 abanabamos	abanábamos
 abanacion	abanación
 abanais	abanáis
@@ -648,6 +651,7 @@ abanenos	abánenos
 abanense	abánense
 abanes	abanés
 abanese	abánese
+abano	abanó
 abarcaramos	abarcáramos
 abarcariamos	abarcaríamos
 abarco	abarcó
@@ -893,6 +897,7 @@ abañese	abáñese
 abaño	abañó
 abdicacion	abdicación
 abdicais	abdicáis
+abdicara	abdicará
 abdicaramos	abdicáramos
 abdicaras	abdicarás
 abdicare	abdicaré
@@ -1084,6 +1089,7 @@ abordara	abordará
 abordaramos	abordáramos
 abordaras	abordarás
 abordariamos	abordaríamos
+abordes	abordés
 abordo	abordó
 aborigenes	aborígenes
 aborreceriamos	aborreceríamos
@@ -1118,6 +1124,7 @@ aborreguemonos	aborreguémonos
 aborreguense	aborréguense
 aborregues	aborregués
 aborreguese	aborréguese
+abortara	abortará
 abortaramos	abortáramos
 abortaras	abortarás
 abortariamos	abortaríamos
@@ -1148,7 +1155,7 @@ abrasara	abrasará
 abrasaramos	abrasáramos
 abrasaras	abrasarás
 abrasariamos	abrasaríamos
-abrase	ábrase
+abrase	abrasé ábrase
 abrasion	abrasión
 abraso	abrasó
 abrazame	abrázame
@@ -1293,6 +1300,7 @@ abstenes	abstenés
 abstengais	abstengáis
 abstengamonos	abstengámonos
 abstenganse	absténganse
+abstengas	abstengás
 abstengase	absténgase
 abstenia	abstenía
 absteniais	absteníais
@@ -1306,6 +1314,7 @@ absteniendose	absteniéndose
 absteniendote	absteniéndote
 abstersion	abstersión
 abstraccion	abstracción
+abstrae	abstraé
 abstraeis	abstraéis
 abstraela	abstráela
 abstraelas	abstráelas
@@ -1427,6 +1436,7 @@ abullono	abullonó
 abulon	abulón
 abultadisimo	abultadísimo
 abundantisimo	abundantísimo
+abundara	abundará
 abundaramos	abundáramos
 abundaras	abundarás
 abundariamos	abundaríamos
@@ -1533,6 +1543,7 @@ acantaceos	acantáceos
 acantocefalo	acantocéfalo
 acaparacion	acaparación
 acapite	acápite
+acaricies	acariciés
 acaro	ácaro
 acaros	ácaros
 accedais	accedáis
@@ -1600,6 +1611,7 @@ acercandose	acercándose
 acercara	acercará
 acercate	acércate
 acerco	acercó
+acere	ácere
 acereria	acerería
 aceria	acería
 acerque	acerqué
@@ -1722,6 +1734,7 @@ achicopalese	achicopálese
 achin	achín
 achine	achiné
 achino	achinó
+achis	achís
 achuchon	achuchón
 acibar	acíbar
 aciclica	acíclica
@@ -1733,6 +1746,7 @@ acida	ácida
 acidamente	ácidamente
 acidas	ácidas
 acidico	acídico
+acidifica	acidificá
 acidificabamos	acidificábamos
 acidificacion	acidificación
 acidificais	acidificáis
@@ -1862,6 +1876,7 @@ acompañenme	acompáñenme
 acompañense	acompáñense
 acompañese	acompáñese
 acompaño	acompañó
+acondiciona	acondicioná
 acondicionabamos	acondicionábamos
 acondicionais	acondicionáis
 acondicionala	acondiciónala
@@ -1960,7 +1975,9 @@ acortariais	acortaríais
 acortariamos	acortaríamos
 acortarian	acortarían
 acortarias	acortarías
+acortas	acortás
 acortasemos	acortásemos
+acorte	acorté
 acorteis	acortéis
 acortes	acortés
 acorto	acortó
@@ -1979,6 +1996,7 @@ acosandose	acosándose
 acosandote	acosándote
 acosara	acosará
 acosaramos	acosáramos
+acosaran	acosarán
 acosaras	acosarás
 acosare	acosaré
 acosareis	acosaréis
@@ -1988,8 +2006,11 @@ acosariais	acosaríais
 acosariamos	acosaríamos
 acosarian	acosarían
 acosarias	acosarías
+acosas	acosás
 acosasemos	acosásemos
+acose	acosé
 acoseis	acoséis
+acoses	acosés
 acostara	acostará
 acostaramos	acostáramos
 acostaras	acostarás
@@ -2145,6 +2166,7 @@ adaptacion	adaptación
 adaptandose	adaptándose
 adapto	adaptó
 adargama	adárgama
+adarve	adarvé
 adarvo	adarvó
 adecuacion	adecuación
 adefago	adéfago
@@ -2250,6 +2272,7 @@ adsorcion	adsorción
 aduccion	aducción
 adueña	adueñá
 aduje	adujé
+adujo	adujó
 adulacion	adulación
 adulara	adulará
 adularamos	aduláramos
@@ -2264,6 +2287,8 @@ adultero	adúltero
 adulteros	adúlteros
 adveccion	advección
 adveracion	adveración
+adversaria	adversaría
+adversarias	adversarías
 adverti	advertí
 advertia	advertía
 advirtio	advirtió
@@ -2319,6 +2344,7 @@ aerostatica	aerostática
 aerostaticas	aerostáticas
 aerostatico	aerostático
 aerostaticos	aerostáticos
+aerostato	aeróstato
 aerotecnica	aerotécnica
 aerotecnico	aerotécnico
 aerotermica	aerotérmica
@@ -2378,6 +2404,7 @@ afilaramos	afiláramos
 afilaras	afilarás
 afilariamos	afilaríamos
 afiliacion	afiliación
+afilo	áfilo
 afin	afín
 afinacion	afinación
 afio	afió
@@ -2386,6 +2413,7 @@ afirmara	afirmará
 afirmaramos	afirmáramos
 afirmaras	afirmarás
 afirmariamos	afirmaríamos
+afirmas	afirmás
 afirmo	afirmó
 afliccion	aflicción
 afligidisimo	afligidísimo
@@ -2416,6 +2444,7 @@ agami	agamí
 aganglionico	agangliónico
 agape	ágape
 agarico	agárico
+agarrara	agarrará
 agarraramos	agarráramos
 agarraras	agarrarás
 agarrariamos	agarraríamos
@@ -2432,6 +2461,7 @@ agilizacion	agilización
 agilmente	ágilmente
 agitacion	agitación
 agitadisimo	agitadísimo
+agite	agité
 agito	agitó
 aglabi	aglabí
 aglomeracion	aglomeración
@@ -2483,6 +2513,7 @@ agregacion	agregación
 agregaduria	agregaduría
 agregara	agregará
 agregaramos	agregáramos
+agregaras	agregarás
 agregariamos	agregaríamos
 agrego	agregó
 agregue	agregué
@@ -2655,7 +2686,9 @@ ahito	ahíto
 ahmadi	ahmadí
 ahogo	ahogó
 ahorrara	ahorrará
+ahun	ahún
 aida	aída
+aimara	aimará
 aina	aína
 ainas	aínas
 airan	aíran
@@ -3005,6 +3038,7 @@ alometria	alometría
 alopatia	alopatía
 alopatrico	alopátrico
 alopecico	alopécico
+aloque	aloqué
 alotropia	alotropía
 alotropica	alotrópica
 alotropicas	alotrópicas
@@ -3963,6 +3997,7 @@ apostrofe	apóstrofe
 apostrofo	apóstrofo
 apoteosicamente	apoteósicamente
 apoteosico	apoteósico
+apoteosis	apoteósis
 apoteotico	apoteótico
 apoyabamos	apoyábamos
 apoyais	apoyáis
@@ -3984,6 +4019,7 @@ apoyaran	apoyarán
 apoyaras	apoyarás
 apoyare	apoyaré
 apoyareis	apoyaréis
+apoyaremos	apoyáremos
 apoyaria	apoyaría
 apoyariais	apoyaríais
 apoyariamos	apoyaríamos
@@ -3996,6 +4032,7 @@ apoyelas	apóyelas
 apoyemonos	apoyémonos
 apoyenme	apóyenme
 apoyense	apóyense
+apoyes	apoyés
 apoyese	apóyese
 apreciabilisimo	apreciabilísimo
 apreciacion	apreciación
@@ -4134,6 +4171,7 @@ apunte	apunté
 apunto	apuntó
 apuradisimo	apuradísimo
 apurale	apúrale
+apurara	apurará
 apuraramos	apuráramos
 apuraras	apurarás
 apurariamos	apuraríamos
@@ -4143,6 +4181,8 @@ aquemenida	aqueménida
 aquerenciense	aquerénciense
 aquerenciese	aquerénciese
 aquese	aquése
+aquesta	aquésta
+aqueste	aquéste
 aquestos	aquéstos
 aqui	aquí
 aquilon	aquilón
@@ -4362,6 +4402,7 @@ arrastralos	arrástralos
 arrastrame	arrástrame
 arrastrandose	arrastrándose
 arrastranos	arrástranos
+arrastras	arrastrás
 arrastrate	arrástrate
 arrastrela	arrástrela
 arrastrelas	arrástrelas
@@ -4501,6 +4542,7 @@ arruguenme	arrúguenme
 arruguennos	arrúguennos
 arruguenos	arrúguenos
 arruguense	arrúguense
+arrugues	arrugués
 arruguese	arrúguese
 arrui	arruí
 arruino	arruinó
@@ -4531,6 +4573,7 @@ artritico	artrítico
 artriticos	artríticos
 artropatia	artropatía
 artropodo	artrópodo
+artroscopia	artroscopía
 artroscopias	artroscopías
 artroscopica	artroscópica
 artroscopicas	artroscópicas
@@ -4550,6 +4593,7 @@ asalos	ásalos
 asambleista	asambleísta
 asambleistas	asambleístas
 asames	asamés
+asara	asará
 asaramos	asáramos
 asaras	asarás
 asaremos	asáremos
@@ -4628,6 +4672,7 @@ asmatica	asmática
 asmatico	asmático
 asnejon	asnejón
 asociacion	asociación
+asocie	asocié
 asocio	asoció
 asolo	asoló
 asona	asoná
@@ -4660,6 +4705,7 @@ aspiracion	aspiración
 asquelin	asquelín
 asquenazi	asquenazí
 asquilin	asquilín
+astenosfera	astenósfera
 aster	áster
 asteracea	asterácea
 astracan	astracán
@@ -4750,6 +4796,7 @@ atentisimos	atentísimos
 atenuacion	atenuación
 aterosclerotico	aterosclerótico
 aterrizo	aterrizó
+ates	atés
 atese	átese
 athletica	athlética
 athletico	athlético
@@ -4880,6 +4927,7 @@ audiologo	audiólogo
 audiometro	audiómetro
 audiometros	audiómetros
 audion	audión
+audite	audité
 audito	auditó
 auditoria	auditoría
 auditorias	auditorías
@@ -4942,6 +4990,7 @@ autobiograficos	autobiográficos
 autobus	autobús
 autocatalisis	autocatálisis
 autocategorizacion	autocategorización
+autocensura	autocensurá
 autoclasificacion	autoclasificación
 autocrata	autócrata
 autocraticamente	autocráticamente
@@ -5074,6 +5123,7 @@ autotrofos	autótrofos
 autovia	autovía
 auvernes	auvernés
 avanzo	avanzó
+avara	ávara
 avefria	avefría
 avemaria	avemaría
 avenabamos	avenábamos
@@ -5096,6 +5146,7 @@ avene	avené
 aveneis	avenéis
 aveno	avenó
 aventon	aventón
+aventurara	aventurará
 aventuraramos	aventuráramos
 aventuraras	aventurarás
 aventurariamos	aventuraríamos
@@ -5209,6 +5260,7 @@ azadon	azadón
 azafran	azafrán
 azai	azaí
 azala	azalá
+azalea	azálea
 azaleas	azáleas
 azawadi	azawadí
 azdarquido	azdárquido
@@ -5246,6 +5298,7 @@ babelica	babélica
 babelicas	babélicas
 babelico	babélico
 babelicos	babélicos
+babi	babí
 babilonica	babilónica
 babilonicas	babilónicas
 babilonico	babilónico
@@ -5273,6 +5326,7 @@ badalones	badalonés
 badian	badián
 badminton	bádminton
 baez	báez
+baga	bagá
 bagdadi	bagdadí
 bagratida	bagrátida
 baguari	baguarí
@@ -5342,7 +5396,9 @@ baladrariais	baladraríais
 baladrarian	baladrarían
 baladrarias	baladrarías
 baladrasemos	baladrásemos
+baladre	baladré
 baladreis	baladréis
+baladro	baladró
 baladron	baladrón
 balafon	balafón
 balago	bálago
@@ -5351,6 +5407,7 @@ balandran	balandrán
 balanico	balánico
 balano	bálano
 balanos	bálanos
+balata	balatá
 balau	balaú
 balcanizacion	balcanización
 balche	balché
@@ -5488,6 +5545,7 @@ bastaras	bastarás
 bastardia	bastardía
 bastaria	bastaría
 bastariamos	bastaríamos
+bastas	bastás
 bastion	bastión
 basto	bastó
 baston	bastón
@@ -5520,6 +5578,7 @@ bayames	bayamés
 baygon	baygón
 bazan	bazán
 bañais	bañáis
+bañas	bañás
 beamontes	beamontés
 bearnes	bearnés
 beateria	beatería
@@ -5612,9 +5671,13 @@ beneficiaramos	beneficiáramos
 beneficiaran	beneficiarán
 beneficiaras	beneficiarás
 beneficiareis	beneficiaréis
+beneficiaremos	beneficiáremos
 beneficiaria	beneficiaría
 beneficiariamos	beneficiaríamos
+beneficiarias	beneficiarías
+beneficias	beneficiás
 beneficieis	beneficiéis
+beneficies	beneficiés
 benefico	benéfico
 beneficos	benéficos
 benemerita	benemérita
@@ -5636,6 +5699,7 @@ benzatinico	benzatínico
 benzodiazepinico	benzodiazepínico
 benzoilo	benzoílo
 berbiqui	berbiquí
+bereber	beréber
 bergantin	bergantín
 berlin	berlín
 berlines	berlinés
@@ -5930,6 +5994,7 @@ bolon	bolón
 boloñes	boloñés
 bolson	bolsón
 bolu	bolú
+boludea	boludeá
 boludeabamos	boludeábamos
 boludeais	boludeáis
 boludeara	boludeará
@@ -5944,9 +6009,12 @@ boludeariais	boludearíais
 boludeariamos	boludearíamos
 boludearian	boludearían
 boludearias	boludearías
+boludeas	boludeás
 boludeasemos	boludeásemos
+boludee	boludeé
 boludeeis	boludeéis
 boludees	boludeés
+boludeo	boludeó
 bombastico	bombástico
 bombin	bombín
 bombon	bombón
@@ -6011,6 +6079,7 @@ bosonicas	bosónicas
 bosonico	bosónico
 bosonicos	bosónicos
 bosquimana	bosquímana
+bosquimano	bosquímano
 bostriquido	bostríquido
 botalon	botalón
 botanica	botánica
@@ -6044,6 +6113,7 @@ brahmanico	brahmánico
 brahmi	brahmí
 braja	brajá
 braket	bráket
+brame	bramé
 brames	bramés
 brandeburgues	brandeburgués
 braquet	bráquet
@@ -6067,6 +6137,7 @@ bridon	bridón
 brigidamente	brígidamente
 brigido	brígido
 brile	brilé
+brincara	brincará
 brincaramos	brincáramos
 brincaras	brincarás
 brincariamos	brincaríamos
@@ -6245,6 +6316,7 @@ cabas	cabás
 cabasu	cabasú
 cabecar	cabécar
 cabeis	cabéis
+cabes	cabés
 cabezon	cabezón
 cabezoneria	cabezonería
 cabia	cabía
@@ -6335,6 +6407,7 @@ cagariamos	cagaríamos
 cagarian	cagarían
 cagarias	cagarías
 cagasemos	cagásemos
+cagate	cágate
 cagazon	cagazón
 cagon	cagón
 caguare	caguaré
@@ -6385,6 +6458,7 @@ calaramos	caláramos
 calaras	calarás
 calariamos	calaríamos
 calarsela	calársela
+calato	cálato
 calcaneo	calcáneo
 calcarea	calcárea
 calcareas	calcáreas
@@ -6530,6 +6604,7 @@ cambiaria	cambiaría
 cambiarian	cambiarían
 cambie	cambié
 cambion	cambión
+cambium	cámbium
 cambrica	cámbrica
 cambricas	cámbricas
 cambrico	cámbrico
@@ -6649,6 +6724,7 @@ cantaran	cantarán
 cantaras	cantarás
 cantare	cantaré
 cantareis	cantaréis
+cantaremos	cantáremos
 cantaria	cantaría
 cantariais	cantaríais
 cantariamos	cantaríamos
@@ -6658,6 +6734,7 @@ cantarin	cantarín
 cantaro	cántaro
 cantaros	cántaros
 cantasemos	cantásemos
+cantate	cántate
 canteis	cantéis
 cantela	cántela
 cantelas	cántelas
@@ -7006,7 +7083,7 @@ catamaran	catamarán
 catan	catán
 catapan	catapán
 cataplun	cataplún
-catara	cátara
+catara	catará cátara
 cataramos	catáramos
 cataras	catarás
 catari	catarí
@@ -7095,6 +7172,7 @@ cauterizarias	cauterizarías
 cautivo	cautivó
 cavalleria	cavallería
 cavalo	cávalo
+cavan	caván
 cavea	cávea
 cavelo	cávelo
 cavenlo	cávenlo
@@ -7333,6 +7411,7 @@ chabacaneria	chabacanería
 chacara	chácara
 chachara	cháchara
 chacharo	chácharo
+chachi	chachí
 chachon	chachón
 chacoli	chacolí
 chacon	chacón
@@ -7400,6 +7479,7 @@ chebron	chebrón
 chechen	chechén
 chelin	chelín
 chercan	chercán
+cheroqui	chéroqui
 cheuron	cheurón
 chevere	chévere
 cheverisimo	cheverísimo
@@ -7412,6 +7492,7 @@ chicharo	chícharo
 chicharon	chicharón
 chicharron	chicharrón
 chicheria	chichería
+chichi	chichí
 chichon	chichón
 chiclan	chiclán
 chicoten	chicotén
@@ -7462,6 +7543,7 @@ chiquiza	chiquizá
 chirigue	chirigüe
 chirigues	chirigües
 chirimia	chirimía
+chiripa	chiripá
 chiriqui	chiriquí
 chirivia	chirivía
 chirolon	chirolón
@@ -7524,6 +7606,7 @@ chutara	chutará
 chutaramos	chutáramos
 chutaras	chutarás
 chutariamos	chutaríamos
+cian	cían
 cianico	ciánico
 cianometro	cianómetro
 cianotico	cianótico
@@ -7717,6 +7800,7 @@ cisticos	císticos
 citacion	citación
 citara	citará cítara
 citaramos	citáramos
+citaras	citarás
 citariamos	citaríamos
 cite	cité
 citiso	cítiso
@@ -7893,6 +7977,7 @@ coclea	cóclea
 cocli	coclí
 cocolitoforido	cocolitofórido
 cocolon	cocolón
+cocona	cócona
 cocono	cócono
 cocora	cócora
 coctel	cóctel
@@ -7943,6 +8028,7 @@ coheton	cohetón
 cohomologia	cohomología
 coigue	coigüe
 coigues	coigües
+coihue	coihué
 coincidia	coincidía
 coincidiamos	coincidíamos
 coincidian	coincidían
@@ -8051,6 +8137,7 @@ colofon	colofón
 colon	colón
 colones	colonés
 colonizacion	colonización
+colonoscopia	colonoscopía
 coloque	coloqué
 coloquele	colóquele
 coloqueles	colóqueles
@@ -8143,6 +8230,7 @@ comence	comencé
 comenos	cómenos
 comentara	comentará
 comentaramos	comentáramos
+comentaras	comentarás
 comentariamos	comentaríamos
 comente	comenté
 comento	comentó
@@ -8192,9 +8280,11 @@ cometanos	cométanos
 cometanse	cométanse
 cometase	cométase
 cometeis	cometéis
+cometela	cométela
 cometelas	comételas
 cometele	cométele
 cometeles	comételes
+cometelo	comételo
 cometelos	comételos
 cometeme	cométeme
 cometenos	cométenos
@@ -8316,6 +8406,7 @@ compararan	compararán
 compararas	compararás
 comparare	compararé
 comparareis	compararéis
+compararemos	comparáremos
 compararia	compararía
 comparariais	compararíais
 comparariamos	compararíamos
@@ -8465,6 +8556,7 @@ comunicacion	comunicación
 comunicara	comunicará
 comunicaramos	comunicáramos
 comunicaras	comunicarás
+comunicaremos	comunicáremos
 comunicaria	comunicaría
 comunicariamos	comunicaríamos
 comunicarias	comunicarías
@@ -8473,6 +8565,7 @@ comunico	comunicó
 comunicologa	comunicóloga
 comunicologo	comunicólogo
 comunion	comunión
+comuniques	comuniqués
 comuniquese	comuníquese
 comunisimo	comunísimo
 comunizacion	comunización
@@ -8520,6 +8613,7 @@ concluis	concluís
 conclusion	conclusión
 concluyo	concluyó
 concon	concón
+concordara	concordará
 concordaramos	concordáramos
 concordaras	concordarás
 concordariamos	concordaríamos
@@ -8745,12 +8839,14 @@ consuncion	consunción
 contactanos	contáctanos
 contactara	contactará
 contactaramos	contactáramos
+contactaras	contactarás
 contactariamos	contactaríamos
 contaduria	contaduría
 contagiara	contagiará
 contagiaramos	contagiáramos
 contagiaras	contagiarás
 contagiariamos	contagiaríamos
+contagie	contagié
 contagion	contagión
 contaminacion	contaminación
 contandole	contándole
@@ -8820,6 +8916,7 @@ continuariamos	continuaríamos
 continue	continúe continué
 continuen	continúen
 continuo	continuó
+continuum	contínuum
 conto	contó
 contornara	contornará
 contornaramos	contornáramos
@@ -9074,6 +9171,7 @@ cordobes	cordobés
 cordon	cordón
 cordotomia	cordotomía
 cordova	córdova
+coreo	córeo
 coreografa	coreógrafa
 coreografas	coreógrafas
 coreografia	coreografía
@@ -9228,6 +9326,7 @@ cosmopolis	cosmópolis
 cosmoquimica	cosmoquímica
 cosmovision	cosmovisión
 cosoberania	cosoberanía
+cosquilla	cosquillá
 cosquillabamos	cosquillábamos
 cosquillais	cosquilláis
 cosquillala	cosquíllala
@@ -9264,6 +9363,7 @@ cosquillarias	cosquillarías
 cosquillasemos	cosquillásemos
 cosquillate	cosquíllate
 cosquille	cosquillé
+cosquillea	cosquilleá
 cosquilleabamos	cosquilleábamos
 cosquilleais	cosquilleáis
 cosquilleala	cosquilléala
@@ -9374,6 +9474,7 @@ costosisimo	costosísimo
 costosisimos	costosísimos
 costumizacion	costumización
 costureria	costurería
+coteje	cotejé
 coterranea	coterránea
 coterraneo	coterráneo
 coti	cotí
@@ -9414,6 +9515,7 @@ crafteasemos	crafteásemos
 craftee	crafteé
 crafteeis	crafteéis
 craftees	crafteés
+crafteo	crafteó
 crampon	crampón
 crancelin	crancelín
 craneo	cráneo
@@ -9599,6 +9701,7 @@ cromatograficos	cromatográficos
 cromatografo	cromatógrafo
 cromatologico	cromatológico
 cromañon	cromañón
+crome	cromé
 cromico	crómico
 cromlech	crómlech
 cromoforo	cromóforo
@@ -9749,6 +9852,7 @@ cuarenton	cuarentón
 cuaron	cuarón
 cuarteria	cuartería
 cuarteron	cuarterón
+cuartico	cuártico
 cuarton	cuartón
 cuasar	cuásar
 cuatica	cuática
@@ -9789,6 +9893,7 @@ cubriran	cubrirán
 cucapa	cucapá
 cucarachon	cucarachón
 cucharon	cucharón
+cuchi	cuchí
 cuchichi	cuchichí
 cuchillon	cuchillón
 cuchufli	cuchuflí
@@ -10078,6 +10183,7 @@ dardano	dárdano
 dardico	dárdico
 dare	daré
 dareis	daréis
+dari	darí
 daria	daría
 dariais	daríais
 dariamos	daríamos
@@ -10127,6 +10233,7 @@ datariais	dataríais
 datariamos	dataríamos
 datarian	datarían
 datarias	datarías
+datas	datás
 datasemos	datásemos
 datate	dátate
 date	daté
@@ -10449,6 +10556,7 @@ deleitacion	deleitación
 deleterea	deletérea
 deletereas	deletéreas
 deletereos	deletéreos
+deletrea	deletreá
 deletreabamos	deletreábamos
 deletreais	deletreáis
 deletreala	deletréala
@@ -10485,6 +10593,7 @@ deletrearias	deletrearías
 deletreas	deletreás
 deletreasemos	deletreásemos
 deletreate	deletréate
+deletree	deletreé
 deletreeis	deletreéis
 deletreela	deletréela
 deletreelas	deletréelas
@@ -10514,6 +10623,7 @@ deletreenos	deletréenos
 deletreense	deletréense
 deletrees	deletreés
 deletreese	deletréese
+deletreo	deletreó
 delezna	delezná
 delfico	délfico
 delfin	delfín
@@ -10675,6 +10785,7 @@ derroto	derrotó
 derrumbo	derrumbó
 desaceleracion	desaceleración
 desactivacion	desactivación
+desafecta	desafectá
 desafia	desafía
 desafian	desafían
 desafio	desafío desafió
@@ -10724,6 +10835,7 @@ descendio	descendió
 descentralizacion	descentralización
 descerebracion	descerebración
 desciudadanizacion	desciudadanización
+descodifica	descodificá
 descodificabamos	descodificábamos
 descodificacion	descodificación
 descodificais	descodificáis
@@ -10803,6 +10915,7 @@ descomunizacion	descomunización
 desconcentracion	desconcentración
 desconexion	desconexión
 desconfia	desconfía
+desconfiara	desconfiará
 desconfiaramos	desconfiáramos
 desconfiaras	desconfiarás
 desconfiariamos	desconfiaríamos
@@ -10818,6 +10931,7 @@ descontentaremos	descontentáremos
 descontentaria	descontentaría
 descontentariamos	descontentaríamos
 descontentarias	descontentarías
+descontentas	descontentás
 descontenteis	descontentéis
 descontextualice	descontextualicé
 descontextualiceis	descontextualicéis
@@ -10849,6 +10963,7 @@ descontextualicenos	descontextualícenos
 descontextualicense	descontextualícense
 descontextualices	descontextualicés
 descontextualicese	descontextualícese
+descontextualiza	descontextualizá
 descontextualizabamos	descontextualizábamos
 descontextualizais	descontextualizáis
 descontextualizala	descontextualízala
@@ -11536,7 +11651,7 @@ dialiticas	dialíticas
 dialitico	dialítico
 dialiticos	dialíticos
 dialogico	dialógico
-dialogo	diálogo
+dialogo	diálogo dialogó
 dialogos	diálogos
 diamagnetica	diamagnética
 diamagneticas	diamagnéticas
@@ -12033,7 +12148,7 @@ domara	domará
 domaramos	domáramos
 domaras	domarás
 domariamos	domaríamos
-domestica	doméstica
+domestica	doméstica domesticá
 domesticacion	domesticación
 domesticamente	domésticamente
 domesticara	domesticará
@@ -12055,6 +12170,7 @@ donacion	donación
 donadio	donadío
 donjuan	donjuán
 dono	donó
+donut	dónut
 dopaminergico	dopaminérgico
 dormi	dormí
 dormia	dormía
@@ -12312,7 +12428,7 @@ ejercia	ejercía
 ejercian	ejercían
 ejercio	ejerció
 ejercitacion	ejercitación
-ejercito	ejército
+ejercito	ejército ejercitó
 ejercitos	ejércitos
 elaboracion	elaboración
 elaboradisimo	elaboradísimo
@@ -12436,6 +12552,7 @@ embaido	embaído
 embaidos	embaídos
 embair	embaír
 embaldose	embaldosé
+embale	embalé
 embalo	embaló
 embarace	embaracé
 embaraceis	embaracéis
@@ -12465,7 +12582,9 @@ embaracenme	embarácenme
 embaracennos	embarácennos
 embaracenos	embarácenos
 embaracense	embarácense
+embaraces	embaracés
 embaracese	embarácese
+embaraza	embarazá
 embarazabamos	embarazábamos
 embarazadisimo	embarazadísimo
 embarazais	embarazáis
@@ -12488,6 +12607,7 @@ embarazandoos	embarazándoos
 embarazandose	embarazándose
 embarazandote	embarazándote
 embarazanos	embarázanos
+embarazara	embarazará
 embarazaramos	embarazáramos
 embarazaran	embarazarán
 embarazaras	embarazarás
@@ -12499,6 +12619,7 @@ embarazariais	embarazaríais
 embarazariamos	embarazaríamos
 embarazarian	embarazarían
 embarazarias	embarazarías
+embarazas	embarazás
 embarazasemos	embarazásemos
 embarazate	embarázate
 embarcacion	embarcación
@@ -12684,6 +12805,7 @@ empujo	empujó
 empujon	empujón
 emputa	emputá
 emu	emú
+emula	émula
 emulacion	emulación
 emulais	emuláis
 emulara	emulará
@@ -12728,6 +12850,7 @@ encargaria	encargaría
 encargo	encargó
 encariña	encariñá
 encarnacion	encarnación
+encarne	encarné
 encarno	encarnó
 encaro	encaró
 encaustica	encáustica
@@ -12887,6 +13010,7 @@ endorse	endorsé
 endorseis	endorséis
 endorses	endorsés
 endorso	endorsó
+endosa	endosá
 endosabamos	endosábamos
 endosais	endosáis
 endosandola	endosándola
@@ -12919,6 +13043,7 @@ endoscopica	endoscópica
 endoscopicas	endoscópicas
 endoscopico	endoscópico
 endoscopicos	endoscópicos
+endose	endosé
 endoseis	endoséis
 endoses	endosés
 endosimbiotico	endosimbiótico
@@ -12928,6 +13053,7 @@ endotermicas	endotérmicas
 endotermico	endotérmico
 endotermicos	endotérmicos
 endotoxico	endotóxico
+enea	énea
 eneagono	eneágono
 eneo	éneo
 eneolitico	eneolítico
@@ -13366,6 +13492,7 @@ erguen	erguén
 erguiamos	erguíamos
 erico	érico
 erigio	erigió
+eris	erís
 eristica	erística
 eritematoviolacea	eritematoviolácea
 eritematoviolaceas	eritematovioláceas
@@ -13392,6 +13519,7 @@ erradicara	erradicará
 erradicaramos	erradicáramos
 erradicaras	erradicarás
 erradicariamos	erradicaríamos
+errara	errará
 erraramos	erráramos
 erraras	errarás
 errariamos	erraríamos
@@ -13412,9 +13540,11 @@ erudicion	erudición
 eruditisimo	eruditísimo
 erupcion	erupción
 esbozo	esbozó
+escabia	escabiá
 escabiais	escabiáis
 escabiaras	escabiarás
 escabiarias	escabiarías
+escabias	escabiás
 escabie	escabié
 escabrido	escábrido
 escalacion	escalación
@@ -13922,6 +14052,7 @@ estomagos	estómagos
 estomatico	estomático
 estomatologo	estomatólogo
 estrabico	estrábico
+estrago	estragó
 estragon	estragón
 estrambotico	estrambótico
 estrangulacion	estrangulación
@@ -14199,6 +14330,7 @@ evonimo	evónimo
 exacerbacion	exacerbación
 exactisimo	exactísimo
 exageracion	exageración
+exagerara	exagerará
 exageraramos	exageráramos
 exageraras	exagerarás
 exagerariamos	exageraríamos
@@ -14274,6 +14406,7 @@ existirian	existirían
 exito	éxito
 exitos	éxitos
 exitosisimo	exitosísimo
+exitus	éxitus
 exodo	éxodo
 exogamo	exógamo
 exogenamente	exógenamente
@@ -14329,6 +14462,7 @@ explicaramos	explicáramos
 explicaras	explicarás
 explicare	explicaré
 explicareis	explicaréis
+explicaremos	explicáremos
 explicaria	explicaría
 explicariamos	explicaríamos
 explicarias	explicarías
@@ -14417,6 +14551,7 @@ exportara	exportará
 exportaramos	exportáramos
 exportaras	exportarás
 exportariamos	exportaríamos
+exporte	exporté
 exporteis	exportéis
 exportes	exportés
 exposicion	exposición
@@ -14607,6 +14742,7 @@ fallaran	fallarán
 fallaras	fallarás
 fallare	fallaré
 fallareis	fallaréis
+fallaremos	falláremos
 fallaria	fallaría
 fallariais	fallaríais
 fallariamos	fallaríamos
@@ -14657,6 +14793,7 @@ falsisimo	falsísimo
 falsisimos	falsísimos
 faltara	faltará
 faltaramos	faltáramos
+faltaras	faltarás
 faltaria	faltaría
 faltariamos	faltaríamos
 falto	faltó
@@ -14693,6 +14830,8 @@ fanfarreo	fanfarreó
 fanfarron	fanfarrón
 fanfarroneria	fanfarronería
 fanfarronerias	fanfarronerías
+fanfic	fánfic
+fanfics	fánfics
 fantasia	fantasía
 fantasias	fantasías
 fantasmagoria	fantasmagoría
@@ -14707,6 +14846,7 @@ fantasticas	fantásticas
 fantastico	fantástico
 fantasticos	fantásticos
 faquin	faquín
+fara	fará
 farallon	farallón
 farandula	farándula
 faraon	faraón
@@ -14782,6 +14922,7 @@ fecundaras	fecundarás
 fecundareis	fecundaréis
 fecundariamos	fecundaríamos
 fecundisimo	fecundísimo
+federa	federá
 federacion	federación
 federalizacion	federalización
 federas	federás
@@ -14845,6 +14986,7 @@ fermentaramos	fermentáramos
 fermentaras	fermentarás
 fermentaremos	fermentáremos
 fermentariamos	fermentaríamos
+fermente	fermenté
 fermentes	fermentés
 fermin	fermín
 fermion	fermión
@@ -14933,6 +15075,7 @@ filaras	filarás
 filare	filaré
 filareis	filaréis
 filaremos	filáremos
+filaria	filaría
 filariais	filaríais
 filariamos	filaríamos
 filarian	filarían
@@ -15172,11 +15315,13 @@ fomentaran	fomentarán
 fomentaras	fomentarás
 fomentare	fomentaré
 fomentareis	fomentaréis
+fomentaremos	fomentáremos
 fomentaria	fomentaría
 fomentariais	fomentaríais
 fomentariamos	fomentaríamos
 fomentarian	fomentarían
 fomentarias	fomentarías
+fomentas	fomentás
 fomentasemos	fomentásemos
 fomentate	foméntate
 fomenteis	fomentéis
@@ -15205,6 +15350,7 @@ fomentenme	foméntenme
 fomentennos	foméntennos
 fomentenos	foméntenos
 fomentense	foméntense
+fomentes	fomentés
 fomentese	foméntese
 fonebol	fonébol
 fonetica	fonética
@@ -15278,6 +15424,8 @@ fosiliza	fosilizá
 fosilizacion	fosilización
 fotica	fótica
 foticas	fóticas
+fotico	fótico
+foticos	fóticos
 fotocomposicion	fotocomposición
 fotodegradacion	fotodegradación
 fotodesintegracion	fotodesintegración
@@ -15365,6 +15513,7 @@ fraternizariamos	fraternizaríamos
 fraternizarias	fraternizarías
 freatomagmatico	freatomagmático
 frecuentisimo	frecuentísimo
+freguesia	freguesía
 freid	freíd
 freiduria	freiduría
 freimos	freímos
@@ -15409,7 +15558,7 @@ frigidisimo	frigidísimo
 frigido	frígido
 frigorifico	frigorífico
 frigorificos	frigoríficos
-frio	frío
+frio	frío frió
 frios	fríos
 frison	frisón
 frivola	frívola
@@ -15459,6 +15608,7 @@ fucilarian	fucilarían
 fucilarias	fucilarías
 fucilas	fucilás
 fucilasemos	fucilásemos
+fucile	fucilé
 fucileis	fuciléis
 fuciles	fucilés
 fucilo	fuciló
@@ -15537,6 +15687,7 @@ gaban	gabán
 gabon	gabón
 gabones	gabonés
 gache	gaché
+gacho	gachó
 gachupin	gachupín
 gaelica	gaélica
 gaelicas	gaélicas
@@ -15645,6 +15796,7 @@ garguero	gargüero
 gariton	garitón
 garrafon	garrafón
 garron	garrón
+garrulo	gárrulo
 garua	garúa
 garvin	garvín
 garzon	garzón
@@ -15683,6 +15835,7 @@ gastronomo	gastrónomo
 gastronomos	gastrónomos
 gastropatia	gastropatía
 gaucha	gaúcha
+gauchas	gaúchas
 gaudi	gaudí
 gavilan	gavilán
 gavion	gavión
@@ -15780,6 +15933,7 @@ geologico	geológico
 geologicos	geológicos
 geologo	geólogo
 geologos	geólogos
+geomancia	geomancía
 geomantica	geomántica
 geomanticas	geománticas
 geomantico	geomántico
@@ -15952,6 +16106,7 @@ goidelica	goidélica
 goidelicas	goidélicas
 goidelico	goidélico
 goidelicos	goidélicos
+golem	gólem
 goleo	goleó
 golfan	golfán
 golfin	golfín
@@ -16173,6 +16328,7 @@ guacatelas	guácatelas
 guacharo	guácharo
 guachiman	guachimán
 guademeci	guademecí
+guadua	guadúa
 guaguero	guagüero
 guaido	guaidó
 guajojo	guajojó
@@ -16187,6 +16343,7 @@ guapisima	guapísima
 guapisimas	guapísimas
 guapisimo	guapísimo
 guapisimos	guapísimos
+guara	guará
 guarais	guaráis
 guarana	guaraná
 guarani	guaraní
@@ -16206,6 +16363,7 @@ guardian	guardián
 guardo	guardó
 guaren	guarén
 guarguero	guargüero
+guaria	guaría
 guariais	guaríais
 guariamos	guaríamos
 guarian	guarían
@@ -16277,6 +16435,7 @@ guilotas	güilotas
 guiltota	güiltota
 guiltotas	güiltotas
 guimel	guímel
+guinche	güinche
 guinchil	güinchil
 guinde	guindé
 guineita	guineíta
@@ -16470,6 +16629,7 @@ haciendonos	haciéndonos
 haciendose	haciéndose
 haciendoselo	haciéndoselo
 haciendote	haciéndote
+hackeara	hackeará
 hackearamos	hackeáramos
 hackearas	hackearás
 hackeariamos	hackearíamos
@@ -16495,6 +16655,7 @@ halajica	halájica
 halajicas	halájicas
 halajico	halájico
 halajicos	halájicos
+halas	halás
 halcon	halcón
 halicacabo	halicácabo
 halito	hálito
@@ -16625,6 +16786,7 @@ hegemonico	hegemónico
 hegira	hégira
 hegumeno	hegúmeno
 heladeria	heladería
+hele	helé
 helenistica	helenística
 helenisticas	helenísticas
 helenistico	helenístico
@@ -16960,6 +17122,7 @@ hipersonicos	hipersónicos
 hipertension	hipertensión
 hipertonia	hipertonía
 hipertonico	hipertónico
+hipertrofia	hipertrofiá
 hipervolemico	hipervolémico
 hipico	hípico
 hipnoticamente	hipnóticamente
@@ -17157,6 +17320,7 @@ huerfanos	huérfanos
 huesped	huésped
 huespeda	huéspeda
 huespedes	huéspedes
+hueveo	hueveó
 hueveria	huevería
 huevon	huevón
 hui	huí
@@ -17186,6 +17350,7 @@ humoristico	humorístico
 humoristicos	humorísticos
 hundais	hundáis
 hundame	húndame
+hundas	hundás
 hundi	hundí
 hundia	hundía
 hundiais	hundíais
@@ -17470,6 +17635,7 @@ implarian	implarían
 implarias	implarías
 implas	implás
 implasemos	implásemos
+imple	implé
 impleis	impléis
 implela	ímplela
 implelas	ímplelas
@@ -17567,10 +17733,14 @@ inaugurara	inaugurará
 inauguro	inauguró
 incapacitacion	incapacitación
 incardinacion	incardinación
+incauta	incautá
 incautacion	incautación
+incel	íncel
 inceles	ínceles
+incendiara	incendiará
 incendiaramos	incendiáramos
 incendiaras	incendiarás
+incendiaria	incendiaría
 incendiariamos	incendiaríamos
 incendie	incendié
 incendies	incendiés
@@ -17646,6 +17816,7 @@ incomodas	incómodas
 incomodo	incómodo
 incomodos	incómodos
 incomprension	incomprensión
+incomunica	incomunicá
 incomunicabamos	incomunicábamos
 incomunicais	incomunicáis
 incomunicala	incomunícala
@@ -17749,6 +17920,7 @@ indianes	indianés
 indicacion	indicación
 indicara	indicará
 indicaramos	indicáramos
+indicaras	indicarás
 indicaria	indicaría
 indicariamos	indicaríamos
 indice	índice
@@ -18026,6 +18198,7 @@ insuflacion	insuflación
 insula	ínsula
 insulas	ínsulas
 insulinico	insulínico
+insultara	insultará
 insultaramos	insultáramos
 insultaras	insultarás
 insultariamos	insultaríamos
@@ -18285,6 +18458,7 @@ isquemica	isquémica
 isquemicas	isquémicas
 isquemico	isquémico
 isquemicos	isquémicos
+isquion	isquión
 israeli	israelí
 israelies	israelíes
 istmica	ístmica
@@ -18493,6 +18667,7 @@ junipero	junípero
 juniperos	juníperos
 juntara	juntará
 juntaramos	juntáramos
+juntaras	juntarás
 juntariamos	juntaríamos
 jupiter	júpiter
 juramentacion	juramentación
@@ -18561,6 +18736,7 @@ laberinticos	laberínticos
 labializacion	labialización
 labil	lábil
 labiles	lábiles
+laboras	laborás
 labrantia	labrantía
 labrantias	labrantías
 labrido	lábrido
@@ -18663,8 +18839,10 @@ laparotomia	laparotomía
 lapices	lápices
 lapida	lápida
 lapidacion	lapidación
+lapidaria	lapidaría
 lapidas	lápidas
 lapislazuli	lapislázuli
+lapita	lápita
 lapiz	lápiz
 lapon	lapón
 largate	lárgate
@@ -19297,7 +19475,7 @@ lozania	lozanía
 lua	lúa
 luanquin	luanquín
 lubricacion	lubricación
-lubrico	lúbrico
+lubrico	lubricó lúbrico
 lubrifica	lubrificá
 lubrificacion	lubrificación
 lubrificara	lubrificará
@@ -19349,6 +19527,7 @@ lumbociatico	lumbociático
 lumbociaticos	lumbociáticos
 lumbricido	lumbrícido
 luminico	lumínico
+lumpia	lumpiá
 lunacion	lunación
 lunatico	lunático
 lunula	lúnula
@@ -19403,6 +19582,7 @@ machaquese	macháquese
 machica	máchica
 machin	machín
 machon	machón
+machuco	machucó
 machucon	machucón
 machuque	machuqué
 macias	macías
@@ -19771,6 +19951,7 @@ marquez	márquez
 marraga	márraga
 marrakechi	marrakechí
 marramau	marramáu
+marro	marró
 marron	marrón
 marronaceo	marronáceo
 marroqui	marroquí
@@ -19905,6 +20086,7 @@ mazatlan	mazatlán
 mazoneria	mazonería
 mbaguari	mbaguarí
 mbya	mbyá
+meara	meará
 mearamos	meáramos
 mearas	mearás
 meariamos	mearíamos
@@ -19917,6 +20099,7 @@ mecanizacion	mecanización
 mecanografa	mecanógrafa
 mecanografia	mecanografía
 mecanografo	mecanógrafo
+mece	mecé
 mechon	mechón
 medallon	medallón
 medano	médano
@@ -20026,7 +20209,9 @@ menade	ménade
 mencion	mención
 mencionara	mencionará
 mencionaramos	mencionáramos
+mencionaras	mencionarás
 mencionare	mencionaré
+mencionaremos	mencionáremos
 mencionariamos	mencionaríamos
 mencione	mencioné
 menciono	mencionó
@@ -20277,6 +20462,7 @@ microendemica	microendémica
 microendemico	microendémico
 microestrobilo	microestróbilo
 microfilmacion	microfilmación
+microfilme	microfilmé
 microfocalizacion	microfocalización
 microfonia	microfonía
 microfono	micrófono
@@ -20331,10 +20517,12 @@ milan	milán
 milanes	milanés
 mildeu	mildéu
 mildeus	mildéus
+mildiu	mildiú mildíu
 mildiues	mildiúes
 mildius	mildiús mildíus
 mileismo	mileísmo
 mileismos	mileísmos
+milenial	milénial
 milenica	milénica
 milesimo	milésimo
 milimetrica	milimétrica
@@ -20350,6 +20538,8 @@ militaras	militarás
 militareis	militaréis
 militariamos	militaríamos
 militarizacion	militarización
+milite	mílite
+milites	mílites
 millan	millán
 millon	millón
 millonesimo	millonésimo
@@ -20444,6 +20634,7 @@ miserrima	misérrima
 miserrimas	misérrimas
 miserrimo	misérrimo
 miserrimos	misérrimos
+misia	misiá
 misilistico	misilístico
 mision	misión
 mismisima	mismísima
@@ -20538,6 +20729,7 @@ momificacion	momificación
 monacantido	monacántido
 monaco	mónaco
 monadico	monádico
+monago	mónago
 monarquia	monarquía
 monarquias	monarquías
 monarquica	monárquica
@@ -20629,6 +20821,7 @@ montalban	montalbán
 montanes	montanés
 montara	montará
 montaramos	montáramos
+montaras	montarás
 montariamos	montaríamos
 montarselo	montárselo
 montañes	montañés
@@ -20960,6 +21153,7 @@ nacio	nació
 nacion	nación
 nacionaliceis	nacionalicéis
 nacionalizacion	nacionalización
+nacionalizara	nacionalizará
 nacionalizaramos	nacionalizáramos
 nacionalizaras	nacionalizarás
 nacionalizareis	nacionalizaréis
@@ -20971,6 +21165,7 @@ nahuat	náhuat
 nahuatl	náhuatl
 naidenes	náidenes
 naidi	naidí
+naif	naíf
 naita	naíta
 najera	nájera
 nalgon	nalgón
@@ -21102,6 +21297,7 @@ negara	negará
 negaramos	negáramos
 negaras	negarás
 negareis	negaréis
+negaremos	negáremos
 negariamos	negaríamos
 negativisimo	negativísimo
 nego	negó
@@ -21115,6 +21311,7 @@ nenufar	nenúfar
 neobabilonico	neobabilónico
 neobrunswiques	neobrunswiqués
 neoclasico	neoclásico
+neocon	neocón
 neoescolastica	neoescolástica
 neofila	neófila
 neofilas	neófilas
@@ -21368,7 +21565,7 @@ numerica	numérica
 numericas	numéricas
 numerico	numérico
 numericos	numéricos
-numero	número
+numero	número numeró
 numeros	números
 numismatico	numismático
 nuragico	nurágico
@@ -21566,6 +21763,7 @@ odriista	odriísta
 ofendera	ofenderá
 ofenderas	ofenderás
 ofenderiamos	ofenderíamos
+ofendes	ofendés
 ofendiamos	ofendíamos
 ofendio	ofendió
 oferton	ofertón
@@ -21990,6 +22188,7 @@ osmosis	ósmosis
 oste	osté
 ostectomia	ostectomía
 ostentacion	ostentación
+ostente	ostenté
 ostento	ostentó
 osteogenesis	osteogénesis
 osteologica	osteológica
@@ -22089,7 +22288,7 @@ pacifica	pacífica
 pacificacion	pacificación
 pacificamente	pacíficamente
 pacificas	pacíficas
-pacifico	pacífico
+pacifico	pacífico pacificó
 pacificos	pacíficos
 pactometro	pactómetro
 pactometros	pactómetros
@@ -22220,6 +22419,7 @@ paleosismologica	paleosismológica
 paleosismologicas	paleosismológicas
 paleosismologico	paleosismológico
 paleosismologicos	paleosismológicos
+palet	pálet
 paleteria	paletería
 paleton	paletón
 palguin	palguín
@@ -22239,9 +22439,11 @@ palmigrada	palmígrada
 palmigradas	palmígradas
 palmigrado	palmígrado
 palmigrados	palmígrados
+palpa	palpá
 palpacion	palpación
 palpitacion	palpitación
 palpito	pálpito
+palto	paltó
 palton	paltón
 paludeo	palúdeo
 paludica	palúdica
@@ -22319,6 +22521,7 @@ papiraceo	papiráceo
 papirografo	papirógrafo
 papirologa	papiróloga
 papirologia	papirología
+paprika	páprika
 papua	papúa
 papula	pápula
 paqueton	paquetón
@@ -22368,6 +22571,7 @@ paramos	páramos
 parana	paraná
 parangon	parangón
 paranos	páranos
+parapeto	parapetó
 paraplejico	parapléjico
 parapodo	parápodo
 parapofisis	parapófisis
@@ -22455,6 +22659,7 @@ parrafos	párrafos
 parroca	párroca
 parroco	párroco
 parsec	pársec
+partas	partás
 partenogenesis	partenogénesis
 parti	partí
 partia	partía
@@ -22487,6 +22692,7 @@ parvulos	párvulos
 pasabamos	pasábamos
 pasala	pásala
 pasalas	pásalas
+pasales	pásales
 pasalo	pásalo
 pasalos	pásalos
 pasame	pásame
@@ -22550,6 +22756,7 @@ patan	patán
 patatus	patatús
 pate	paté
 pateo	pateó
+patera	pátera
 pateria	patería
 patetica	patética
 pateticas	patéticas
@@ -22610,6 +22817,8 @@ pañoleria	pañolería
 pañolon	pañolón
 pean	peán
 peaton	peatón
+pecan	pecán
+pecara	pecará
 pecaramos	pecáramos
 pecaras	pecarás
 pecareis	pecaréis
@@ -22617,6 +22826,7 @@ pecari	pecarí
 pecaria	pecaría
 pecariamos	pecaríamos
 pecarias	pecarías
+pecha	pechá
 pechugon	pechugón
 pecora	pécora
 pedagogia	pedagogía
@@ -22712,6 +22922,7 @@ pelotudeasemos	pelotudeásemos
 pelotudee	pelotudeé
 pelotudeeis	pelotudeéis
 pelotudees	pelotudeés
+pelotudeo	pelotudeó
 pelua	pelúa
 peluas	pelúas
 pelucon	pelucón
@@ -22756,6 +22967,7 @@ pensaria	pensaría
 pensarian	pensarían
 pensas	pensás
 pense	pensé
+pensil	pénsil
 pension	pensión
 penso	pensó
 pensum	pénsum
@@ -23022,9 +23234,10 @@ picacodigo	picacódigo
 picacodigos	picacódigos
 picanteria	picantería
 picanton	picantón
-picara	pícara
+picara	pícara picará
 picaramente	pícaramente
 picaramos	picáramos
+picaras	picarás
 picardia	picardía
 picariamos	picaríamos
 picaro	pícaro
@@ -23095,6 +23308,7 @@ pilosebaceo	pilosebáceo
 pimenton	pimentón
 pinacea	pinácea
 pinchais	pincháis
+pinchas	pinchás
 pincheis	pinchéis
 pindo	pindó
 pingue	pingüe
@@ -23139,6 +23353,7 @@ pirarselas	pirárselas
 pirarucu	pirarucú
 pirateria	piratería
 piratico	pirático
+pire	piré
 pirimidinico	pirimidínico
 piritica	pirítica
 piriticas	piríticas
@@ -23228,6 +23443,7 @@ pistenos	pístenos
 pistense	pístense
 pistes	pistés
 pistese	pístese
+pisto	pistó
 pistolon	pistolón
 piston	pistón
 pistoque	pistoqué
@@ -23275,6 +23491,7 @@ plantaran	plantarán
 plantaras	plantarás
 plantare	plantaré
 plantareis	plantaréis
+plantaremos	plantáremos
 plantaria	plantaría
 plantariais	plantaríais
 plantariamos	plantaríamos
@@ -23284,6 +23501,7 @@ plantasemos	plantásemos
 plante	planté
 planteis	plantéis
 planteo	planteó
+plantes	plantés
 plantigrado	plantígrado
 plantinta	plantintá
 planto	plantó
@@ -23404,6 +23622,7 @@ pokemon	pokémon
 poker	póker
 polarizacion	polarización
 polder	pólder
+polea	poleá
 polemica	polémica
 polemicamente	polémicamente
 polemicas	polémicas
@@ -23686,7 +23905,7 @@ pozoleria	pozolería
 pozon	pozón
 poñil	póñil
 pracrito	prácrito
-practica	práctica
+practica	práctica practicá
 practicamente	prácticamente
 practicas	prácticas
 practico	práctico practicó
@@ -23695,6 +23914,7 @@ pragmatica	pragmática
 pragmaticas	pragmáticas
 pragmatico	pragmático
 pragmaticos	pragmáticos
+prana	praná
 preadhesion	preadhesión
 preambulo	preámbulo
 preanestesico	preanestésico
@@ -24087,6 +24307,7 @@ procuraramos	procuráramos
 procuraras	procurarás
 procurare	procuraré
 procurariamos	procuraríamos
+procures	procurés
 procuro	procuró
 prodiga	pródiga
 prodigamente	pródigamente
@@ -24425,6 +24646,7 @@ pudieramos	pudiéramos
 pudin	pudín
 pudricion	pudrición
 pudu	pudú
+puenting	puénting
 puercoespin	puercoespín
 puerpara	puérpara
 puerpera	puérpera
@@ -24510,8 +24732,10 @@ putrido	pútrido
 putun	putún
 puñala	puñalá
 qatari	qatarí
+quando	quándo
 quanto	quánto
 quantum	quántum
+quasar	quásar
 quasares	quásares
 quebeques	quebequés
 quebrantacion	quebrantación
@@ -24589,6 +24813,7 @@ querubico	querúbico
 querubin	querubín
 queseria	quesería
 quesin	quesín
+quia	quía
 quiche	quiché
 quiebrala	quiébrala
 quiebralas	quiébralas
@@ -24632,6 +24857,7 @@ quincuagesimos	quincuagésimos
 quindio	quindío
 quingentesimo	quingentésimo
 quingombo	quingombó
+quinoa	quínoa
 quinque	quinqué
 quintillon	quintillón
 quintin	quintín
@@ -25199,6 +25425,7 @@ regia	regía
 regiais	regíais
 regiamos	regíamos
 regian	regían
+regias	regías
 regimen	régimen
 regimenes	regímenes
 region	región
@@ -25217,6 +25444,7 @@ registracion	registración
 registrala	regístrala
 registralas	regístralas
 registrale	regístrale
+registrales	regístrales
 registralo	regístralo
 registralos	regístralos
 registrame	regístrame
@@ -25324,9 +25552,11 @@ relajacion	relajación
 relajate	relájate
 relampago	relámpago
 relampagos	relámpagos
+relampaguee	relampagueé
 relativizacion	relativización
 relatoria	relatoría
 rele	relé
+relega	relegá
 relegabamos	relegábamos
 relegais	relegáis
 relegandola	relegándola
@@ -25724,6 +25954,7 @@ retraidas	retraídas
 retraido	retraído
 retraidos	retraídos
 retransmision	retransmisión
+retrase	retrasé
 retrasmision	retrasmisión
 retratistico	retratístico
 retrepa	retrepá
@@ -26030,6 +26261,7 @@ rompela	rómpela
 rompelas	rómpelas
 rompele	rómpele
 rompeles	rómpeles
+rompelo	rómpelo
 rompelos	rómpelos
 rompenos	rómpenos
 rompera	romperá
@@ -26593,6 +26825,7 @@ semimiticas	semimíticas
 semimitico	semimítico
 semimiticos	semimíticos
 seminifero	seminífero
+seminola	semínola
 semiolimpico	semiolímpico
 semiologa	semióloga
 semiologia	semiología
@@ -26727,6 +26960,7 @@ sesentaitres	sesentaitrés
 sesenton	sesentón
 sesil	sésil
 sesion	sesión
+sesteo	sesteó
 setentaidos	setentaidós
 setentaiseis	setentaiséis
 setentaitres	setentaitrés
@@ -26897,6 +27131,7 @@ simarubacea	simarubácea
 simarubaceas	simarubáceas
 simarubaceo	simarubáceo
 simarubaceos	simarubáceos
+simas	simás
 simbioticamente	simbióticamente
 simbiotico	simbiótico
 simbolica	simbólica
@@ -27333,9 +27568,11 @@ solandonos	solándonos
 solandoos	solándoos
 solandose	solándose
 solandote	solándote
+solara	solará
 solaramos	soláramos
 solaran	solarán
 solaras	solarás
+solare	solaré
 solareis	solaréis
 solaremos	soláremos
 solaria	solaría
@@ -27345,6 +27582,7 @@ solarian	solarían
 solarias	solarías
 solarium	solárium
 solasemos	solásemos
+solaza	solazá
 solazabamos	solazábamos
 solazais	solazáis
 solazara	solazará
@@ -27361,6 +27599,7 @@ solazarian	solazarían
 solazarias	solazarías
 solazas	solazás
 solazasemos	solazásemos
+solazo	solazó
 sole	solé
 soleis	soléis
 solemonos	solémonos
@@ -27711,6 +27950,7 @@ sugestion	sugestión
 sugirio	sugirió
 suicido	suicidó
 suida	súida
+suidas	súidas
 suido	súido
 suidos	súidos
 sujecion	sujeción
@@ -27766,7 +28006,7 @@ supinacion	supinación
 suplantacion	suplantación
 suplementacion	suplementación
 suplica	súplica
-suplicas	súplicas
+suplicas	súplicas suplicás
 suplico	suplicó
 supondra	supondrá
 supondria	supondría
@@ -27955,6 +28195,7 @@ tanatologico	tanatológico
 tanatologicos	tanatológicos
 tandem	tándem
 tandems	tándems
+tangara	tángara
 tanger	tánger
 tanico	tánico
 tanoria	tanoría
@@ -28022,6 +28263,7 @@ tascaramos	tascáramos
 tascaras	tascarás
 tascare	tascaré
 tascariamos	tascaríamos
+tasco	tascó
 taser	táser
 tatare	tataré
 taumaturgico	taumatúrgico
@@ -28417,6 +28659,7 @@ testificacion	testificación
 testifico	testificó
 tetanico	tetánico
 tetanos	tétanos
+tetica	tética
 teticas	téticas
 tetico	tético
 teticos	téticos
@@ -28474,6 +28717,8 @@ tildaras	tildarás
 tildare	tildaré
 tildaria	tildaría
 tildarias	tildarías
+tildas	tildás
+tima	timá
 timabamos	timábamos
 timais	timáis
 timalo	tímalo
@@ -28501,6 +28746,7 @@ timariais	timaríais
 timariamos	timaríamos
 timarian	timarían
 timarias	timarías
+timas	timás
 timasemos	timásemos
 timbrico	tímbrico
 time	timé
@@ -28552,8 +28798,11 @@ tipulas	típulas
 tiquet	tíquet
 tiquete	tíquete
 tiquets	tíquets
+tiralas	tíralas
 tirale	tírale
+tirales	tírales
 tiralo	tíralo
+tiralos	tíralos
 tirame	tírame
 tiramisu	tiramisú
 tirandose	tirándose
@@ -28686,7 +28935,7 @@ titularamos	tituláramos
 titularas	titularás
 titulariamos	titularíamos
 titulizacion	titulización
-titulo	título
+titulo	título tituló
 titulos	títulos
 tixotropica	tixotrópica
 tixotropicas	tixotrópicas
@@ -28723,6 +28972,7 @@ tollon	tollón
 tomala	tómala
 tomalo	tómalo
 tomandose	tomándose
+tomanos	tómanos
 tomara	tomará
 tomaran	tomarán
 tomare	tomaré
@@ -28934,7 +29184,7 @@ trailer	tráiler
 trailla	traílla
 trajin	trajín
 tramitacion	tramitación
-tramite	trámite
+tramite	trámite tramité
 tramites	trámites
 trampolin	trampolín
 tramposeria	tramposería
@@ -29101,6 +29351,7 @@ tratare	trataré
 trataria	trataría
 trate	traté
 trato	trató
+trattoria	trattoría
 traumatica	traumática
 traumaticas	traumáticas
 traumatico	traumático
@@ -29455,8 +29706,9 @@ ultima	última
 ultimamente	últimamente
 ultimas	últimas
 ultimatum	ultimátum
+ultime	ultimé
 ultimisimo	ultimísimo
-ultimo	último
+ultimo	último ultimó
 ultimos	últimos
 ultrafiltracion	ultrafiltración
 ultraismo	ultraísmo
@@ -29498,6 +29750,7 @@ uniendose	uniéndose
 unificacion	unificación
 unificare	unificaré
 unifico	unificó
+unifique	unifiqué
 uniformo	uniformó
 unigenito	unigénito
 unilingue	unilingüe
@@ -29524,6 +29777,7 @@ urbanisticos	urbanísticos
 urbanizacion	urbanización
 urbanizo	urbanizó
 urdangarin	urdangarín
+urdu	urdú
 uremica	urémica
 uremicas	urémicas
 uremico	urémico
@@ -29575,6 +29829,7 @@ usandonos	usándonos
 usandoos	usándoos
 usandose	usándose
 usandote	usándote
+usanos	úsanos
 usara	usará
 usaramos	usáramos
 usaran	usarán
@@ -29699,6 +29954,7 @@ vagaremos	vagáremos
 vagariamos	vagaríamos
 vagon	vagón
 vague	vagué
+vagues	vagués
 vahido	vahído
 vaiven	vaivén
 valcarcel	valcárcel
@@ -29728,6 +29984,7 @@ valido	válido
 validos	válidos
 valiendose	valiéndose
 valio	valió
+vallo	valló
 valon	valón
 valoracion	valoración
 valorizacion	valorización
@@ -29750,6 +30007,7 @@ vampirizara	vampirizará
 vampirizaramos	vampirizáramos
 vampirizaras	vampirizarás
 vampirizariamos	vampirizaríamos
+vanagloria	vanagloriá
 vandala	vándala
 vandalicamente	vandálicamente
 vandalice	vandalicé
@@ -29880,8 +30138,10 @@ vedariais	vedaríais
 vedariamos	vedaríamos
 vedarian	vedarían
 vedarias	vedarías
+vedas	vedás
 vedasemos	vedásemos
 vedate	védate
+vede	vedé
 vedeis	vedéis
 vedela	védela
 vedelas	védelas
@@ -29909,8 +30169,10 @@ vedenme	védenme
 vedennos	védennos
 vedenos	védenos
 vedense	védense
+vedes	vedés
 vedese	védese
 vedico	védico
+vedo	vedó
 vegetacion	vegetación
 vehiculo	vehículo
 vehiculos	vehículos
@@ -29954,6 +30216,7 @@ velaran	velarán
 velaras	velarás
 velare	velaré
 velareis	velaréis
+velaremos	veláremos
 velaria	velaría
 velariais	velaríais
 velariamos	velaríamos
@@ -29962,8 +30225,10 @@ velarias	velarías
 velarizacion	velarización
 velasemos	velásemos
 velasquez	velásquez
+velate	vélate
 velaton	velatón
 velazquez	velázquez
+vele	velé
 veleis	veléis
 velela	vélela
 velelas	vélelas
@@ -29991,6 +30256,7 @@ velenme	vélenme
 velennos	vélennos
 velenos	vélenos
 velense	vélense
+veles	velés
 velese	vélese
 velez	vélez
 velicacion	velicación
@@ -30011,6 +30277,7 @@ venceran	vencerán
 venceras	vencerás
 vencereis	venceréis
 venceriamos	venceríamos
+vences	vencés
 vencetosigo	vencetósigo
 venci	vencí
 venciamos	vencíamos
@@ -30250,6 +30517,7 @@ vetennos	vétennos
 vetenos	vétenos
 vetense	vétense
 veterania	veteranía
+vetes	vetés
 vetese	vétese
 veton	vetón
 vexilologa	vexilóloga
@@ -30273,13 +30541,16 @@ vibrara	vibrará
 vibraramos	vibráramos
 vibraras	vibrarás
 vibrariamos	vibraríamos
+vibre	vibré
 vibria	víbria
 vibro	vibró
 vicaria	vicaría
 vicecapitan	vicecapitán
 victima	víctima
 victimas	víctimas
+victimice	victimicé
 victimizacion	victimización
+victimizo	victimizó
 victimologia	victimología
 victor	víctor
 video	vídeo
@@ -30325,6 +30596,7 @@ vigorosisima	vigorosísima
 vigorosisimas	vigorosísimas
 vigorosisimos	vigorosísimos
 vigues	vigués
+vilipendio	vilipendió
 vilisimo	vilísimo
 villalbes	villalbés
 villania	villanía
@@ -30348,9 +30620,11 @@ violinistico	violinístico
 violo	violó
 violon	violón
 virais	viráis
+virara	virará
 viraramos	viráramos
 viraras	virarás
 virariamos	viraríamos
+viras	virás
 vireon	vireón
 virgenes	vírgenes
 virgula	vírgula
@@ -30610,6 +30884,7 @@ xpelon	xpelón
 yaacabo	yaacabó
 yacare	yacaré
 yaceis	yacéis
+yaces	yacés
 yaci	yací
 yacia	yacía
 yacon	yacón
@@ -30650,6 +30925,7 @@ yapee	yapeé
 yapeeis	yapeéis
 yapees	yapeés
 yapeo	yapeó
+yapo	yapó
 yarara	yarará
 yaresani	yaresaní
 yatagan	yatagán
@@ -30679,6 +30955,7 @@ yesicola	yesícola
 yesifero	yesífero
 yeye	yeyé
 yeyunostomia	yeyunostomía
+yiddish	yíddish
 yidish	yídish
 yiguirro	yigüirro
 yiguirros	yigüirros
@@ -30688,6 +30965,7 @@ yodizacion	yodización
 yogurin	yogurín
 yogurteria	yogurtería
 yoquey	yóquey
+yoyo	yoyó
 yucatan	yucatán
 yuchan	yuchán
 yugule	yugulé
@@ -30698,6 +30976,7 @@ yuqueri	yuquerí
 yuracare	yuracaré
 yuxtaposicion	yuxtaposición
 zacarias	zacarías
+zacate	zácate
 zacaton	zacatón
 zafacon	zafacón
 zagaleton	zagaletón
@@ -30721,6 +31000,7 @@ zanzibar	zanzíbar
 zanzibari	zanzibarí
 zapan	zapán
 zapandies	zapandíes
+zapara	zápara
 zaparo	záparo
 zapateria	zapatería
 zapaterias	zapaterías

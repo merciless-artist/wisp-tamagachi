@@ -341,6 +341,22 @@ def test_a_word_cmu_lacks_rhymes_from_wikipron() -> None:
     assert rhyme_kind("widdershins", "pins", language=Language.EN) is RhymeKind.SLANT
 
 
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("accoast", "coast"),
+        ("accoast", "most"),
+        ("aikido", "go"),
+        ("wayfare", "chair"),
+        ("immure", "pure"),
+        ("geosphere", "fear"),
+    ],
+)
+def test_british_style_wikipron_vowels_rhyme(first: str, second: str) -> None:
+    assert not pronouncing.phones_for_word(first)
+    assert rhyme_kind(first, second, language=Language.EN) is RhymeKind.PERFECT
+
+
 def test_curr_is_in_neither_dictionary() -> None:
     assert rhyme_kind("curr", "were", language=Language.EN) is None
 

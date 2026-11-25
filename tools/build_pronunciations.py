@@ -14,8 +14,11 @@ its accent map reaches the new words too.
   lowercase words the CMU dictionary lacks, maps their IPA to ARPAbet and
   writes `wisp/data/wikipron_en.txt`, `word<TAB>phones<TAB>phones...`.
   WikiPron drops stress, so one vowel per reading is marked stressed (1) and
-  the rest unstressed (0); see `stressed_vowel`. A reading with a segment the
-  map does not know is left out rather than guessed.
+  the rest unstressed (0); see `stressed_vowel`. Its British-style vowels
+  join the way CMU writes them: GOAT (ə ʊ) is OW, and the centring
+  diphthongs of NEAR, SQUARE and CURE are IH R, EH R and UH R (see
+  `_centring`). A reading with a segment the map does not know is left out
+  rather than guessed.
 - **es** reads WikiPron's Spanish (Latin American) broad list,
   `tools/raw/wikipron/spa_latn_la_broad.tsv`, and writes the words the
   spelling rules can read to `wisp/data/wikipron_es.txt`, one per line. The
@@ -43,9 +46,10 @@ from typing import Final
 
 import pronouncing
 
-from tools.build_common_words import english
+from tools.build_common_words import english, write_lines
 from wisp import rhymes_es, rhymes_fr
 from wisp.language import Language
+from wisp.rhymes import ENGLISH_WORD
 
 ROOT: Final = Path(__file__).resolve().parent.parent
 RAW: Final = ROOT / "tools/raw"
@@ -56,8 +60,6 @@ WIKIPRON_ES: Final = RAW / "wikipron/spa_latn_la_broad.tsv"
 LEXIQUE_OUTPUT: Final = DATA / "lexique_fr.txt"
 WIKIPRON_EN_OUTPUT: Final = DATA / "wikipron_en.txt"
 WIKIPRON_ES_OUTPUT: Final = DATA / "wikipron_es.txt"
-
-_ENGLISH_WORD: Final = re.compile(r"[a-z]+(?:'[a-z]+)*")
 
 
 def _rows(path: Path) -> Iterator[list[str]]:
@@ -75,25 +77,31 @@ def _grouped(pairs: Iterable[tuple[str, str]]) -> dict[str, list[str]]:
     return dict(grouped)
 
 
-def _write(path: Path, lines: list[str]) -> None:
-    """Write `lines` to `path`, one per line, with Unix line endings."""
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    print(f"Wrote {len(lines)} lines ({path.stat().st_size:,} bytes) to {path}")
-
-
 # ---
 # English
 # ---
 
 DIPHTHONGS: Final = {
-    ("a", "ɪ"): "AY",
-    ("a", "ʊ"): "AW",
-    ("e", "ɪ"): "EY",
-    ("o", "ʊ"): "OW",
-    ("ɔ", "ɪ"): "OY",
-    ("ɜ", "ɹ"): "ER",
-    ("ə", "ɹ"): "ER",
+    ("a", "ɪ"): ("AY", "a"),
+    ("a", "ʊ"): ("AW", "a"),
+    ("ʌ", "ɪ"): ("AY", "a"),
+    ("ʌ", "ʊ"): ("AW", "a"),
+    ("e", "ɪ"): ("EY", "e"),
+    ("o", "ʊ"): ("OW", "o"),
+    ("ə", "ʊ"): ("OW", "o"),
+    ("ɔ", "ɪ"): ("OY", "ɔ"),
+    ("ɜ", "ɹ"): ("ER", "ɜ"),
+    ("ə", "ɹ"): ("ER", "ə"),
 }
+"""Two segments read as one vowel: (ARPAbet phone, the IPA source for stress).
+
+British GOAT (ə ʊ) is a full o, not a schwa; the raised ʌ ɪ and ʌ ʊ
+(Canadian) are AY and AW.
+"""
+CENTRING: Final = {"ɪ": "IH", "ɛ": "EH", "e": "EH", "ʊ": "UH"}
+"""The first vowel of NEAR, SQUARE and CURE, which CMU writes as it plus R."""
+_CENTRING_GLIDES: Final = frozenset({"ə", "ɚ"})
+_SQUARE: Final = frozenset({"ɛ", "e"})
 VOWELS: Final = {
     "i": "IY", "ɪ": "IH", "ɨ": "IH", "ᵻ": "IH", "e": "EY", "ɛ": "EH", "æ": "AE",
     "a": "AA", "ɑ": "AA", "ɒ": "AA", "ɔ": "AO", "o": "OW", "ɵ": "OW", "ʊ": "UH",
@@ -112,33 +120,69 @@ WEAK: Final = frozenset({"ə", "ɚ", "ɐ", "ɘ"})
 LIGHT: Final = frozenset({"ɪ", "ɨ", "ᵻ", "ʊ"})
 _LENGTH: Final = "ː"
 _OFFGLIDE: Final = "̯"
+_TENSING_GLIDE: Final = "ə̯"
+_NASALS: Final = frozenset({"m", "n"})
 
 
 def _ipa_segments(transcription: str) -> list[str]:
     """WikiPron's space-separated segments without length marks.
 
-    An offglide (ɪ̯) is read as the plain vowel, so it joins a diphthong.
+    An offglide (ɪ̯) is read as the plain vowel, so it joins a diphthong. The
+    US tensed a before a nasal, written e ə̯ or ɛ ə̯ (pandan), is æ.
     """
-    return [
-        segment.replace(_LENGTH, "").replace(_OFFGLIDE, "")
-        for segment in transcription.split()
-    ]
+    raw = [segment.replace(_LENGTH, "") for segment in transcription.split()]
+    segments: list[str] = []
+    for index, segment in enumerate(raw):
+        nasal = index + 1 < len(raw) and raw[index + 1] in _NASALS
+        tensed = bool(segments) and segments[-1] in _SQUARE
+        if segment == _TENSING_GLIDE and nasal and tensed:
+            segments[-1] = "æ"
+            continue
+        segments.append(segment.replace(_OFFGLIDE, ""))
+    return segments
 
 
-def _english_vowels(segments: list[str]) -> list[tuple[str, str]] | None:
+def _centring(word: str, vowel: str, glide: str, after: str) -> bool:
+    """Whether a CENTRING `vowel` and the `glide` after it are one rhotic vowel.
+
+    WikiPron's British-style NEAR, SQUARE and CURE (ɪ ə, ɛ ə, ʊ ə) are IH R,
+    EH R and UH R. A ɚ glide, or an ɹ `after` the schwa, is always that r;
+    before another vowel the two are separate syllables. Otherwise ɛ ə and
+    e ə are always SQUARE, while ɪ ə and ʊ ə are more often two syllables
+    before a consonant (-ial, -ium, -ual), so only a final one joins, and
+    not when the word is spelled with a final a (porphyria).
+    """
+    if glide == "ɚ" or after == "ɹ":
+        return True
+    if after in VOWELS:
+        return False
+    return vowel in _SQUARE or not (after or word.endswith("a"))
+
+
+def _english_vowels(word: str, segments: list[str]) -> list[tuple[str, str]] | None:
     """Each segment group as (ARPAbet phone, IPA source); None on an unknown one.
 
-    Diphthongs join two segments; a syllabic consonant is schwa plus the
-    consonant, with the schwa as its source.
+    Diphthongs join two segments, and a centring diphthong is its vowel plus
+    R, taking in an ɹ after it; a syllabic consonant is schwa plus the
+    consonant, with the schwa as its source. A centring diphthong's source
+    is both segments, so it counts as a full vowel for stress.
     """
     phones: list[tuple[str, str]] = []
     index = 0
     while index < len(segments):
         segment = segments[index]
-        pair = (segment, segments[index + 1]) if index + 1 < len(segments) else None
-        if pair in DIPHTHONGS:
-            phones.append((DIPHTHONGS[pair], segment))
+        following, after = (segments[index + 1 : index + 3] + ["", ""])[:2]
+        if (segment, following) in DIPHTHONGS:
+            phones.append(DIPHTHONGS[(segment, following)])
             index += 2
+            continue
+        if (
+            segment in CENTRING
+            and following in _CENTRING_GLIDES
+            and _centring(word, segment, following, after)
+        ):
+            phones.extend(((CENTRING[segment], segment + following), ("R", "")))
+            index += 3 if following == "ə" and after == "ɹ" else 2
             continue
         if segment in SYLLABIC:
             phones.extend((("AH", "ə"), (SYLLABIC[segment], "")))
@@ -178,9 +222,12 @@ def stressed_vowel(sources: list[str]) -> int:
     return 0
 
 
-def arpabet(transcription: str) -> str | None:
-    """A WikiPron IPA reading in ARPAbet with stress digits; None when unmapped."""
-    phones = _english_vowels(_ipa_segments(transcription))
+def arpabet(word: str, transcription: str) -> str | None:
+    """A WikiPron IPA reading of `word` in ARPAbet with stress digits.
+
+    None when the reading has a segment the map does not know.
+    """
+    phones = _english_vowels(word, _ipa_segments(transcription))
     if phones is None:
         return None
     vowel_sources = [source for _, source in phones if source]
@@ -203,8 +250,8 @@ def english_lines() -> list[str]:
     pairs = (
         (word, reading)
         for word, transcription in _rows(WIKIPRON_EN)
-        if _ENGLISH_WORD.fullmatch(word) and not pronouncing.phones_for_word(word)
-        if (reading := arpabet(transcription)) is not None
+        if ENGLISH_WORD.fullmatch(word) and not pronouncing.phones_for_word(word)
+        if (reading := arpabet(word, transcription)) is not None
     )
     grouped = _grouped(pairs)
     return [f"{word}\t" + "\t".join(grouped[word]) for word in sorted(grouped)]
@@ -244,8 +291,6 @@ The open and closed o (O, o) and eu (9, 2) merge, as the spelling rules do;
 un (1) is in (5); the English ng (G) is gn and the Spanish jota (x) is R.
 """
 
-_HEARD_VOWELS: Final = frozenset("aeEiouy2AIO")
-
 
 def french_reading(phon: str) -> str | None:
     """A Lexique phon field in `rhymes_fr` phones; None when it has no vowel.
@@ -259,9 +304,9 @@ def french_reading(phon: str) -> str | None:
     phones = "".join(LEXIQUE_PHONES[char] for char in phon)
     if phones.endswith("@"):
         body = phones[:-1]
-        phones = body if _HEARD_VOWELS & set(body) else body + "2"
+        phones = body if rhymes_fr.RHYME_VOWELS & set(body) else body + "2"
     phones = re.sub(r"(.)\1+", r"\1", phones)
-    return phones if _HEARD_VOWELS & set(phones) else None
+    return phones if rhymes_fr.RHYME_VOWELS & set(phones) else None
 
 
 def french_lines() -> list[str]:
@@ -297,7 +342,7 @@ def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("language", choices=sorted(BUILDS))
     lines, output = BUILDS[parser.parse_args(argv).language]
-    _write(output, lines())
+    write_lines(output, lines())
 
 
 if __name__ == "__main__":

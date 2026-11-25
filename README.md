@@ -566,8 +566,11 @@ all three.
   35,000, such as `lollygag`) WikiPron's English (US) list in
   `wisp/data/wikipron_en.txt`, its IPA mapped to CMU's phones. WikiPron has no
   stress marks, so the stress goes on the last full vowel (not a schwa, a lax
-  `ɪ`/`ʊ` or a final `i`; with none, the first lax vowel). A word CMU knows is
-  read exactly as before. Curly quotes and edge punctuation such as `«hat»` or
+  `ɪ`/`ʊ` or a final `i`; with none, the first lax vowel). Its British-style
+  vowels join the way CMU writes them: `ə ʊ` is OW (`accoast` rhymes with
+  `coast`), and the NEAR, SQUARE and CURE diphthongs are IH R, EH R and UH R
+  (`wayfare` and `chair`), except a two-syllable `-ia`, `-ial` or `-ual`. A
+  word CMU knows is read exactly as before. Curly quotes and edge punctuation such as `«hat»` or
   `hat !` are stripped.
 - **Spanish** (`wisp/rhymes_es.py`) reads stress and sound from spelling,
   for every known word.
