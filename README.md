@@ -565,20 +565,34 @@ reasons are shared with feeding and the Craving. Scoring is the same in every
 language (perfect 2, slant 1), and there is one best score per member across
 all three.
 
-- **English** is unchanged: the CMU dictionary and `wisp/data/common_words.txt`.
-  The only change is cleaner input: curly quotes and edge punctuation such as
-  `«hat»` or `hat !` are stripped.
-- **Spanish** (`wisp/rhymes_es.py`) reads stress and sound from spelling.
+- **English** uses the CMU dictionary, and for the words it lacks (about
+  35,000, such as `lollygag`) WikiPron's English (US) list in
+  `wisp/data/wikipron_en.txt`, its IPA mapped to CMU's phones. WikiPron has no
+  stress marks, so the stress goes on the last full vowel (not a schwa, a lax
+  `ɪ`/`ʊ` or a final `i`; with none, the first lax vowel). Its British-style
+  vowels join the way CMU writes them: `ə ʊ` is OW (`accoast` rhymes with
+  `coast`), and the NEAR, SQUARE and CURE diphthongs are IH R, EH R and UH R
+  (`wayfare` and `chair`), except a two-syllable `-ia`, `-ial` or `-ual`. A
+  word CMU knows is read exactly as before. Curly quotes and edge punctuation such as `«hat»` or
+  `hat !` are stripped.
+- **Spanish** (`wisp/rhymes_es.py`) reads stress and sound from spelling,
+  for every known word.
   Perfect is rima consonante (`canción`/`corazón`), slant is rima asonante
   (`casa`/`cama`). Homophones (`casa`/`caza`) are not rhymes.
 - **French** (`wisp/rhymes_fr.py`) reads phones from spelling, with a table
   of exceptions and elision (`l'été` reads `été`). Perfect is rime suffisante
   or better (`parler`/`aller`), slant is rime pauvre or assonance
-  (`chanter`/`parler`). Whether a final `-ent` is silent comes from
-  `wisp/data/silent_ent_fr.txt`.
-- **Known words.** Spanish and French accept only words in
-  `wisp/data/known_words_<es|fr>.txt`, which rejects nonsense (`xuego`,
-  `blorp'été`) the way CMU does for English.
+  (`chanter`/`parler`). A word in Lexique 3.83 (`wisp/data/lexique_fr.txt`)
+  is heard as Lexique says, so `compte` rhymes with `raconte`; any other
+  known word is read by the rules. Whether a final `-ent` is silent comes
+  from `wisp/data/silent_ent_fr.txt`.
+- **Known words.** Spanish accepts the words in
+  `wisp/data/known_words_es.txt` and WikiPron's Latin American Spanish list
+  (`wisp/data/wikipron_es.txt`, about 147,000 words in all); French accepts
+  `wisp/data/known_words_fr.txt` and every Lexique word form (about 129,000).
+  Made-up words (`xuego`, `blorp'été`) are still rejected, as CMU and WikiPron
+  do for English. A real word in none of them (`goûtu`, `curr`) is still
+  unknown. Wisp's own words still come only from the common word lists.
 - **No accents needed.** `wisp/data/accents_<es|fr>.txt` maps an unaccented
   spelling to its accented forms, so `cancion` reads as `canción` and
   `garcon` as `garçon`. `corazon` after `corazón` counts as already used.
@@ -588,10 +602,20 @@ all three.
   `common_words_<es|fr>.txt`.
 
 The word lists are built offline with the dev-only `wordfreq` package and
-committed; the bot reads only `wisp/data/`. Rebuild one from the repo root
-with `python -m tools.build_common_words <en|es|fr>`. It prints what it
-keeps for review; the English rebuild must leave `common_words.txt`
-byte-identical.
+committed; the bot reads only `wisp/data/`, each file the first time a duel
+needs it. The pronunciation files come from raw downloads put in the
+gitignored `tools/raw/` (`lexique/Lexique383.tsv`,
+`wikipron/eng_latn_us_broad.tsv`, `wikipron/spa_latn_la_broad.tsv`; the
+sources are in `tools/build_pronunciations.py`). Rebuild a language from the
+repo root with `python -m tools.build_pronunciations <en|es|fr>`, then
+`python -m tools.build_common_words <en|es|fr>` (its accent map reaches the
+new words). It prints what it keeps for review; the English rebuild must
+leave `common_words.txt` byte-identical.
+
+Credits: the French pronunciations are from Lexique 3.83 (New, Pallier et
+al.), the English and Spanish extras from WikiPron (Wiktionary data), both
+CC BY-SA 4.0, and English from the CMU Pronouncing Dictionary. Details and
+licenses are in `wisp/data/CREDITS.md`.
 
 ## Wisp's Craving
 
