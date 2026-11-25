@@ -32,6 +32,7 @@ from cogs.announce import (
     post_in_house,
     show_in_thread,
 )
+from cogs.assets import MOOD_GIFS
 from cogs.lifetest_runs import LifeTestRun
 from cogs.pictures import life_image
 from db.activity import ActivityRepo, InteractionKind
@@ -1222,12 +1223,8 @@ async def test_an_event_gif_beats_its_png(
     )
 
 
-LONELY_ART = {
-    "cry_baby": ".gif",
-    "grumpy_baby": ".png",
-    "grumpy": ".gif",
-    "cry_teen": ".gif",
-}
+def add_gif(assets: Path, name: str) -> None:
+    add_image(assets, MOOD_GIFS, name, ".gif")
 
 
 async def lonely_post(
@@ -1243,80 +1240,104 @@ async def lonely_post(
 
 
 @pytest.mark.parametrize(
-    ("stage", "pictures"),
+    ("stage", "picture"),
     [
-        (Stage.BABY, {"cry_baby.gif", "grumpy_baby.png"}),
-        (Stage.CHILD, {"grumpy.gif"}),
-        (Stage.TEEN, {"cry_teen.gif"}),
-        (Stage.ADULT, {"cry_teen.gif"}),
-        (Stage.ROCKSTAR, {"cry_teen.gif"}),
-        (Stage.OLD_FOGEY, {"cry_teen.gif"}),
+        (Stage.BABY, "babycry.gif"),
+        (Stage.CHILD, "grumpy.gif"),
+        (Stage.TEEN, "teencry.gif"),
+        (Stage.ADULT, "adultcry.gif"),
+        (Stage.ROCKSTAR, "rockstarcry.gif"),
+        (Stage.OLD_FOGEY, "oldfogeycry.gif"),
     ],
 )
-async def test_lonely_post_has_a_picture_for_his_stage(
-    bot: app.WispBot,
-    server: FakeServer,
-    assets: Path,
-    stage: Stage,
-    pictures: set[str],
+async def test_lonely_post_shows_his_stages_crying_gif_from_the_repo(
+    bot: app.WispBot, server: FakeServer, stage: Stage, picture: str
 ) -> None:
-    for name, suffix in LONELY_ART.items():
-        add_image(assets, "moments", name, suffix)
-
     text, kwargs = await lonely_post(bot, server, stage)
 
     assert said(text, Moment.LONELY)
-    assert kwargs["file"].filename in pictures
+    assert kwargs["file"].filename == picture
     assert sends_without_pinging(kwargs)
 
 
-def test_the_lonely_pictures_are_in_the_repo() -> None:
+def test_the_lonely_fallbacks_are_in_the_repo() -> None:
     moments = Path(announce.__file__).resolve().parent.parent / "ASSETS" / "moments"
-    for names in rules.LONELY_PICTURES.values():
-        for name in names:
-            assert (moments / name).is_file(), name
+    for name in rules.LONELY_PICTURES.values():
+        assert (moments / name).is_file(), name
 
 
-async def test_a_lonely_picture_is_picked_from_the_ones_on_disk(
+async def test_a_crying_gif_wins_over_the_lonely_fallback(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
-    add_image(assets, "moments", "grumpy_baby")
+    add_image(assets, "moments", "grumpy", ".gif")
+    add_gif(assets, "childcry")
 
-    _, kwargs = await lonely_post(bot, server, Stage.BABY)
+    _, kwargs = await lonely_post(bot, server, Stage.CHILD)
 
-    assert kwargs["file"].filename == "grumpy_baby.png"
-
-
-async def test_both_baby_pictures_get_their_turn(
-    bot: app.WispBot,
-    server: FakeServer,
-    assets: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    add_image(assets, "moments", "cry_baby", ".gif")
-    add_image(assets, "moments", "grumpy_baby")
-    offered: list[list[str]] = []
-
-    def choose(pictures: list[Path]) -> Path:
-        offered.append(sorted(path.name for path in pictures))
-        return pictures[-1]
-
-    monkeypatch.setattr(announce, "choice", choose)
-
-    _, kwargs = await lonely_post(bot, server, Stage.BABY)
-
-    assert offered == [["cry_baby.gif", "grumpy_baby.png"]]
-    assert kwargs["file"].filename == "grumpy_baby.png"
+    assert kwargs["file"].filename == "childcry.gif"
 
 
-async def test_a_lonely_post_without_its_picture_is_text_only(
+async def test_a_stage_without_a_crying_gif_falls_back(
     bot: app.WispBot, server: FakeServer, assets: Path
 ) -> None:
-    add_image(assets, "moments", "cry_teen", ".gif")
+    add_image(assets, "moments", "grumpy", ".gif")
+    add_gif(assets, "teencry")
 
-    text, kwargs = await lonely_post(bot, server, Stage.CHILD)
+    _, kwargs = await lonely_post(bot, server, Stage.CHILD)
+
+    assert kwargs["file"].filename == "grumpy.gif"
+
+
+async def test_a_lonely_post_with_no_picture_at_all_is_text_only(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_gif(assets, "teencry")
+
+    text, kwargs = await lonely_post(bot, server, Stage.ADULT)
 
     assert said(text, Moment.LONELY)
+    assert "file" not in kwargs
+
+
+@pytest.mark.parametrize(
+    ("kind", "moment", "picture"),
+    [
+        (EventKind.HUNGRY, Moment.HUNGRY, "rockstarannoyed.gif"),
+        (EventKind.FADING, Moment.FADING, "rockstarangry.gif"),
+    ],
+)
+async def test_hungry_is_annoyed_and_fading_is_angry(
+    bot: app.WispBot,
+    server: FakeServer,
+    kind: EventKind,
+    moment: Moment,
+    picture: str,
+) -> None:
+    text, kwargs = await event_post(bot, server, Event(kind, Stage.ROCKSTAR))
+
+    assert said(text, moment)
+    assert kwargs["file"].filename == picture
+    assert sends_without_pinging(kwargs)
+
+
+@pytest.mark.parametrize("kind", [EventKind.HUNGRY, EventKind.FADING])
+async def test_hungry_or_fading_without_its_gif_is_text_only(
+    bot: app.WispBot, server: FakeServer, assets: Path, kind: EventKind
+) -> None:
+    add_gif(assets, "adultannoyed")
+    add_gif(assets, "adultangry")
+
+    _, kwargs = await event_post(bot, server, Event(kind, Stage.TEEN))
+
+    assert "file" not in kwargs
+
+
+@pytest.mark.parametrize("kind", [EventKind.HUNGRY, EventKind.FADING])
+async def test_hungry_or_fading_with_no_stage_is_text_only(
+    bot: app.WispBot, server: FakeServer, kind: EventKind
+) -> None:
+    _, kwargs = await event_post(bot, server, Event(kind))
+
     assert "file" not in kwargs
 
 

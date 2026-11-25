@@ -18,13 +18,13 @@ from discord.ext import commands
 from ai.chain import ProviderError
 from ai.prompt import Prompt
 from cogs.announce import display_name, post_in_house
-from cogs.assets import nap_image
+from cogs.assets import MoodGif, mood_image, nap_image
 from cogs.channels import where_of
 from cogs.chores import wake_by_poke
 from cogs.groups import require_guild
 from cogs.house_memory import keep, recall
 from cogs.moody import moody_round, post, view_kwargs
-from cogs.pictures import art_kwargs, sick_talk_image
+from cogs.pictures import art_kwargs, talk_image
 from cogs.players import (
     EXPECTED_FAILURES,
     Credit,
@@ -536,6 +536,7 @@ class Conversation(commands.Cog):
         expressions it used count toward his favorite emoji; a note is saved
         only from Adult on. From Child on, a moody Wisp may work a moody
         phrase into the answer, with its menu (see `cogs.moody.moody_round`).
+        The answer carries `talk_image`'s picture, sick or of his mood.
         """
         bot = self.bot
         emojis = own_emojis(_CUSTOM_EMOJI.findall(message.content), bot.emojis_by_name)
@@ -560,11 +561,13 @@ class Conversation(commands.Cog):
                     moody_phrase=None if drawn is None else drawn.phrase.text,
                 )
                 reply = await ai_reply(bot, guild, prompt)
-            picture = sick_talk_image(life, bot.talk.rng)
             if reply is None:
                 moment = _sick_moment(life, level) or _FALLBACK[level]
-                await _reply(bot, message, bot.lines.pick(moment, mood(life)), picture)
+                line = bot.lines.pick(moment, mood(life))
+                picture = talk_image(life, line, now, bot.talk.rng)
+                await _reply(bot, message, line, picture)
                 return
+            picture = talk_image(life, reply.text, now, bot.talk.rng)
 
             async def send(text: str, view: discord.ui.View | None) -> discord.Message:
                 return await _reply(bot, message, text, picture, view)
@@ -676,8 +679,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     within TALK_COOLDOWN of their last answer are told privately instead. A
     poke that counts says what it did on its post; one that does not is told
     why privately. A poke on a napping Wisp wakes him cranky: it earns no
-    credit and he answers waking up. The time from the press to the House
-    post is logged.
+    credit and he answers waking up, with his stage's annoyed gif (the nap
+    picture when there is none). Any other reaction carries `talk_image`'s
+    picture. The time from the press to the House post is logged.
     """
     received = time.monotonic()
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -725,9 +729,9 @@ async def _poke(interaction: discord.Interaction) -> None:
     reaction = await _reaction(interaction, life, level, player, name, flavor, now)
     poked = "the egg" if level is Talk.EGG else "Wisp"
     image = (
-        nap_image(life.stage)
+        mood_image(life.stage, MoodGif.ANNOYED, talk.rng) or nap_image(life.stage)
         if flavor is PokeFlavor.WOKE_UP
-        else sick_talk_image(life, talk.rng)
+        else talk_image(life, reaction, now, talk.rng)
     )
     counted = _poke_counted(credit, level)
     tally = _poke_tally(credit) if counted else ""

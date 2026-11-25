@@ -5,31 +5,54 @@ and share the fallback for a picture Discord refuses.
 """
 
 import random
+import re
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 import discord
 
-from cogs.assets import ASSETS_DIR, BANNERS, moment_image
+from cogs.assets import (
+    ASSETS_DIR,
+    BANNERS,
+    MoodGif,
+    moment_image,
+    mood_image,
+    stage_name,
+)
 from wisp.life import (
     Life,
+    Mood,
     Phase,
     Sickness,
     has_sniffles,
     is_sick,
+    mood,
     sickness,
 )
 from wisp.rules import (
     COLD_PICTURES,
+    MOOD_TALK_PICTURE_CHANCE,
     POX_PICTURES,
     SICK_PICTURES,
     SNIFFLES_PICTURE,
     Stage,
 )
+from wisp.voice import Feeling, feelings_of
 
 if TYPE_CHECKING:
     from app import WispBot
+
+_LAUGH: Final = re.compile(
+    r"\b(?:lo+l(?:ol)*|lmf?ao+|a?(?:ha){2,}[ha]*|(?:he){2,}h?)\b"
+    r"|(?<![\w*])\*(?=\S)[^*\n]*\b(?:laugh|giggl|chuckl|cackl|snicker)\w*"
+    r"[^*\n]*(?<=\S)\*",
+    re.IGNORECASE,
+)
+"""Words and action text that laugh: "lol", "hahaha", "*giggles*"."""
+_ANGRY_FEELINGS: Final = frozenset({Feeling.STARVING, Feeling.TANTRUM})
+_ANNOYED_FEELINGS: Final = frozenset({Feeling.CRANKY, Feeling.MESS})
 
 
 def life_image(life: Life) -> Path | None:
@@ -64,8 +87,7 @@ def status_banner(life: Life) -> Path | None:
     that is over keeps the banner of the stage it ended at. None when the file
     is missing.
     """
-    name = life.stage.value.replace("_", "")
-    path = ASSETS_DIR / BANNERS / f"{name}-status.png"
+    path = ASSETS_DIR / BANNERS / f"{stage_name(life.stage)}-status.png"
     return path if path.is_file() else None
 
 
@@ -91,6 +113,41 @@ def sick_talk_image(life: Life, rng: random.Random) -> Path | None:
             return None
     found = [path for name in names if (path := moment_image(name)) is not None]
     return rng.choice(found) if found else None
+
+
+def talk_mood(life: Life, text: str, now: datetime) -> MoodGif | None:
+    """The mood gif that fits what he feels at `now` and says in `text`, or None.
+
+    Starving or an unscolded tantrum is angry; else cranky or an open mess is
+    annoyed; else lonely (hangry hiding it or not) cries; else `text` that
+    laughs is lol.
+    """
+    feelings = feelings_of(life, now)
+    if feelings & _ANGRY_FEELINGS:
+        return MoodGif.ANGRY
+    if feelings & _ANNOYED_FEELINGS:
+        return MoodGif.ANNOYED
+    if Feeling.LONELY in feelings or mood(life) is Mood.LONELY:
+        return MoodGif.CRY
+    if _LAUGH.search(text):
+        return MoodGif.LOL
+    return None
+
+
+def talk_image(life: Life, text: str, now: datetime, rng: random.Random) -> Path | None:
+    """The picture for his answer `text` to a mention or a poke, or None.
+
+    A sick picture wins. Otherwise a living Wisp shows the mood gif of
+    `talk_mood` with MOOD_TALK_PICTURE_CHANCE, when his stage has one on disk.
+    """
+    if (sick := sick_talk_image(life, rng)) is not None:
+        return sick
+    if life.phase is not Phase.ALIVE:
+        return None
+    feeling = talk_mood(life, text, now)
+    if feeling is None or rng.random() >= MOOD_TALK_PICTURE_CHANCE:
+        return None
+    return mood_image(life.stage, feeling, rng)
 
 
 def art_kwargs(field: str, art: discord.File | None) -> dict[str, Any]:

@@ -20,8 +20,9 @@ import app
 from ai.chain import AllProvidersFailed, ProviderError
 from ai.prompt import Prompt
 from cogs import assets
+from cogs.assets import MoodGif
 from cogs.conversation import Conversation, PokeButton
-from cogs.pictures import sick_talk_image
+from cogs.pictures import sick_talk_image, talk_image, talk_mood
 from cogs.speech import dances, expressions
 from db.activity import ActivityRepo
 from db.database import Database
@@ -34,7 +35,15 @@ from db.players import PlayerRepo
 from db.settings import SettingsRepo
 from db.story import LifeStoryRepo
 from wisp.bond import PickleStance
-from wisp.chores import is_napping, is_open, is_woken, start_nap, wake
+from wisp.chores import (
+    is_napping,
+    is_open,
+    is_woken,
+    open_mess,
+    open_tantrum,
+    start_nap,
+    wake,
+)
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import LINES, Moment
 from wisp.links import Track, TrackKind
@@ -46,7 +55,11 @@ from wisp.rules import (
     CONTEXT_LINE_CHARS,
     CONTEXT_LINES,
     CRANKY_FOR,
+    FADING_BELOW,
+    HANGRY_BELOW,
+    LONELY_BELOW,
     MEMORY_RECENT_SKIP,
+    MOOD_TALK_PICTURE_CHANCE,
     POKE_CREDITS_PER_DAY,
     POKE_FED_UP_AT,
     POKE_MAD_AT,
@@ -1474,13 +1487,13 @@ def house_pictures(server: FakeServer) -> list[str | None]:
 @pytest.mark.parametrize(
     ("stage", "picture"),
     [
-        (Stage.BABY, "nap.gif"),
-        (Stage.CHILD, "nap.gif"),
-        (Stage.TEEN, None),
-        (Stage.ADULT, None),
+        (Stage.BABY, "babyannoyed.gif"),
+        (Stage.CHILD, "childannoyed.gif"),
+        (Stage.TEEN, "teenannoyed.gif"),
+        (Stage.ADULT, "adultannoyed.gif"),
     ],
 )
-async def test_waking_him_shows_the_nap_picture_only_while_young(
+async def test_waking_him_shows_his_stages_annoyed_gif(
     bot: app.WispBot,
     ai: AsyncMock,
     message: MessageFactory,
@@ -1499,6 +1512,35 @@ async def test_waking_him_shows_the_nap_picture_only_while_young(
 
     (prompt,) = prompts(ai)
     assert "this poke woke you up" in prompt.user
+    assert house_pictures(server) == [picture]
+
+
+@pytest.mark.parametrize(
+    ("stage", "picture"),
+    [(Stage.BABY, "nap.gif"), (Stage.CHILD, "nap.gif"), (Stage.TEEN, None)],
+)
+async def test_without_an_annoyed_gif_waking_him_shows_the_nap_picture_while_young(
+    bot: app.WispBot,
+    ai: AsyncMock,
+    message: MessageFactory,
+    cog: Conversation,
+    clock: Clock,
+    server: FakeServer,
+    poke: Press,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stage: Stage,
+    picture: str | None,
+) -> None:
+    (tmp_path / "moments").mkdir()
+    (tmp_path / "moments" / "nap.gif").write_bytes(b"GIF89a")
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+    await lay(bot, stage)
+    await cog.on_message(message("anyone here", author=MEMBERS[SECOND]))
+    clock.advance(POKE_SLEEP_AFTER)
+
+    await poke()
+
     assert house_pictures(server) == [picture]
 
 
@@ -2187,7 +2229,7 @@ async def test_a_poke_wakes_him_cranky_with_no_wellbeing_plus(
     (prompt,) = prompts(ai)
     assert "woken up from a nap" in prompt.system
     assert "this poke woke you up" in prompt.user
-    assert house_pictures(server) == [None]
+    assert house_pictures(server) == ["adultannoyed.gif"]
 
 
 async def test_waking_him_with_the_lights_on_leaves_the_lights_post_open(
@@ -3026,3 +3068,244 @@ async def test_his_custom_emojis_are_kept_by_name(
     )
     assert ":wisp_love:" in hit.memory.reply
     assert "<" not in hit.memory.reply
+
+
+# ---
+# Mood gifs in his answers
+# ---
+
+
+class FixedRoll(HeaviestChoice):
+    """Rolls `roll` for every chance and picks the likeliest poke flavor."""
+
+    def __init__(self, roll: float) -> None:
+        super().__init__(0)
+        self.roll = roll
+
+    def random(self) -> float:
+        return self.roll
+
+
+SHOWS = FixedRoll(0.0)
+HIDES = FixedRoll(MOOD_TALK_PICTURE_CHANCE)
+
+
+def living(stage: Stage = Stage.ADULT, **fields: Any) -> Life:
+    life = new_egg(1, START - timedelta(days=20))
+    life.phase = Phase.ALIVE
+    life.stage = life.peak_stage = stage
+    life.hatched_at = life.stage_started_at = START - timedelta(days=19)
+    life.health = 80.0
+    life.wellbeing = 80.0
+    for name, value in fields.items():
+        setattr(life, name, value)
+    return life
+
+
+def with_tantrum() -> Life:
+    life = living()
+    open_tantrum(life)
+    return life
+
+
+def with_mess() -> Life:
+    life = living()
+    open_mess(life)
+    return life
+
+
+@pytest.mark.parametrize(
+    ("life", "text", "expected"),
+    [
+        pytest.param(
+            living(health=FADING_BELOW - 1), "lol", MoodGif.ANGRY, id="starving"
+        ),
+        pytest.param(with_tantrum(), "lol", MoodGif.ANGRY, id="tantrum"),
+        pytest.param(
+            living(cranky_until=START + timedelta(hours=1)),
+            "lol",
+            MoodGif.ANNOYED,
+            id="cranky",
+        ),
+        pytest.param(with_mess(), "lol", MoodGif.ANNOYED, id="mess"),
+        pytest.param(
+            living(wellbeing=LONELY_BELOW - 1), "lol", MoodGif.CRY, id="lonely"
+        ),
+        pytest.param(
+            living(health=HANGRY_BELOW - 1, wellbeing=LONELY_BELOW - 1),
+            "lol",
+            MoodGif.CRY,
+            id="hangry-and-lonely",
+        ),
+        pytest.param(living(health=HANGRY_BELOW - 1), "hm", None, id="just-hangry"),
+        pytest.param(living(), "lol that's good", MoodGif.LOL, id="laughs"),
+        pytest.param(living(), "hey you", None, id="happy"),
+    ],
+)
+def test_his_feelings_pick_the_mood_gif(
+    life: Life, text: str, expected: MoodGif | None
+) -> None:
+    assert talk_mood(life, text, START) is expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "LOL ok",
+        "lmao",
+        "lmfao stop",
+        "haha",
+        "Hahaha that's great",
+        "hehehe",
+        "*laughs*",
+        "*giggles and spins*",
+        "*starts laughing*",
+        "*chuckles*",
+        "lmaooo",
+        "lolol",
+        "hahaaa",
+        "ahaha",
+        "(*giggles*)",
+    ],
+)
+def test_words_that_laugh(text: str) -> None:
+    assert talk_mood(living(), text, START) is MoodGif.LOL
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a lollipop",
+        "lolly",
+        "ha",
+        "he said",
+        "laugh it off",
+        "shaha",
+        "*waves*",
+        "*hugs* please dont laugh at me *pouts*",
+        "* laughs *",
+    ],
+)
+def test_words_that_do_not_laugh(text: str) -> None:
+    assert talk_mood(living(), text, START) is None
+
+
+def test_the_mood_gif_shows_only_within_its_chance() -> None:
+    life = living(stage=Stage.TEEN)
+
+    assert talk_image(life, "lol", START, FixedRoll(0.0)) is not None
+    assert talk_image(life, "lol", START, HIDES) is None
+
+
+def test_a_laughing_teen_gets_both_of_his_lol_gifs() -> None:
+    life = living(stage=Stage.TEEN)
+    rng = random.Random(5)
+
+    picked = {
+        picture.name
+        for picture in (talk_image(life, "haha", START, rng) for _ in range(80))
+        if picture is not None
+    }
+
+    assert picked == {"teenlol.gif", "teenlol2.gif"}
+
+
+def test_a_sick_picture_wins_over_his_mood() -> None:
+    life = living(stage=Stage.TEEN, cold_left=10.0)
+
+    picture = talk_image(life, "lol", START, SHOWS)
+
+    assert picture is not None
+    assert picture.name in POX_PICTURES[Stage.TEEN]
+
+
+def test_the_egg_shows_no_mood_gif() -> None:
+    assert talk_image(new_egg(1, START), "lol", START, SHOWS) is None
+
+
+def test_a_missing_mood_gif_means_no_picture(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+
+    assert talk_image(living(), "lol", START, SHOWS) is None
+
+
+async def test_a_reply_that_laughs_can_carry_his_lol_gif(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.ADULT)
+    bot.talk.rng = SHOWS
+    ai.return_value = "lol you're funny"
+    said = message.to_wisp("tell me a joke")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "lol you're funny"
+    assert reply_picture(said) == "adultlol.gif"
+
+
+async def test_outside_its_chance_a_laughing_reply_has_no_picture(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.ADULT)
+    bot.talk.rng = HIDES
+    ai.return_value = "lol you're funny"
+    said = message.to_wisp("tell me a joke")
+
+    await cog.on_message(said)
+
+    assert reply_picture(said) is None
+
+
+async def test_a_lonely_fallback_line_can_carry_his_crying_gif(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    life = await lay(bot, Stage.ROCKSTAR)
+    life.wellbeing = LONELY_BELOW - 1
+    await bot.lives.save(GUILD_ID, life)
+    bot.talk.rng = SHOWS
+    ai.side_effect = OUTAGE
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_picture(said) == "rockstarcry.gif"
+
+
+async def test_the_egg_answers_without_a_mood_gif(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay(bot, Stage.EGG, Phase.EGG)
+    bot.talk.rng = SHOWS
+    ai.return_value = "*the shell giggles*"
+    said = message.to_wisp("hello egg")
+
+    await cog.on_message(said)
+
+    assert reply_picture(said) is None
+
+
+async def test_a_poke_during_a_tantrum_can_carry_his_angry_gif(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    life = await lay(bot, Stage.CHILD)
+    open_tantrum(life)
+    await bot.lives.save(GUILD_ID, life)
+    bot.talk.rng = SHOWS
+
+    await poke()
+
+    assert house_pictures(server) == ["childangry.gif"]
+
+
+async def test_a_poke_reaction_that_laughs_can_carry_his_lol_gif(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay(bot, Stage.OLD_FOGEY)
+    bot.talk.rng = SHOWS
+    ai.return_value = "hehe that tickles"
+
+    await poke()
+
+    assert house_pictures(server) == ["oldfogeylol.gif"]

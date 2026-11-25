@@ -476,6 +476,13 @@ def test_one_tick_can_cross_both_thresholds() -> None:
     assert kinds(events) == [EventKind.HUNGRY, EventKind.FADING]
 
 
+def test_hungry_and_fading_name_his_stage_for_their_pictures() -> None:
+    life = alive(health=12.0, health_stretch=stretch_left(HEALTH_STRETCH))
+    events = run(life, TICK_EVERY)
+    warnings = [event for event in events if event.kind is not EventKind.METER_DROP]
+    assert [event.stage for event in warnings] == [Stage.BABY, Stage.BABY]
+
+
 def test_feeding_above_threshold_rearms_warning() -> None:
     life = alive(health=5.0, warned=EventKind.FADING)
     feed(life, 3, FEEDER, T0)

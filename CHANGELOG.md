@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-24 (Mood gifs)
+
+- **Myra's mood gifs** (`ASSETS/wispmoods/gifs/<stage><mood>.gif`: angry,
+  annoyed, lol and cry for each stage, with numbered variants such as
+  `teenlol2.gif` picked at random) are wired in through one helper,
+  `mood_image` in `cogs/assets.py`. A missing gif never breaks a post, and a
+  new one (`childcry.gif`) is used as soon as it is on disk. `babycry.gif` and
+  `teencry.gif` are copies of `moments/cry_baby.gif` and `moments/cry_teen.gif`.
+- **Lonely post:** his stage's crying gif. `LONELY_PICTURES` is now only the
+  fallback for a stage with none, so it holds just Child's `grumpy.gif`.
+- **Tantrum post:** his stage's angry gif. `TANTRUM_PICTURES` is kept, whole,
+  as the fallback: with the angry gif missing he shows his old tantrum picture
+  for the stage, else the words and Scold button only.
+- **Hungry and fading posts** show the annoyed and the angry gif (they posted
+  words only before); the events now carry his stage.
+- **A poke that wakes him** shows the annoyed gif, else the nap picture.
+- **His answers to mentions and pokes** may carry a mood gif
+  (`MOOD_TALK_PICTURE_CHANCE`, 0.35, new): angry while starving or in a
+  tantrum, annoyed while cranky or with an open mess, crying while lonely, lol
+  when the answer laughs (stretched laughs such as "lmaooo" and "hahaaa"
+  count; the word "laugh" between two separate `*actions*` does not). A sick
+  picture still wins; the egg shows none.
+- The source videos (`ASSETS/wispmoods/*.mp4`, `ASSETS/wispmoods/mp4s/`) are
+  gitignored.
+
 ## 2026-11-24 (Every menu in the Favorites style)
 
 - **House style v4** (`DOCS/specs/2026-11-24-house-style-v4-favorites.md`):

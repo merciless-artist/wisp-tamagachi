@@ -642,10 +642,10 @@ def _warnings(life: Life) -> list[Event]:
     events: list[Event] = []
     if life.health < HANGRY_BELOW and life.warned is None:
         life.warned = EventKind.HUNGRY
-        events.append(Event(EventKind.HUNGRY))
+        events.append(Event(EventKind.HUNGRY, stage=life.stage))
     if life.health < FADING_BELOW and life.warned is not EventKind.FADING:
         life.warned = EventKind.FADING
-        events.append(Event(EventKind.FADING))
+        events.append(Event(EventKind.FADING, stage=life.stage))
     if life.wellbeing < LONELY_BELOW and not life.lonely_warned:
         life.lonely_warned = True
         events.append(Event(EventKind.LONELY, stage=life.stage))

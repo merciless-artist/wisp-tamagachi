@@ -7,6 +7,7 @@ import asyncio
 import random
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -14,6 +15,7 @@ import discord
 import pytest
 
 import app
+from cogs import assets
 from cogs import chores as chore_posts
 from cogs.chores import ChoreButton, chore_view, post_chores
 from db.database import Database
@@ -344,8 +346,18 @@ async def test_a_mess_without_its_picture_is_words_and_the_button(
     assert only_button(sent.kwargs["view"]).label == "Tidy"
 
 
-@pytest.mark.parametrize(("stage", "picture"), sorted(TANTRUM_PICTURES.items()))
-async def test_the_tantrum_picture_follows_his_stage(
+@pytest.mark.parametrize(
+    ("stage", "picture"),
+    [
+        (Stage.BABY, "babyangry.gif"),
+        (Stage.CHILD, "childangry.gif"),
+        (Stage.TEEN, "teenangry.gif"),
+        (Stage.ADULT, "adultangry.gif"),
+        (Stage.ROCKSTAR, "rockstarangry.gif"),
+        (Stage.OLD_FOGEY, "oldfogeyangry.gif"),
+    ],
+)
+async def test_the_tantrum_picture_is_his_stages_angry_gif(
     bot: app.WispBot, server: FakeServer, stage: Stage, picture: str
 ) -> None:
     life = await lay(bot, stage)
@@ -364,6 +376,33 @@ async def test_the_tantrum_picture_follows_his_stage(
         f"wisp:chore:tantrum:{life.id}",
     )
     assert (await current_life(bot)).tantrum_message_id == FIRST_POST_ID
+
+
+@pytest.mark.parametrize("fallback", [True, False])
+async def test_a_tantrum_without_its_angry_gif_falls_back_to_its_old_picture(
+    bot: app.WispBot,
+    server: FakeServer,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fallback: bool,
+) -> None:
+    monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
+    if fallback:
+        moments = tmp_path / "moments"
+        moments.mkdir()
+        (moments / TANTRUM_PICTURES[Stage.TEEN]).write_bytes(b"gif")
+    life = await lay(bot, Stage.TEEN)
+    open_tantrum(life)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [ChoreEvent(ChoreEventKind.TANTRUM)])
+
+    (sent,) = server.house.send.await_args_list
+    if fallback:
+        assert filename(sent.kwargs) == TANTRUM_PICTURES[Stage.TEEN]
+    else:
+        assert "file" not in sent.kwargs
+    assert only_button(sent.kwargs["view"]).label == "Scold"
 
 
 @pytest.mark.parametrize(

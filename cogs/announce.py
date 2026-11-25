@@ -1,17 +1,17 @@
 """Announcements in Wisp's House and Mealtime, shared by the cogs that speak."""
 
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from random import choice
 from typing import TYPE_CHECKING, Any, Final
 
 import discord
 import pymysql
 
-from cogs.assets import ASSETS_DIR, asset_image
+from cogs.assets import ASSETS_DIR, MoodGif, asset_image, moment_image, mood_image
 from cogs.pictures import Picture, art_kwargs, life_image, sick_image
 from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
@@ -81,9 +81,10 @@ _STAGE_KEEPSAKES: Final = {
 def _image_for(event: Event) -> Path | None:
     """Return the image for an event, or None for text only.
 
-    Most events show the first of their pictures that exists; a lonely post
-    picks one at random. Catching his cold shows his stage's sick picture and
-    getting better shows him well again, as his stage's picture.
+    Most events show the first of their pictures that exists. Hungry shows
+    his stage's annoyed gif, fading its angry gif and lonely its crying gif
+    (see `_lonely_image`). Catching his cold shows his stage's sick picture
+    and getting better shows him well again, as his stage's picture.
     """
     stages = ASSETS_DIR / "stages"
     events = ASSETS_DIR / "events"
@@ -91,6 +92,10 @@ def _image_for(event: Event) -> Path | None:
     match event.kind:
         case EventKind.LONELY if event.stage is not None:
             return _lonely_image(event.stage)
+        case EventKind.HUNGRY if event.stage is not None:
+            return mood_image(event.stage, MoodGif.ANNOYED, random.Random())
+        case EventKind.FADING if event.stage is not None:
+            return mood_image(event.stage, MoodGif.ANGRY, random.Random())
         case EventKind.SICK if event.stage is not None:
             return sick_image(event.stage)
         case EventKind.STAGE_UP | EventKind.GREW_OLD | EventKind.RECOVERED if (
@@ -113,14 +118,11 @@ def _image_for(event: Event) -> Path | None:
 
 
 def _lonely_image(stage: Stage) -> Path | None:
-    """One of the stage's lonely pictures that exists, at random, or None."""
-    moments = ASSETS_DIR / "moments"
-    pictures = [
-        path
-        for name in LONELY_PICTURES.get(stage, ())
-        if (path := moments / name).is_file()
-    ]
-    return choice(pictures) if pictures else None
+    """The stage's crying gif, else its LONELY_PICTURES picture, or None."""
+    if (crying := mood_image(stage, MoodGif.CRY, random.Random())) is not None:
+        return crying
+    name = LONELY_PICTURES.get(stage)
+    return None if name is None else moment_image(name)
 
 
 def keepsake_image(kind: KeepsakeKind) -> Path | None:

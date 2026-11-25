@@ -6,6 +6,7 @@ then says who did it and loses its button. A chore that runs out edits its
 post instead.
 """
 
+import random
 import re
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ from typing import TYPE_CHECKING, Final
 import discord
 
 from cogs.announce import edit_in_house, remember, say_in_house
-from cogs.assets import moment_image, nap_image
+from cogs.assets import MoodGif, moment_image, mood_image, nap_image
 from cogs.groups import require_guild
 from cogs.players import (
     EXPECTED_FAILURES,
@@ -153,7 +154,8 @@ def _picture(chore: Chore, stage: Stage) -> Path | None:
             name = MESSES[stage][2]
             return None if name is None else moment_image(name)
         case Chore.TANTRUM:
-            return moment_image(TANTRUM_PICTURES[stage])
+            angry = mood_image(stage, MoodGif.ANGRY, random.Random())
+            return angry or moment_image(TANTRUM_PICTURES[stage])
         case Chore.NAP:
             return nap_image(stage)
 

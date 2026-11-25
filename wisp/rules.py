@@ -96,15 +96,9 @@ WELLBEING_PER_GIFT = 8
 WELLBEING_PER_SNACK = 8
 WELLBEING_PER_PLAY = 10
 LONELY_BELOW = 30.0
-# The pictures in ASSETS/moments his lonely post picks from, by stage.
-LONELY_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
-    Stage.BABY: ("cry_baby.gif", "grumpy_baby.png"),
-    Stage.CHILD: ("grumpy.gif",),
-    Stage.TEEN: ("cry_teen.gif",),
-    Stage.ADULT: ("cry_teen.gif",),
-    Stage.ROCKSTAR: ("cry_teen.gif",),
-    Stage.OLD_FOGEY: ("cry_teen.gif",),
-}
+# His lonely post shows his stage's crying gif (ASSETS/wispmoods/gifs); a stage
+# with none on disk shows its picture in ASSETS/moments here instead.
+LONELY_PICTURES: Final[dict[Stage, str]] = {Stage.CHILD: "grumpy.gif"}
 
 # ---
 # Monster Pox, his childhood sickness (named "cold" in the code)
@@ -208,7 +202,7 @@ MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
     ),
     Stage.OLD_FOGEY: ("dentures that need a soak", "Soak his teeth", "dentures.gif"),
 }
-# The pictures in ASSETS/moments for a cold, its medicine and a tantrum.
+# The pictures in ASSETS/moments for a cold and its medicine.
 SNIFFLES_PICTURE: Final = "wispsick.gif"
 MEDICINE_PICTURE: Final = "medicine.png"
 SNEEZE_PICTURE: Final = "sneeze.gif"
@@ -227,6 +221,8 @@ COLD_PICTURES: Final = (SNIFFLES_PICTURE, SNEEZE_PICTURE)
 MEDICINE_COST = 10
 MEDICINE_POINTS = 3
 MEDICINE_EMOJI: Final = "medicine"
+# His tantrum post shows his stage's angry gif (ASSETS/wispmoods/gifs); with
+# that file missing it shows its picture in ASSETS/moments here instead.
 TANTRUM_PICTURES: Final[dict[Stage, str]] = {
     Stage.BABY: "tantrum_baby.gif",
     Stage.CHILD: "grumpy.gif",
@@ -784,6 +780,9 @@ BOARD_NOTICE_LIFETIME = timedelta(seconds=8)
 EGG_LINE_CHARS = 120
 CHIME_IN_CHANCE = 0.04
 CHIME_IN_GAP = timedelta(minutes=90)
+# The chance his answer to a mention or a poke shows the mood gif of what he
+# feels (angry, annoyed, crying) or of a laugh in his words, when he is not sick.
+MOOD_TALK_PICTURE_CHANCE = 0.35
 CONTEXT_LINES = 12
 CONTEXT_LINE_CHARS = 300
 NOTES_KEPT = 8

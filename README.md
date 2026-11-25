@@ -120,10 +120,10 @@ only time he is alive and not frozen. All the numbers are starting values in
   tantrum costs 15 and lights left on at a nap cost 10. Every 6 hours with no
   credited chat, poke, duel, snack, gift or cleanup costs 10. Below 30 he is
   lonely and pissed off about it in what he says and posts once in the House
-  with a picture for his stage. Hangry beats lonely beats happy for his mood
-  (and his pre-written lines), but his AI voice is told about both when he is
-  hangry and lonely at once, and Wellbeing never hurts
-  him: no death, no growth penalty. Wellbeing at 80 or more for four days is
+  with his stage's crying gif (see Mood gifs). Hangry beats lonely beats happy
+  for his mood (and his pre-written lines), but his AI voice is told about both
+  when he is hangry and lonely at once, and Wellbeing never hurts him: no
+  death, no growth penalty. Wellbeing at 80 or more for four days is
   what makes an Adult a Rockstar.
 
 He used to have a third meter, Mood; it folded into Wellbeing on 2026-11-06.
@@ -206,8 +206,33 @@ reply that says plainly what he has and how many hours are left, and that
 the Wisp FAQ answers questions about his sickness, with a picture: his sick
 picture or `sneeze.gif` for Monster Pox, `wispsick.gif` or `sneeze.gif` for a
 cold. Monster Pox wins when he has both. If Discord refuses the picture, the
-words are sent without it. A poke that wakes him from a nap shows the nap
-picture.
+words are sent without it.
+
+## Mood gifs
+
+Myra's transparent gifs of each stage showing a feeling live in
+`ASSETS/wispmoods/gifs/`, named `<stage><mood>.gif` with the stage run
+together (`baby`, `child`, `teen`, `adult`, `rockstar`, `oldfogey`) and the
+mood one of `angry`, `annoyed`, `lol`, `cry`. A numbered copy
+(`teenlol2.gif`) is one more option, picked at random; a new file is used as
+soon as it is on disk, and a missing one never breaks a post
+(`mood_image` in `cogs/assets.py`). The source videos (`ASSETS/wispmoods/*.mp4`
+and `mp4s/`) are not committed.
+
+- **Lonely post:** the crying gif. Child has none yet, so he shows
+  `grumpy.gif` (`LONELY_PICTURES` holds only the stages without a crying gif)
+  until `childcry.gif` is added.
+- **Hungry post:** the annoyed gif. **Fading post:** the angry gif.
+- **Tantrum post:** the angry gif. With it missing he shows his stage's old
+  tantrum picture (`TANTRUM_PICTURES`, see Assets), else words and button.
+- **A poke that wakes him** (from a nap, or a quiet House): the annoyed gif,
+  else the nap picture while he is young enough to have one.
+- **Answers to mentions and pokes:** a sick picture wins. Otherwise, with
+  chance `MOOD_TALK_PICTURE_CHANCE` (0.35), he shows the gif of what he feels:
+  angry while starving or throwing a tantrum, else annoyed while cranky or
+  with an open mess, else crying while lonely, else lol when his answer laughs
+  (lol, lmao, haha, hehe, `*giggles*`). The egg never shows one. The canned
+  lines used when the AI is down follow the same rule.
 
 ## Meter drop posts, receipts and reasons
 
@@ -828,19 +853,22 @@ posts text only.
   `pickles`), plus `eating/eat_pickles_love.gif` and
   `eating/eat_pickles_hate.gif` for pickles with a member whose pickle stance he
   knows.
-- `moments/` pictures for his lonely and sick posts: `cry_baby.gif` and
-  `grumpy_baby.png` (Baby), `grumpy.gif` (Child), `cry_teen.gif` (Teen and
-  older) when Wellbeing drops below the lonely line, and `sick_baby.png`,
-  `sick_child.png` and `sick_teen.png` for his Monster Pox. The sick picture
+- `wispmoods/gifs/<stage><mood>.gif`, Myra's mood gifs for the lonely,
+  hungry, fading and tantrum posts, a poke that wakes him and his answers
+  (see Mood gifs).
+- `moments/` pictures for his lonely and sick posts: `grumpy.gif` stands in
+  for Child's crying gif until `childcry.gif` is added, and `sick_baby.png`,
+  `sick_child.png` and `sick_teen.png` are for his Monster Pox. The sick picture
   is also on the status card and the Poke Wisp panel while he is sick, and
   `sneeze.gif` joins the pictures his sick replies pick from.
 - `moments/` pictures for his chores: `poop.gif` (Baby and Child),
   `pimple.gif` (Teen), `trash_adult.gif` (Adult), `trash_rockstar.gif`
   (Rockstar) and `dentures.gif` (Old Fogey) for the messes; `wispsick.gif` for a
-  cold and `medicine.png` for the medicine's thank-you; and the tantrum
-  pictures `tantrum_baby.gif` (Baby), `grumpy.gif` (Child), `cry_teen.gif`
-  (Teen), `grumpy_adult.gif` (Adult and Rockstar) and `grumpy_old_fogey.gif`
-  (Old Fogey). A missing picture means the post is words and a button.
+  cold and `medicine.png` for the medicine's thank-you; and, only when his
+  angry gif is missing, the old tantrum pictures `tantrum_baby.gif` (Baby),
+  `grumpy.gif` (Child), `cry_teen.gif` (Teen), `grumpy_adult.gif` (Adult and
+  Rockstar) and `grumpy_old_fogey.gif` (Old Fogey). A missing picture means
+  the post is words and a button.
 - `stages/<stage>.png` for `egg`, `baby`, `child`, `teen`, `adult`,
   `rockstar`, `old_fogey`, plus `stages/coal_egg.png` for the egg after a full
   life (the egg's picture stands in when it is missing). The status card and
