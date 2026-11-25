@@ -1387,12 +1387,17 @@ def vault_buttons() -> list[list[discord.ui.Item[Any]]]:
 
 @dataclass(frozen=True)
 class _Meal:
-    """A snack Wisp has eaten: his life and the feeder."""
+    """A snack Wisp has eaten: his life and the feeder.
+
+    `won` is a snack the member won for him; `bought` is the snack they
+    bought him after losing that day's Craving for it.
+    """
 
     life: Life
     player: Player
     wellbeing_before: float
     won: bool
+    bought: bool
 
 
 async def _eat(
@@ -1423,7 +1428,7 @@ async def _eat(
     points = meal_grant(eaten, snack.meal, DAILY_SNACK_CAP)
     if points == 0:
         raise Refusal(full_text(now))
-    won = False
+    won = bought = False
     if snack == _FREE:
         kind = InteractionKind.FREE_SNACK
     elif await log.take_won_snack(guild_id, user_id, snack.key):
@@ -1431,6 +1436,7 @@ async def _eat(
         won = True
     elif await log.take_snack(guild_id, user_id, snack.key):
         kind = InteractionKind.SNACK
+        bought = await bot.cravings.feed_bought(guild_id, user_id, snack.key, now)
     else:
         raise Refusal(f"♪ You're out of {snack.name}.")
     bond = casual_bond_grant(
@@ -1445,7 +1451,7 @@ async def _eat(
         guild_id, life.id, user_id, kind, bond, points, now, snack=snack.key
     )
     await bot.lives.save(guild_id, life)
-    return _Meal(life, player, before, won)
+    return _Meal(life, player, before, won, bought)
 
 
 def full_text(now: datetime) -> str:
@@ -1468,15 +1474,19 @@ def _reaction(
     favorite: str | None,
     *,
     won: bool = False,
+    bought: bool = False,
 ) -> tuple[Moment, str]:
     """The moment Wisp reacts with and the name of his eating GIF.
 
     A snack the member won for him always gets its own line, even in his
-    sleep, then his favorite snack. Otherwise pickles go the other way from
-    the member's stance; every other snack ignores it.
+    sleep, then the craved snack they bought him after losing, then his
+    favorite snack. Otherwise pickles go the other way from the member's
+    stance; every other snack ignores it.
     """
     if won:
         return Moment.SNACK_WON, snack.gif_name
+    if bought:
+        return Moment.SNACK_CRAVING_BOUGHT, snack.gif_name
     if snack.key == favorite:
         return Moment.SNACK_FAVORITE, snack.gif_name
     if snack.key == _PICKLES and stance is not None:
@@ -1494,7 +1504,7 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     """Feed Wisp the chosen snack, tell the member, then show it in his House.
 
     While he naps he eats in his sleep, and his line is a sleepy one, unless
-    it is a snack the member won for him.
+    it is a snack the member won for him or the craved one they bought him.
     """
     bot = bot_of(interaction)
     guild_id = require_guild(interaction)
@@ -1511,9 +1521,13 @@ async def _feed(interaction: discord.Interaction, snack: Snack) -> None:
     emoji = bot.emoji(snack.emoji_name)
     wellbeing = meter_receipt("Wellbeing", meal.wellbeing_before, meal.life.wellbeing)
     moment, gif_name = _reaction(
-        snack, meal.player.pickle_stance, meal.life.favorite_snack, won=meal.won
+        snack,
+        meal.player.pickle_stance,
+        meal.life.favorite_snack,
+        won=meal.won,
+        bought=meal.bought,
     )
-    if is_napping(meal.life) and not meal.won:
+    if is_napping(meal.life) and not (meal.won or meal.bought):
         moment = Moment.SNACK_ASLEEP
     await say_in_house(
         bot,

@@ -2115,6 +2115,83 @@ async def test_a_won_snack_is_eaten_first_then_it_is_ordinary(
     assert server.house.send.await_args_list[0].args[0].endswith("the one you won!")
 
 
+async def lost_and_bought(bot: app.WispBot, snack: str) -> None:
+    await craving(bot, snack, won=False)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+    await buy(bot, snack)
+
+
+async def test_the_craved_snack_bought_after_losing_gets_its_line_once(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot, health=50.0)
+    await lost_and_bought(bot, "jellywave")
+    pick = say(bot, "you got it for me anyway")
+
+    await eat(bot, "jellywave")
+    await eat(bot, "jellywave")
+
+    assert [(said.args, said.kwargs) for said in pick.call_args_list] == [
+        (
+            (Moment.SNACK_CRAVING_BOUGHT, Mood.HAPPY),
+            {"name": "Member1", "snack": "Jelly Wave"},
+        ),
+        ((Moment.SNACK, Mood.HAPPY), {"name": "Member1"}),
+    ]
+    first = server.house.send.await_args_list[0].args[0]
+    assert first.endswith("you got it for me anyway")
+
+
+async def test_a_won_snack_comes_before_the_bought_craving(bot: app.WispBot) -> None:
+    await lay(bot, health=50.0)
+    await bot.activity_log.add_snack(GUILD_ID, USER_ID, "jellywave", won=True)
+    await lost_and_bought(bot, "jellywave")
+    pick = say(bot)
+
+    await eat(bot, "jellywave")
+    await eat(bot, "jellywave")
+
+    assert [said.args[0] for said in pick.call_args_list] == [
+        Moment.SNACK_WON,
+        Moment.SNACK_CRAVING_BOUGHT,
+    ]
+
+
+async def test_the_bought_craving_beats_his_favorite_and_his_nap(
+    bot: app.WispBot,
+) -> None:
+    life = await lay(bot, health=50.0)
+    life.favorite_snack = "jellywave"
+    life.nap_left = 1800.0
+    await bot.lives.save(GUILD_ID, life)
+    await lost_and_bought(bot, "jellywave")
+    pick = say(bot)
+
+    await eat(bot, "jellywave")
+
+    pick.assert_called_once_with(
+        Moment.SNACK_CRAVING_BOUGHT, Mood.HAPPY, name="Member1", snack="Jelly Wave"
+    )
+
+
+async def test_a_lost_craving_not_bought_is_an_ordinary_snack(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot, health=50.0)
+    await craving(bot, "jellywave", won=False)
+    await bot.players.add_points(GUILD_ID, USER_ID, 20)
+    await buy(bot, "cloudwave")
+    pick = say(bot)
+
+    await eat(bot, "jellywave")
+    await eat(bot, "cloudwave")
+
+    assert [said.args[0] for said in pick.call_args_list] == [
+        Moment.SNACK,
+        Moment.SNACK,
+    ]
+
+
 async def test_a_won_snack_beats_his_favorite_and_his_nap(bot: app.WispBot) -> None:
     life = await lay(bot, health=50.0)
     life.favorite_snack = "jellywave"

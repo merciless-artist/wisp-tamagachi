@@ -1,8 +1,9 @@
 """Storage for Wisp's Craving: each member's round for one UTC day."""
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 
+from db.activity import utc_day
 from db.database import Database, Row, from_db_time, to_db_time
 
 
@@ -12,7 +13,8 @@ class Round:
 
     `guesses` are the wrong snack keys guessed so far, in order. `ended_at` is
     None while the round is open; `bought_at` is when they bought the snack
-    themselves after losing.
+    themselves after losing, and `fed_at` when they fed that bought snack to
+    him.
     """
 
     guild_id: int
@@ -24,9 +26,13 @@ class Round:
     ended_at: datetime | None
     won: bool
     bought_at: datetime | None
+    fed_at: datetime | None
 
 
-_COLUMNS = "guild_id, user_id, day, snack, guesses, last_at, ended_at, won, bought_at"
+_COLUMNS = (
+    "guild_id, user_id, day, snack, guesses, last_at, ended_at, won, bought_at, "
+    "fed_at"
+)
 _KEY = "guild_id = %s AND user_id = %s AND day = %s"
 
 
@@ -46,6 +52,7 @@ def _from_row(row: Row) -> Round:
         ended_at=from_db_time(row["ended_at"]),
         won=bool(row["won"]),
         bought_at=from_db_time(row["bought_at"]),
+        fed_at=from_db_time(row["fed_at"]),
     )
 
 
@@ -168,15 +175,41 @@ class CravingRepo:
 
         A round started before midnight and lost after it counts as lost today.
         """
-        midnight = datetime.combine(_utc_date(now), time(), tzinfo=UTC)
+        start, _ = utc_day(now)
         row = await self._db.fetchone(
             f"SELECT {_COLUMNS} FROM {self._db.t('cravings')} "
             "WHERE guild_id = %s AND user_id = %s AND snack = %s AND won = 0 "
             "AND bought_at IS NULL AND ended_at >= %s AND ended_at <= %s "
             "ORDER BY ended_at DESC LIMIT 1",
-            (guild_id, user_id, snack, to_db_time(midnight), to_db_time(now)),
+            (guild_id, user_id, snack, start, to_db_time(now)),
         )
         return None if row is None else _from_row(row)
+
+    async def feed_bought(
+        self, guild_id: int, user_id: int, snack: str, now: datetime
+    ) -> bool:
+        """Record the member feeding him the `snack` they bought after losing.
+
+        It takes the latest lost round craving `snack` that they bought on the
+        UTC day of `now` and have not fed yet. Returns False, changing nothing,
+        when there is none.
+        """
+        start, _ = utc_day(now)
+        changed = await self._db.execute(
+            f"UPDATE {self._db.t('cravings')} SET fed_at = %s "
+            "WHERE guild_id = %s AND user_id = %s AND snack = %s AND won = 0 "
+            "AND fed_at IS NULL AND bought_at >= %s AND bought_at <= %s "
+            "ORDER BY bought_at DESC LIMIT 1",
+            (
+                to_db_time(now),
+                guild_id,
+                user_id,
+                snack,
+                start,
+                to_db_time(now),
+            ),
+        )
+        return changed == 1
 
     async def get(self, guild_id: int, user_id: int, day: date) -> Round | None:
         """Return the member's round for the UTC date `day`, or None."""

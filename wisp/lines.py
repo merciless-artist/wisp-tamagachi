@@ -92,6 +92,7 @@ class Moment(StrEnum):
     CRAVING_LOST = auto()
     CRAVING_TIMED_OUT = auto()
     SNACK_WON = auto()
+    SNACK_CRAVING_BOUGHT = auto()
 
 
 _NAME = frozenset({"name"})
@@ -179,6 +180,7 @@ FIELDS: dict[Moment, frozenset[str]] = {
     Moment.CRAVING_LOST: _SNACK,
     Moment.CRAVING_TIMED_OUT: _SNACK,
     Moment.SNACK_WON: _NAME_SNACK,
+    Moment.SNACK_CRAVING_BOUGHT: _NAME_SNACK,
 }
 """Fields each moment's lines may use; pick() requires exactly these.
 
@@ -1215,6 +1217,15 @@ _SNACK_WON = (
     "{name} kept their promise. the {snack} I was craving. nom",
 )
 
+_SNACK_CRAVING_BOUGHT = (
+    "wait. {snack}?? the one I was craving! you got it for me anyway, {name}",
+    "{name}, you couldn't guess it so you just BOUGHT it. {snack}. I'm melting",
+    "you lost my Craving and still came back with {snack}. {name}, you're the best",
+    "{snack}! the exact one! {name}, you didn't have to. I'm so glad you did",
+    "no way. you went and got me the {snack} anyway. {name}, I owe you one",
+    "{name} heard my stomach all the way from the Vault. {snack}, finally. nom",
+)
+
 CRAVING_HINTS: Final[dict[str, tuple[str, str, str]]] = {
     "cloudwave": (
         "something... soft",
@@ -1563,6 +1574,7 @@ LINES: dict[tuple[Moment, Mood], tuple[str, ...]] = {
     **_either_mood(Moment.CRAVING_LOST, _CRAVING_LOST),
     **_either_mood(Moment.CRAVING_TIMED_OUT, _CRAVING_TIMED_OUT),
     **_either_mood(Moment.SNACK_WON, _SNACK_WON),
+    **_either_mood(Moment.SNACK_CRAVING_BOUGHT, _SNACK_CRAVING_BOUGHT),
 }
 """Every moment has happy and hangry lines. One without lonely lines of its own
 says its happy lines when he is lonely; see `lines_for`."""

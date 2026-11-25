@@ -100,6 +100,7 @@ ONE_MOOD_MOMENTS = {
     Moment.CRAVING_LOST,
     Moment.CRAVING_TIMED_OUT,
     Moment.SNACK_WON,
+    Moment.SNACK_CRAVING_BOUGHT,
 }
 CHORE_AND_COLD_MOMENTS = [
     Moment.MESS,
@@ -596,6 +597,7 @@ CRAVING_MOMENTS = [
     (Moment.CRAVING_LOST, {"snack"}),
     (Moment.CRAVING_TIMED_OUT, {"snack"}),
     (Moment.SNACK_WON, {"name", "snack"}),
+    (Moment.SNACK_CRAVING_BOUGHT, {"name", "snack"}),
 ]
 SNACK_WORDS = {
     word.rstrip("s")

@@ -66,6 +66,7 @@ from wisp.rules import (
     POKE_SLEEP_AFTER,
     POKE_STREAK_GAP,
     POX_PICTURES,
+    SICK_TALK_PICTURE_CHANCE,
     TALK_COOLDOWN,
     WELLBEING_PER_POKE,
     WOKEN_FOR,
@@ -2361,12 +2362,27 @@ async def test_a_sick_reply_carries_one_picture_from_the_sickness_pool(
     cold: float,
 ) -> None:
     await lay_sick(bot, stage, pox, cold)
+    bot.talk.rng = SHOWS
     said = message.to_wisp("how are you")
 
     await cog.on_message(said)
 
     assert reply_text(said) == "hey you"
     assert reply_picture(said) in sick_pool(stage, pox)
+
+
+async def test_outside_its_chance_a_sick_reply_has_no_picture(
+    cog: Conversation, bot: app.WispBot, ai: AsyncMock, message: MessageFactory
+) -> None:
+    await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    bot.talk.rng = FixedRoll(SICK_TALK_PICTURE_CHANCE)
+    ai.return_value = "lol achoo"
+    said = message.to_wisp("how are you")
+
+    await cog.on_message(said)
+
+    assert reply_text(said) == "lol achoo"
+    assert reply_picture(said) is None
 
 
 @pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
@@ -2381,6 +2397,7 @@ async def test_a_sick_fallback_line_says_what_he_has_with_a_picture(
     moment: Moment,
 ) -> None:
     await lay_sick(bot, stage, pox, cold)
+    bot.talk.rng = SHOWS
     ai.side_effect = OUTAGE
     said = message.to_wisp("how are you")
 
@@ -2412,6 +2429,7 @@ async def test_a_picture_missing_from_disk_is_skipped(
     (tmp_path / "moments" / "sneeze.gif").write_bytes(b"GIF89a")
     monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
     await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    bot.talk.rng = SHOWS
     said = message.to_wisp("how are you")
 
     await cog.on_message(said)
@@ -2428,6 +2446,7 @@ async def test_with_no_picture_on_disk_the_sick_reply_is_words_only(
 ) -> None:
     monkeypatch.setattr(assets, "ASSETS_DIR", tmp_path)
     await lay_sick(bot, Stage.TEEN, 0.0, 10.0)
+    bot.talk.rng = SHOWS
     said = message.to_wisp("how are you")
 
     await cog.on_message(said)
@@ -2447,11 +2466,23 @@ async def test_a_sick_poke_posts_one_picture_from_the_pool(
     cold: float,
 ) -> None:
     await lay_sick(bot, stage, pox, cold)
+    bot.talk.rng = SHOWS
 
     await poke()
 
     (picture,) = house_pictures(server)
     assert picture in sick_pool(stage, pox)
+
+
+async def test_outside_its_chance_a_sick_poke_has_no_picture(
+    bot: app.WispBot, ai: AsyncMock, server: FakeServer, poke: Press
+) -> None:
+    await lay_sick(bot, Stage.ADULT, 0.0, 10.0)
+    bot.talk.rng = FixedRoll(SICK_TALK_PICTURE_CHANCE)
+
+    await poke()
+
+    assert house_pictures(server) == [None]
 
 
 @pytest.mark.parametrize(("stage", "pox", "cold", "moment"), SICK)
@@ -2491,6 +2522,7 @@ async def test_a_refused_sick_picture_still_sends_the_words(
     message: MessageFactory,
 ) -> None:
     await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    bot.talk.rng = SHOWS
     said = message.to_wisp("how are you")
     refused = discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
     said.reply.side_effect = [refused, None]
@@ -2514,6 +2546,7 @@ async def test_a_refused_sick_picture_is_reported_once_per_streak(
     message: MessageFactory,
 ) -> None:
     await lay_sick(bot, Stage.TEEN, 10.0, 0.0)
+    bot.talk.rng = SHOWS
     refused = discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
     for _ in range(2):
         said = message.to_wisp("how are you")
@@ -3086,6 +3119,17 @@ class FixedRoll(HeaviestChoice):
         return self.roll
 
 
+class Rolls(random.Random):
+    """Rolls `rolls` in order, one per chance."""
+
+    def __init__(self, *rolls: float) -> None:
+        super().__init__(0)
+        self.rolls = list(rolls)
+
+    def random(self) -> float:
+        return self.rolls.pop(0)
+
+
 SHOWS = FixedRoll(0.0)
 HIDES = FixedRoll(MOOD_TALK_PICTURE_CHANCE)
 
@@ -3217,6 +3261,27 @@ def test_a_sick_picture_wins_over_his_mood() -> None:
 
     assert picture is not None
     assert picture.name in POX_PICTURES[Stage.TEEN]
+
+
+@pytest.mark.parametrize(
+    ("pox", "cold"),
+    [pytest.param(10.0, 0.0, id="pox"), pytest.param(0.0, 10.0, id="cold")],
+)
+def test_a_sick_answer_outside_its_chance_has_no_mood_gif_either(
+    pox: float, cold: float
+) -> None:
+    life = living(stage=Stage.TEEN, cold_left=pox, sniffles_left=cold)
+
+    assert talk_image(life, "lol", START, Rolls(SICK_TALK_PICTURE_CHANCE, 0.0)) is None
+
+
+def test_a_sick_picture_shows_only_within_its_chance() -> None:
+    life = living(stage=Stage.TEEN, sniffles_left=10.0)
+    rng = random.Random(11)
+
+    shown = sum(talk_image(life, "hm", START, rng) is not None for _ in range(400))
+
+    assert 0.25 * 400 < shown < 0.45 * 400
 
 
 def test_the_egg_shows_no_mood_gif() -> None:

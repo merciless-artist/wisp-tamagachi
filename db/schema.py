@@ -255,6 +255,7 @@ _DEFINITIONS: dict[str, str] = {
         ended_at DATETIME NULL,
         won BOOL NOT NULL DEFAULT 0,
         bought_at DATETIME NULL,
+        fed_at DATETIME NULL,
         PRIMARY KEY (guild_id, user_id, day),
         INDEX idx_open (guild_id, ended_at)
     """,
@@ -326,6 +327,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "badges": {"removed_at": "DATETIME NULL"},
     "favorites": {"artist": "VARCHAR(100) NULL", "title": "VARCHAR(200) NULL"},
     "interactions": {"snack": "VARCHAR(20) NULL"},
+    "cravings": {"fed_at": "DATETIME NULL"},
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",

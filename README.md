@@ -203,10 +203,12 @@ shows his sick picture meanwhile.
 
 While he has Monster Pox or a cold, anyone who talks to him or pokes him gets a
 reply that says plainly what he has and how many hours are left, and that
-the Wisp FAQ answers questions about his sickness, with a picture: his sick
+the Wisp FAQ answers questions about his sickness. With chance
+`SICK_TALK_PICTURE_CHANCE` (0.35) the reply carries a picture: his sick
 picture or `sneeze.gif` for Monster Pox, `wispsick.gif` or `sneeze.gif` for a
-cold. Monster Pox wins when he has both. If Discord refuses the picture, the
-words are sent without it.
+cold. Otherwise it has no picture (never a mood gif while he is sick). Monster
+Pox wins when he has both. If Discord refuses the picture, the words are sent
+without it.
 
 ## Mood gifs
 
@@ -227,7 +229,8 @@ and `mp4s/`) are not committed.
   tantrum picture (`TANTRUM_PICTURES`, see Assets), else words and button.
 - **A poke that wakes him** (from a nap, or a quiet House): the annoyed gif,
   else the nap picture while he is young enough to have one.
-- **Answers to mentions and pokes:** a sick picture wins. Otherwise, with
+- **Answers to mentions and pokes:** while he is sick, a sick picture with
+  chance `SICK_TALK_PICTURE_CHANCE` (0.35) and otherwise none. Otherwise, with
   chance `MOOD_TALK_PICTURE_CHANCE` (0.35), he shows the gif of what he feels:
   angry while starving or throwing a tantrum, else annoyed while cranky or
   with an open mess, else crying while lonely, else lol when his answer laughs
@@ -603,7 +606,10 @@ round starts, so starting again (or a bot restart) picks up the same round.
 Win or lose, a finished round raises his Wellbeing and bond like a counted
 duel and pays its wisp coins, sharing the daily bond cap. He notes what he
 craved and whether you guessed it, and, if you lost and then buy that snack
-yourself the same UTC day, that you bought it anyway. The same refusals as
+yourself the same UTC day, that you bought it anyway. The first time you feed
+him that snack the same UTC day you bought it, he says it is the one he was
+craving and you got it for him anyway (`cravings.fed_at` keeps it to once); a
+won one of that snack is eaten first and keeps its own line. The same refusals as
 the duel apply: banned, not joined, no living Wisp, frozen, napping, or no
 feeding role.
 
@@ -860,7 +866,9 @@ posts text only.
   for Child's crying gif until `childcry.gif` is added, and `sick_baby.png`,
   `sick_child.png` and `sick_teen.png` are for his Monster Pox. The sick picture
   is also on the status card and the Poke Wisp panel while he is sick, and
-  `sneeze.gif` joins the pictures his sick replies pick from.
+  `sneeze.gif` joins the pictures his sick replies pick from, with
+  `childpox.png` (Child) and `teenpox.png` (Teen) for Monster Pox replies only.
+  All the pox pictures are sticker sized, 320 by 320.
 - `moments/` pictures for his chores: `poop.gif` (Baby and Child),
   `pimple.gif` (Teen), `trash_adult.gif` (Adult), `trash_rockstar.gif`
   (Rockstar) and `dentures.gif` (Old Fogey) for the messes; `wispsick.gif` for a

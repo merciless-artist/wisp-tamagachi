@@ -206,11 +206,17 @@ MESSES: Final[dict[Stage, tuple[str, str, str | None]]] = {
 SNIFFLES_PICTURE: Final = "wispsick.gif"
 MEDICINE_PICTURE: Final = "medicine.png"
 SNEEZE_PICTURE: Final = "sneeze.gif"
+# More Monster Pox pictures in ASSETS/moments for his replies only, by stage.
+POX_TALK_PICTURES: Final[dict[Stage, str]] = {
+    Stage.CHILD: "childpox.png",
+    Stage.TEEN: "teenpox.png",
+}
 # The pictures in ASSETS/moments one of which goes with his reply to a member
 # talking to him or poking him while he is sick. Monster Pox wins over a cold.
 POX_PICTURES: Final[dict[Stage, tuple[str, ...]]] = {
     stage: (
         *((SICK_PICTURES[stage],) if stage in SICK_PICTURES else ()),
+        *((POX_TALK_PICTURES[stage],) if stage in POX_TALK_PICTURES else ()),
         SNEEZE_PICTURE,
     )
     for stage in Stage
@@ -783,6 +789,9 @@ CHIME_IN_GAP = timedelta(minutes=90)
 # The chance his answer to a mention or a poke shows the mood gif of what he
 # feels (angry, annoyed, crying) or of a laugh in his words, when he is not sick.
 MOOD_TALK_PICTURE_CHANCE = 0.35
+# The chance his answer to a mention or a poke shows a sick picture while he is
+# sick; otherwise that answer has no picture at all.
+SICK_TALK_PICTURE_CHANCE = 0.35
 CONTEXT_LINES = 12
 CONTEXT_LINE_CHARS = 300
 NOTES_KEPT = 8

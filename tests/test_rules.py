@@ -20,6 +20,7 @@ from wisp.rules import (
     NAP_FOR,
     OLD_FOGEY_AT_DAY,
     POX_PICTURES,
+    POX_TALK_PICTURES,
     RHYME_SKILL,
     RHYME_SURE_TURNS,
     ROOM_ARCHIVE_MINUTES,
@@ -135,11 +136,28 @@ def test_a_badge_no_longer_sold_still_has_a_readable_name(key: str, name: str) -
 
 
 @pytest.mark.parametrize("stage", list(Stage))
-def test_the_pox_pool_is_his_sick_picture_and_the_sneeze(stage: Stage) -> None:
-    expected: tuple[str, ...] = ("sneeze.gif",)
-    if stage in SICK_PICTURES:
-        expected = (SICK_PICTURES[stage], "sneeze.gif")
+def test_the_pox_pool_is_his_sick_pictures_and_the_sneeze(stage: Stage) -> None:
+    expected = (
+        *((SICK_PICTURES[stage],) if stage in SICK_PICTURES else ()),
+        *((POX_TALK_PICTURES[stage],) if stage in POX_TALK_PICTURES else ()),
+        "sneeze.gif",
+    )
     assert POX_PICTURES[stage] == expected
+
+
+@pytest.mark.parametrize(
+    ("stage", "pool"),
+    [
+        (Stage.BABY, ("sick_baby.png", "sneeze.gif")),
+        (Stage.CHILD, ("sick_child.png", "childpox.png", "sneeze.gif")),
+        (Stage.TEEN, ("sick_teen.png", "teenpox.png", "sneeze.gif")),
+        (Stage.ADULT, ("sneeze.gif",)),
+    ],
+)
+def test_child_and_teen_have_an_extra_pox_picture(
+    stage: Stage, pool: tuple[str, ...]
+) -> None:
+    assert POX_PICTURES[stage] == pool
 
 
 def test_the_cold_pool_is_the_cold_picture_and_the_sneeze() -> None:

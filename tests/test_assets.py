@@ -18,6 +18,7 @@ from wisp.rules import (
     LONELY_PICTURES,
     MEDICINE_PICTURE,
     MESSES,
+    POX_PICTURES,
     SNIFFLES_PICTURE,
     TANTRUM_PICTURES,
     Stage,
@@ -69,6 +70,7 @@ def test_every_chore_picture_is_in_the_moments_folder() -> None:
         MEDICINE_PICTURE,
         *LONELY_PICTURES.values(),
         *TANTRUM_PICTURES.values(),
+        *(name for pool in POX_PICTURES.values() for name in pool),
     ]
     for name in names:
         assert (ASSETS_DIR / "moments" / name).is_file(), name

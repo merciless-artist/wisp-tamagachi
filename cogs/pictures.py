@@ -36,6 +36,7 @@ from wisp.rules import (
     MOOD_TALK_PICTURE_CHANCE,
     POX_PICTURES,
     SICK_PICTURES,
+    SICK_TALK_PICTURE_CHANCE,
     SNIFFLES_PICTURE,
     Stage,
 )
@@ -137,11 +138,15 @@ def talk_mood(life: Life, text: str, now: datetime) -> MoodGif | None:
 def talk_image(life: Life, text: str, now: datetime, rng: random.Random) -> Path | None:
     """The picture for his answer `text` to a mention or a poke, or None.
 
-    A sick picture wins. Otherwise a living Wisp shows the mood gif of
-    `talk_mood` with MOOD_TALK_PICTURE_CHANCE, when his stage has one on disk.
+    While he is sick it is a sick picture with SICK_TALK_PICTURE_CHANCE and
+    otherwise none, never a mood gif. A living Wisp who is not sick shows the
+    mood gif of `talk_mood` with MOOD_TALK_PICTURE_CHANCE, when his stage has
+    one on disk.
     """
-    if (sick := sick_talk_image(life, rng)) is not None:
-        return sick
+    if sickness(life) is not None:
+        if rng.random() >= SICK_TALK_PICTURE_CHANCE:
+            return None
+        return sick_talk_image(life, rng)
     if life.phase is not Phase.ALIVE:
         return None
     feeling = talk_mood(life, text, now)

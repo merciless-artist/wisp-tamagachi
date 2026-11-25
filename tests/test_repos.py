@@ -1496,6 +1496,37 @@ async def test_bought_is_marked_once_and_only_after_a_loss(db: Database) -> None
     assert bought is not None and bought.bought_at == NOW
 
 
+async def test_a_bought_craving_is_fed_once_that_day_and_only_its_snack(
+    db: Database,
+) -> None:
+    repo = CravingRepo(db)
+    day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
+    later = NOW + timedelta(minutes=5)
+
+    assert await repo.feed_bought(GUILD, USER, "jellywave", later) is False
+    await repo.end(GUILD, USER, day, won=False, now=NOW)
+    assert await repo.feed_bought(GUILD, USER, "jellywave", later) is False
+    await repo.mark_bought(GUILD, USER, day, NOW)
+    assert await repo.feed_bought(GUILD, USER, "cheese", later) is False
+    assert await repo.feed_bought(GUILD, OTHER_USER, "jellywave", later) is False
+    assert await repo.feed_bought(GUILD, USER, "jellywave", later) is True
+    assert await repo.feed_bought(GUILD, USER, "jellywave", later) is False
+    fed = await repo.today(GUILD, USER, NOW)
+    assert fed is not None and fed.fed_at == later
+
+
+async def test_a_craving_bought_yesterday_is_not_fed_today(db: Database) -> None:
+    repo = CravingRepo(db)
+    day = (await repo.start(GUILD, USER, "jellywave", NOW)).day
+    await repo.end(GUILD, USER, day, won=False, now=NOW)
+    await repo.mark_bought(GUILD, USER, day, NOW)
+
+    assert (
+        await repo.feed_bought(GUILD, USER, "jellywave", NOW + timedelta(days=1))
+        is False
+    )
+
+
 async def test_craving_bond_counts_toward_the_casual_cap(db: Database) -> None:
     log = ActivityRepo(db)
     await log.record_interaction(GUILD, 1, USER, InteractionKind.CRAVING, 3, 0, NOW)

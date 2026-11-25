@@ -613,6 +613,12 @@ async def test_create_tables_adds_cravings_beside_live_tables(db: Database) -> N
             "(guild_id, life_id, user_id, kind, bond, meal_points, at) "
             "VALUES (1, 1, 2, 'snack', 1, 8, '2026-11-23 12:00:00')",
         ),
+        (
+            "cravings",
+            "fed_at",
+            "(guild_id, user_id, day, snack, last_at) "
+            "VALUES (1, 2, '2026-11-23', 'cheese', '2026-11-23 12:00:00')",
+        ),
     ],
 )
 async def test_create_tables_adds_lunchbox_columns_to_live_tables(

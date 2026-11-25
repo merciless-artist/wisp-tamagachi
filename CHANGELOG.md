@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-25 (Fewer sick pictures, and Wisp knows a bought Craving snack)
+
+- **Sick replies:** while he has Monster Pox or a cold, his answers to
+  mentions and pokes (AI or canned) carry a sick picture only with chance
+  `SICK_TALK_PICTURE_CHANCE` (0.35, new), not every time: the sneeze gif is
+  big and got annoying. Otherwise the answer has no picture; a sick Wisp never
+  shows a mood gif instead. The sick post in the House is unchanged.
+- **More pox pictures:** Myra's `childpox.png` and `teenpox.png` join the
+  pictures a Child's or Teen's Monster Pox replies pick from (new
+  `POX_TALK_PICTURES`); his sick post and status card keep `sick_<stage>.png`.
+  All five pox pictures were shrunk to sticker size, 320 by 320 (originals in
+  RECYCLING).
+- **Feeding the craved snack bought after losing:** the first time a member
+  feeds Wisp the snack they bought the same UTC day after losing his Craving
+  for it, his line says it is the one he was craving and they got it for him
+  anyway (new moment `SNACK_CRAVING_BOUGHT`, six lines), even in his sleep. It
+  counts once per bought round. A won one of that snack is eaten first and
+  keeps the won line.
+- **Storage:** new `cravings.fed_at DATETIME NULL`, added to the live table at
+  startup.
+
 ## 2026-11-25 (Snacks picture back in the ViiBR Vault)
 
 - The Vault post's snack shelf shows Myra's `VV_Snacks.gif` above the snack

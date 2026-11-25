@@ -126,6 +126,11 @@ they can look at their Snack Pack any time.
 - **Feeding a won snack:** while the member holds a won one of that snack,
   feeding any of that snack uses the won one first, and Wisp's line is about it being the one they won **for** him
   ("this is the one you won for me!"). Then it is an ordinary snack.
+- **Feeding the craved snack bought after losing (Myra, 2026-11-25):** the
+  first time the member feeds that snack on the UTC day they bought it, Wisp's
+  line says it is the one he was craving and they got it for him anyway, even
+  in his sleep. It counts once per bought round (`cravings.fed_at`). A won one
+  of that snack is eaten first and keeps the won line.
 - **Win or lose (my call):** every finished round raises his Wellbeing and
   casual bond like a counted Rhyme Duel (`WELLBEING_PER_PLAY`,
   `BOND_PER_PLAY`), and the receipt says so. The bond shares the daily casual
@@ -149,6 +154,9 @@ they can look at their Snack Pack any time.
   room.
 - `inventory.won INT NOT NULL DEFAULT 0`: how many of that snack in the pack
   were won for Wisp; never more than `qty`.
+- `cravings.bought_at DATETIME NULL`: when the member bought the craved snack
+  after losing. `cravings.fed_at DATETIME NULL` (added 2026-11-25): when they
+  fed that bought snack to him.
 - `InteractionKind.CRAVING = "craving"` in the interactions table, written
   when a round ends.
 - A new `cravings` table: `guild_id`, `user_id`, `day` (UTC date), `snack`,
