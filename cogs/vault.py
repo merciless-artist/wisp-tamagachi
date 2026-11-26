@@ -13,6 +13,7 @@ from cogs.headers import (
     repost_headed_in_thread,
     send_framed,
 )
+from cogs.help_pings import HelpPingsButton, give_on_board
 from cogs.players import say_privately
 from cogs.rooms import RoomError, open_room
 from cogs.snacks import vault_buttons
@@ -156,8 +157,10 @@ async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
 async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     """Show the Vault card to the member who asked, and join them in on first use.
 
-    Every run also makes sure the member has their room. A room that cannot
-    be made is reported and tried again next time; the board still shows.
+    Every run also gives the member the helper role (see `give_on_board`) and
+    makes sure they have their room. A room that cannot be made is reported
+    and tried again next time; the board still shows. With a helper role set,
+    the board's buttons end with the help pings button.
     """
     bot = interaction.client
     guild_id = require_guild(interaction)
@@ -166,6 +169,11 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
         await bot.players.activate(guild_id, interaction.user.id, now)
         await say_privately(interaction, "♪ You're on Wisp's radar now.")
+    buttons = vault_buttons()
+    if interaction.guild is not None and isinstance(interaction.user, discord.Member):
+        holds = await give_on_board(bot, interaction.guild, interaction.user)
+        if holds is not None:
+            buttons[-1].append(HelpPingsButton(holds))
     if interaction.guild is not None:
         try:
             await open_room(bot, interaction.guild, interaction.user)
@@ -180,7 +188,7 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
         functools.partial(interaction.followup.send, ephemeral=True),
         _HEADER,
         await render_leaderboard(bot, guild_id, now, private=True),
-        vault_buttons(),
+        buttons,
         allowed_mentions=_NO_PING,
         wait=True,
     )

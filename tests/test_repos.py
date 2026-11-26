@@ -622,6 +622,29 @@ async def test_rhyme_language_starts_unset_and_is_saved(db: Database) -> None:
     assert (await repo.get(GUILD, USER)).rhyme_language is Language.ES
 
 
+async def test_help_pings_start_on_and_the_opt_out_is_saved(db: Database) -> None:
+    repo = PlayerRepo(db)
+    assert (await repo.get(GUILD, USER)).help_pings_off is False
+
+    await repo.set_help_pings_off(GUILD, USER, True)
+    assert (await repo.get(GUILD, USER)).help_pings_off is True
+    assert (await repo.get(GUILD, OTHER_USER)).help_pings_off is False
+
+    await repo.set_help_pings_off(GUILD, USER, False)
+    assert (await repo.get(GUILD, USER)).help_pings_off is False
+
+
+async def test_the_helper_role_is_saved_and_cleared(db: Database) -> None:
+    repo = SettingsRepo(db)
+    assert (await repo.get(GUILD)).helper_role_id is None
+
+    await repo.update(GUILD, helper_role_id=55)
+    assert (await SettingsRepo(db).get(GUILD)).helper_role_id == 55
+
+    await repo.update(GUILD, helper_role_id=None)
+    assert (await SettingsRepo(db).get(GUILD)).helper_role_id is None
+
+
 async def test_offense_round_trip(db: Database) -> None:
     repo = PlayerRepo(db)
     until = NOW + timedelta(days=7)

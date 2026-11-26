@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-25 (Help pings)
+
+- **Helper role:** staff set it with `!wisp helperrole @role` (and clear it
+  with `!wisp helperrole off`); @everyone is refused. Setting it gives it at
+  once to every member who opened `/wisp board`, is still in the server and
+  has not turned help pings off, and the answer says how many got it. A
+  failure is posted where the command was used as
+  `Error in giving the helper role: <Type>: <message>`; a Forbidden stops the
+  rest. `!wisp setup` names the helper role, or says none is set or that it
+  was deleted. Discord only notifies a role ping when the role allows anyone
+  to mention it or Wisp has Mention Everyone, so both answers warn staff when
+  neither is true for the helper role.
+- **Pinged posts:** the mess, tantrum and lights off posts in Wisp's House
+  start with the helper role and ping it, and only it. Every other House post
+  (hungry, lonely, sick, stage, the cold and the rest) still pings nobody,
+  and so does a staff test life. With no role set, or a deleted one, the
+  posts are unchanged.
+- **On the board:** opening `/wisp board` gives the member the helper role
+  right away. A role Wisp cannot give is only logged and the board still
+  shows. Its buttons end with **Stop help pings** or **Get help pings**, a
+  persistent button (`wisp:helppings`) that takes the role off or gives it
+  back, answered privately; the button is relabelled on the board to match.
+  Members who stopped them are never given the role
+  again by the board or the backfill until they press Get help pings.
+- **Storage:** new `settings.helper_role_id BIGINT NULL` and
+  `players.help_pings_off BOOL NOT NULL DEFAULT 0`, added to the live tables
+  at startup.
+
 ## 2026-11-25 (Bigger rhyme dictionaries)
 
 - **French** now knows every Lexique 3.83 word form (`wisp/data/lexique_fr.txt`,

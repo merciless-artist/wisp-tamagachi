@@ -181,11 +181,13 @@ class _House:
         image: Path | Upload | None = None,
         view: discord.ui.View | None = None,
         ping: int | None = None,
+        ping_role: int | None = None,
     ) -> discord.Message | None:
         """Post a line, with an image or buttons when given, and return the post.
 
-        Nobody is pinged unless `ping` names the one member who may be. A
-        failure is reported and returns None, as does a missing House.
+        Nobody is pinged unless `ping` names the one member or `ping_role` the
+        one role that may be. A failure is reported and returns None, as does a
+        missing House.
         """
         if self._channel is None:
             return None
@@ -197,11 +199,11 @@ class _House:
             extras["view"] = view
         mentions = (
             _NO_PING
-            if ping is None
+            if ping is None and ping_role is None
             else discord.AllowedMentions(
                 everyone=False,
-                roles=False,
-                users=[discord.Object(ping)],
+                roles=False if ping_role is None else [discord.Object(ping_role)],
+                users=False if ping is None else [discord.Object(ping)],
                 replied_user=False,
             )
         )
@@ -296,14 +298,15 @@ async def say_in_house(
     image: Path | None = None,
     view: discord.ui.View | None = None,
     ping: int | None = None,
+    ping_role: int | None = None,
 ) -> discord.Message | None:
     """Say one line for a moment in Wisp's House, in the mood of `life`.
 
     `name` and `snack` fill the line's name and snack when the moment has
     them, `prefix` goes in front of the line, `image` attaches a file, `view`
-    adds buttons and `ping` is the one member the post may ping. Returns the
-    post, or None when the House is missing or the post failed; either is
-    reported.
+    adds buttons, `ping` is the one member and `ping_role` the one role the
+    post may ping. Returns the post, or None when the House is missing or the
+    post failed; either is reported.
     """
     return await post_in_house(
         bot,
@@ -312,6 +315,7 @@ async def say_in_house(
         image,
         view,
         ping,
+        ping_role,
     )
 
 
@@ -322,16 +326,17 @@ async def post_in_house(
     image: Path | Upload | None = None,
     view: discord.ui.View | None = None,
     ping: int | None = None,
+    ping_role: int | None = None,
 ) -> discord.Message | None:
     """Post text in Wisp's House, with an image or buttons when given.
 
-    Nobody is pinged unless `ping` names the one member who may be. Returns
-    the post, or None when the House is missing or the post failed; either is
-    reported.
+    Nobody is pinged unless `ping` names the one member or `ping_role` the
+    one role that may be. Returns the post, or None when the House is missing
+    or the post failed; either is reported.
     """
     house = _House(bot, guild_id)
     await house.open()
-    return await house.say(text, image, view, ping)
+    return await house.say(text, image, view, ping, ping_role)
 
 
 async def edit_in_house(

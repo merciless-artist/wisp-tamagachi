@@ -939,6 +939,150 @@ async def test_a_failure_is_reported_where_the_button_was_pressed(
     assert report.startswith("Error in the chore button: HTTPException")
 
 
+# ---
+# Help pings
+# ---
+
+HELPER_ROLE = 55
+HELP_PING = discord.AllowedMentions(
+    everyone=False,
+    users=False,
+    roles=[discord.Object(HELPER_ROLE)],
+    replied_user=False,
+).to_dict()
+
+
+def set_helper_role(server: FakeServer, exists: bool = True) -> None:
+    role = MagicMock(spec=discord.Role, id=HELPER_ROLE)
+    server.guild.get_role.side_effect = {HELPER_ROLE: role}.get if exists else {}.get
+
+
+def open_for(life: Life, chore: Chore) -> ChoreEvent:
+    match chore:
+        case Chore.MESS:
+            open_mess(life)
+            return ChoreEvent(ChoreEventKind.MESS)
+        case Chore.TANTRUM:
+            open_tantrum(life)
+            return ChoreEvent(ChoreEventKind.TANTRUM)
+        case Chore.NAP:
+            start_nap(life)
+            return ChoreEvent(ChoreEventKind.NAP)
+
+
+@pytest.mark.parametrize("chore", list(Chore))
+async def test_a_chore_post_starts_with_the_helper_role_and_pings_only_it(
+    bot: app.WispBot, server: FakeServer, chore: Chore
+) -> None:
+    set_helper_role(server)
+    await bot.settings.update(GUILD_ID, helper_role_id=HELPER_ROLE)
+    life = await lay(bot)
+    event = open_for(life, chore)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [event])
+
+    (sent,) = server.house.send.await_args_list
+    mention, rest = sent.args[0].split(" ", 1)
+    assert mention == f"<@&{HELPER_ROLE}>"
+    assert "<@&" not in rest
+    assert sent.kwargs["allowed_mentions"].to_dict() == HELP_PING
+    assert message_id(await current_life(bot), chore) == FIRST_POST_ID
+
+
+async def test_a_mess_post_with_a_helper_role_still_names_the_mess(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    set_helper_role(server)
+    await bot.settings.update(GUILD_ID, helper_role_id=HELPER_ROLE)
+    life = await lay(bot)
+    event = open_for(life, Chore.MESS)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [event])
+
+    (sent,) = server.house.send.await_args_list
+    head, line = sent.args[0].split("\n")
+    assert head == f"<@&{HELPER_ROLE}> ♪ Wisp's mess: poop."
+    assert line in lines(Moment.MESS)
+
+
+@pytest.mark.parametrize("chore", list(Chore))
+async def test_without_a_helper_role_a_chore_post_pings_nobody(
+    bot: app.WispBot, server: FakeServer, chore: Chore
+) -> None:
+    set_helper_role(server)
+    life = await lay(bot)
+    event = open_for(life, chore)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [event])
+
+    (sent,) = server.house.send.await_args_list
+    assert "<@&" not in sent.args[0]
+    assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
+async def test_a_deleted_helper_role_pings_nobody(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    set_helper_role(server, exists=False)
+    await bot.settings.update(GUILD_ID, helper_role_id=HELPER_ROLE)
+    life = await lay(bot)
+    event = open_for(life, Chore.TANTRUM)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [event])
+
+    (sent,) = server.house.send.await_args_list
+    assert "<@&" not in sent.args[0]
+    assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
+@pytest.mark.parametrize("chore", list(Chore))
+async def test_a_test_life_chore_post_pings_nobody(
+    bot: app.WispBot, server: FakeServer, chore: Chore
+) -> None:
+    set_helper_role(server)
+    await bot.settings.update(GUILD_ID, helper_role_id=HELPER_ROLE)
+    life = await lay(bot)
+    life.is_test = True
+    event = open_for(life, chore)
+    await bot.lives.save(GUILD_ID, life)
+
+    await post_chores(bot, GUILD_ID, life, [event])
+
+    (sent,) = server.house.send.await_args_list
+    assert "<@&" not in sent.args[0]
+    assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
+async def test_a_cold_and_a_mess_left_too_long_never_ping_the_helper_role(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    set_helper_role(server)
+    await bot.settings.update(GUILD_ID, helper_role_id=HELPER_ROLE)
+    life = await lay(bot)
+    await bot.lives.save(GUILD_ID, life)
+    post = make_post(FIRST_POST_ID - 1)
+    server.posts[post.id] = post
+
+    await post_chores(
+        bot,
+        GUILD_ID,
+        life,
+        [
+            ChoreEvent(ChoreEventKind.MESS_LEFT, post.id),
+            ChoreEvent(ChoreEventKind.SNIFFLES),
+        ],
+    )
+
+    (sent,) = server.house.send.await_args_list
+    assert "<@&" not in sent.args[0]
+    assert sent.kwargs["allowed_mentions"].to_dict() == NO_PING
+    assert post.edit.await_args.kwargs["allowed_mentions"].to_dict() == NO_PING
+
+
 async def test_the_chore_button_is_registered_to_survive_a_restart(
     bot: app.WispBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:

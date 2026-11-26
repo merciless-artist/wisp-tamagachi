@@ -141,7 +141,10 @@ Wisp learning a member's name, but not toward bond, growth, caretakers, the
 
 ## His chores
 
-Each chore is a post in Wisp's House with one button that pings nobody. The
+Each chore is a post in Wisp's House with one button. When staff set a helper
+role (`!wisp helperrole @role`), the mess, tantrum and lights off posts start
+with that role and ping it, and nobody else; with none set, or during a staff
+test life, they ping nobody. No other House post ever pings it. The
 first member who can feed him to press it earns Vault points (2 for each chore),
 the post is edited to say who did it, and the button goes. A press after that is
 told it is already done. Chore timers count only unfrozen time, nothing happens
@@ -321,8 +324,9 @@ and `mp4s/`) are not committed.
   Manage Channels, to show Wisp's Studio forum as a gallery; without it
   every setup posts an error.
   Add Reactions, to react on a track post that fed him.
-  Manage Roles, to make the badge roles and give and take them; Wisp's own
-  role must sit above the badge roles.
+  Manage Roles, to make the badge roles and give and take them, and to give
+  the helper role; Wisp's own role must sit above the badge roles and the
+  helper role.
 - Upload the app emojis listed under Assets.
 - In the server, run `!wisp setup #house #studio #tracks #general`, then
   `!wisp roles add @role` for each role allowed to feed Wisp.
@@ -365,6 +369,17 @@ where the command was used.
   choose which roles can feed Wisp. Adding or removing one brings the rules
   post at the end of the Wisp FAQ up to date, and a refusal for a missing role
   names the server's feeding roles (up to two, then "or N more").
+- `!wisp helperrole @role` sets the helper role, pinged by the mess, tantrum
+  and lights off posts (see His chores), and gives it at once to every member
+  who opened `/wisp board`, is still in the server and has not turned help
+  pings off; the answer says how many got it. A failure to give it is posted
+  where the command was used as `Error in giving the helper role: ...`, and a
+  Forbidden stops the rest (Wisp needs Manage Roles and his own role above the
+  helper role). @everyone is refused. `!wisp helperrole off` clears it, so the
+  posts ping nobody; members keep the role. `!wisp setup` names the helper
+  role, or says none is set or that it was deleted. A role ping only notifies
+  anyone when the role has "Allow anyone to @mention this role" on or Wisp has
+  Mention Everyone in his House, so both commands warn when neither is true.
 - `!wisp staff add @role`, `!wisp staff remove @role`, `!wisp staff list`
   choose which roles are Wisp staff. The owner or a Manage Server member adds
   the first one.
@@ -455,7 +470,14 @@ where the command was used.
 Member commands:
 
 - `/wisp board` shows the leaderboard and Wisp's past versions, privately,
-  with the shop and Snack Pack buttons. Open it once to join in.
+  with the shop and Snack Pack buttons. Open it once to join in. With a helper
+  role set, opening it gives you that role right away, and the buttons end
+  with **Stop help pings** (or **Get help pings** when you don't have it),
+  which takes the role off or gives it back, says so privately and relabels
+  itself to match. Once you
+  stop them, Wisp never gives the role back on his own; pressing Get help
+  pings does. A role Wisp cannot give is only logged, and the board still
+  shows.
 - `/wisp vault` (also the Interaction post's **ViiBR Vault** button) is the shop: buy
   snacks with your wisp coins (WC, the points you can spend), get a badge, or
   give Wisp a gift from one of four collections: pick a collection, then a

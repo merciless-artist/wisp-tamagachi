@@ -41,8 +41,8 @@ STAFF_ROLE_ID = 930000000000000001
 OTHER_ROLE_ID = 930000000000000002
 NO_PING = discord.AllowedMentions.none().to_dict()
 COMMANDS = (
-    "setup, faq, freeze, unfreeze, song, roles, food, punish, unban, strip, "
-    "resetname, staff"
+    "setup, faq, freeze, unfreeze, song, say, roles, food, punish, unban, "
+    "strip, resetname, staff"
 )
 SONG_USAGE = "♪ Usage: !wisp song <link> <words...>"
 SONG_LINK = "https://suno.com/s/abc123"
@@ -594,6 +594,8 @@ async def test_setup(
         "・Studio threads: all seven already exist\n"
         "・No feeding roles yet, so nobody can feed Wisp. "
         "Add one with !wisp roles add @role.\n"
+        "・No helper role yet, so nobody is pinged when Wisp needs a hand. "
+        "Set one with !wisp helperrole @role.\n"
         "・New storage lockers: 0\n"
         "・Badge roles: all 2 ready"
     ]

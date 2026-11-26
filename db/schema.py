@@ -36,6 +36,7 @@ _DEFINITIONS: dict[str, str] = {
         shop_message_ids TEXT NULL,
         interaction_thread_id BIGINT NULL,
         interaction_message_id BIGINT NULL,
+        helper_role_id BIGINT NULL,
         PRIMARY KEY (guild_id)
     """,
     "qualifying_roles": """
@@ -115,6 +116,7 @@ _DEFINITIONS: dict[str, str] = {
         room_thread_id BIGINT NULL,
         room_pack_message_id BIGINT NULL,
         rhyme_language VARCHAR(2) NULL,
+        help_pings_off BOOL NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id, user_id)
     """,
     "feeds": """
@@ -309,6 +311,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "room_thread_id": "BIGINT NULL",
         "room_pack_message_id": "BIGINT NULL",
         "rhyme_language": "VARCHAR(2) NULL",
+        "help_pings_off": "BOOL NOT NULL DEFAULT 0",
     },
     "inventory": {"won": "INT NOT NULL DEFAULT 0"},
     "settings": {
@@ -323,6 +326,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "shop_message_ids": "TEXT NULL",
         "interaction_thread_id": "BIGINT NULL",
         "interaction_message_id": "BIGINT NULL",
+        "helper_role_id": "BIGINT NULL",
     },
     "badges": {"removed_at": "DATETIME NULL"},
     "favorites": {"artist": "VARCHAR(100) NULL", "title": "VARCHAR(200) NULL"},

@@ -29,6 +29,8 @@ class Settings:
     the ViiBR Vault post in the Studio and `shop_message_ids` its shelves, in
     order; the column holds them as a JSON list. `interaction_thread_id` is
     the Interaction post and `interaction_message_id` its card of buttons.
+    `helper_role_id` is the role pinged by the House posts that need a
+    member's help: a mess, a tantrum and lights off.
     """
 
     tracks_channel_id: int | None = None
@@ -54,6 +56,7 @@ class Settings:
     shop_message_ids: tuple[int, ...] | None = None
     interaction_thread_id: int | None = None
     interaction_message_id: int | None = None
+    helper_role_id: int | None = None
 
 
 _COLUMNS = tuple(field.name for field in fields(Settings))

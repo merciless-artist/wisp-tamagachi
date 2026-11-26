@@ -73,6 +73,18 @@ _NO_FEEDING_ROLES: Final = (
     "・No feeding roles yet, so nobody can feed Wisp. "
     "Add one with !wisp roles add @role."
 )
+_NO_HELPER_ROLE: Final = (
+    "・No helper role yet, so nobody is pinged when Wisp needs a hand. "
+    "Set one with !wisp helperrole @role."
+)
+_HELPER_ROLE_DELETED: Final = (
+    "・The helper role was deleted, so nobody is pinged. "
+    "Set one with !wisp helperrole @role."
+)
+_CANNOT_PING: Final = (
+    "・Wisp can't ping {role} yet. Turn on 'Allow anyone to @mention this role' "
+    "for it, or give Wisp Mention Everyone in his House."
+)
 TRACK_LABELS: dict[TrackKind, str] = {
     TrackKind.VIIBR: "viibrmusic.com track",
     TrackKind.SUNO: "Suno track",
@@ -773,6 +785,43 @@ def missing_house_permissions(
     return [name for name, needed in _HOUSE_PERMISSIONS if not needed <= have]
 
 
+def helper_role(guild: discord.Guild | None, settings: Settings) -> discord.Role | None:
+    """The guild's helper role, or None when none is set or it was deleted."""
+    if guild is None or settings.helper_role_id is None:
+        return None
+    return guild.get_role(settings.helper_role_id)
+
+
+def cannot_ping_line(
+    role: discord.Role, house: discord.abc.GuildChannel | None, me: discord.Member
+) -> list[str]:
+    """The warning for staff when Discord won't let Wisp ping `role`, else none.
+
+    A role ping only notifies anyone when the role may be mentioned by anyone
+    or Wisp has Mention Everyone where he posts: in his House, or anywhere on
+    the server while no House is set.
+    """
+    if role.mentionable:
+        return []
+    have = me.guild_permissions if house is None else house.permissions_for(me)
+    return [] if have.mention_everyone else [_CANNOT_PING.format(role=role.mention)]
+
+
+def _helper_lines(
+    guild: discord.Guild, settings: Settings, house: discord.TextChannel
+) -> list[str]:
+    """What setup says about the helper role: its name, or that there is none."""
+    role = helper_role(guild, settings)
+    if role is None:
+        return [
+            _NO_HELPER_ROLE if settings.helper_role_id is None else _HELPER_ROLE_DELETED
+        ]
+    return [
+        f"・Helper role: {role.mention}",
+        *cannot_ping_line(role, house, guild.me),
+    ]
+
+
 async def set_up(
     bot: "WispBot",
     guild: discord.Guild,
@@ -790,7 +839,9 @@ async def set_up(
     reported in `where`. A House or general chat that is also the track drop
     is refused, since Wisp never posts there. Returns the answer for staff,
     which says when no feeding role is set yet, since nobody can feed him then,
-    and which House permissions members' rooms still need. With those
+    names the helper role (warning when Wisp can't ping it) or says there is
+    none or that it was deleted, and says which House
+    permissions members' rooms still need. With those
     permissions in place, every member who opened /wisp board and has no
     storage locker gets one.
     """
@@ -823,6 +874,7 @@ async def set_up(
     )
     badge_lines = await ensure_badge_roles(bot, guild, where)
     roles_line = [] if await bot.settings.roles(guild.id) else [_NO_FEEDING_ROLES]
+    helper_lines = _helper_lines(guild, after, house)
     missing = missing_house_permissions(house, guild.me)
     permissions_line = (
         [f"・Wisp needs these in his House: {', '.join(missing)}"] if missing else []
@@ -837,6 +889,7 @@ async def set_up(
             f"・General chat: {'off' if general is None else general.mention}",
             f"・{threads}",
             *roles_line,
+            *helper_lines,
             *permissions_line,
             *lockers_line,
             *badge_lines,

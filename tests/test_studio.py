@@ -834,6 +834,63 @@ async def test_setup_with_every_house_permission_names_none(
     assert "・New storage lockers: 0" in text.splitlines()
 
 
+async def test_setup_says_when_no_helper_role_is_set(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    ctx = await run_setup(bot, server)
+
+    assert (
+        "・No helper role yet, so nobody is pinged when Wisp needs a hand. "
+        "Set one with !wisp helperrole @role."
+    ) in sent_text(ctx).splitlines()
+
+
+async def test_setup_names_the_helper_role(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    server.roles[55] = make_role(55)
+    await bot.settings.update(GUILD_ID, helper_role_id=55)
+
+    ctx = await run_setup(bot, server)
+
+    lines = sent_text(ctx).splitlines()
+    assert "・Helper role: <@&55>" in lines
+    assert not any("No helper role" in line or "ping" in line for line in lines)
+
+
+async def test_setup_warns_when_wisp_cannot_ping_the_helper_role(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    role = make_role(55)
+    role.mentionable = False
+    server.roles[55] = role
+    server.house.permissions_for.return_value = ROOM_PERMISSIONS | PIN_MESSAGES
+    await bot.settings.update(GUILD_ID, helper_role_id=55)
+
+    ctx = await run_setup(bot, server)
+
+    lines = sent_text(ctx).splitlines()
+    assert lines[lines.index("・Helper role: <@&55>") + 1] == (
+        "・Wisp can't ping <@&55> yet. Turn on 'Allow anyone to @mention this "
+        "role' for it, or give Wisp Mention Everyone in his House."
+    )
+
+
+async def test_setup_says_when_the_helper_role_was_deleted(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await bot.settings.update(GUILD_ID, helper_role_id=55)
+
+    ctx = await run_setup(bot, server)
+
+    lines = sent_text(ctx).splitlines()
+    assert (
+        "・The helper role was deleted, so nobody is pinged. "
+        "Set one with !wisp helperrole @role."
+    ) in lines
+    assert not any(line.startswith("・Helper role:") for line in lines)
+
+
 async def test_setup_makes_no_lockers_while_the_house_lacks_permissions(
     bot: app.WispBot, server: FakeServer
 ) -> None:

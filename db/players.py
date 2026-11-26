@@ -1,4 +1,6 @@
-"""Storage for players: activation, points, bond, names, bans, rhymes, rooms."""
+"""Storage for players: activation, points, bond, names, bans, rhymes, rooms and
+help pings.
+"""
 
 from dataclasses import dataclass, fields
 from datetime import datetime
@@ -10,7 +12,11 @@ from wisp.language import Language
 
 @dataclass
 class Player:
-    """One member's row in one guild. The guild id is the repository key."""
+    """One member's row in one guild. The guild id is the repository key.
+
+    `help_pings_off` is set once the member turned the helper role off, so
+    Wisp does not give it back to them.
+    """
 
     user_id: int
     activated_at: datetime | None = None
@@ -27,6 +33,7 @@ class Player:
     room_thread_id: int | None = None
     room_pack_message_id: int | None = None
     rhyme_language: Language | None = None
+    help_pings_off: bool = False
 
     def is_banned(self, now: datetime) -> bool:
         """Whether the player is banned from Wisp at `now`."""
@@ -50,6 +57,7 @@ def _from_row(row: Row) -> Player:
             "met_at": from_db_time(row["met_at"]),
             "banned_until": from_db_time(row["banned_until"]),
             "banned_forever": bool(row["banned_forever"]),
+            "help_pings_off": bool(row["help_pings_off"]),
         }
     )
 
@@ -230,6 +238,10 @@ class PlayerRepo:
         await self._update(
             guild_id, user_id, "room_pack_message_id = %s", (message_id,)
         )
+
+    async def set_help_pings_off(self, guild_id: int, user_id: int, off: bool) -> None:
+        """Record whether the player turned the helper role off."""
+        await self._update(guild_id, user_id, "help_pings_off = %s", (off,))
 
     async def _ensure(self, guild_id: int, user_id: int) -> None:
         await self._db.execute(

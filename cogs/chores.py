@@ -1,9 +1,9 @@
 """Chore posts in Wisp's House and the first-press buttons that do them.
 
-A mess, a tantrum and a nap each post once with one button. The first member
-who can feed Wisp to press it does the chore and earns its points; the post
-then says who did it and loses its button. A chore that runs out edits its
-post instead.
+A mess, a tantrum and a nap each post once with one button, pinging the
+helper role when staff set one. The first member who can feed Wisp to press
+it does the chore and earns its points; the post then says who did it and
+loses its button. A chore that runs out edits its post instead.
 """
 
 import random
@@ -17,6 +17,7 @@ import discord
 from cogs.announce import edit_in_house, remember, say_in_house
 from cogs.assets import MoodGif, moment_image, mood_image, nap_image
 from cogs.groups import require_guild
+from cogs.help_pings import help_ping_role
 from cogs.players import (
     EXPECTED_FAILURES,
     Refusal,
@@ -168,14 +169,16 @@ def _mess_named(stage: Stage) -> str:
 async def post_chores(
     bot: "WispBot", guild_id: int, life: Life, events: list[ChoreEvent]
 ) -> None:
-    """Show what his chores did in Wisp's House, pinging nobody.
+    """Show what his chores did in Wisp's House.
 
     A new mess, tantrum or nap is posted with its picture and button, and the
     post is remembered on the life; a mess post first names the mess of his
-    stage. A chore whose post failed is dropped, so it never waits where
-    nobody can press it. A mess left too long, a missed tantrum and missed
-    lights edit their own post with his line and take its button away.
-    Catching a cold is posted with his sick picture and saved to his story.
+    stage. Those three posts start with the helper role and ping it, when
+    `help_ping_role` gives one; every other post pings nobody. A chore whose
+    post failed is dropped, so it never waits where nobody can press it. A
+    mess left too long, a missed tantrum and missed lights edit their own post
+    with his line and take its button away. Catching a cold is posted with
+    his sick picture and saved to his story.
     """
     if life.id is None:
         return
@@ -183,14 +186,18 @@ async def post_chores(
         moment = Moment(event.kind.value)
         if event.kind in _POSTED:
             chore = _POSTED[event.kind]
+            role_id = await help_ping_role(bot, guild_id, life)
+            mention = "" if role_id is None else f"<@&{role_id}> "
+            named = _mess_named(life.stage) if chore is Chore.MESS else ""
             posted = await say_in_house(
                 bot,
                 guild_id,
                 moment,
                 life,
-                prefix=_mess_named(life.stage) if chore is Chore.MESS else "",
+                prefix=mention + named,
                 image=_picture(chore, life.stage),
                 view=chore_view(chore, life.id, life.stage),
+                ping_role=role_id,
             )
             if posted is None:
                 await _drop(bot, guild_id, life.id, chore)
