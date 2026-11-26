@@ -47,14 +47,14 @@ HOUSE_ID = 20
 TRACKS_ID = 30
 COMMAND_CHANNEL_ID = 40
 
-STATUS = "☀️ | Status"
-MEALTIME = "🧡 | Mealtime"
-VAULT = "🏆 | Leaderboard"
+STATUS = "☀️ | STATUS (ʜᴇᴀʟᴛʜ | ᴡᴇʟʟʙᴇɪɴɢ | ʟɪꜰᴇ ꜱᴛᴀɢᴇ)"
+MEALTIME = "🧡 | MEALTIME (ᴡʜᴀᴛ ᴡiꜱᴘ ᴀᴛᴇ)"
+VAULT = "🏆 | LEADERBOARD (ᴡʜᴏ ɪꜱ ᴡɪɴɴɪɴɢ)"
 OLD_VAULT = "🔒| The ViiBR Vault"
-JAM = "⚡｜Jam Space"
-FAQ = "📙｜Wisp FAQ"
-SHOP = "🛍️ | ViiBR Vault"
-INTERACTION = "🕹️ | Interaction"
+JAM = "⚡｜JAM SPACE (ᴡiꜱᴘ'ꜱ ᴍᴜꜱɪᴄ)"
+FAQ = "📙｜WiSP FAQ (ʀᴜʟᴇꜱ | ɪɴꜰᴏ)"
+SHOP = "🛍️ | ViiBR VAULT (ꜱʜᴏᴘ ꜰᴏʀ ᴛᴏʏꜱ | ꜱɴᴀᴄᴋꜱ | ᴇɴᴛᴇʀᴛᴀɪɴᴍᴇɴᴛ)"
+INTERACTION = "🕹️ | INTERACT (ᴘᴏᴋᴇ | ᴘʟᴀʏ | ꜱɴᴀᴄᴋꜱ | ʟᴜɴᴄʜʙᴏx)"
 THREAD_NAMES = (STATUS, MEALTIME, VAULT, JAM, FAQ, SHOP, INTERACTION)
 THREAD_TITLES = (
     "Status",
@@ -901,19 +901,49 @@ async def test_setup_makes_no_lockers_while_the_house_lacks_permissions(
     assert "storage lockers" not in sent_text(ctx)
 
 
-async def test_setup_pins_the_status_post_to_the_top_once(
+async def test_setup_pins_the_interaction_post_to_the_top_once(
     bot: app.WispBot, server: FakeServer
 ) -> None:
     await run_setup(bot, server)
     await run_setup(bot, server)
 
-    status = server.thread_named(STATUS)
-    assert status.flags.pinned
-    status.edit.assert_any_await(pinned=True)
-    pins = [call for call in status.edit.await_args_list if "pinned" in call.kwargs]
+    interaction = server.thread_named(INTERACTION)
+    assert interaction.flags.pinned
+    interaction.edit.assert_any_await(pinned=True)
+    pins = [
+        call for call in interaction.edit.await_args_list if "pinned" in call.kwargs
+    ]
     assert len(pins) == 1
-    for name in THREAD_NAMES[1:]:
-        assert not server.thread_named(name).flags.pinned
+    for name in THREAD_NAMES:
+        if name != INTERACTION:
+            assert not server.thread_named(name).flags.pinned
+
+
+async def test_setup_unpins_the_old_status_pin_before_pinning_interaction(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await run_setup(bot, server)
+    status = server.thread_named(STATUS)
+    interaction = server.thread_named(INTERACTION)
+    status.flags.pinned = True
+    interaction.flags.pinned = False
+    order: list[str] = []
+    for name, thread in (("status", status), ("interaction", interaction)):
+        edit = thread.edit.side_effect
+
+        def noted(name: str = name, edit: Any = edit, **fields: Any) -> MagicMock:
+            if "pinned" in fields:
+                order.append(f"{name}={fields['pinned']}")
+            edited: MagicMock = edit(**fields)
+            return edited
+
+        thread.edit.side_effect = noted
+
+    await run_setup(bot, server)
+
+    assert order == ["status=False", "interaction=True"]
+    assert not status.flags.pinned
+    assert interaction.flags.pinned
 
 
 async def test_a_failed_post_pin_is_posted_in_its_thread_and_setup_carries_on(
@@ -939,9 +969,9 @@ async def test_a_failed_post_pin_is_posted_in_its_thread_and_setup_carries_on(
 
     ctx = await run_setup(bot, server)
 
-    status = server.thread_named(STATUS)
-    (line,) = [call.args[0] for call in status.send.await_args_list]
-    assert line.startswith("Error in pinning the Status post: Forbidden")
+    interaction = server.thread_named(INTERACTION)
+    (line,) = [call.args[0] for call in interaction.send.await_args_list]
+    assert line.startswith("Error in pinning the Interaction post: Forbidden")
     assert server.created_names == list(THREAD_NAMES)
     assert sent_text(ctx).startswith("♪ Wisp is set up.")
 

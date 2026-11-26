@@ -297,6 +297,16 @@ _DEFINITIONS: dict[str, str] = {
         applied_at DATETIME NOT NULL,
         PRIMARY KEY (name)
     """,
+    "suno_auth": """
+        id TINYINT NOT NULL,
+        client_id VARCHAR(255) NOT NULL,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        scope TEXT NOT NULL,
+        updated_at DATETIME NOT NULL,
+        PRIMARY KEY (id)
+    """,
 }
 
 # Columns added after their table first went live, by table and column name.

@@ -830,15 +830,17 @@ into the Cloudflare dashboard.
 
 ## Wisp's Studio
 
-The Studio forum holds seven threads, named exactly:
+The Studio forum holds seven threads, named exactly as Myra wrote them, each with a short
+note in small caps. Interaction is the one post pinned to the top of the forum;
+setup unpins any other post first, since Discord pins one per forum.
 
-- `☀️ | Status`: the live status card and its Interaction button (see The
+- `☀️ | STATUS (ʜᴇᴀʟᴛʜ | ᴡᴇʟʟʙᴇɪɴɢ | ʟɪꜰᴇ ꜱᴛᴀɢᴇ)`: the live status card and its Interaction button (see The
   Status post). Its first message is the Status banner for his stage
   (`wisp-studio-rooms/<stage>-status.png`, the stage's name run together as
   in `oldfogey-status.png`; the egg's for any egg), and it stays on the
   stage he ended at once his life is over.
-- `🧡 | Mealtime`: every track that feeds him.
-- `🏆 | Leaderboard`: the leaderboard (not pinned; it is always the last
+- `🧡 | MEALTIME (ᴡʜᴀᴛ ᴡiꜱᴘ ᴀᴛᴇ)`: every track that feeds him.
+- `🏆 | LEADERBOARD (ᴡʜᴏ ɪꜱ ᴡɪɴɴɪɴɢ)`: the leaderboard (not pinned; it is always the last
   post). Its card has no buttons; the ViiBR Vault button is on the
   Interaction post. When the board's text changes, Wisp posts a fresh header and card at
   the bottom of the thread and deletes the old pair, so the thread always ends
@@ -852,8 +854,8 @@ anything a member types in them and posts "This post is just for Wisp's
 status" (Status), "just for the leaderboard", "just for shopping" or "just
 for buttons" (Interaction) for a few seconds; staff and bots may post there.
 
-- `⚡｜Jam Space`: his favorite songs and lyrics.
-- `🛍️ | ViiBR Vault`: the shop (`cogs/shop.py`). Its first post is Myra's
+- `⚡｜JAM SPACE (ᴡiꜱᴘ'ꜱ ᴍᴜꜱɪᴄ)`: his favorite songs and lyrics.
+- `🛍️ | ViiBR VAULT (ꜱʜᴏᴘ ꜰᴏʀ ᴛᴏʏꜱ | ꜱɴᴀᴄᴋꜱ | ᴇɴᴛᴇʀᴛᴀɪɴᴍᴇɴᴛ)`: the shop (`cogs/shop.py`). Its first post is Myra's
   ViiBR Vault banner; under it the life loop posts the shelves in order: the
   Snacks picture with the snack menu, the Tamagotchis and Tech picture with
   its gift menu, the Alien Dolls and Books picture with its gift
@@ -866,9 +868,9 @@ for buttons" (Interaction) for a few seconds; staff and bots may post there.
   `wisp:shelf:<menu>`), and a pick of something no longer sold is told so.
   The Interaction post's ViiBR Vault button jumps to this post; `/wisp vault` still
   opens the private Vault. Member chat here is deleted like on Status.
-- `🕹️ | Interaction`: the members' buttons (see The Interaction post). Its
+- `🕹️ | INTERACT (ᴘᴏᴋᴇ | ᴘʟᴀʏ | ꜱɴᴀᴄᴋꜱ | ʟᴜɴᴄʜʙᴏx)`: the members' buttons (see The Interaction post). Its
   first post says what is below; the card is the message under it.
-- `📙｜Wisp FAQ`: a locked thread. Its first post is a table of contents
+- `📙｜WiSP FAQ (ʀᴜʟᴇꜱ | ɪɴꜰᴏ)`: a locked thread. Its first post is a table of contents
   linking to each section's first picture, then one banner picture per
   question, each in a message of its own, and its last post is the quick rules
   with the current numbers.

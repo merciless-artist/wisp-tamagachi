@@ -246,8 +246,10 @@ class StudioThread:
     picture, Myra's banner for the post, which the forum shows as the post's
     thumbnail, relative to the ASSETS folder. The Status post has none here:
     its banner follows Wisp's stage, so the status card shows it
-    (`cogs.status_card`). A `pinned_post` stays at the top
-    of the forum; Discord pins one post per forum. The card in `message_attr`
+    (`cogs.status_card`). The `pinned_post` stays at the top of the forum and
+    every other post is unpinned, since Discord pins one post per forum; the
+    posts are ensured in order, so the old pin comes off before the new one
+    goes on. The card in `message_attr`
     is pinned in its thread unless `pin_card` is False, as for the
     Leaderboard, whose card must stay the thread's last post.
     """
@@ -266,22 +268,21 @@ class StudioThread:
 STUDIO_THREADS: tuple[StudioThread, ...] = (
     StudioThread(
         "status_thread_id",
-        "☀️ | Status",
+        "☀️ | STATUS (ʜᴇᴀʟᴛʜ | ᴡᴇʟʟʙᴇɪɴɢ | ʟɪꜰᴇ ꜱᴛᴀɢᴇ)",
         "Status",
         "Wisp's status card will appear here.",
         message_attr="status_message_id",
-        pinned_post=True,
     ),
     StudioThread(
         "mealtime_thread_id",
-        "🧡 | Mealtime",
+        "🧡 | MEALTIME (ᴡʜᴀᴛ ᴡiꜱᴘ ᴀᴛᴇ)",
         "Mealtime",
         "Every track that feeds Wisp lands here.",
         image=f"{BANNERS}/mealtime.png",
     ),
     StudioThread(
         "vault_thread_id",
-        "🏆 | Leaderboard",
+        "🏆 | LEADERBOARD (ᴡʜᴏ ɪꜱ ᴡɪɴɴɪɴɢ)",
         "Leaderboard",
         "The Leaderboard is opening.",
         message_attr="vault_message_id",
@@ -290,14 +291,14 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
     ),
     StudioThread(
         "jam_thread_id",
-        "⚡｜Jam Space",
+        "⚡｜JAM SPACE (ᴡiꜱᴘ'ꜱ ᴍᴜꜱɪᴄ)",
         "Jam Space",
         "Wisp's music space: his favorite songs and the lyrics he is writing.",
         image=f"{BANNERS}/jamspace.png",
     ),
     StudioThread(
         "rules_thread_id",
-        "📙｜Wisp FAQ",
+        "📙｜WiSP FAQ (ʀᴜʟᴇꜱ | ɪɴꜰᴏ)",
         "Wisp FAQ",
         "Loading the FAQ...",
         locked=True,
@@ -305,7 +306,7 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
     ),
     StudioThread(
         "shop_thread_id",
-        "🛍️ | ViiBR Vault",
+        "🛍️ | ViiBR VAULT (ꜱʜᴏᴘ ꜰᴏʀ ᴛᴏʏꜱ | ꜱɴᴀᴄᴋꜱ | ᴇɴᴛᴇʀᴛᴀɪɴᴍᴇɴᴛ)",
         "ViiBR Vault",
         "♪ The ViiBR Vault\n"
         "・Pick something from a shelf's menu. Only you see your receipt.\n"
@@ -315,10 +316,11 @@ STUDIO_THREADS: tuple[StudioThread, ...] = (
     ),
     StudioThread(
         "interaction_thread_id",
-        "🕹️ | Interaction",
+        "🕹️ | INTERACT (ᴘᴏᴋᴇ | ᴘʟᴀʏ | ꜱɴᴀᴄᴋꜱ | ʟᴜɴᴄʜʙᴏx)",
         "Interaction",
         "♪ Interaction\n・Feed, poke, shop and play with Wisp with the buttons below.",
         image=f"{BANNERS}/interaction.png",
+        pinned_post=True,
     ),
 )
 
@@ -439,8 +441,8 @@ async def _finish_thread(
     spec: StudioThread,
     message_id: int | None,
 ) -> None:
-    """Name the thread, lock or unlock it as its spec says, pin the post if it
-    should be, give the first post its banner, pin the card if it should be.
+    """Name the thread, lock or unlock it and pin or unpin the post as its spec
+    says, give the first post its banner, pin the card if it should be.
 
     Whatever is already done is skipped. A failed step is posted in the thread
     and retried the next time the Studio is ensured. A card whose message is
@@ -457,12 +459,13 @@ async def _finish_thread(
             await thread.edit(locked=spec.locked)
         except discord.HTTPException as error:
             await bot.report_error(guild, f"{step} {spec.title}", error, where=thread)
-    if spec.pinned_post and not thread.flags.pinned:
+    if thread.flags.pinned != spec.pinned_post:
+        step = "pinning" if spec.pinned_post else "unpinning"
         try:
-            await thread.edit(pinned=True)
+            await thread.edit(pinned=spec.pinned_post)
         except discord.HTTPException as error:
             await bot.report_error(
-                guild, f"pinning the {spec.title} post", error, where=thread
+                guild, f"{step} the {spec.title} post", error, where=thread
             )
     await _set_banner(bot, guild, thread, spec)
     if spec.message_attr is None or message_id is None or not spec.pin_card:

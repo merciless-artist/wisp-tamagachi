@@ -18,6 +18,7 @@ from db.lives import LifeRepo
 from db.notes import NoteRepo
 from db.players import PlayerRepo
 from db.settings import Settings, SettingsRepo
+from db.suno import SunoGrant, SunoRepo
 from wisp.bond import PickleStance
 from wisp.language import Language
 from wisp.life import EventKind, Phase, new_egg
@@ -1557,3 +1558,23 @@ async def test_craving_bond_counts_toward_the_casual_cap(db: Database) -> None:
 
     assert await log.casual_bond_today(GUILD, USER, NOW) == 5
     assert await log.plays_today(GUILD, USER, NOW) == 1
+
+
+async def test_no_suno_grant_before_wisp_is_signed_in(db: Database) -> None:
+    assert await SunoRepo(db).get() is None
+
+
+async def test_a_new_suno_grant_replaces_the_old_one(db: Database) -> None:
+    repo = SunoRepo(db)
+    first = SunoGrant("client", "access-1", "refresh-1", NOW, "api:v0")
+    refreshed = dataclasses.replace(
+        first,
+        access_token="access-2",
+        refresh_token="refresh-2",
+        expires_at=NOW + timedelta(hours=1),
+    )
+    await repo.save(first, NOW)
+    await repo.save(refreshed, NOW + timedelta(minutes=1))
+
+    assert await repo.get() == refreshed
+    assert await db.fetchall(f"SELECT id FROM {db.t('suno_auth')}") == [{"id": 1}]

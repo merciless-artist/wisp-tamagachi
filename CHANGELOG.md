@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-11-25 (Studio post names, the Interaction pin, Wisp's Suno sign-in)
+
+- **Post names:** the seven Studio posts take Myra's names, each with a short
+  note in small caps: `🕹️ | INTERACT (ᴘᴏᴋᴇ | ᴘʟᴀʏ | ꜱɴᴀᴄᴋꜱ | ʟᴜɴᴄʜʙᴏx)`,
+  `🏆 | LEADERBOARD (ᴡʜᴏ ɪꜱ ᴡɪɴɴɪɴɢ)`, `🧡 | MEALTIME (ᴡʜᴀᴛ ᴡiꜱᴘ ᴀᴛᴇ)`,
+  `📙｜WiSP FAQ (ʀᴜʟᴇꜱ | ɪɴꜰᴏ)`,
+  `🛍️ | ViiBR VAULT (ꜱʜᴏᴘ ꜰᴏʀ ᴛᴏʏꜱ | ꜱɴᴀᴄᴋꜱ | ᴇɴᴛᴇʀᴛᴀɪɴᴍᴇɴᴛ)`,
+  `☀️ | STATUS (ʜᴇᴀʟᴛʜ | ᴡᴇʟʟʙᴇɪɴɢ | ʟɪꜰᴇ ꜱᴛᴀɢᴇ)` and
+  `⚡｜JAM SPACE (ᴡiꜱᴘ'ꜱ ᴍᴜꜱɪᴄ)`. Wisp's messages still call them by their
+  plain names.
+- **Pin:** the Interaction post is now the one pinned to the top of the forum
+  in place of Status. Setup unpins any post that should not be pinned, and
+  the posts are ensured in order, so Status comes off before Interaction goes
+  on (Discord pins one post per forum).
+- **Suno sign-in (groundwork):** new table `suno_auth` (one row) and
+  `db/suno.py` hold Wisp's own Suno OAuth grant. `tools/suno_login.py`, run
+  once on a PC with a browser signed in to suno.com as Wisp, registers Wisp
+  as an OAuth client, stores the grant and checks it by listing the Suno MCP
+  tools, spending no credits. Nothing in the bot uses it yet.
+
 ## 2026-11-25 (Help pings)
 
 - **Helper role:** staff set it with `!wisp helperrole @role` (and clear it
