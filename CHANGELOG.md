@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-27 (Starter coins)
+
+- **Starter coins:** coins were scarce (the newest players had 0 to 17 WC, and
+  a gift costs 15). The first `/wisp board` now gives a member 30 WC
+  (`STARTER_COINS` in `wisp/rules.py`), and Wisp says so. They go to the
+  balance only, not to lifetime points, so the leaderboard is unchanged.
+  `PlayerRepo.activate` adds them in the same update that records the first
+  time, so a second board never pays again.
+- **Back-pay:** the 11 members who had already opened the board got +30 WC
+  by hand in the live database (backup in
+  `RECYCLING/players_before_starter_coins_2026-11-27.json`).
+
 ## 2026-11-27 (Wisp speaks only for himself)
 
 - **Speaking for members:** on 2026-11-27 Wisp answered Myra with a line

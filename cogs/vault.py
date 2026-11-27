@@ -19,8 +19,17 @@ from cogs.rooms import RoomError, open_room
 from cogs.snacks import vault_buttons
 from wisp.bond import tier_for
 from wisp.life import Life, Phase, age_days
-from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE
-from wisp.text import LAYOUT_TEXT_LIMIT, Frame, channel_or, count, fit, frame_of
+from wisp.rules import LEADERBOARD_SIZE, RHYME_LEADERBOARD_SIZE, STARTER_COINS
+from wisp.text import (
+    LAYOUT_TEXT_LIMIT,
+    Frame,
+    channel_or,
+    count,
+    fit,
+    frame_of,
+    with_emoji,
+)
+from wisp.voice import MINI_COIN_EMOJI
 
 if TYPE_CHECKING:
     from app import WispBot
@@ -157,8 +166,9 @@ async def refresh_vault(bot: "WispBot", guild_id: int) -> None:
 async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     """Show the Vault card to the member who asked, and join them in on first use.
 
-    Every run also gives the member the helper role (see `give_on_board`) and
-    makes sure they have their room. A room that cannot be made is reported
+    The first run also gives them `STARTER_COINS` and tells them so. Every
+    run also gives the member the helper role (see `give_on_board`) and makes
+    sure they have their room. A room that cannot be made is reported
     and tried again next time; the board still shows. With a helper role set,
     the board's buttons end with the help pings button.
     """
@@ -166,9 +176,13 @@ async def wisp_board(interaction: discord.Interaction["WispBot"]) -> None:
     guild_id = require_guild(interaction)
     await interaction.response.defer(ephemeral=True)
     now = discord.utils.utcnow()
-    if (await bot.players.get(guild_id, interaction.user.id)).activated_at is None:
-        await bot.players.activate(guild_id, interaction.user.id, now)
-        await say_privately(interaction, "♪ You're on Wisp's radar now.")
+    if await bot.players.activate(
+        guild_id, interaction.user.id, now, coins=STARTER_COINS
+    ):
+        coins = with_emoji(bot.emoji(MINI_COIN_EMOJI), f"{STARTER_COINS} WC")
+        await say_privately(
+            interaction, f"♪ You're on Wisp's radar now. Here's {coins} to start."
+        )
     buttons = vault_buttons()
     if interaction.guild is not None and isinstance(interaction.user, discord.Member):
         holds = await give_on_board(bot, interaction.guild, interaction.user)

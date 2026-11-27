@@ -500,6 +500,8 @@ SONG_TITLE_LIMIT = 200
 # ---
 
 GIFT_COST = 15
+# Wisp coins for opening /wisp board the first time.
+STARTER_COINS = 30
 GIFT_LIKE_CHANCE = 1 / 2
 # Added for each gift he passed on today, so the third gift of a day is kept.
 GIFT_LIKE_RISE = 1 / 4

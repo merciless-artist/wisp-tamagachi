@@ -28,7 +28,7 @@ from tests.layout import assert_is_a_menu, layout_text
 from tests.layout import section as menu_section
 from wisp.life import Life, Phase, new_egg
 from wisp.links import Track, TrackKind
-from wisp.rules import Stage
+from wisp.rules import STARTER_COINS, Stage
 from wisp.text import LAYOUT_TEXT_LIMIT, UNICODE_FRAME, Frame, frame_of, text_length
 
 GUILD_ID = 100
@@ -259,14 +259,16 @@ async def test_board_activates_once(bot: app.WispBot) -> None:
     assert activated is not None
     first.response.defer.assert_awaited_once_with(ephemeral=True)
     radar, board = followups(first)
-    assert "radar" in radar
+    assert "radar" in radar and f"{STARTER_COINS} WC to start" in radar
     assert board.startswith(INTRO[0])
+    assert (await bot.players.get(GUILD_ID, FIRST_USER)).balance == STARTER_COINS
 
     second = make_interaction(bot)
     await run(vault.wisp_board, second)
     (board_only,) = followups(second)
     assert board_only.startswith(INTRO[0])
-    assert (await bot.players.get(GUILD_ID, FIRST_USER)).activated_at == activated
+    player = await bot.players.get(GUILD_ID, FIRST_USER)
+    assert (player.activated_at, player.balance) == (activated, STARTER_COINS)
 
 
 async def test_board_puts_the_buttons_on_the_leaderboard_only(

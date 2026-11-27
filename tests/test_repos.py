@@ -578,9 +578,18 @@ async def test_spend_unknown_player_is_refused(db: Database) -> None:
 
 async def test_activate_keeps_first_time(db: Database) -> None:
     repo = PlayerRepo(db)
-    await repo.activate(GUILD, USER, NOW)
-    await repo.activate(GUILD, USER, NOW + timedelta(days=1))
+    assert await repo.activate(GUILD, USER, NOW) is True
+    assert await repo.activate(GUILD, USER, NOW + timedelta(days=1)) is False
     assert (await repo.get(GUILD, USER)).activated_at == NOW
+
+
+async def test_activate_gives_coins_only_the_first_time(db: Database) -> None:
+    repo = PlayerRepo(db)
+    await repo.add_points(GUILD, USER, 4)
+    await repo.activate(GUILD, USER, NOW, coins=30)
+    await repo.activate(GUILD, USER, NOW + timedelta(days=1), coins=30)
+    player = await repo.get(GUILD, USER)
+    assert (player.balance, player.lifetime_points) == (34, 4)
 
 
 async def test_bond_name_and_meeting(db: Database) -> None:

@@ -79,14 +79,22 @@ class PlayerRepo:
         assert row is not None
         return _from_row(row)
 
-    async def activate(self, guild_id: int, user_id: int, at: datetime) -> None:
-        """Record when the player joined in; the first time is kept."""
-        await self._update(
-            guild_id,
-            user_id,
-            "activated_at = COALESCE(activated_at, %s)",
-            (to_db_time(at),),
+    async def activate(
+        self, guild_id: int, user_id: int, at: datetime, *, coins: int = 0
+    ) -> bool:
+        """Record when the player joined in; the first time is kept.
+
+        Only that first time also adds `coins` to their balance, not to their
+        lifetime points. Returns whether this was the first time.
+        """
+        await self._ensure(guild_id, user_id)
+        changed = await self._db.execute(
+            f"UPDATE {self._db.t('players')} "
+            "SET activated_at = %s, balance = balance + %s "
+            "WHERE guild_id = %s AND user_id = %s AND activated_at IS NULL",
+            (to_db_time(at), coins, guild_id, user_id),
         )
+        return changed == 1
 
     async def activated(self, guild_id: int) -> list[Player]:
         """Return the players who opened /wisp board, first to join first."""
