@@ -533,6 +533,15 @@ def test_prompt_asks_for_short_plain_text_without_pings() -> None:
         assert rule in system
 
 
+@pytest.mark.parametrize("stage", AI_STAGES)
+def test_every_stage_speaks_only_for_wisp(stage: Stage) -> None:
+    system = prompt_for(stage).system
+    rules = system[system.index("How to write your reply:") :]
+    assert "You are only Wisp." in rules
+    assert "Never write what anyone else says, does or thinks" in rules
+    assert system.count("You are only Wisp.") == 1
+
+
 def test_prompt_offers_the_no_u_gif_and_expressions() -> None:
     system = prompt_for().system
     gif_lines = [line for line in system.splitlines() if NO_U_GIF in line]

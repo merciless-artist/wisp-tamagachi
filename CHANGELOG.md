@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-27 (Wisp speaks only for himself)
+
+- **Speaking for members:** on 2026-11-27 Wisp answered Myra with a line
+  written as her ("okay calm down wisp... i fed you!"). The rule against it
+  sat in the middle of his personality, and the Baby never got it. It moves
+  to the end of the reply rules (`_ONLY_WISP` in `wisp/voice.py`), which
+  every talking stage and the goodbye get: he writes only what he says and
+  does, never what anyone else says, does or thinks, and never answers for
+  them. A new test checks each stage has it once.
+
 ## 2026-11-25 (Studio post names, the Interaction pin, Wisp's Suno sign-in)
 
 - **Post names:** the seven Studio posts take Myra's names, each with a short
