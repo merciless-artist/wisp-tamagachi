@@ -33,6 +33,7 @@ from wisp.life import (
     own_time,
     ready_to_pass_on,
     schedule_cold,
+    skipped_stages,
     tick,
     track_health,
 )
@@ -842,6 +843,21 @@ def test_adult_and_rockstar_grow_old_at_day_45(stage: Stage) -> None:
     assert life.peak_stage is stage
     assert life.stage_started_at == T0
     assert life.phase is Phase.ALIVE
+
+
+@pytest.mark.parametrize(
+    ("stage", "skipped"),
+    [(Stage.ADULT, frozenset({Stage.ROCKSTAR})), (Stage.ROCKSTAR, frozenset())],
+)
+def test_an_adult_who_grows_old_skipped_rockstar(
+    stage: Stage, skipped: frozenset[Stage]
+) -> None:
+    life = old(stage, OLD_FOGEY_AT_DAY)
+    assert skipped_stages(life) == frozenset()
+
+    tick(life, T0, frozen=False, caretakers=0, people=0)
+
+    assert skipped_stages(life) == skipped
 
 
 def test_adult_one_day_short_of_old_age_stays_adult() -> None:

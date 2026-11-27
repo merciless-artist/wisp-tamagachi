@@ -33,6 +33,7 @@ from db.badges import BadgeRepo
 from db.cravings import CravingRepo
 from db.database import Database
 from db.drawings import DrawingRepo
+from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.lunchbox import WispLunchboxRepo
@@ -176,6 +177,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.notes = NoteRepo(db)
     wisp_bot.drawings = DrawingRepo(db)

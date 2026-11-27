@@ -7,14 +7,13 @@ gamble, decided by the Gifts cog's random source.
 import random
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import discord
 from discord.ext import commands
 
 from cogs.announce import post_in_house
-from cogs.assets import ASSETS_DIR, asset_image
+from cogs.assets import gift_art
 from cogs.players import (
     Refusal,
     check_member,
@@ -31,6 +30,8 @@ from wisp.gifts import (
     collection_of,
     decide,
     named,
+    tv_episode,
+    tv_line,
     with_article,
 )
 from wisp.life import Life, Meter, Phase, add_growth, change_meter, mood
@@ -42,11 +43,9 @@ from wisp.rules import (
     GIFT_COLLECTIONS,
     GIFT_COST,
     GROWTH_PER_BOND_MOMENT,
-    TV_EPISODES,
     WELLBEING_PER_GIFT,
     Gift,
     GiftCollection,
-    Stage,
 )
 from wisp.text import Frame, meter_receipt, richest, text_length, with_emoji
 from wisp.voice import MINI_COIN_EMOJI
@@ -305,7 +304,9 @@ async def give_gift(
     kept = outcome is Outcome.KEPT
     completed = kept and state.completes(gift)
     bond = BOND_PER_KEPT_GIFT + (COLLECTION_BOND_BONUS if completed else 0)
-    await bot.gifts.record(guild_id, life_id, member.id, gift.key, kept, now)
+    await bot.gifts.record(
+        guild_id, life_id, member.id, gift.key, kept, now, stage=life.stage
+    )
     await bot.activity_log.record_interaction(
         guild_id,
         life_id,
@@ -346,11 +347,6 @@ def gift_note(given: GiftGiven) -> str:
     return kept
 
 
-def _gift_art(gift: Gift, stage: Stage) -> Path | None:
-    """The gift's picture while Wisp is at `stage`, when the art is on disk."""
-    return asset_image(ASSETS_DIR / "gifts", gift.look(stage))
-
-
 async def announce_gift(
     bot: "WispBot", guild_id: int, given: GiftGiven, name: str
 ) -> None:
@@ -360,7 +356,7 @@ async def announce_gift(
     what the gift did for the whole House to see. A gift
     he keeps while he naps gets a sleepy line; one he passes on keeps its own
     line, so the post never says he hugged a gift that went back. A kept TV
-    shows his stage's TV and links that stage's episode.
+    shows his stage's TV and links the first episode of his stage's show.
     """
     feeling = mood(given.life)
     title = given.gift.title
@@ -382,16 +378,16 @@ async def announce_gift(
             )
         )
     stage = given.life.stage
-    episode = TV_EPISODES.get(stage) if given.gift.grows else None
+    episode = tv_episode(stage, stage) if given.gift.grows else None
     if kept and episode is not None:
-        lines.append(f"♪ Now on Wisp's TV: {episode}")
+        lines.append(tv_line(episode))
     if not kept:
         lines.append(_BACK_IN_VAULT)
     await post_in_house(
         bot,
         guild_id,
         "\n".join(lines),
-        image=_gift_art(given.gift, stage) if kept else None,
+        image=gift_art(given.gift, stage) if kept else None,
         ping=giver,
     )
 

@@ -687,6 +687,17 @@ def _advance(
     return Event(kind, stage)
 
 
+def skipped_stages(life: Life) -> frozenset[Stage]:
+    """The stages he grew past without ever living in them.
+
+    Only Rockstar is ever skipped: an Adult who reaches old age grows old
+    without being one, and his peak stays Adult.
+    """
+    if life.stage is Stage.OLD_FOGEY and life.peak_stage is not Stage.ROCKSTAR:
+        return frozenset({Stage.ROCKSTAR})
+    return frozenset()
+
+
 def caretakers_needed(stage: Stage, people: int) -> int:
     """Caretakers growing into `stage` takes when he saw `people` people lately."""
     return max(math.ceil(people * STAGE_RULES[stage].share), 1)

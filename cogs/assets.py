@@ -6,7 +6,7 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final
 
-from wisp.rules import NAP_STAGES, Stage
+from wisp.rules import NAP_STAGES, Gift, Stage
 
 ASSETS_DIR: Final = Path(__file__).resolve().parent.parent / "ASSETS"
 BANNERS: Final = "wisp-studio-rooms"
@@ -46,6 +46,11 @@ def stage_art(stage: Stage) -> Path | None:
     """The PNG of Wisp at `stage` in ASSETS/stages when it exists, else None."""
     path = ASSETS_DIR / "stages" / f"{stage.value}.png"
     return path if path.is_file() else None
+
+
+def gift_art(gift: Gift, stage: Stage) -> Path | None:
+    """The gift's picture in ASSETS/gifts while Wisp is at `stage`, else None."""
+    return asset_image(ASSETS_DIR / "gifts", gift.look(stage))
 
 
 def moment_image(name: str) -> Path | None:

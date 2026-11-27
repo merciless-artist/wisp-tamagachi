@@ -1221,6 +1221,23 @@ async def _open_vault(interaction: discord.Interaction) -> None:
         )
 
 
+async def _open_gifts(interaction: discord.Interaction) -> None:
+    """Show only the Vault's Gifts with their menus, only to the member.
+
+    It is the Vault's third part on its own, sent as a follow-up with `wait`
+    like the full Vault's parts, so a pick redraws it in place.
+    """
+    if not await _admit(interaction):
+        return
+    bot = bot_of(interaction)
+    await interaction.followup.send(
+        view=await _gift_part(bot, require_guild(interaction), interaction.user.id),
+        ephemeral=True,
+        allowed_mentions=_NO_PING,
+        wait=True,
+    )
+
+
 async def _open_snack_pack(interaction: discord.Interaction) -> None:
     """Show the member's own snacks and keepsakes, with a button to the shop.
 
@@ -1290,6 +1307,12 @@ async def show_pack_in_room(
 async def wisp_vault(interaction: discord.Interaction["WispBot"]) -> None:
     """Show the Vault shop, only to the member."""
     await _open_vault(interaction)
+
+
+@wisp.command(name="gift", description="Give Wisp a gift from the ViiBR Vault.")
+async def wisp_gift(interaction: discord.Interaction["WispBot"]) -> None:
+    """Show only the Vault's Gifts, only to the member."""
+    await _open_gifts(interaction)
 
 
 @wisp.command(name="snackpack", description="See your snacks and keepsakes.")

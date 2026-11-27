@@ -9,23 +9,34 @@ from datetime import datetime
 
 from db.activity import utc_day
 from db.database import Database, Row, from_db_time, to_db_time
+from wisp.rules import Stage
 
-_SELECT = "SELECT gift, user_id, kept, at FROM"
+_SELECT = "SELECT gift, user_id, kept, at, stage FROM"
 
 
 @dataclass(frozen=True)
 class GiftAttempt:
-    """One gift a member gave Wisp: which, from whom, whether he kept it and when."""
+    """One gift a member gave Wisp: which, from whom, whether he kept it and when.
+
+    `stage` is the stage he was at then, or None for gifts given before it was
+    recorded.
+    """
 
     gift: str
     user_id: int
     kept: bool
     at: datetime
+    stage: Stage | None = None
 
 
 def _from_row(row: Row) -> GiftAttempt:
+    stage = row["stage"]
     return GiftAttempt(
-        row["gift"], row["user_id"], bool(row["kept"]), from_db_time(row["at"])
+        row["gift"],
+        row["user_id"],
+        bool(row["kept"]),
+        from_db_time(row["at"]),
+        None if stage is None else Stage(stage),
     )
 
 
@@ -43,13 +54,23 @@ class GiftRepo:
         gift: str,
         kept: bool,
         at: datetime,
+        *,
+        stage: Stage | None = None,
     ) -> None:
-        """Record a gift given to one life and whether he kept it."""
+        """Record a gift given to one life, whether he kept it and his `stage`."""
         await self._db.insert(
             f"INSERT INTO {self._db.t('gift_attempts')} "
-            "(guild_id, life_id, user_id, gift, kept, at) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (guild_id, life_id, user_id, gift, kept, to_db_time(at)),
+            "(guild_id, life_id, user_id, gift, kept, at, stage) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (
+                guild_id,
+                life_id,
+                user_id,
+                gift,
+                kept,
+                to_db_time(at),
+                None if stage is None else stage.value,
+            ),
         )
 
     async def kept(self, guild_id: int, life_id: int) -> list[GiftAttempt]:

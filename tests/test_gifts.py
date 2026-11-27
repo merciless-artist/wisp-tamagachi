@@ -14,6 +14,7 @@ import discord
 import pytest
 
 import app
+from cogs import assets as art
 from cogs import gifts, snacks
 from cogs.assets import asset_image
 from cogs.gifts import Gifts
@@ -38,7 +39,16 @@ from tests.layout import (
 from tests.layout import section as menu_section
 from tests.layout import vault_opened, vault_parts
 from wisp import rules
-from wisp.gifts import GiftState, Outcome, decide, like_chance, named, with_article
+from wisp.gifts import (
+    GiftState,
+    Outcome,
+    decide,
+    like_chance,
+    named,
+    tv_episode,
+    tv_line,
+    with_article,
+)
 from wisp.life import Life, Mood, Phase, new_egg
 from wisp.lines import Moment
 from wisp.rules import GIFT_BY_KEY, GIFT_COLLECTIONS, Stage
@@ -430,10 +440,80 @@ def test_every_gift_has_its_emoji_name_and_art(stage: Stage) -> None:
             assert asset_image(ASSETS / "gifts", look) is not None, look
 
 
-def test_only_the_tv_grows_and_it_has_an_episode_for_each_stage() -> None:
+def test_only_the_tv_grows_and_each_stage_has_one_show_episode() -> None:
     assert [gift.key for gift in GIFT_BY_KEY.values() if gift.grows] == ["tech_tv"]
-    assert set(rules.TV_EPISODES) == set(Stage) - {Stage.EGG}
+    shown = [stage for show in rules.TV_SHOWS for stage in show.stages]
+    assert sorted(shown) == sorted(set(Stage) - {Stage.EGG})
+    assert len(shown) == len(set(shown))
     assert GIFT_BY_KEY["tech_tv"].look(Stage.OLD_FOGEY) == "tech_tv_old_fogey"
+    for show in rules.TV_SHOWS:
+        assert len(show.episodes) == len(show.stages)
+
+
+LLAMA, ZEPHYRINE = rules.TV_SHOWS
+
+
+@pytest.mark.parametrize(
+    ("kept_at", "stage", "show", "number"),
+    [
+        (Stage.BABY, Stage.BABY, LLAMA, 1),
+        (Stage.BABY, Stage.CHILD, LLAMA, 2),
+        (Stage.BABY, Stage.TEEN, LLAMA, 3),
+        (Stage.BABY, Stage.ADULT, ZEPHYRINE, 1),
+        (Stage.BABY, Stage.OLD_FOGEY, ZEPHYRINE, 3),
+        (Stage.CHILD, Stage.CHILD, LLAMA, 1),
+        (Stage.CHILD, Stage.TEEN, LLAMA, 2),
+        (Stage.CHILD, Stage.ADULT, ZEPHYRINE, 1),
+        (Stage.TEEN, Stage.TEEN, LLAMA, 1),
+        (Stage.TEEN, Stage.ADULT, ZEPHYRINE, 1),
+        (Stage.TEEN, Stage.ROCKSTAR, ZEPHYRINE, 2),
+        (Stage.ADULT, Stage.ADULT, ZEPHYRINE, 1),
+        (Stage.ROCKSTAR, Stage.OLD_FOGEY, ZEPHYRINE, 2),
+        (Stage.OLD_FOGEY, Stage.OLD_FOGEY, ZEPHYRINE, 1),
+    ],
+)
+def test_the_tv_plays_its_shows_episodes_in_order_from_the_first(
+    kept_at: Stage, stage: Stage, show: rules.TvShow, number: int
+) -> None:
+    episode = tv_episode(kept_at, stage)
+
+    assert episode is not None
+    assert (episode.show, episode.number) == (show, number)
+    assert episode.link == show.episodes[number - 1]
+
+
+@pytest.mark.parametrize(
+    ("kept_at", "stage"),
+    [(Stage.TEEN, Stage.CHILD), (Stage.BABY, Stage.EGG), (Stage.EGG, Stage.EGG)],
+)
+def test_no_episode_before_he_had_the_tv_or_as_an_egg(
+    kept_at: Stage, stage: Stage
+) -> None:
+    assert tv_episode(kept_at, stage) is None
+
+
+@pytest.mark.parametrize(
+    ("kept_at", "number"), [(Stage.ADULT, 2), (Stage.TEEN, 2), (Stage.BABY, 2)]
+)
+def test_a_skipped_rockstar_skips_no_episode(kept_at: Stage, number: int) -> None:
+    episode = tv_episode(kept_at, Stage.OLD_FOGEY, frozenset({Stage.ROCKSTAR}))
+
+    assert episode is not None
+    assert (episode.show, episode.number) == (ZEPHYRINE, number)
+
+
+def test_a_skipped_stage_has_no_episode() -> None:
+    assert tv_episode(Stage.ADULT, Stage.ROCKSTAR, frozenset({Stage.ROCKSTAR})) is None
+
+
+def test_the_tv_line_names_the_show_and_episode_over_its_link() -> None:
+    episode = tv_episode(Stage.CHILD, Stage.TEEN)
+    assert episode is not None
+
+    assert tv_line(episode) == (
+        "♪ Now on Wisp's TV: Llama Brain, episode 2\n"
+        "https://www.youtube.com/watch?v=rpJkTXWM-dI"
+    )
 
 
 def test_the_catalog_fits_discord_and_the_database() -> None:
@@ -590,7 +670,7 @@ async def test_a_kept_gift_leaves_the_vault_and_gives_bond_and_growth(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(art, "ASSETS_DIR", tmp_path)
     await lay(bot)
     pick = say(bot)
 
@@ -630,7 +710,7 @@ async def test_a_kept_gift_brings_its_art_when_it_exists(
 ) -> None:
     (tmp_path / "gifts").mkdir()
     (tmp_path / "gifts" / "book_orange.png").write_bytes(b"PNG")
-    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(art, "ASSETS_DIR", tmp_path)
     await lay(bot)
     say(bot)
 
@@ -1026,6 +1106,65 @@ async def test_the_vault_lists_gifts_under_the_snack_box(bot: app.WispBot) -> No
     assert str(aliens.emoji) == emoji_text("gift_alien_blue", 2)
 
 
+async def gift_command(bot: app.WispBot, user_id: int = USER_ID) -> MagicMock:
+    interaction = make_interaction(bot, user_id)
+    command: Any = snacks.wisp_gift
+    await command.callback(interaction)
+    return interaction
+
+
+async def test_wisp_gift_shows_only_the_gifts_privately(bot: app.WispBot) -> None:
+    await lay(bot)
+
+    interaction = await gift_command(bot)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    call = interaction.followup.send.await_args
+    interaction.followup.send.assert_awaited_once()
+    assert call.kwargs["ephemeral"] is True
+    assert call.kwargs["wait"] is True
+    assert call.kwargs["allowed_mentions"].to_dict() == NO_PING
+    view = call.kwargs["view"]
+    text = layout_text(view)
+    assert text.splitlines()[:2] == [GIFTS_HEADING, GAMBLE]
+    assert text.endswith(FRAME.footer)
+    assert FRAME.heading("Snacks", 0) not in text
+    assert FRAME.heading("Badges", 0) not in text
+    assert [select.placeholder for select in layout_selects(view)] == [PICK]
+
+
+async def test_a_gift_given_through_wisp_gift_goes_through(
+    bot: app.WispBot, server: FakeServer
+) -> None:
+    await lay(bot)
+    view = (await gift_command(bot)).followup.send.await_args.kwargs["view"]
+
+    picked = await pick(bot, "aliens", select=collection_select(layout_selects(view)))
+    _, selects = shown(picked)
+    await give(bot, "alien_blue", select=gift_select(selects))
+
+    assert await balance(bot) == 100 - rules.GIFT_COST
+    life = await current_life(bot)
+    assert life.id is not None
+    given = await bot.gifts.today(GUILD_ID, life.id, discord.utils.utcnow())
+    assert [attempt.gift for attempt in given] == ["alien_blue"]
+    server.house.send.assert_awaited()
+
+
+async def test_a_banned_member_is_turned_away_from_wisp_gift(
+    bot: app.WispBot,
+) -> None:
+    await lay(bot)
+    await bot.players.set_offense(GUILD_ID, USER_ID, 3, None, True)
+
+    interaction = await gift_command(bot)
+
+    interaction.followup.send.assert_awaited_once()
+    call = interaction.followup.send.await_args
+    assert call.args == ("♪ Wisp is not taking snacks or gifts from you right now.",)
+    assert "view" not in call.kwargs
+
+
 async def test_picking_a_collection_shows_its_gifts_with_the_price(
     bot: app.WispBot,
 ) -> None:
@@ -1262,7 +1401,7 @@ async def test_the_last_tech_toy_completes_tech(
 ) -> None:
     (tmp_path / "gifts").mkdir()
     (tmp_path / "gifts" / "tech_arcade.gif").write_bytes(b"GIF")
-    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(art, "ASSETS_DIR", tmp_path)
     life = await lay(bot)
     assert life.id is not None
     yesterday = discord.utils.utcnow() - timedelta(days=1)
@@ -1290,17 +1429,30 @@ async def test_the_last_tech_toy_completes_tech(
     )
 
 
-@pytest.mark.parametrize("stage", [Stage.BABY, Stage.TEEN, Stage.OLD_FOGEY])
-async def test_a_kept_tv_shows_his_stages_tv_and_its_episode(
+@pytest.mark.parametrize(
+    ("stage", "show", "link"),
+    [
+        (Stage.BABY, "Llama Brain", "https://www.youtube.com/watch?v=U1jUICPWMYU"),
+        (Stage.TEEN, "Llama Brain", "https://www.youtube.com/watch?v=U1jUICPWMYU"),
+        (
+            Stage.OLD_FOGEY,
+            "Zephyrine Show",
+            "https://www.youtube.com/watch?v=51X9Rdz2PWk",
+        ),
+    ],
+)
+async def test_a_kept_tv_shows_his_stages_tv_and_its_shows_first_episode(
     bot: app.WispBot,
     server: FakeServer,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     stage: Stage,
+    show: str,
+    link: str,
 ) -> None:
     (tmp_path / "gifts").mkdir()
     (tmp_path / "gifts" / f"tech_tv_{stage.value}.png").write_bytes(b"PNG")
-    monkeypatch.setattr(gifts, "ASSETS_DIR", tmp_path)
+    monkeypatch.setattr(art, "ASSETS_DIR", tmp_path)
     await lay(bot, stage=stage)
     say(bot)
 
@@ -1309,9 +1461,13 @@ async def test_a_kept_tv_shows_his_stages_tv_and_its_episode(
     text, kwargs = house_post(server)
     assert text == (
         f"{posted(USER_ID, 'TV Shows', rules.BOND_PER_KEPT_GIFT)}\n[gift_kept]\n"
-        f"♪ Now on Wisp's TV: {rules.TV_EPISODES[stage]}"
+        f"♪ Now on Wisp's TV: {show}, episode 1\n{link}"
     )
     assert kwargs["file"].filename == f"tech_tv_{stage.value}.png"
+    life = await current_life(bot)
+    assert life.id is not None
+    (kept,) = await bot.gifts.kept(GUILD_ID, life.id)
+    assert kept.stage is stage
 
 
 async def test_a_tv_he_passes_on_shows_no_tv_and_no_episode(

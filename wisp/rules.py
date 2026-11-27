@@ -639,15 +639,42 @@ GIFT_BY_KEY: dict[str, Gift] = {
 GIFT_BY_LOOK: dict[str, Gift] = {
     gift.look(stage): gift for gift in GIFT_BY_KEY.values() for stage in Stage
 }
-# The episode on Wisp's TV at each stage, posted in his House when he keeps it.
-TV_EPISODES: dict[Stage, str] = {
-    Stage.BABY: "https://www.youtube.com/watch?v=U1jUICPWMYU",
-    Stage.CHILD: "https://www.youtube.com/watch?v=rpJkTXWM-dI",
-    Stage.TEEN: "https://www.youtube.com/shorts/XByD0w9P9lk",
-    Stage.ADULT: "https://www.youtube.com/watch?v=51X9Rdz2PWk",
-    Stage.ROCKSTAR: "https://www.youtube.com/watch?v=CtvxQ09LqUY",
-    Stage.OLD_FOGEY: "https://www.youtube.com/watch?v=7cv91dwBUo4",
-}
+
+
+@dataclass(frozen=True)
+class TvShow:
+    """One of Myra's shows on Wisp's TV, watched while he is at one of `stages`.
+
+    `episodes` are its links in order, one for each of its stages.
+    """
+
+    name: str
+    stages: tuple[Stage, ...]
+    episodes: tuple[str, ...]
+
+
+# His TV plays a show's first episode when he keeps it, then the next one each
+# time he grows; a stage of the other show starts that show at episode 1.
+TV_SHOWS: tuple[TvShow, ...] = (
+    TvShow(
+        "Llama Brain",
+        (Stage.BABY, Stage.CHILD, Stage.TEEN),
+        (
+            "https://www.youtube.com/watch?v=U1jUICPWMYU",
+            "https://www.youtube.com/watch?v=rpJkTXWM-dI",
+            "https://www.youtube.com/shorts/XByD0w9P9lk",
+        ),
+    ),
+    TvShow(
+        "Zephyrine Show",
+        (Stage.ADULT, Stage.ROCKSTAR, Stage.OLD_FOGEY),
+        (
+            "https://www.youtube.com/watch?v=51X9Rdz2PWk",
+            "https://www.youtube.com/watch?v=CtvxQ09LqUY",
+            "https://www.youtube.com/watch?v=7cv91dwBUo4",
+        ),
+    ),
+)
 COLLECTION_BY_KEY: dict[str, GiftCollection] = {
     collection.key: collection for collection in GIFT_COLLECTIONS
 }

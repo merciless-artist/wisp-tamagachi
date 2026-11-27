@@ -27,6 +27,7 @@ from cogs.share_links import ShareLinkResolver
 from cogs.studio import rules_text
 from db.activity import ActivityRepo, InteractionKind
 from db.database import Database
+from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.players import PlayerRepo
@@ -160,6 +161,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
     monkeypatch.setattr(wisp_bot, "fetch_channel", server.fetch_channel)
     yield wisp_bot

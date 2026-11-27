@@ -342,6 +342,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "favorites": {"artist": "VARCHAR(100) NULL", "title": "VARCHAR(200) NULL"},
     "interactions": {"snack": "VARCHAR(20) NULL"},
     "cravings": {"fed_at": "DATETIME NULL"},
+    "gift_attempts": {"stage": "VARCHAR(20) NULL"},
     "lives": {
         "fondness": "DOUBLE NOT NULL DEFAULT 50",
         "lonely_warned": "BOOL NOT NULL DEFAULT 0",

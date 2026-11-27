@@ -11,12 +11,20 @@ from typing import TYPE_CHECKING, Any, Final
 import discord
 import pymysql
 
-from cogs.assets import ASSETS_DIR, MoodGif, asset_image, moment_image, mood_image
+from cogs.assets import (
+    ASSETS_DIR,
+    MoodGif,
+    asset_image,
+    gift_art,
+    moment_image,
+    mood_image,
+)
 from cogs.pictures import Picture, art_kwargs, life_image, sick_image
 from cogs.speech import ai_reply, poke_view
 from cogs.studio import StudioError, studio_thread
 from db.keepsakes import Keepsake, KeepsakeKind
 from db.players import Player
+from wisp.gifts import tv_episode, tv_line
 from wisp.life import (
     Event,
     EventKind,
@@ -26,9 +34,11 @@ from wisp.life import (
     egg_after,
     is_over,
     mood,
+    skipped_stages,
 )
 from wisp.lines import FIELDS, Moment
 from wisp.rules import (
+    GIFT_BY_KEY,
     HEALTH_STRETCH,
     LAST_EMBER_GIFTS,
     LONELY_PICTURES,
@@ -66,6 +76,8 @@ _GENERAL_NEWS: Final = (
 )
 _PING_EVERYONE: Final = discord.AllowedMentions(everyone=True, users=False, roles=False)
 _GENERAL_CONTEXT: Final = "sharing Wisp's new stage in general chat"
+_TV_CONTEXT: Final = "putting the next episode on Wisp's TV"
+_GROWN: Final = frozenset({EventKind.STAGE_UP, EventKind.GREW_OLD})
 _STAGE_KEEPSAKES: Final = {
     Stage.CHILD: KeepsakeKind.FIRST_SPARK,
     Stage.TEEN: KeepsakeKind.TEEN_SPARK,
@@ -375,8 +387,9 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
     farewell gives any Last Embers and then asks staff whether to begin again;
     no egg is laid until they press the button. An ending is skipped when the
     current life is not over, which means it is stale. Hatching, each stage up
-    and growing old give a keepsake to the member who was there. A missing
-    House channel is reported once; the embers are still given.
+    and growing old give a keepsake to the member who was there, and put the
+    next episode on his TV when he kept one this life. A missing House
+    channel is reported once; the embers are still given.
     """
     if not events:
         return
@@ -398,6 +411,8 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
             await _tell_general(bot, guild_id, event)
         if (kind := _milestone(event)) is not None:
             await _give_milestone(bot, guild_id, house, life, kind)
+        if event.kind in _GROWN and event.stage is not None:
+            await _next_episode(bot, guild_id, house, life, event.stage)
         if event.kind in _ENDINGS:
             await _ask_to_begin_again(bot, guild_id, house, discord.utils.utcnow())
     if drops and not is_over(life):
@@ -407,6 +422,36 @@ async def post_events(bot: "WispBot", guild_id: int, events: list[Event]) -> Non
                 drops, settings.tracks_channel_id, settings.interaction_thread_id
             )
         )
+
+
+# ---
+# Wisp's TV
+# ---
+
+
+async def _next_episode(
+    bot: "WispBot", guild_id: int, house: _House, life: Life, stage: Stage
+) -> None:
+    """Post the episode on his TV at the `stage` he just grew into.
+
+    Only a TV kept this life plays, with the stage it was kept at known, and
+    a stage he skipped skips no episode; its picture for `stage` comes with
+    it when the art exists. A database failure
+    is reported in Wisp's House and never stops the events after it.
+    """
+    if life.id is None:
+        return
+    try:
+        kept = await bot.gifts.kept(guild_id, life.id)
+    except (pymysql.err.Error, OSError) as error:
+        await bot.report_error(bot.get_guild(guild_id), _TV_CONTEXT, error)
+        return
+    tv = next((attempt for attempt in kept if GIFT_BY_KEY[attempt.gift].grows), None)
+    if tv is None or tv.stage is None:
+        return
+    episode = tv_episode(tv.stage, stage, skipped_stages(life))
+    if episode is not None:
+        await house.say(tv_line(episode), gift_art(GIFT_BY_KEY[tv.gift], stage))
 
 
 # ---

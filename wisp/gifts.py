@@ -11,14 +11,17 @@ from wisp.rules import (
     GIFT_COLLECTIONS,
     GIFT_LIKE_CHANCE,
     GIFT_LIKE_RISE,
+    TV_SHOWS,
     Gift,
     GiftCollection,
     Stage,
+    TvShow,
 )
 
 _VOWELS = frozenset("AEIOUaeiou")
 # Letters whose names start with a vowel sound: "an L Block", "an S Block".
 _VOWEL_LETTERS = frozenset("AEFHILMNORSX")
+_STAGE_ORDER = tuple(Stage)
 
 
 class Outcome(StrEnum):
@@ -111,3 +114,42 @@ def named(gift: Gift) -> str:
     "a Red Book" or "an Arcade"; a plural title stands alone, as "TV Shows".
     """
     return gift.title if gift.plural else with_article(gift.title)
+
+
+@dataclass(frozen=True)
+class Episode:
+    """One episode on Wisp's TV: its show, its number from 1 and its link."""
+
+    show: TvShow
+    number: int
+    link: str
+
+
+def tv_episode(
+    kept_at: Stage, stage: Stage, skipped: frozenset[Stage] = frozenset()
+) -> Episode | None:
+    """The episode on his TV at `stage`, for a TV he kept at `kept_at`.
+
+    The show is the one for `stage`. It starts at episode 1 on the stage he
+    kept the TV, or on the show's first stage when he kept it during the
+    other show, and moves on one episode for each of its stages he lived in,
+    so a `skipped` stage skips no episode. None at a stage no show has, a
+    skipped one, or one before he had the TV.
+    """
+    if _STAGE_ORDER.index(stage) < _STAGE_ORDER.index(kept_at):
+        return None
+    show = next((show for show in TV_SHOWS if stage in show.stages), None)
+    if show is None or stage in skipped:
+        return None
+    lived = [each for each in show.stages if each not in skipped]
+    start = lived.index(kept_at) if kept_at in lived else 0
+    number = lived.index(stage) - start
+    return Episode(show, number + 1, show.episodes[number])
+
+
+def tv_line(episode: Episode) -> str:
+    """The House line that says what is on his TV now."""
+    return (
+        f"♪ Now on Wisp's TV: {episode.show.name}, episode {episode.number}\n"
+        f"{episode.link}"
+    )

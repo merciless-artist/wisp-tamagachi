@@ -2556,6 +2556,8 @@ def test_snack_pack_and_vault_hang_off_the_wisp_group() -> None:
     assert groups.wisp.get_command("snackpack") is snacks.wisp_snackpack
     assert groups.wisp.get_command("feed") is snacks.wisp_feed
     assert groups.wisp.get_command("vault") is snacks.wisp_vault
+    assert groups.wisp.get_command("gift") is snacks.wisp_gift
+    assert isinstance(snacks.wisp_gift, app_commands.Command)
     assert isinstance(snacks.wisp_snackpack, app_commands.Command)
     assert isinstance(snacks.wisp_vault, app_commands.Command)
 
@@ -2565,6 +2567,7 @@ def test_the_commands_say_what_they_do() -> None:
     assert snacks.wisp_vault.description == (
         "Buy snacks and gifts for Wisp in the ViiBR Vault."
     )
+    assert snacks.wisp_gift.description == "Give Wisp a gift from the ViiBR Vault."
 
 
 def test_snacks_is_a_loaded_extension() -> None:

@@ -38,6 +38,7 @@ from cogs.pictures import life_image
 from db.activity import ActivityRepo, InteractionKind
 from db.badges import BadgeRepo
 from db.database import Database
+from db.gifts import GiftRepo
 from db.keepsakes import KeepsakeRepo
 from db.lives import LifeRepo
 from db.notes import NoteRepo
@@ -132,6 +133,7 @@ def bot(
     wisp_bot.players = PlayerRepo(db)
     wisp_bot.activity_log = ActivityRepo(db)
     wisp_bot.keepsakes = KeepsakeRepo(db)
+    wisp_bot.gifts = GiftRepo(db)
     wisp_bot.badges = BadgeRepo(db)
     wisp_bot.notes = NoteRepo(db)
     monkeypatch.setattr(wisp_bot, "get_guild", lambda _id: server.guild)
@@ -1140,9 +1142,11 @@ async def test_last_ember_goodbye_uses_ai_then_falls_back(
 # ---
 
 
-async def growing_life(bot: app.WispBot, *, hatched_by: int | None = None) -> Life:
-    """A living Wisp v1 whose egg was filled by `hatched_by`."""
-    life = new_egg(1, discord.utils.utcnow() - timedelta(days=3))
+async def growing_life(
+    bot: app.WispBot, *, hatched_by: int | None = None, version: int = 1
+) -> Life:
+    """A living Wisp, v1 unless `version` says, whose egg `hatched_by` filled."""
+    life = new_egg(version, discord.utils.utcnow() - timedelta(days=3))
     life.phase = Phase.ALIVE
     life.health = 80.0
     life.stage = life.peak_stage = Stage.BABY
@@ -1524,6 +1528,133 @@ async def test_growing_old_gives_the_time_piece(
     assert keepsake_said(won.args[0], f"<@{NAMELESS}>", title)
     assert won.kwargs["file"].filename == "time_piece.png"
     assert await embers(bot, NAMELESS) == [title]
+
+
+async def kept_tv(bot: app.WispBot, life: Life, stage: Stage | None) -> None:
+    assert life.id is not None
+    await bot.gifts.record(
+        GUILD_ID,
+        life.id,
+        NAMED,
+        "tech_tv",
+        True,
+        discord.utils.utcnow(),
+        stage=stage,
+    )
+
+
+async def test_growing_puts_the_next_episode_on_a_kept_tv(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    add_image(assets, "gifts", "tech_tv_teen")
+    life = await growing_life(bot)
+    await kept_tv(bot, life, Stage.CHILD)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.TEEN)])
+
+    grew, tv = server.house.send.await_args_list
+    assert said(grew.args[0], Moment.STAGE_UP, stage="teen")
+    assert tv.args[0] == (
+        "♪ Now on Wisp's TV: Llama Brain, episode 2\n"
+        "https://www.youtube.com/watch?v=rpJkTXWM-dI"
+    )
+    assert tv.kwargs["file"].filename == "tech_tv_teen.png"
+    assert sends_without_pinging(tv.kwargs)
+
+
+@pytest.mark.parametrize(
+    ("peak", "number", "link"),
+    [
+        (Stage.ROCKSTAR, 3, "https://www.youtube.com/watch?v=7cv91dwBUo4"),
+        (Stage.ADULT, 2, "https://www.youtube.com/watch?v=CtvxQ09LqUY"),
+    ],
+)
+async def test_growing_old_plays_the_next_episode_even_after_skipping_rockstar(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    peak: Stage,
+    number: int,
+    link: str,
+) -> None:
+    life = await growing_life(bot)
+    life.stage = Stage.OLD_FOGEY
+    life.peak_stage = peak
+    await bot.lives.save(GUILD_ID, life)
+    await kept_tv(bot, life, Stage.ADULT)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.GREW_OLD, Stage.OLD_FOGEY)])
+
+    _old, tv = server.house.send.await_args_list
+    assert tv.args[0] == (
+        f"♪ Now on Wisp's TV: Zephyrine Show, episode {number}\n{link}"
+    )
+    assert "file" not in tv.kwargs
+
+
+@pytest.mark.parametrize("given", ["none", "passed", "no_stage", "other_gift"])
+async def test_growing_puts_nothing_on_without_a_kept_tv(
+    bot: app.WispBot, server: FakeServer, assets: Path, given: str
+) -> None:
+    life = await growing_life(bot)
+    assert life.id is not None
+    now = discord.utils.utcnow()
+    match given:
+        case "passed":
+            await bot.gifts.record(
+                GUILD_ID, life.id, NAMED, "tech_tv", False, now, stage=Stage.BABY
+            )
+        case "no_stage":
+            await kept_tv(bot, life, None)
+        case "other_gift":
+            await bot.gifts.record(
+                GUILD_ID, life.id, NAMED, "tech_arcade", True, now, stage=Stage.BABY
+            )
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.CHILD)])
+
+    assert server.house.send.await_count == 1
+
+
+async def test_a_tv_kept_in_an_earlier_life_plays_nothing(
+    bot: app.WispBot, server: FakeServer, assets: Path
+) -> None:
+    earlier = await growing_life(bot)
+    await kept_tv(bot, earlier, Stage.BABY)
+    await growing_life(bot, version=2)
+
+    await post_events(bot, GUILD_ID, [Event(EventKind.STAGE_UP, Stage.CHILD)])
+
+    assert server.house.send.await_count == 1
+
+
+async def test_a_database_failure_on_the_tv_is_reported_and_events_go_on(
+    bot: app.WispBot,
+    server: FakeServer,
+    assets: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await growing_life(bot)
+    monkeypatch.setattr(
+        bot.gifts, "kept", AsyncMock(side_effect=pymysql.err.OperationalError(2013))
+    )
+    report = AsyncMock()
+    monkeypatch.setattr(bot, "report_error", report)
+
+    await post_events(
+        bot,
+        GUILD_ID,
+        [
+            Event(EventKind.STAGE_UP, Stage.CHILD),
+            Event(EventKind.STAGE_UP, Stage.TEEN),
+        ],
+    )
+
+    assert server.house.send.await_count == 2
+    assert [call.args[1] for call in report.await_args_list] == [
+        "putting the next episode on Wisp's TV",
+        "putting the next episode on Wisp's TV",
+    ]
 
 
 async def test_a_milestone_with_nobody_there_gives_nothing(

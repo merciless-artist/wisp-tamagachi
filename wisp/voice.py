@@ -47,6 +47,7 @@ from wisp.rules import (
     POKE_STARTLED_WEIGHT,
     POKE_TICKLED_WEIGHT,
     SNACK_BY_KEY,
+    TV_SHOWS,
     Chore,
     Stage,
     badge_name,
@@ -681,6 +682,7 @@ _STAGE_NUMBERS: Final = {
     Stage.ROCKSTAR: "fifth",
     Stage.OLD_FOGEY: "sixth",
 }
+_SHOWS: Final = " and ".join(show.name for show in TV_SHOWS)
 _THINGS_YOU_KNOW: Final = (
     "Things you know: You hatched from an egg, and you are on your {number} "
     "stage of life. The server is named ViiBR Music. The ViiBR administrators "
@@ -689,6 +691,9 @@ _THINGS_YOU_KNOW: Final = (
     "supermodel singer. Angel reads tarot cards. Tyro is a developer and loves "
     "cheese. Cat has a character persona AI called Lang who is an autonomous "
     "AI agent.\n"
+    f"Your favorite shows are ones Cat made: {_SHOWS}. They play on the TV "
+    "people can give you. You love them, but you only know their names, so "
+    "never make up what happens in them.\n"
     "There is a separate ViiBR Music website where people can keep their "
     "discography, plan listen parties and participate in contests, plus more.\n"
     "Your ViiBR Music profile is [Wisp on ViiBR](https://viibrmusic.com/"

@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-27 (/wisp gift, Wisp's TV in order, his favorite shows)
+
+- **/wisp gift:** shows only the Vault's Gifts, privately, with the same two
+  menus, so nobody has to scroll past the snacks to find them.
+- **TV episodes in order:** each stage had one fixed episode, so a TV first
+  kept as a Child played Llama Brain episode 2 and he never saw episode 1.
+  `TV_SHOWS` in `wisp/rules.py` now holds Myra's two shows: Llama Brain for
+  Baby, Child and Teen, and the Zephyrine Show for Adult, Rockstar and Old
+  Fogey. A kept TV plays episode 1 of his stage's show; each time he grows,
+  the House gets the next episode with that stage's TV picture, and growing
+  into the grown-up show starts it at episode 1. An Adult who grows old
+  without being a Rockstar skips no episode (`skipped_stages` in
+  `wisp/life.py`). Gift attempts now store the
+  stage he was at (`gift_attempts.stage`). The line names the show and
+  episode over the link.
+- **Live fix:** Myra's TV kept today as a Child played episode 2, so the
+  keep was undone by hand: the attempt and its interaction were removed, the
+  15 WC refunded and the 5 bond taken back (backup in
+  `RECYCLING/tv_gift_undo_2026-11-27.json`). The TV is back in the Vault.
+- **Favorite shows:** Wisp knows (from Teen on) that his favorite shows are
+  Cat's Llama Brain and Zephyrine Show, by name only (from `TV_SHOWS`), and
+  never makes up what happens in them.
+
 ## 2026-11-27 (Starter coins)
 
 - **Starter coins:** coins were scarce (the newest players had 0 to 17 WC, and

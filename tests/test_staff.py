@@ -1234,6 +1234,7 @@ def test_the_members_slash_commands_are_still_registered() -> None:
 
     assert names == {
         "wisp vault",
+        "wisp gift",
         "wisp snackpack",
         "wisp board",
         "wisp lunchbox",
